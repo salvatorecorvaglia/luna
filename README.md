@@ -1,94 +1,111 @@
-# Lunar
+# Lunar 🌙
 
-A modern SSH terminal and SFTP file manager built with Electron.
+> **A Premium SSH Terminal & SFTP File Manager for the Modern Developer.**
 
-Lunar lets you manage multiple SSH connections, open concurrent terminal sessions with split panes, and transfer files through a dual-pane SFTP browser — all from a single desktop app.
+Lunar is a high-performance, cross-platform desktop application designed to streamline your remote server workflows. Combining a powerful terminal with an intuitive dual-pane SFTP browser, Lunar offers a seamless bridge between your local environment and remote infrastructure.
 
-## Features
+[![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Electron](https://img.shields.io/badge/Electron-v31.x-blue)](https://www.electronjs.org/)
+[![React](https://img.shields.io/badge/React-v18.x-61dafb)](https://reactjs.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4.0-38b2ac)](https://tailwindcss.com/)
 
-- **SSH Terminal** — Multiple concurrent sessions powered by xterm.js with WebGL rendering, tabs, and horizontal/vertical split panes
-- **SFTP File Manager** — Dual-pane browser (local + remote) with drag-and-drop transfers, file preview, and a concurrent transfer queue
-- **Connection Manager** — Save connections with password or SSH key authentication, organize into folders, assign color tags, and configure startup commands
-- **Command Palette** — Quick access to all actions via `Cmd+K` / `Ctrl+K`
-- **Terminal Themes** — Dracula, Nord, and Tokyo Night built-in
-- **Auto-Reconnect** — Automatic reconnection with exponential backoff on dropped connections
-- **Auto-Update** — Built-in update mechanism via GitHub releases
-- **Secure Credential Storage** — Passwords and passphrases stored securely, separate from the connection database
-- **Cross-Platform** — macOS, Windows, and Linux
+---
 
-## Getting Started
+## ✨ Key Features
+
+### 💻 Advanced SSH Terminal
+
+- **High Performance**: Powered by **xterm.js** with **WebGL rendering** for buttery-smooth scrolling and zero-lag input.
+- **Multi-Session Management**: Organize your work with tabs and multi-pane splits (horizontal/vertical).
+- **Theming**: Built-in professional themes including Dracula, Nord, and Tokyo Night.
+- **Resilient**: Automatic reconnection with exponential backoff ensures you never lose progress.
+
+### 📁 Integrated SFTP Browser
+
+- **Dual-Pane Workflow**: Effortlessly transfer files between local and remote systems.
+- **Drag & Drop**: Seamlessly move files into the cloud or down to your machine.
+- **Queue Management**: Concurrent transfer engine with real-time progress monitoring.
+- **Secure**: Integrated preview for configuration files without leaving the app.
+
+### 🛠️ Developer-First Tools
+
+- **Command Palette**: Access every action instantly with `Cmd+K` (macOS) or `Ctrl+K` (Linux/Windows).
+- **Connection Manager**: Securely store connections with password or SSH key auth. Organize via folders and color-coded tags.
+- **Auto-Update**: Always stay on the latest version with integrated GitHub-based updates.
+- **Security First**: Passwords and passphrases are stored in the system's secure keychain, separate from the metadata database.
+
+---
+
+## 🚀 Getting Started
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (v18+)
-- npm
+- [Node.js](https://nodejs.org/) (v18 or higher)
+- [npm](https://www.npmjs.com/)
 
-### Install
+### Installation
 
 ```bash
+# Clone the repository
+git clone https://github.com/salvatorecorvaglia/lunar.git
+
+# Install dependencies
 npm install
 ```
 
 ### Development
 
 ```bash
+# Start the application with HMR
 npm run dev
 ```
 
-This starts the Electron app with hot module replacement for the renderer process.
+---
 
-### Build
+## 🛠️ Tech Stack
 
-```bash
-# Build only (no packaging)
-npm run build
+| Layer             | Technology                                             |
+| :---------------- | :----------------------------------------------------- |
+| **Framework**     | Electron + [electron-vite](https://electron-vite.org/) |
+| **Renderer**      | React 18 + TypeScript                                  |
+| **Styling**       | Tailwind CSS v4 + Framer Motion                        |
+| **Terminal**      | xterm.js + WebGL                                       |
+| **Protocol**      | ssh2 (SSH/SFTP)                                        |
+| **Database**      | better-sqlite3 (WAL mode)                              |
+| **State**         | Zustand + React Query                                  |
+| **UI Components** | Lucide React + CMDK + Sonner                           |
 
-# Package for distribution
-npm run dist:mac
-npm run dist:win
-npm run dist:linux
-```
+---
 
-### Type Checking
+## 🧪 Quality & Distribution
 
-```bash
-npm run typecheck          # Both main and renderer
-npm run typecheck:node     # Main + preload only
-npm run typecheck:web      # Renderer only
-```
-
-### Testing
+### Testing & Linting
 
 ```bash
-npm run test               # Run all tests
-npm run test:watch         # Run tests in watch mode
-npm run test:coverage      # Run tests with coverage report
+npm run test           # Execute Vitest suite
+npm run typecheck      # Run TypeScript compiler checks
+npm run lint           # Static analysis with ESLint
 ```
 
-### Formatting & Linting
+### Distribution
+
+Build production-ready installers for all major platforms:
 
 ```bash
-npm run lint               # Run ESLint
-npm run format             # Format code with Prettier
+npm run dist:mac       # Apple Silicon & Intel (dmg)
+npm run dist:win       # Windows (nsis setup)
+npm run dist:linux     # Linux (AppImage & deb)
 ```
 
-## Tech Stack
+---
 
-| Layer         | Technology                 |
-| ------------- | -------------------------- |
-| Framework     | Electron + electron-vite   |
-| Renderer      | React 18, Tailwind CSS v4  |
-| UI Components | Lucide React, CMDK, Sonner |
-| Terminal      | xterm.js (WebGL addon)     |
-| SSH/SFTP      | ssh2                       |
-| Database      | better-sqlite3 (WAL mode)  |
-| State         | Zustand                    |
-| Data Fetching | TanStack React Query       |
-| Animations    | Framer Motion              |
-| Packaging     | electron-builder           |
-| Testing       | Vitest, Testing Library    |
+## 📝 License
 
-## 📝 Author
+Distributed under the MIT License. See `LICENSE` for more information.
+
+---
+
+## 👤 Author
 
 **Salvatore Corvaglia**
 
