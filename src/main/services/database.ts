@@ -115,7 +115,6 @@ function getMigrations(): { name: string; sql: string }[] {
         );
 
         INSERT OR IGNORE INTO settings (key, value) VALUES
-          ('theme', '"dark"'),
           ('terminal.fontFamily', '"JetBrains Mono, Menlo, Consolas, monospace"'),
           ('terminal.fontSize', '14'),
           ('terminal.theme', '"dracula"'),
@@ -157,6 +156,17 @@ function getMigrations(): { name: string; sql: string }[] {
           encrypted_data BLOB NOT NULL
         );
       `
+    },
+    {
+      name: '005_ui_apply_terminal_theme',
+      sql: `
+        INSERT OR IGNORE INTO settings (key, value) VALUES
+          ('ui.applyTerminalTheme', 'true');
+      `
+    },
+    {
+      name: '006_remove_app_theme',
+      sql: `DELETE FROM settings WHERE key = 'theme';`
     }
   ]
 }

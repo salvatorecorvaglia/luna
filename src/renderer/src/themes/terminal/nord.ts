@@ -1,4 +1,12 @@
 import type { ITheme } from '@xterm/xterm'
+import type { UIThemeTokens } from '../ui-from-terminal'
+
+export const nordUIOverrides: Partial<UIThemeTokens> = {
+  primary: '#88c0d0',
+  ring: '#88c0d0',
+  'sidebar-primary': '#88c0d0',
+  'sidebar-ring': '#88c0d0'
+}
 
 export const nordTheme: ITheme = {
   background: '#2e3440',

@@ -11,12 +11,19 @@ import { SettingsPanel } from '@/components/common/SettingsPanel'
 import { TerminalView } from '@/components/terminal/TerminalView'
 import { SftpManager } from '@/components/sftp/SftpManager'
 import { useTransferEventListener } from '@/hooks/use-transfers'
+import { applyUIThemeTokens, buildUIThemeTokens } from '@/themes/ui-from-terminal'
 
 export default function App() {
-  const theme = useUIStore((s) => s.theme)
   const activeView = useUIStore((s) => s.activeView)
   const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen)
+  const applyTerminalThemeToUI = useUIStore((s) => s.applyTerminalThemeToUI)
   const tabOrder = useTerminalStore((s) => s.tabOrder)
+  const terminalTheme = useTerminalStore((s) => s.terminalTheme)
+
+  // Apply terminal palette to UI tokens when toggled on
+  useEffect(() => {
+    applyUIThemeTokens(applyTerminalThemeToUI ? buildUIThemeTokens(terminalTheme) : null)
+  }, [applyTerminalThemeToUI, terminalTheme])
 
   // Wire IPC transfer events into the Zustand store
   useTransferEventListener()
@@ -79,7 +86,7 @@ export default function App() {
       <SettingsPanel />
 
       <Toaster
-        theme={theme}
+        theme="dark"
         position="bottom-right"
         toastOptions={{
           className: 'text-sm'

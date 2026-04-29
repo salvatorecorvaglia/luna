@@ -1,5 +1,4 @@
 export interface AppSettings {
-  theme: 'dark' | 'light'
   'terminal.fontFamily': string
   'terminal.fontSize': number
   'terminal.theme': string
@@ -9,10 +8,10 @@ export interface AppSettings {
   'ssh.keepAliveInterval': number
   'ssh.maxReconnectAttempts': number
   'ssh.readyTimeout': number
+  'ui.applyTerminalTheme': boolean
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  theme: 'dark',
   'terminal.fontFamily': 'JetBrains Mono, Menlo, Consolas, monospace',
   'terminal.fontSize': 14,
   'terminal.theme': 'dracula',
@@ -21,5 +20,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   'ssh.autoReconnect': true,
   'ssh.keepAliveInterval': 10000,
   'ssh.maxReconnectAttempts': 5,
-  'ssh.readyTimeout': 30000
+  'ssh.readyTimeout': 30000,
+  'ui.applyTerminalTheme': true
 }

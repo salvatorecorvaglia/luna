@@ -1,4 +1,12 @@
 import type { ITheme } from '@xterm/xterm'
+import type { UIThemeTokens } from '../ui-from-terminal'
+
+export const draculaUIOverrides: Partial<UIThemeTokens> = {
+  primary: '#bd93f9',
+  ring: '#bd93f9',
+  'sidebar-primary': '#bd93f9',
+  'sidebar-ring': '#bd93f9'
+}
 
 export const draculaTheme: ITheme = {
   background: '#282a36',

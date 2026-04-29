@@ -4,8 +4,6 @@ import {
   Maximize2,
   Minimize2,
   X,
-  Moon,
-  Sun,
   Terminal,
   FolderOpen,
   PanelLeft
@@ -15,8 +13,6 @@ import { useUIStore } from '@/stores/ui-store'
 
 export function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false)
-  const theme = useUIStore((s) => s.theme)
-  const toggleTheme = useUIStore((s) => s.toggleTheme)
   const activeView = useUIStore((s) => s.activeView)
   const setActiveView = useUIStore((s) => s.setActiveView)
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
@@ -81,17 +77,8 @@ export function TitleBar() {
       {/* Center: drag region */}
       <div className="flex-1" />
 
-      {/* Right: theme toggle + window controls */}
+      {/* Right: window controls */}
       <div className="no-drag flex items-center gap-0.5">
-        <button
-          onClick={toggleTheme}
-          className="btn-icon"
-          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-          aria-label="Toggle theme"
-        >
-          {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-        </button>
-
         {!isMac && (
           <>
             <div className="mx-1.5 h-3.5 w-px bg-border/60" />

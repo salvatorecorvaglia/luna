@@ -1,4 +1,12 @@
 import type { ITheme } from '@xterm/xterm'
+import type { UIThemeTokens } from '../ui-from-terminal'
+
+export const tokyoNightUIOverrides: Partial<UIThemeTokens> = {
+  primary: '#7aa2f7',
+  ring: '#7aa2f7',
+  'sidebar-primary': '#7aa2f7',
+  'sidebar-ring': '#7aa2f7'
+}
 
 export const tokyoNightTheme: ITheme = {
   background: '#1a1b26',

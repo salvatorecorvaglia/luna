@@ -6,8 +6,6 @@ import {
   FolderOpen,
   Plus,
   Settings,
-  Moon,
-  Sun,
   PanelLeft,
   Palette,
   Server,
@@ -63,8 +61,6 @@ export function CommandPalette() {
     setCommandPaletteOpen,
     setActiveView,
     toggleSidebar,
-    theme,
-    setTheme,
     setSettingsOpen
   } = useUIStore()
   const { setTerminalTheme, activeTabId, tabOrder, setActiveTab, closeTab } = useTerminalStore()
@@ -120,19 +116,6 @@ export function CommandPalette() {
         action: toggleSidebar,
         keywords: ['panel', 'hide', 'show'],
         shortcut: [MOD, 'B']
-      },
-      {
-        id: 'toggle-theme',
-        label: theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode',
-        icon:
-          theme === 'dark' ? (
-            <Sun className="h-4 w-4" aria-hidden="true" />
-          ) : (
-            <Moon className="h-4 w-4" aria-hidden="true" />
-          ),
-        category: 'Interface',
-        action: () => setTheme(theme === 'dark' ? 'light' : 'dark'),
-        keywords: ['theme', 'dark', 'light', 'mode']
       },
       {
         id: 'theme-dracula',
@@ -249,11 +232,9 @@ export function CommandPalette() {
     return cmds
   }, [
     connections,
-    theme,
     openCreateForm,
     setActiveView,
     toggleSidebar,
-    setTheme,
     setSettingsOpen,
     setTerminalTheme,
     toggleHiddenFiles,

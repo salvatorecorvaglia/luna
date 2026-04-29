@@ -1,6 +1,26 @@
 import { create } from 'zustand'
 import type { PaneNode, SessionStatus, TerminalThemeName } from '@shared/types/terminal'
 
+const VALID_THEMES: TerminalThemeName[] = [
+  'dracula',
+  'nord',
+  'tokyo-night',
+  'solarized-dark',
+  'gruvbox',
+  'one-dark',
+  'monokai'
+]
+
+function getInitialTerminalTheme(): TerminalThemeName {
+  try {
+    const saved = localStorage.getItem('lunar-terminal-theme')
+    if (saved && (VALID_THEMES as string[]).includes(saved)) return saved as TerminalThemeName
+  } catch {
+    // localStorage may be unavailable
+  }
+  return 'dracula'
+}
+
 export interface TerminalSession {
   id: string
   connectionId: string
@@ -38,7 +58,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   tabOrder: [],
   activeTabId: null,
   splitTree: null,
-  terminalTheme: 'dracula',
+  terminalTheme: getInitialTerminalTheme(),
   fontSize: 14,
   scrollback: 10000,
 
@@ -89,7 +109,15 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
 
   setSplitTree: (tree) => set({ splitTree: tree }),
 
-  setTerminalTheme: (theme) => set({ terminalTheme: theme }),
+  setTerminalTheme: (theme) => {
+    try {
+      localStorage.setItem('lunar-terminal-theme', theme)
+    } catch {
+      // localStorage may be unavailable
+    }
+    window.api.settings.set('terminal.theme', JSON.stringify(theme))
+    set({ terminalTheme: theme })
+  },
   setFontSize: (size) => set({ fontSize: size }),
   setScrollback: (lines) => set({ scrollback: lines }),
 

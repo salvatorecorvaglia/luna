@@ -1,4 +1,14 @@
 import type { ITheme } from '@xterm/xterm'
+import type { UIThemeTokens } from '../ui-from-terminal'
+
+export const gruvboxUIOverrides: Partial<UIThemeTokens> = {
+  primary: '#fabd2f',
+  ring: '#fabd2f',
+  'sidebar-primary': '#fabd2f',
+  'sidebar-ring': '#fabd2f',
+  'primary-foreground': '#282828',
+  'sidebar-primary-foreground': '#282828'
+}
 
 export const gruvboxTheme: ITheme = {
   background: '#282828',

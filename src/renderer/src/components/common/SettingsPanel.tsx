@@ -7,8 +7,6 @@ import {
   Upload,
   Download,
   Wifi,
-  Moon,
-  Sun,
   Info,
   Database,
   FileText
@@ -49,7 +47,10 @@ const panelVariants = {
 }
 
 export function SettingsPanel() {
-  const { settingsOpen, setSettingsOpen, theme, setTheme } = useUIStore()
+  const settingsOpen = useUIStore((s) => s.settingsOpen)
+  const setSettingsOpen = useUIStore((s) => s.setSettingsOpen)
+  const applyTerminalThemeToUI = useUIStore((s) => s.applyTerminalThemeToUI)
+  const setApplyTerminalThemeToUI = useUIStore((s) => s.setApplyTerminalThemeToUI)
   const { terminalTheme, setTerminalTheme, fontSize, setFontSize, scrollback, setScrollback } =
     useTerminalStore()
   const [concurrency, setConcurrency] = useState(DEFAULT_SETTINGS['transfer.concurrency'])
@@ -71,8 +72,11 @@ export function SettingsPanel() {
         setAutoReconnect(Boolean(settings['ssh.autoReconnect']))
       if (settings['ssh.readyTimeout'] != null)
         setReadyTimeout(Number(settings['ssh.readyTimeout']) / 1000)
+      if (settings['ui.applyTerminalTheme'] != null) {
+        setApplyTerminalThemeToUI(Boolean(settings['ui.applyTerminalTheme']))
+      }
     })
-  }, [settingsOpen, setFontSize, setScrollback])
+  }, [settingsOpen, setFontSize, setScrollback, setApplyTerminalThemeToUI])
 
   const persistSetting = useCallback((key: string, value: unknown) => {
     window.api.settings.set(key, JSON.stringify(value))
@@ -151,37 +155,11 @@ export function SettingsPanel() {
             <div className="flex-1 overflow-y-auto p-5 space-y-6">
               {/* Appearance */}
               <Section title="Appearance" icon={<Monitor className="h-4 w-4" />}>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-2.5 block">
-                    App Theme
-                  </label>
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <ThemeCard
-                      active={theme === 'dark'}
-                      onClick={() => setTheme('dark')}
-                      icon={<Moon className="h-4 w-4" />}
-                      label="Dark"
-                      preview={
-                        <div className="rounded-md bg-[hsl(240,10%,3.9%)] border border-white/10 p-2">
-                          <div className="h-1.5 w-10 rounded-full bg-white/60" />
-                          <div className="mt-1 h-1.5 w-7 rounded-full bg-white/30" />
-                        </div>
-                      }
-                    />
-                    <ThemeCard
-                      active={theme === 'light'}
-                      onClick={() => setTheme('light')}
-                      icon={<Sun className="h-4 w-4" />}
-                      label="Light"
-                      preview={
-                        <div className="rounded-md bg-white border border-black/10 p-2">
-                          <div className="h-1.5 w-10 rounded-full bg-black/60" />
-                          <div className="mt-1 h-1.5 w-7 rounded-full bg-black/20" />
-                        </div>
-                      }
-                    />
-                  </div>
-                </div>
+                <ToggleRow
+                  label="Apply terminal theme to UI"
+                  enabled={applyTerminalThemeToUI}
+                  onToggle={setApplyTerminalThemeToUI}
+                />
               </Section>
 
               {/* Terminal */}
@@ -387,38 +365,6 @@ function Section({
       </div>
       <div className="space-y-3 pl-6">{children}</div>
     </div>
-  )
-}
-
-function ThemeCard({
-  active,
-  onClick,
-  icon,
-  label,
-  preview
-}: {
-  active: boolean
-  onClick: () => void
-  icon: React.ReactNode
-  label: string
-  preview: React.ReactNode
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'flex flex-col items-center gap-2.5 rounded-lg border p-3 cursor-pointer',
-        active
-          ? 'border-ring bg-accent shadow-xs'
-          : 'border-border text-muted-foreground hover:border-ring/50 hover:bg-accent/40'
-      )}
-    >
-      {preview}
-      <div className="flex items-center gap-1.5 text-sm font-medium">
-        {icon}
-        {label}
-      </div>
-    </button>
   )
 }
 

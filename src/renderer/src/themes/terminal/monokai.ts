@@ -1,4 +1,14 @@
 import type { ITheme } from '@xterm/xterm'
+import type { UIThemeTokens } from '../ui-from-terminal'
+
+export const monokaiUIOverrides: Partial<UIThemeTokens> = {
+  primary: '#a6e22e',
+  ring: '#a6e22e',
+  'sidebar-primary': '#a6e22e',
+  'sidebar-ring': '#a6e22e',
+  'primary-foreground': '#272822',
+  'sidebar-primary-foreground': '#272822'
+}
 
 export const monokaiTheme: ITheme = {
   background: '#272822',

@@ -1,4 +1,14 @@
 import type { ITheme } from '@xterm/xterm'
+import type { UIThemeTokens } from '../ui-from-terminal'
+
+export const solarizedDarkUIOverrides: Partial<UIThemeTokens> = {
+  primary: '#268bd2',
+  ring: '#268bd2',
+  'sidebar-primary': '#268bd2',
+  'sidebar-ring': '#268bd2',
+  foreground: '#93a1a1',
+  'sidebar-foreground': '#93a1a1'
+}
 
 export const solarizedDarkTheme: ITheme = {
   background: '#002b36',
