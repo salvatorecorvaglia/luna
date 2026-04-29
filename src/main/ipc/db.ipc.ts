@@ -11,6 +11,7 @@ import type {
   ExportedConnection
 } from '@shared/types/connection'
 import { storeCredential, deleteCredential } from '../services/credential-store'
+import { sanitizeStartupCommand } from '../lib/validate'
 
 function rowToConnection(row: ConnectionRow): Connection {
   return {
@@ -56,6 +57,7 @@ export function registerDbHandlers(): void {
 
     const id = uuidv4()
     const now = Math.floor(Date.now() / 1000)
+    const startupCommand = sanitizeStartupCommand(input.startupCommand)
 
     db.prepare(
       `
@@ -72,7 +74,7 @@ export function registerDbHandlers(): void {
       input.privateKeyPath || null,
       input.folder || 'default',
       input.colorTag || null,
-      input.startupCommand || null,
+      startupCommand,
       now,
       now
     )
@@ -135,7 +137,7 @@ export function registerDbHandlers(): void {
     }
     if (input.startupCommand !== undefined) {
       fields.push('startup_command = ?')
-      values.push(input.startupCommand || null)
+      values.push(sanitizeStartupCommand(input.startupCommand))
     }
 
     values.push(input.id)
@@ -186,6 +188,14 @@ export function registerDbHandlers(): void {
     for (const conn of connections) {
       if (!conn.name || !conn.host || !conn.username) continue
       if (findExisting.get(conn.name, conn.host, conn.username)) continue
+      let safeStartupCommand: string | null
+      try {
+        safeStartupCommand = sanitizeStartupCommand(conn.startupCommand)
+      } catch {
+        // Imported records with malformed startup commands are skipped rather
+        // than aborting the whole import.
+        continue
+      }
       const id = uuidv4()
       const now = Math.floor(Date.now() / 1000)
       insert.run(
@@ -198,7 +208,7 @@ export function registerDbHandlers(): void {
         conn.privateKeyPath || null,
         conn.folder || 'default',
         conn.colorTag || null,
-        conn.startupCommand || null,
+        safeStartupCommand,
         now,
         now
       )
@@ -218,7 +228,14 @@ export function registerDbHandlers(): void {
     })
     if (result.canceled || result.filePaths.length === 0) return -1
 
-    const content = await readFile(result.filePaths[0], 'utf-8')
+    const path = result.filePaths[0]
+    const { stat } = await import('fs/promises')
+    const stats = await stat(path)
+    const MAX_IMPORT_BYTES = 5 * 1024 * 1024 // 5 MB — large enough for thousands of records
+    if (stats.size > MAX_IMPORT_BYTES) {
+      throw new Error(`Import file is too large: ${stats.size} bytes (max ${MAX_IMPORT_BYTES})`)
+    }
+    const content = await readFile(path, 'utf-8')
     const connections = JSON.parse(content) as ExportedConnection[]
     return importConnections(connections)
   })

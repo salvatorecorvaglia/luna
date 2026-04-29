@@ -4,6 +4,15 @@ import log from '../lib/logger'
 
 let updateAvailable = false
 let updateVersion = ''
+let inFlightCheck: Promise<unknown> | null = null
+
+function checkOnce(): Promise<unknown> {
+  if (inFlightCheck) return inFlightCheck
+  inFlightCheck = autoUpdater.checkForUpdates().finally(() => {
+    inFlightCheck = null
+  })
+  return inFlightCheck
+}
 
 export function initAutoUpdater(): void {
   autoUpdater.autoDownload = false
@@ -36,15 +45,17 @@ export function initAutoUpdater(): void {
 
   // Check for updates after a short delay
   setTimeout(() => {
-    autoUpdater.checkForUpdates().catch((err) => {
-      log.warn('[Updater] Initial check failed:', err?.message ?? err)
+    checkOnce().catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err)
+      log.warn('[Updater] Initial check failed:', msg)
     })
   }, 5000)
 }
 
 export function checkForUpdate(): { available: boolean; version?: string } {
-  autoUpdater.checkForUpdates().catch((err) => {
-    log.warn('[Updater] Manual check failed:', err?.message ?? err)
+  checkOnce().catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err)
+    log.warn('[Updater] Manual check failed:', msg)
   })
   return { available: updateAvailable, version: updateVersion || undefined }
 }

@@ -309,8 +309,8 @@ export function FileList({
             const row = (
               <div
                 key={entry.name}
-                role="button"
-                tabIndex={0}
+                role="option"
+                tabIndex={focusedIndex === virtualRow.index ? 0 : -1}
                 style={{
                   position: 'absolute',
                   top: 0,

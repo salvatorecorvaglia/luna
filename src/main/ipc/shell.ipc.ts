@@ -1,18 +1,24 @@
 import { ipcMain, dialog } from 'electron'
 import { readdir, stat, lstat, writeFile } from 'fs/promises'
-import { join, basename } from 'path'
+import { join, basename, resolve, isAbsolute } from 'path'
 import { homedir } from 'os'
 import { IPC } from '@shared/constants'
+import { assertValidPath } from '../lib/validate'
 import type { LocalFileEntry } from '@shared/types/sftp'
 
 export function registerShellHandlers(): void {
   ipcMain.handle(IPC.SHELL_READDIR, async (_event, dirPath: string) => {
-    const entries = await readdir(dirPath, { withFileTypes: true })
+    assertValidPath(dirPath, 'dirPath')
+    if (!isAbsolute(dirPath)) {
+      throw new Error('dirPath must be absolute')
+    }
+    const normalized = resolve(dirPath)
+    const entries = await readdir(normalized, { withFileTypes: true })
     const results: LocalFileEntry[] = []
 
     for (const entry of entries) {
       // Skip hidden files starting with .
-      const fullPath = join(dirPath, entry.name)
+      const fullPath = join(normalized, entry.name)
       try {
         const stats = await (entry.isSymbolicLink() ? stat(fullPath) : lstat(fullPath))
         results.push({
@@ -72,6 +78,14 @@ export function registerShellHandlers(): void {
 
       if (result.canceled || !result.filePath) return null
 
+      // Cap content size so a misbehaving renderer can't write arbitrarily large files.
+      const MAX_BYTES = 50 * 1024 * 1024 // 50 MB
+      if (typeof options.content !== 'string') {
+        throw new Error('content must be a string')
+      }
+      if (Buffer.byteLength(options.content, 'utf-8') > MAX_BYTES) {
+        throw new Error(`content exceeds ${MAX_BYTES} bytes`)
+      }
       await writeFile(result.filePath, options.content, 'utf-8')
       return result.filePath
     }
@@ -80,9 +94,12 @@ export function registerShellHandlers(): void {
   ipcMain.handle(
     IPC.SHELL_JOIN_PATH,
     (_event, { base, fileName }: { base: string; fileName: string }) => {
+      assertValidPath(base, 'base')
+      assertValidPath(fileName, 'fileName')
       // Sanitize: use only the basename to prevent path traversal
       const safeName = basename(fileName)
-      return join(base, safeName)
+      // Resolve guarantees we stay under `base` after joining since safeName has no separators.
+      return resolve(join(base, safeName))
     }
   )
 }

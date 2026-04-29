@@ -1,6 +1,21 @@
 import { createHash } from 'crypto'
 import { getDatabase } from './database'
 
+export function fingerprintKey(key: Buffer): string {
+  return createHash('sha256').update(key).digest('base64')
+}
+
+export function getStoredHostKey(
+  host: string,
+  port: number
+): { fingerprint: string; algorithm: string } | null {
+  const db = getDatabase()
+  const row = db
+    .prepare('SELECT fingerprint, algorithm FROM known_hosts WHERE host_key = ?')
+    .get(`${host}:${port}`) as { fingerprint: string; algorithm: string } | undefined
+  return row ?? null
+}
+
 /**
  * Trust-on-first-use (TOFU) host key verification.
  * Stores host key fingerprints keyed by "host:port".
@@ -9,7 +24,7 @@ import { getDatabase } from './database'
  */
 
 function fingerprint(key: Buffer): string {
-  return createHash('sha256').update(key).digest('base64')
+  return fingerprintKey(key)
 }
 
 /**

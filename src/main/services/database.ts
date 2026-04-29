@@ -167,6 +167,14 @@ function getMigrations(): { name: string; sql: string }[] {
     {
       name: '006_remove_app_theme',
       sql: `DELETE FROM settings WHERE key = 'theme';`
+    },
+    {
+      name: '007_connection_indexes',
+      sql: `
+        CREATE INDEX IF NOT EXISTS idx_connections_name ON connections(name);
+        CREATE INDEX IF NOT EXISTS idx_connections_host ON connections(host);
+        CREATE INDEX IF NOT EXISTS idx_connections_folder ON connections(folder);
+      `
     }
   ]
 }

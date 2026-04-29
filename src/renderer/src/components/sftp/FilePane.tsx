@@ -76,7 +76,7 @@ export function FilePane({
   onSelectAll,
   side
 }: FilePaneProps) {
-  const breadcrumbs = splitBreadcrumbs(path)
+  const breadcrumbs = useMemo(() => splitBreadcrumbs(path), [path])
   const [dragOver, setDragOver] = useState(false)
   const [filterOpen, setFilterOpen] = useState(false)
   const [filterQuery, setFilterQuery] = useState('')

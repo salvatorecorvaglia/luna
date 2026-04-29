@@ -5,6 +5,7 @@ import type {
   SshCloseEvent,
   SshErrorEvent,
   SshStatusEvent,
+  SshHostKeyChangeEvent,
   SshConnectParams,
   SshSendDataParams,
   SshResizeParams
@@ -80,7 +81,13 @@ const api = {
     onData: createEventListener<SshDataEvent>(IPC.SSH_ON_DATA),
     onClose: createEventListener<SshCloseEvent>(IPC.SSH_ON_CLOSE),
     onError: createEventListener<SshErrorEvent>(IPC.SSH_ON_ERROR),
-    onStatus: createEventListener<SshStatusEvent>(IPC.SSH_ON_STATUS)
+    onStatus: createEventListener<SshStatusEvent>(IPC.SSH_ON_STATUS),
+    onHostKeyChange: createEventListener<SshHostKeyChangeEvent>(IPC.SSH_ON_HOST_KEY_CHANGE),
+    trustHostKey: (params: { host: string; port: number }) =>
+      ipcRenderer.invoke(IPC.SSH_TRUST_HOST_KEY, params) as Promise<{
+        trusted: boolean
+        fingerprint?: string
+      }>
   },
 
   // SFTP operations

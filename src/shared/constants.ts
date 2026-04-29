@@ -20,6 +20,8 @@ export const IPC = {
   SSH_ON_CLOSE: 'ssh:on-close',
   SSH_ON_ERROR: 'ssh:on-error',
   SSH_ON_STATUS: 'ssh:on-status',
+  SSH_ON_HOST_KEY_CHANGE: 'ssh:on-host-key-change',
+  SSH_TRUST_HOST_KEY: 'ssh:trust-host-key',
 
   // SFTP
   SFTP_LIST: 'sftp:list',

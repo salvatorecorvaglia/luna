@@ -32,4 +32,14 @@ export function registerSshHandlers(): void {
     assertBoundedInt(params.rows, 'rows', 1, 500)
     sshManager.resize(params.sessionId, params.cols, params.rows)
   })
+
+  ipcMain.handle(
+    IPC.SSH_TRUST_HOST_KEY,
+    (_event, params: { host: string; port: number }): { trusted: boolean; fingerprint?: string } => {
+      assertNonEmptyString(params.host, 'host')
+      assertBoundedInt(params.port, 'port', 1, 65535)
+      const fp = sshManager.trustPendingHostKey(params.host, params.port)
+      return fp ? { trusted: true, fingerprint: fp } : { trusted: false }
+    }
+  )
 }

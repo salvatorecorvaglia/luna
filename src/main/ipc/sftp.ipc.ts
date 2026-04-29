@@ -2,7 +2,8 @@ import { ipcMain } from 'electron'
 import { IPC } from '@shared/constants'
 import { sftpManager } from '../services/sftp-manager'
 import { transferQueue } from '../services/transfer-queue'
-import { assertNonEmptyString, assertValidPath } from '../lib/validate'
+import { assertNonEmptyString, assertValidPath, assertBoundedInt } from '../lib/validate'
+import { LIMITS } from '@shared/constants'
 import type {
   SftpListParams,
   SftpStatParams,
@@ -48,6 +49,9 @@ export function registerSftpHandlers(): void {
   ipcMain.handle(IPC.SFTP_READ_FILE, async (_event, params: SftpReadFileParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId')
     assertValidPath(params.path, 'path')
+    if (params.maxSize !== undefined) {
+      assertBoundedInt(params.maxSize, 'maxSize', 1, LIMITS.MAX_PREVIEW_BYTES)
+    }
     return sftpManager.readFile(params.sessionId, params.path, params.maxSize)
   })
 

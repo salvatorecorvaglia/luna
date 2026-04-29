@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { assertNonEmptyString, assertBoundedInt, assertValidPath } from '../validate'
+import {
+  assertNonEmptyString,
+  assertBoundedInt,
+  assertValidPath,
+  sanitizeStartupCommand,
+  MAX_STARTUP_COMMAND_LEN
+} from '../validate'
 
 describe('assertNonEmptyString', () => {
   it('accepts a non-empty string', () => {
@@ -54,5 +60,39 @@ describe('assertValidPath', () => {
 
   it('rejects paths with null bytes', () => {
     expect(() => assertValidPath('/home/\0/x', 'path')).toThrow(/null bytes/)
+  })
+})
+
+describe('sanitizeStartupCommand', () => {
+  it('returns null for empty input', () => {
+    expect(sanitizeStartupCommand(undefined)).toBeNull()
+    expect(sanitizeStartupCommand(null)).toBeNull()
+    expect(sanitizeStartupCommand('')).toBeNull()
+    expect(sanitizeStartupCommand('   ')).toBeNull()
+  })
+
+  it('trims surrounding whitespace', () => {
+    expect(sanitizeStartupCommand('  ls -la  ')).toBe('ls -la')
+  })
+
+  it('allows multi-line commands separated by newlines and tabs', () => {
+    const cmd = 'cd /tmp\necho\thello'
+    expect(sanitizeStartupCommand(cmd)).toBe(cmd)
+  })
+
+  it('rejects null bytes and other control characters', () => {
+    expect(() => sanitizeStartupCommand('echo\0evil')).toThrow(/control characters/)
+    expect(() => sanitizeStartupCommand('echo\x07bell')).toThrow(/control characters/)
+    expect(() => sanitizeStartupCommand('echo\x1bescape')).toThrow(/control characters/)
+  })
+
+  it('rejects non-string input', () => {
+    expect(() => sanitizeStartupCommand(123 as unknown)).toThrow(/string/)
+  })
+
+  it('rejects over-length input', () => {
+    expect(() => sanitizeStartupCommand('a'.repeat(MAX_STARTUP_COMMAND_LEN + 1))).toThrow(
+      /exceeds/
+    )
   })
 })

@@ -29,6 +29,18 @@ export interface SshStatusEvent {
   status: SessionStatus
 }
 
+export interface SshHostKeyChangeEvent {
+  sessionId: string
+  connectionId: string
+  host: string
+  port: number
+  /** Existing trusted fingerprint stored in known_hosts. */
+  storedFingerprint: string
+  /** New fingerprint presented by the server. */
+  newFingerprint: string
+  algorithm: string
+}
+
 export interface SshResizeParams {
   sessionId: string
   cols: number

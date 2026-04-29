@@ -6,8 +6,9 @@ import { emitToRenderer } from './emit'
 import type { SessionStatus } from '@shared/types/terminal'
 import { getDatabase, getSetting, type ConnectionRow } from './database'
 import { retrieveCredential } from './credential-store'
-import { verifyHostKey } from './host-key-store'
+import { verifyHostKey, fingerprintKey, getStoredHostKey, updateHostKey } from './host-key-store'
 import { withTimeout, TimeoutError } from '../lib/with-timeout'
+import { sanitizeStartupCommand } from '../lib/validate'
 import log from '../lib/logger'
 
 interface StreamListeners {
@@ -32,6 +33,21 @@ interface SshSession {
 class SshManager {
   private sessions = new Map<string, SshSession>()
   private onDisconnectCallbacks: ((sessionId: string) => void)[] = []
+  /** Candidate host keys captured during a rejected verification, awaiting user trust. */
+  private pendingHostKeys = new Map<string, { key: Buffer; algorithm: string }>()
+
+  /**
+   * Trust a captured host key so the next connect succeeds.
+   * Returns the fingerprint that was stored, or null if no candidate is pending.
+   */
+  trustPendingHostKey(host: string, port: number): string | null {
+    const key = `${host}:${port}`
+    const pending = this.pendingHostKeys.get(key)
+    if (!pending) return null
+    updateHostKey(host, port, pending.key, pending.algorithm)
+    this.pendingHostKeys.delete(key)
+    return fingerprintKey(pending.key)
+  }
 
   /** Register a callback invoked when a session disconnects or begins reconnecting. */
   onSessionDisconnect(cb: (sessionId: string) => void): void {
@@ -84,9 +100,26 @@ class SshManager {
       hostVerifier: (key: Buffer) => {
         const result = verifyHostKey(row.host, row.port, key, 'ssh-rsa')
         if (!result.trusted) {
+          // Capture the candidate key so the renderer can prompt the user.
+          // The verifier is synchronous, so we cannot wait for confirmation —
+          // we reject, surface the change, and let the user re-attempt after trusting.
+          const stored = getStoredHostKey(row.host, row.port)
+          this.pendingHostKeys.set(`${row.host}:${row.port}`, {
+            key: Buffer.from(key),
+            algorithm: 'ssh-rsa'
+          })
+          emitToRenderer(IPC.SSH_ON_HOST_KEY_CHANGE, {
+            sessionId,
+            connectionId,
+            host: row.host,
+            port: row.port,
+            storedFingerprint: stored?.fingerprint ?? '',
+            newFingerprint: fingerprintKey(key),
+            algorithm: 'ssh-rsa'
+          })
           emitToRenderer(IPC.SSH_ON_ERROR, {
             sessionId,
-            error: `Host key verification failed for ${row.host}:${row.port}. The server key has changed — this could indicate a MITM attack.`
+            error: `Host key for ${row.host}:${row.port} has changed. Confirm the new fingerprint before reconnecting.`
           })
         }
         return result.trusted
@@ -176,12 +209,25 @@ class SshManager {
           // Store listener refs for cleanup
           session._streamListeners = { onData, onClose, onStderrData }
 
-          // Run startup command after shell is ready (wait for first data from server)
+          // Run startup command after shell is ready (wait for first data from server).
+          // Sanitize defensively in case a record was written before validation existed,
+          // or imported through an older code path.
           if (row.startup_command) {
-            const cmd = row.startup_command
-            stream.once('data', () => {
-              stream.write(cmd + '\n')
-            })
+            let safeCmd: string | null = null
+            try {
+              safeCmd = sanitizeStartupCommand(row.startup_command)
+            } catch (err) {
+              log.warn(
+                `[SSH] Refusing to run unsafe startup_command for ${connectionId}: ${
+                  err instanceof Error ? err.message : String(err)
+                }`
+              )
+            }
+            if (safeCmd) {
+              stream.once('data', () => {
+                stream.write(safeCmd + '\n')
+              })
+            }
           }
 
           resolve({ success: true })

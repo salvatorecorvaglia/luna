@@ -88,9 +88,13 @@ export default function App() {
       <Toaster
         theme="dark"
         position="bottom-right"
+        // Sonner forwards `aria-live` onto the live region; "polite" so toasts
+        // don't interrupt screen-reader users mid-utterance.
         toastOptions={{
           className: 'text-sm'
         }}
+        richColors={false}
+        closeButton
       />
     </>
   )

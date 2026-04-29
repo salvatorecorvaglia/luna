@@ -384,8 +384,11 @@ const ConnectionItem = memo(function ConnectionItem({
           {/* Status dot */}
           <div className="relative flex-shrink-0" aria-hidden="true">
             <div
-              className="h-2.5 w-2.5 rounded-full"
-              style={{ backgroundColor: connection.colorTag || '#22c55e' }}
+              className={cn(
+                'h-2.5 w-2.5 rounded-full',
+                !connection.colorTag && 'bg-emerald-500'
+              )}
+              style={connection.colorTag ? { backgroundColor: connection.colorTag } : undefined}
             />
             {isConnected && (
               <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border-[1.5px] border-sidebar bg-emerald-500 animate-pulse-dot" />

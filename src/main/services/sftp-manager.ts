@@ -29,11 +29,14 @@ function isSessionFatal(err: unknown): boolean {
 class SftpManager {
   private sftpSessions = new Map<string, SFTPWrapper>()
   private lastAccess = new Map<string, number>()
+  /** Number of in-flight ops per session — idle sweep skips sessions with leases > 0. */
+  private leases = new Map<string, number>()
 
   constructor() {
     sshManager.onSessionDisconnect((sessionId) => {
       this.sftpSessions.delete(sessionId)
       this.lastAccess.delete(sessionId)
+      this.leases.delete(sessionId)
     })
 
     setInterval(() => this.cleanupIdle(), IDLE_CHECK_INTERVAL_MS)
@@ -42,11 +45,23 @@ class SftpManager {
   private cleanupIdle(): void {
     const now = Date.now()
     for (const [sessionId, lastTime] of this.lastAccess) {
-      if (now - lastTime > IDLE_TIMEOUT_MS) {
+      if (now - lastTime > IDLE_TIMEOUT_MS && (this.leases.get(sessionId) ?? 0) === 0) {
         log.info(`[SFTP] Closing idle session: ${sessionId}`)
         this.closeSftp(sessionId)
       }
     }
+  }
+
+  private acquireLease(sessionId: string): void {
+    this.leases.set(sessionId, (this.leases.get(sessionId) ?? 0) + 1)
+    this.lastAccess.set(sessionId, Date.now())
+  }
+
+  private releaseLease(sessionId: string): void {
+    const next = (this.leases.get(sessionId) ?? 0) - 1
+    if (next <= 0) this.leases.delete(sessionId)
+    else this.leases.set(sessionId, next)
+    this.lastAccess.set(sessionId, Date.now())
   }
 
   async getSftp(sessionId: string): Promise<SFTPWrapper> {
@@ -80,15 +95,22 @@ class SftpManager {
     fn: (sftp: SFTPWrapper) => Promise<T>,
     timeoutMs: number = LIMITS.SFTP_OP_TIMEOUT_MS
   ): Promise<T> {
-    const sftp = await this.getSftp(sessionId)
+    this.acquireLease(sessionId)
     try {
+      const sftp = await this.getSftp(sessionId)
       return await withTimeout(fn(sftp), timeoutMs, `sftp:${op}`)
     } catch (err) {
       if (isSessionFatal(err)) {
         log.warn(`[SFTP] Invalidating session ${sessionId} after ${op} failure: ${String(err)}`)
+        // Release the lease before closing so closeSftp can clean leases entry.
+        this.releaseLease(sessionId)
         this.closeSftp(sessionId)
+        throw err
       }
       throw err
+    } finally {
+      // If we closed in the catch branch, the session no longer exists in leases.
+      if (this.leases.has(sessionId)) this.releaseLease(sessionId)
     }
   }
 
@@ -256,6 +278,21 @@ class SftpManager {
     onStep: StepCallback,
     signal: AbortSignal
   ): Promise<void> {
+    this.acquireLease(sessionId)
+    try {
+      return await this._streamDownload(sessionId, remotePath, localPath, onStep, signal)
+    } finally {
+      this.releaseLease(sessionId)
+    }
+  }
+
+  private async _streamDownload(
+    sessionId: string,
+    remotePath: string,
+    localPath: string,
+    onStep: StepCallback,
+    signal: AbortSignal
+  ): Promise<void> {
     const sftp = await this.getSftp(sessionId)
     let total = 0
     try {
@@ -317,6 +354,21 @@ class SftpManager {
    * On abort, the partial remote file is removed.
    */
   async streamUpload(
+    sessionId: string,
+    localPath: string,
+    remotePath: string,
+    onStep: StepCallback,
+    signal: AbortSignal
+  ): Promise<void> {
+    this.acquireLease(sessionId)
+    try {
+      return await this._streamUpload(sessionId, localPath, remotePath, onStep, signal)
+    } finally {
+      this.releaseLease(sessionId)
+    }
+  }
+
+  private async _streamUpload(
     sessionId: string,
     localPath: string,
     remotePath: string,
@@ -395,6 +447,7 @@ class SftpManager {
       this.sftpSessions.delete(sessionId)
     }
     this.lastAccess.delete(sessionId)
+    this.leases.delete(sessionId)
   }
 
   private formatPermissions(mode: number): string {

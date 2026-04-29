@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, memo } from 'react'
 import { Plus, X, WifiOff, Loader2, Pencil, Copy, XCircle, ArrowRightToLine } from 'lucide-react'
 import { motion, Reorder } from 'framer-motion'
 import { cn } from '@/lib/utils'
@@ -27,14 +27,17 @@ export function TerminalTabs({ onNewTab }: TerminalTabsProps) {
   const [closingTabId, setClosingTabId] = useState<string | null>(null)
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null)
 
-  const handleCloseTab = (sessionId: string) => {
-    const session = sessions.get(sessionId)
-    if (session && (session.status === 'connected' || session.status === 'connecting')) {
-      setClosingTabId(sessionId)
-    } else {
-      closeTab(sessionId)
-    }
-  }
+  const handleCloseTab = useCallback(
+    (sessionId: string) => {
+      const session = sessions.get(sessionId)
+      if (session && (session.status === 'connected' || session.status === 'connecting')) {
+        setClosingTabId(sessionId)
+      } else {
+        closeTab(sessionId)
+      }
+    },
+    [sessions, closeTab]
+  )
 
   const handleRename = useCallback((sessionId: string) => {
     setRenamingTabId(sessionId)
@@ -68,12 +71,12 @@ export function TerminalTabs({ onNewTab }: TerminalTabsProps) {
               sessionId={sessionId}
               session={session}
               isActive={sessionId === activeTabId}
-              onActivate={() => setActiveTab(sessionId)}
-              onClose={() => handleCloseTab(sessionId)}
-              onRename={() => handleRename(sessionId)}
-              onDuplicate={() => handleDuplicate(sessionId)}
-              onCloseOthers={() => closeOtherTabs(sessionId)}
-              onCloseToRight={() => closeTabsToRight(sessionId)}
+              onActivate={setActiveTab}
+              onClose={handleCloseTab}
+              onRename={handleRename}
+              onDuplicate={handleDuplicate}
+              onCloseOthers={closeOtherTabs}
+              onCloseToRight={closeTabsToRight}
             />
           )
         })}
@@ -122,7 +125,19 @@ export function TerminalTabs({ onNewTab }: TerminalTabsProps) {
   )
 }
 
-function Tab({
+interface TabProps {
+  sessionId: string
+  session: TerminalSession
+  isActive: boolean
+  onActivate: (sessionId: string) => void
+  onClose: (sessionId: string) => void
+  onRename: (sessionId: string) => void
+  onDuplicate: (sessionId: string) => void
+  onCloseOthers: (sessionId: string) => void
+  onCloseToRight: (sessionId: string) => void
+}
+
+const Tab = memo(function Tab({
   sessionId,
   session,
   isActive,
@@ -132,17 +147,7 @@ function Tab({
   onDuplicate,
   onCloseOthers,
   onCloseToRight
-}: {
-  sessionId: string
-  session: TerminalSession
-  isActive: boolean
-  onActivate: () => void
-  onClose: () => void
-  onRename: () => void
-  onDuplicate: () => void
-  onCloseOthers: () => void
-  onCloseToRight: () => void
-}) {
+}: TabProps) {
   const statusIcon = () => {
     switch (session.status) {
       case 'connected':
@@ -159,28 +164,36 @@ function Tab({
 
   const contextItems: ContextMenuItem[] = useMemo(
     () => [
-      { label: 'Rename Tab', icon: <Pencil className="h-3.5 w-3.5" />, onClick: onRename },
-      { label: 'Duplicate Session', icon: <Copy className="h-3.5 w-3.5" />, onClick: onDuplicate },
+      {
+        label: 'Rename Tab',
+        icon: <Pencil className="h-3.5 w-3.5" />,
+        onClick: () => onRename(sessionId)
+      },
+      {
+        label: 'Duplicate Session',
+        icon: <Copy className="h-3.5 w-3.5" />,
+        onClick: () => onDuplicate(sessionId)
+      },
       {
         label: 'Close Other Tabs',
         icon: <XCircle className="h-3.5 w-3.5" />,
-        onClick: onCloseOthers,
+        onClick: () => onCloseOthers(sessionId),
         separator: true
       },
       {
         label: 'Close Tabs to the Right',
         icon: <ArrowRightToLine className="h-3.5 w-3.5" />,
-        onClick: onCloseToRight
+        onClick: () => onCloseToRight(sessionId)
       },
       {
         label: 'Close',
         icon: <X className="h-3.5 w-3.5" />,
-        onClick: onClose,
+        onClick: () => onClose(sessionId),
         separator: true,
         destructive: true
       }
     ],
-    [onRename, onDuplicate, onCloseOthers, onCloseToRight, onClose]
+    [sessionId, onRename, onDuplicate, onCloseOthers, onCloseToRight, onClose]
   )
 
   return (
@@ -194,7 +207,7 @@ function Tab({
           : 'text-muted-foreground hover:bg-background/50 hover:text-foreground'
       )}
       whileDrag={{ opacity: 0.8, scale: 1.02, zIndex: 10 }}
-      onClick={onActivate}
+      onClick={() => onActivate(sessionId)}
     >
       <ContextMenu items={contextItems}>
         <div className="flex h-full w-full items-center gap-2">
@@ -210,7 +223,7 @@ function Tab({
           <button
             onClick={(e) => {
               e.stopPropagation()
-              onClose()
+              onClose(sessionId)
             }}
             className="ml-auto flex-shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-accent cursor-pointer"
             aria-label="Close tab"
@@ -221,4 +234,4 @@ function Tab({
       </ContextMenu>
     </Reorder.Item>
   )
-}
+})
