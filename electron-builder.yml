@@ -99,9 +99,10 @@ linux:
     your remote server workflows. Combining a powerful terminal with an intuitive
     dual-pane SFTP browser.
   desktop:
-    Name: Lunar
-    Comment: Premium SSH Terminal & SFTP File Manager
-    Keywords: ssh;sftp;terminal;file-manager;remote
+    entry:
+      Name: Lunar
+      Comment: Premium SSH Terminal & SFTP File Manager
+      Keywords: ssh;sftp;terminal;file-manager;remote
 
 appImage:
   license: LICENSE
