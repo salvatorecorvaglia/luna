@@ -4,6 +4,7 @@
 
 Lunar is a high-performance, cross-platform desktop application designed to streamline your remote server workflows. Combining a powerful terminal with an intuitive dual-pane SFTP browser, Lunar offers a seamless bridge between your local environment and remote infrastructure.
 
+[![CI](https://github.com/salvatorecorvaglia/lunar/actions/workflows/ci.yml/badge.svg)](https://github.com/salvatorecorvaglia/lunar/actions/workflows/ci.yml)
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Electron](https://img.shields.io/badge/Electron-v41.x-blue)](https://www.electronjs.org/)
 [![React](https://img.shields.io/badge/React-v18.x-61dafb)](https://reactjs.org/)
