@@ -65,22 +65,6 @@ npm run dev
 
 ---
 
-## 🛠️ Tech Stack
-
-| Layer             | Technology                                                |
-| :---------------- | :-------------------------------------------------------- |
-| **Framework**     | Electron 41 + [electron-vite](https://electron-vite.org/) |
-| **Renderer**      | React 18 + TypeScript 5                                   |
-| **Styling**       | Tailwind CSS v4 + Framer Motion                           |
-| **Terminal**      | xterm.js + WebGL                                          |
-| **Protocol**      | ssh2 (SSH/SFTP)                                           |
-| **Database**      | better-sqlite3 (WAL mode)                                 |
-| **State**         | Zustand + React Query                                     |
-| **UI Components** | Lucide React + CMDK + Sonner                              |
-| **Testing**       | Vitest + Testing Library                                  |
-
----
-
 ## 🧪 Quality & Distribution
 
 ### Testing & Linting
@@ -98,9 +82,9 @@ npm run lint           # Static analysis with ESLint
 Build production-ready installers for all major platforms:
 
 ```bash
-npm run dist:mac       # macOS Universal (dmg + zip)
-npm run dist:win       # Windows x64 & ARM64 (nsis setup + portable)
-npm run dist:linux     # Linux x64 & ARM64 (AppImage, deb, rpm, tar.gz)
+npm run dist:mac       # macOS x64 & ARM64 (dmg + zip)
+npm run dist:win       # Windows x64 (NSIS installer)
+npm run dist:linux     # Linux x64 & ARM64 (AppImage + deb)
 npm run dist:all       # All platforms at once (macOS host only)
 ```
 
@@ -109,9 +93,9 @@ npm run dist:all       # All platforms at once (macOS host only)
 Create a new release with a single command — the CI will build and publish to GitHub Releases:
 
 ```bash
-npm run release        # Patch
-npm run release:minor  # Minor
-npm run release:major  # Major
+npm run release:patch
+npm run release:minor
+npm run release:major
 ```
 
 ---
