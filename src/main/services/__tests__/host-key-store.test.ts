@@ -16,7 +16,7 @@ const fakeDb = {
         }
       }
     }
-    if (sql.startsWith('INSERT OR REPLACE INTO known_hosts')) {
+    if (sql.includes('INSERT INTO known_hosts') && sql.includes('ON CONFLICT')) {
       return {
         run: (hostKey: string, algorithm: string, fingerprint: string) => {
           table.set(hostKey, { host_key: hostKey, algorithm, fingerprint, first_seen: 0 })

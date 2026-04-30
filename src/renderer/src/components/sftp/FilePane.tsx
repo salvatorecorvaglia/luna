@@ -222,27 +222,33 @@ export function FilePane({
         </div>
       </div>
 
-      {/* Breadcrumbs */}
-      <div className="flex items-center gap-0.5 overflow-x-auto border-b border-border/60 px-2.5 py-1 text-xs no-select">
-        <button
-          onClick={() => onPathChange('/')}
-          className="flex-shrink-0 rounded p-0.5 text-muted-foreground/70 hover:text-foreground hover:bg-accent cursor-pointer"
-          title="Root"
-        >
-          <Home className="h-3 w-3" />
-        </button>
-        {breadcrumbs.slice(1).map((crumb) => (
-          <span key={crumb.path} className="flex items-center gap-0.5">
-            <ChevronRight className="h-3 w-3 text-muted-foreground/40 flex-shrink-0" />
-            <button
-              onClick={() => onPathChange(crumb.path)}
-              className="truncate text-muted-foreground/70 hover:text-foreground max-w-[120px] cursor-pointer"
-              title={crumb.path}
-            >
-              {crumb.name}
-            </button>
-          </span>
-        ))}
+      {/* Breadcrumbs — U6: gradient fades indicate scrollable overflow */}
+      <div className="relative border-b border-border/60">
+        {/* Left fade indicator */}
+        <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-card/80 to-transparent z-10" />
+        {/* Right fade indicator */}
+        <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-card/80 to-transparent z-10" />
+        <div className="flex items-center gap-0.5 overflow-x-auto px-2.5 py-1 text-xs no-select scrollbar-none">
+          <button
+            onClick={() => onPathChange('/')}
+            className="flex-shrink-0 rounded p-0.5 text-muted-foreground/70 hover:text-foreground hover:bg-accent cursor-pointer"
+            title="Root"
+          >
+            <Home className="h-3 w-3" />
+          </button>
+          {breadcrumbs.slice(1).map((crumb) => (
+            <span key={crumb.path} className="flex items-center gap-0.5">
+              <ChevronRight className="h-3 w-3 text-muted-foreground/40 flex-shrink-0" />
+              <button
+                onClick={() => onPathChange(crumb.path)}
+                className="truncate text-muted-foreground/70 hover:text-foreground max-w-[120px] cursor-pointer"
+                title={crumb.path}
+              >
+                {crumb.name}
+              </button>
+            </span>
+          ))}
+        </div>
       </div>
 
       {/* Filter */}

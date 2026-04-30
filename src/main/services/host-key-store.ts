@@ -73,6 +73,8 @@ export function updateHostKey(
   const fp = fingerprint(keyData)
 
   db.prepare(
-    'INSERT OR REPLACE INTO known_hosts (host_key, algorithm, fingerprint, first_seen) VALUES (?, ?, ?, unixepoch())'
+    `INSERT INTO known_hosts (host_key, algorithm, fingerprint, first_seen)
+     VALUES (?, ?, ?, unixepoch())
+     ON CONFLICT(host_key) DO UPDATE SET algorithm = excluded.algorithm, fingerprint = excluded.fingerprint`
   ).run(hostKey, algorithm, fp)
 }

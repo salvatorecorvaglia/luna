@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import type { PaneNode } from '@shared/types/terminal'
 import { TerminalPane } from './TerminalPane'
 
@@ -19,6 +19,11 @@ function SplitContainer({ node }: { node: Extract<PaneNode, { type: 'split' }> }
   const [dragging, setDragging] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
+
+  // Sync ratio from props when the parent store updates it
+  useEffect(() => {
+    setRatio(node.ratio)
+  }, [node.ratio])
 
   const isHorizontal = node.direction === 'horizontal'
 

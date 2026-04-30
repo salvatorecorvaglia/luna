@@ -268,6 +268,18 @@ export function CommandPalette() {
     return groups
   }, [filtered])
 
+  // Precompute flat index per command ID so we avoid a mutable counter during render.
+  const flatIndexMap = useMemo(() => {
+    const map = new Map<string, number>()
+    let idx = 0
+    for (const [, cmds] of grouped) {
+      for (const cmd of cmds) {
+        map.set(cmd.id, idx++)
+      }
+    }
+    return map
+  }, [grouped])
+
   const [prevQuery, setPrevQuery] = useState(query)
   if (prevQuery !== query) {
     setPrevQuery(query)
@@ -308,8 +320,6 @@ export function CommandPalette() {
       e.preventDefault()
     }
   }
-
-  let flatIndex = 0
 
   return (
     <AnimatePresence>
@@ -358,7 +368,7 @@ export function CommandPalette() {
                         {category}
                       </div>
                       {cmds.map((cmd) => {
-                        const index = flatIndex++
+                        const index = flatIndexMap.get(cmd.id) ?? 0
                         const isSelected = index === selectedIndex
                         return (
                           <button

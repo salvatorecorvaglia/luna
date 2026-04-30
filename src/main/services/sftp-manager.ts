@@ -31,6 +31,8 @@ class SftpManager {
   private lastAccess = new Map<string, number>()
   /** Number of in-flight ops per session — idle sweep skips sessions with leases > 0. */
   private leases = new Map<string, number>()
+  /** Timer handle so the interval can be cleared on dispose. */
+  private idleCheckTimer: ReturnType<typeof setInterval> | null = null
 
   constructor() {
     sshManager.onSessionDisconnect((sessionId) => {
@@ -39,7 +41,15 @@ class SftpManager {
       this.leases.delete(sessionId)
     })
 
-    setInterval(() => this.cleanupIdle(), IDLE_CHECK_INTERVAL_MS)
+    this.idleCheckTimer = setInterval(() => this.cleanupIdle(), IDLE_CHECK_INTERVAL_MS)
+  }
+
+  /** Stop the idle-sweep timer. Call from `before-quit`. */
+  dispose(): void {
+    if (this.idleCheckTimer) {
+      clearInterval(this.idleCheckTimer)
+      this.idleCheckTimer = null
+    }
   }
 
   private cleanupIdle(): void {

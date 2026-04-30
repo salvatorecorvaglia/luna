@@ -5,6 +5,7 @@ import { IPC } from '@shared/constants'
 import { registerAllHandlers } from './ipc'
 import { closeDatabase } from './services/database'
 import { sshManager } from './services/ssh-manager'
+import { sftpManager } from './services/sftp-manager'
 import { initAutoUpdater } from './services/updater'
 import log from './lib/logger'
 
@@ -103,6 +104,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  sftpManager.dispose()
   sshManager.disconnectAll()
   closeDatabase()
 })

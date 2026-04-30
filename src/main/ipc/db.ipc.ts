@@ -12,6 +12,23 @@ import type {
 } from '@shared/types/connection'
 import { storeCredential, deleteCredential } from '../services/credential-store'
 import { sanitizeStartupCommand } from '../lib/validate'
+import type { AppSettings } from '@shared/types/settings'
+
+const VALID_AUTH_TYPES = ['password', 'key', 'key+passphrase'] as const
+
+/** Whitelist of allowed settings keys (S3). */
+const VALID_SETTINGS_KEYS: Set<string> = new Set<string>([
+  'terminal.fontFamily',
+  'terminal.fontSize',
+  'terminal.theme',
+  'terminal.scrollback',
+  'transfer.concurrency',
+  'ssh.autoReconnect',
+  'ssh.keepAliveInterval',
+  'ssh.maxReconnectAttempts',
+  'ssh.readyTimeout',
+  'ui.applyTerminalTheme'
+] satisfies (keyof AppSettings)[])
 
 function rowToConnection(row: ConnectionRow): Connection {
   return {
@@ -192,13 +209,16 @@ export function registerDbHandlers(): void {
         }
         const id = uuidv4()
         const now = Math.floor(Date.now() / 1000)
+        const authType = conn.authType || 'password'
+        // Validate authType enum so the DB CHECK constraint doesn't produce cryptic errors
+        if (!VALID_AUTH_TYPES.includes(authType as (typeof VALID_AUTH_TYPES)[number])) continue
         insert.run(
           id,
           conn.name,
           conn.host,
           conn.port || 22,
           conn.username,
-          conn.authType || 'password',
+          authType,
           conn.privateKeyPath || null,
           conn.folder || 'default',
           conn.colorTag || null,
@@ -245,6 +265,10 @@ export function registerDbHandlers(): void {
   })
 
   ipcMain.handle(IPC.SETTINGS_SET, (_event, { key, value }: { key: string; value: string }) => {
+    // Only allow known settings keys
+    if (!VALID_SETTINGS_KEYS.has(key)) {
+      throw new Error(`Unknown setting key: ${key}`)
+    }
     let v = value
     if (key === 'terminal.scrollback') {
       const n = Math.max(1000, Math.min(LIMITS.MAX_SCROLLBACK, Number(value) || 10000))

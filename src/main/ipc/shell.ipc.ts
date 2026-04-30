@@ -1,5 +1,5 @@
 import { ipcMain, dialog } from 'electron'
-import { readdir, stat, lstat, writeFile } from 'fs/promises'
+import { readdir, stat, writeFile } from 'fs/promises'
 import { join, basename, resolve, isAbsolute } from 'path'
 import { homedir } from 'os'
 import { IPC } from '@shared/constants'
@@ -13,14 +13,19 @@ export function registerShellHandlers(): void {
       throw new Error('dirPath must be absolute')
     }
     const normalized = resolve(dirPath)
+    // Defense-in-depth — restrict directory listing to the user's home subtree.
+    const home = homedir()
+    if (!normalized.startsWith(home + '/') && normalized !== home) {
+      throw new Error('Access denied: directory listing is restricted to the home directory')
+    }
     const entries = await readdir(normalized, { withFileTypes: true })
     const results: LocalFileEntry[] = []
 
     for (const entry of entries) {
-      // Skip hidden files starting with .
       const fullPath = join(normalized, entry.name)
       try {
-        const stats = await (entry.isSymbolicLink() ? stat(fullPath) : lstat(fullPath))
+        // Always use stat() to follow symlinks consistently (resolves target type/size).
+        const stats = await stat(fullPath)
         results.push({
           name: entry.name,
           path: fullPath,

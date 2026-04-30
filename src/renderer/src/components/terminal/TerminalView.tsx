@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect } from 'react'
 import { Terminal, Plus } from 'lucide-react'
 import { useTerminalStore } from '@/stores/terminal-store'
 import { useConnectionStore } from '@/stores/connection-store'
@@ -6,13 +6,11 @@ import { terminalThemes } from '@/themes/terminal'
 import { connectToHost } from '@/lib/ssh'
 import { TerminalTabs } from './TerminalTabs'
 import { SplitPane } from './SplitPane'
-import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 
 export { connectToHost }
 
 export function TerminalView() {
   const { splitTree, terminalTheme } = useTerminalStore()
-  const [closingTabId, setClosingTabId] = useState<string | null>(null)
 
   const handleNewTab = useCallback(() => {
     const { activeConnectionId } = useConnectionStore.getState()
@@ -28,20 +26,15 @@ export function TerminalView() {
     const handler = (e: KeyboardEvent) => {
       if (!e.metaKey && !e.ctrlKey) return
 
-      const { tabOrder, setActiveTab, activeTabId, sessions, closeTab } =
+      const { tabOrder, setActiveTab, activeTabId, closeTab } =
         useTerminalStore.getState()
       if (tabOrder.length === 0) return
 
-      // Cmd+W — close active tab
+      // Cmd+W — delegate to closeTab (TerminalTabs owns the confirm dialog)
       if (e.key === 'w' && !e.shiftKey) {
         e.preventDefault()
         if (!activeTabId) return
-        const session = sessions.get(activeTabId)
-        if (session && (session.status === 'connected' || session.status === 'connecting')) {
-          setClosingTabId(activeTabId)
-        } else {
-          closeTab(activeTabId)
-        }
+        closeTab(activeTabId)
         return
       }
 
@@ -102,19 +95,6 @@ export function TerminalView() {
           </div>
         )}
       </div>
-
-      <ConfirmDialog
-        open={!!closingTabId}
-        title="Close active session?"
-        message="This will disconnect the SSH session. Are you sure?"
-        confirmLabel="Disconnect"
-        destructive
-        onConfirm={() => {
-          if (closingTabId) useTerminalStore.getState().closeTab(closingTabId)
-          setClosingTabId(null)
-        }}
-        onCancel={() => setClosingTabId(null)}
-      />
     </div>
   )
 }

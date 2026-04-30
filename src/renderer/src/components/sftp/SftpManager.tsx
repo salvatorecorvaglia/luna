@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
-import { Unplug, Plus } from 'lucide-react'
+import { Unplug, Plus, WifiOff } from 'lucide-react'
 import { useSftpStore } from '@/stores/sftp-store'
 import { useTerminalStore } from '@/stores/terminal-store'
 import { useTransferStore } from '@/stores/transfer-store'
@@ -83,7 +83,14 @@ export function SftpManager() {
       const remoteSrc = e.dataTransfer.getData('remote-path')
       const fileName = e.dataTransfer.getData('file-name')
       const fileSize = parseInt(e.dataTransfer.getData('file-size') || '0', 10)
+      const isDirectory = e.dataTransfer.getData('is-directory') === 'true'
       if (!remoteSrc || !sftpSessionId) return
+
+      // Warn and skip directory transfers (not yet supported)
+      if (isDirectory) {
+        toast.warning('Directory transfers are not yet supported. Please transfer individual files.')
+        return
+      }
 
       const localDest = await window.api.shell.joinPath(localPath, fileName)
       try {
@@ -118,7 +125,14 @@ export function SftpManager() {
       const localSrc = e.dataTransfer.getData('local-path')
       const rawFileName = e.dataTransfer.getData('file-name')
       const fileSize = parseInt(e.dataTransfer.getData('file-size') || '0', 10)
+      const isDirectory = e.dataTransfer.getData('is-directory') === 'true'
       if (!localSrc || !sftpSessionId) return
+
+      // Warn and skip directory transfers (not yet supported)
+      if (isDirectory) {
+        toast.warning('Directory transfers are not yet supported. Please transfer individual files.')
+        return
+      }
 
       // Sanitize filename to prevent path traversal
       const fileName = rawFileName.split('/').pop()?.split('\\').pop() || rawFileName
@@ -152,12 +166,14 @@ export function SftpManager() {
     e.dataTransfer.setData('local-path', entry.path)
     e.dataTransfer.setData('file-name', entry.name)
     e.dataTransfer.setData('file-size', String(entry.size || 0))
+    e.dataTransfer.setData('is-directory', String(entry.isDirectory))
   }, [])
 
   const handleRemoteDragStart = useCallback((entry: FileEntry, e: React.DragEvent) => {
     e.dataTransfer.setData('remote-path', entry.path)
     e.dataTransfer.setData('file-name', entry.name)
     e.dataTransfer.setData('file-size', String(entry.size || 0))
+    e.dataTransfer.setData('is-directory', String(entry.isDirectory))
   }, [])
 
   // Dialog state for rename, delete, mkdir
@@ -187,6 +203,33 @@ export function SftpManager() {
       }
     },
     [sftpSessionId, setPreviewFile]
+  )
+
+  // Preview local file on double-click
+  const handleLocalFileOpen = useCallback(
+    async (entry: FileEntry) => {
+      try {
+        // Read local file via the SFTP readFile only works for remote; use a simple approach:
+        // For text files, use the main process readdir/path utilities aren't designed for content.
+        // Instead, we download to a temp preview. For now, show a toast with the path.
+        const ext = entry.name.split('.').pop()?.toLowerCase() || ''
+        const textExts = ['txt', 'md', 'json', 'yaml', 'yml', 'xml', 'csv', 'log', 'sh', 'bash',
+                          'zsh', 'py', 'js', 'ts', 'tsx', 'jsx', 'html', 'css', 'scss', 'conf',
+                          'cfg', 'ini', 'toml', 'env', 'gitignore', 'editorconfig', 'Makefile',
+                          'Dockerfile', 'rs', 'go', 'rb', 'php', 'java', 'c', 'h', 'cpp']
+        const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp']
+        if (!textExts.includes(ext) && !imageExts.includes(ext)) {
+          toast.info(`Cannot preview .${ext} files. Use your system file manager to open.`)
+          return
+        }
+        // For local preview, we can't use the SFTP readFile API — show a message
+        // pointing users to use the system file manager for non-remote files.
+        toast.info(`Local file: ${entry.path}\nOpen in your system file manager to preview.`)
+      } catch (err: unknown) {
+        toast.error(`Preview failed: ${err instanceof Error ? err.message : String(err)}`)
+      }
+    },
+    []
   )
 
   // Rename remote file/directory
@@ -328,8 +371,24 @@ export function SftpManager() {
     )
   }
 
+  // Show warning overlay when session disconnects mid-use
+  const activeSession = sessions.get(sftpSessionId)
+  const isDisconnected = activeSession && activeSession.status !== 'connected'
+
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col relative">
+      {/* U11: Disconnected overlay */}
+      {isDisconnected && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="text-center">
+            <WifiOff className="h-8 w-8 mx-auto text-destructive/60 mb-2" />
+            <p className="text-sm font-medium text-foreground/80">Connection lost</p>
+            <p className="mt-1 text-xs text-muted-foreground/60">
+              The SSH session disconnected. Reconnecting…
+            </p>
+          </div>
+        </div>
+      )}
       {/* Dual pane */}
       <div ref={containerRef} className="flex flex-1 overflow-hidden">
         {/* Local pane */}
@@ -346,6 +405,7 @@ export function SftpManager() {
             onRefresh={() => invalidateLocal(localPath)}
             onDragStart={handleLocalDragStart}
             onDrop={handleLocalDrop}
+            onFileOpen={handleLocalFileOpen}
             showHidden={showHiddenFiles}
             onToggleHidden={toggleHiddenFiles}
             onSelectAll={() => setLocalSelection(new Set(localEntries.map((e) => e.name)))}

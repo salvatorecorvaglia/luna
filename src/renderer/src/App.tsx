@@ -8,6 +8,7 @@ import { WelcomeView } from '@/components/common/WelcomeView'
 import { ConnectionForm } from '@/components/connection/ConnectionForm'
 import { CommandPalette } from '@/components/command-palette/CommandPalette'
 import { SettingsPanel } from '@/components/common/SettingsPanel'
+import { HostKeyDialog } from '@/components/common/HostKeyDialog'
 import { TerminalView } from '@/components/terminal/TerminalView'
 import { SftpManager } from '@/components/sftp/SftpManager'
 import { useTransferEventListener } from '@/hooks/use-transfers'
@@ -56,6 +57,18 @@ export default function App() {
         e.preventDefault()
         useConnectionStore.getState().openCreateForm()
       }
+
+      // Cmd+Shift+1 — Switch to Terminal view
+      if (mod && e.shiftKey && e.key === '!') {
+        e.preventDefault()
+        useUIStore.getState().setActiveView('terminal')
+      }
+
+      // Cmd+Shift+2 — Switch to SFTP view
+      if (mod && e.shiftKey && e.key === '@') {
+        e.preventDefault()
+        useUIStore.getState().setActiveView('sftp')
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
@@ -84,6 +97,7 @@ export default function App() {
       <ConnectionForm />
       <CommandPalette />
       <SettingsPanel />
+      <HostKeyDialog />
 
       <Toaster
         theme="dark"

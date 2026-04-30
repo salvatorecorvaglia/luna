@@ -20,9 +20,7 @@ export function assertBoundedInt(
 
 export function assertValidPath(value: unknown, name: string): asserts value is string {
   assertNonEmptyString(value, name)
-  if ((value as string).includes('\0')) {
-    throw new Error(`${name} must not contain null bytes`)
-  }
+  // Note: null-byte check is already handled by assertNonEmptyString
 }
 
 /** Hard cap on a saved startup command. */

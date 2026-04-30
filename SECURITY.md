@@ -6,12 +6,11 @@ We currently support the following versions with security updates.
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.0.x   | :white_check_mark: |
-| < 1.0   | :x:                |
+| 0.0.x   | :white_check_mark: |
 
 ## Reporting a Vulnerability
 
-We take the security of this project seriously. 
+We take the security of this project seriously.
 
 Please report any security vulnerabilities by creating a private vulnerability report on GitHub at [https://github.com/salvatorecorvaglia/lunar/security/advisories/new](https://github.com/salvatorecorvaglia/lunar/security/advisories/new) or by reaching out to the maintainers directly.
 

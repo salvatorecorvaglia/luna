@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useId } from 'react'
 import {
   X,
   Monitor,
@@ -56,6 +56,8 @@ export function SettingsPanel() {
   const [concurrency, setConcurrency] = useState(DEFAULT_SETTINGS['transfer.concurrency'])
   const [autoReconnect, setAutoReconnect] = useState(DEFAULT_SETTINGS['ssh.autoReconnect'])
   const [readyTimeout, setReadyTimeout] = useState(DEFAULT_SETTINGS['ssh.readyTimeout'] / 1000)
+  const [keepAliveInterval, setKeepAliveInterval] = useState(DEFAULT_SETTINGS['ssh.keepAliveInterval'] / 1000)
+  const [maxReconnectAttempts, setMaxReconnectAttempts] = useState(DEFAULT_SETTINGS['ssh.maxReconnectAttempts'])
   const [appVersion, setAppVersion] = useState('0.0.0')
 
   // Load settings from DB on open
@@ -72,6 +74,10 @@ export function SettingsPanel() {
         setAutoReconnect(Boolean(settings['ssh.autoReconnect']))
       if (settings['ssh.readyTimeout'] != null)
         setReadyTimeout(Number(settings['ssh.readyTimeout']) / 1000)
+      if (settings['ssh.keepAliveInterval'] != null)
+        setKeepAliveInterval(Number(settings['ssh.keepAliveInterval']) / 1000)
+      if (settings['ssh.maxReconnectAttempts'] != null)
+        setMaxReconnectAttempts(Number(settings['ssh.maxReconnectAttempts']))
       if (settings['ui.applyTerminalTheme'] != null) {
         setApplyTerminalThemeToUI(Boolean(settings['ui.applyTerminalTheme']))
       }
@@ -242,8 +248,27 @@ export function SettingsPanel() {
                     persistSetting('ssh.readyTimeout', v * 1000)
                   }}
                 />
-                <SettingRow label="Keep-alive interval" value="10s" />
-                <SettingRow label="Max reconnect attempts" value="5" />
+                <EditableNumberRow
+                  label="Keep-alive interval"
+                  value={keepAliveInterval}
+                  min={5}
+                  max={120}
+                  suffix="s"
+                  onChange={(v) => {
+                    setKeepAliveInterval(v)
+                    persistSetting('ssh.keepAliveInterval', v * 1000)
+                  }}
+                />
+                <EditableNumberRow
+                  label="Max reconnect attempts"
+                  value={maxReconnectAttempts}
+                  min={0}
+                  max={20}
+                  onChange={(v) => {
+                    setMaxReconnectAttempts(v)
+                    persistSetting('ssh.maxReconnectAttempts', v)
+                  }}
+                />
               </Section>
 
               {/* Transfers */}
@@ -377,8 +402,6 @@ function SettingRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-let toggleCounter = 0
-
 function ToggleRow({
   label,
   enabled,
@@ -388,7 +411,8 @@ function ToggleRow({
   enabled: boolean
   onToggle?: (value: boolean) => void
 }) {
-  const [labelId] = useState(() => `toggle-label-${++toggleCounter}`)
+  // Use React.useId for stable, unique IDs instead of module-level counter
+  const labelId = useId()
 
   return (
     <div className="flex items-center justify-between py-1">

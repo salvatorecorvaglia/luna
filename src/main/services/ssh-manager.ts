@@ -45,6 +45,8 @@ interface SshSession {
 class SshManager {
   private sessions = new Map<string, SshSession>()
   private onDisconnectCallbacks: ((sessionId: string) => void)[] = []
+  /** Guards per-session to prevent concurrent reconnect chains (B1 fix). */
+  private reconnectLocks = new Set<string>()
   /** Candidate host keys captured during a rejected verification, awaiting user trust. */
   private pendingHostKeys = new Map<string, { key: Buffer; algorithm: string }>()
 
@@ -72,6 +74,76 @@ class SshManager {
       sessionId: session.id,
       status
     })
+  }
+
+  /**
+   * Build a ConnectConfig from a saved connection row. Extracted so both
+   * `connect()` and `testConnection()` share the same auth + hostVerifier logic.
+   */
+  private async buildConnectConfig(
+    row: ConnectionRow,
+    connectionId: string,
+    sessionId?: string
+  ): Promise<{ config: ConnectConfig; error?: string }> {
+    const config: ConnectConfig = {
+      host: row.host,
+      port: row.port,
+      username: row.username,
+      keepaliveInterval: getSetting('ssh.keepAliveInterval', 10000),
+      keepaliveCountMax: 3,
+      readyTimeout: getSetting('ssh.readyTimeout', 30000),
+      hostVerifier: (key: Buffer) => {
+        const algorithm = parseHostKeyAlgorithm(key)
+        const result = verifyHostKey(row.host, row.port, key, algorithm)
+        if (!result.trusted) {
+          const stored = getStoredHostKey(row.host, row.port)
+          this.pendingHostKeys.set(`${row.host}:${row.port}`, {
+            key: Buffer.from(key),
+            algorithm
+          })
+          emitToRenderer(IPC.SSH_ON_HOST_KEY_CHANGE, {
+            sessionId: sessionId ?? '',
+            connectionId,
+            host: row.host,
+            port: row.port,
+            storedFingerprint: stored?.fingerprint ?? '',
+            newFingerprint: fingerprintKey(key),
+            algorithm,
+            isFirst: result.isFirst
+          })
+          const reason = result.isFirst
+            ? `Unknown host ${row.host}:${row.port}. Verify the ${algorithm} fingerprint before trusting.`
+            : `Host key for ${row.host}:${row.port} has changed. Confirm the new fingerprint before reconnecting.`
+          emitToRenderer(IPC.SSH_ON_ERROR, { sessionId: sessionId ?? '', error: reason })
+        }
+        return result.trusted
+      }
+    }
+
+    // Set up auth
+    const credential = retrieveCredential(connectionId)
+
+    if (row.auth_type === 'password') {
+      config.password = credential || undefined
+    } else if (row.auth_type === 'key' || row.auth_type === 'key+passphrase') {
+      if (!row.private_key_path) {
+        return { config, error: 'Private key path not configured' }
+      }
+      try {
+        const keyPath = row.private_key_path.replace(/^~/, process.env.HOME || '')
+        config.privateKey = await readFile(keyPath)
+        if (row.auth_type === 'key+passphrase' && credential) {
+          config.passphrase = credential
+        }
+      } catch (err: unknown) {
+        return {
+          config,
+          error: `Failed to read key: ${err instanceof Error ? err.message : String(err)}`
+        }
+      }
+    }
+
+    return { config }
   }
 
   async connect(
@@ -102,69 +174,17 @@ class SshManager {
     this.sessions.set(sessionId, session)
     this.setStatus(session, 'connecting')
 
-    const connectConfig: ConnectConfig = {
-      host: row.host,
-      port: row.port,
-      username: row.username,
-      keepaliveInterval: 10000,
-      keepaliveCountMax: 3,
-      readyTimeout: getSetting('ssh.readyTimeout', 30000),
-      hostVerifier: (key: Buffer) => {
-        const algorithm = parseHostKeyAlgorithm(key)
-        const result = verifyHostKey(row.host, row.port, key, algorithm)
-        if (!result.trusted) {
-          // Capture the candidate key so the renderer can prompt the user.
-          // The verifier is synchronous, so we cannot wait for confirmation —
-          // we reject, surface the change (or first-use prompt), and let the
-          // user re-attempt after trusting.
-          const stored = getStoredHostKey(row.host, row.port)
-          this.pendingHostKeys.set(`${row.host}:${row.port}`, {
-            key: Buffer.from(key),
-            algorithm
-          })
-          emitToRenderer(IPC.SSH_ON_HOST_KEY_CHANGE, {
-            sessionId,
-            connectionId,
-            host: row.host,
-            port: row.port,
-            storedFingerprint: stored?.fingerprint ?? '',
-            newFingerprint: fingerprintKey(key),
-            algorithm,
-            isFirst: result.isFirst
-          })
-          const reason = result.isFirst
-            ? `Unknown host ${row.host}:${row.port}. Verify the ${algorithm} fingerprint before trusting.`
-            : `Host key for ${row.host}:${row.port} has changed. Confirm the new fingerprint before reconnecting.`
-          emitToRenderer(IPC.SSH_ON_ERROR, { sessionId, error: reason })
-        }
-        return result.trusted
-      }
+    const { config: connectConfig, error: configError } = await this.buildConnectConfig(
+      row,
+      connectionId,
+      sessionId
+    )
+    if (configError) {
+      this.sessions.delete(sessionId)
+      return { success: false, error: configError }
     }
 
-    // Set up auth
-    const credential = retrieveCredential(connectionId)
 
-    if (row.auth_type === 'password') {
-      connectConfig.password = credential || undefined
-    } else if (row.auth_type === 'key' || row.auth_type === 'key+passphrase') {
-      try {
-        if (!row.private_key_path) {
-          this.sessions.delete(sessionId)
-          return { success: false, error: 'Private key path not configured' }
-        }
-        const keyPath = row.private_key_path.replace(/^~/, process.env.HOME || '')
-        connectConfig.privateKey = await readFile(keyPath)
-        if (row.auth_type === 'key+passphrase' && credential) {
-          connectConfig.passphrase = credential
-        }
-      } catch (err: unknown) {
-        this.sessions.delete(sessionId)
-        return {
-          success: false,
-          error: `Failed to read key: ${err instanceof Error ? err.message : String(err)}`
-        }
-      }
-    }
 
     const connectPromise = new Promise<{ success: boolean; error?: string }>((resolve) => {
       client.on('ready', () => {
@@ -322,15 +342,20 @@ class SshManager {
 
   private attemptReconnect(sessionId: string): void {
     const session = this.sessions.get(sessionId)
-    if (!session || session.reconnecting) return
+    if (!session) return
 
-    const maxAttempts = 5
+    // Per-session lock prevents concurrent reconnect chains
+    if (this.reconnectLocks.has(sessionId)) return
+
+    const maxAttempts = getSetting('ssh.maxReconnectAttempts', 5)
     if (session.reconnectAttempts >= maxAttempts) {
       session.reconnecting = false
+      this.reconnectLocks.delete(sessionId)
       this.setStatus(session, 'error')
       return
     }
 
+    this.reconnectLocks.add(sessionId)
     session.reconnecting = true
     session.reconnectAttempts++
     const delay = Math.min(1000 * Math.pow(2, session.reconnectAttempts - 1), 30000)
@@ -341,6 +366,7 @@ class SshManager {
       const sess = this.sessions.get(sessionId)
       if (!sess || sess.status === 'connected') {
         if (sess) sess.reconnecting = false
+        this.reconnectLocks.delete(sessionId)
         return
       }
 
@@ -361,6 +387,7 @@ class SshManager {
       if (result.success) {
         const newSess = this.sessions.get(sessionId)
         if (newSess) newSess.reconnecting = false
+        this.reconnectLocks.delete(sessionId)
       } else {
         // Restore reconnect attempt count on the new session
         const newSess = this.sessions.get(sessionId)
@@ -368,6 +395,8 @@ class SshManager {
           newSess.reconnectAttempts = reconnectAttempts
           newSess.reconnecting = false
         }
+        // Release lock before next attempt so it can re-acquire
+        this.reconnectLocks.delete(sessionId)
         this.attemptReconnect(sessionId)
       }
     }, delay)
@@ -394,6 +423,8 @@ class SshManager {
     if (session.reconnectTimer) {
       clearTimeout(session.reconnectTimer)
     }
+    // Clear reconnect lock so no pending timer re-enters
+    this.reconnectLocks.delete(sessionId)
 
     this.cleanupStreamListeners(session)
 
@@ -423,7 +454,7 @@ class SshManager {
 
   /**
    * Open a transient SSH connection using a saved connection's config, then close it.
-   * Used by the UI's "Test connection" button to surface auth/host errors before save.
+   * Uses the shared buildConnectConfig so the hostVerifier (TOFU) is active (B2 fix).
    */
   async testConnection(connectionId: string): Promise<{ ok: boolean; error?: string }> {
     const db = getDatabase()
@@ -432,29 +463,8 @@ class SshManager {
       | undefined
     if (!row) return { ok: false, error: 'Connection not found' }
 
-    const credential = retrieveCredential(connectionId)
-    const config: ConnectConfig = {
-      host: row.host,
-      port: row.port,
-      username: row.username,
-      readyTimeout: getSetting('ssh.readyTimeout', 30000)
-    }
-
-    if (row.auth_type === 'password') {
-      config.password = credential || undefined
-    } else if (row.auth_type === 'key' || row.auth_type === 'key+passphrase') {
-      if (!row.private_key_path) return { ok: false, error: 'Private key path not configured' }
-      try {
-        const keyPath = row.private_key_path.replace(/^~/, process.env.HOME || '')
-        config.privateKey = await readFile(keyPath)
-        if (row.auth_type === 'key+passphrase' && credential) config.passphrase = credential
-      } catch (err: unknown) {
-        return {
-          ok: false,
-          error: `Failed to read key: ${err instanceof Error ? err.message : String(err)}`
-        }
-      }
-    }
+    const { config, error: configError } = await this.buildConnectConfig(row, connectionId)
+    if (configError) return { ok: false, error: configError }
 
     return new Promise((resolve) => {
       const client = new Client()

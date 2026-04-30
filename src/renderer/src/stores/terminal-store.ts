@@ -138,12 +138,22 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
 
   closeOtherTabs: (sessionId) => {
     const { tabOrder } = get()
-    for (const id of tabOrder) {
-      if (id !== sessionId) {
-        window.api.ssh.disconnect(id)
-        get().removeSession(id)
-      }
+    const toClose = tabOrder.filter((id) => id !== sessionId)
+    // Disconnect all first, then batch-remove from state
+    for (const id of toClose) {
+      window.api.ssh.disconnect(id)
     }
+    set((s) => {
+      const sessions = new Map(s.sessions)
+      for (const id of toClose) sessions.delete(id)
+      const newTabOrder = s.tabOrder.filter((id) => id === sessionId)
+      return {
+        sessions,
+        tabOrder: newTabOrder,
+        activeTabId: sessionId,
+        splitTree: { type: 'terminal' as const, sessionId }
+      }
+    })
   },
 
   closeTabsToRight: (sessionId) => {
@@ -151,9 +161,23 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     const idx = tabOrder.indexOf(sessionId)
     if (idx === -1) return
     const toClose = tabOrder.slice(idx + 1)
+    // Disconnect all first, then batch-remove from state
     for (const id of toClose) {
       window.api.ssh.disconnect(id)
-      get().removeSession(id)
     }
+    set((s) => {
+      const sessions = new Map(s.sessions)
+      for (const id of toClose) sessions.delete(id)
+      const newTabOrder = s.tabOrder.slice(0, idx + 1)
+      const activeTabId = newTabOrder.includes(s.activeTabId ?? '')
+        ? s.activeTabId
+        : newTabOrder[newTabOrder.length - 1] || null
+      return {
+        sessions,
+        tabOrder: newTabOrder,
+        activeTabId,
+        splitTree: activeTabId ? { type: 'terminal' as const, sessionId: activeTabId } : null
+      }
+    })
   }
 }))

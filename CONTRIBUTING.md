@@ -11,7 +11,7 @@ If you encounter a bug, please check the [existing issues](https://github.com/sa
 - A clear, descriptive title.
 - Steps to reproduce the bug.
 - Your OS version and any relevant environment details.
-- Logs from `electron-log` if available.
+- Logs from `electron-log` if available (open from **Settings → Open Log File**).
 
 ### Feature Requests 💡
 
@@ -29,7 +29,6 @@ Have an idea for a new feature?
    - Run tests: `npm test`
    - Check types: `npm run typecheck`
    - Lint your code: `npm run lint`
-   - Format your code: `npm run format`
 5. **Commit**: Follow [Conventional Commits](https://www.conventionalcommits.org/) (e.g., `feat(terminal): add support for custom font ligatures` or `fix(sftp): resolve drag-and-drop ghosting issue`).
 6. **Submit**: Push to your fork and open a Pull Request to the `main` branch.
 
@@ -50,13 +49,20 @@ npm install
 
 ### Useful Scripts
 
-- `npm run dev`: Start Electron with HMR for the renderer.
-- `npm run build`: Build the application for production (no packaging).
-- `npm run dist`: Package the application for the current platform.
-- `npm run test`: Run all tests using Vitest.
-- `npm run typecheck`: Run TypeScript type checking for both main and renderer processes.
-- `npm run lint`: Run ESLint.
-- `npm run format`: Format code with Prettier.
+| Script                  | Description                                         |
+| ----------------------- | --------------------------------------------------- |
+| `npm run dev`           | Start Electron with HMR for the renderer            |
+| `npm run build`         | Build the application for production (no packaging) |
+| `npm run preview`       | Preview the production build locally                |
+| `npm run dist`          | Package the application for the current platform    |
+| `npm run dist:mac`      | Package for macOS (dmg)                             |
+| `npm run dist:win`      | Package for Windows (nsis)                          |
+| `npm run dist:linux`    | Package for Linux (AppImage & deb)                  |
+| `npm test`              | Run all tests using Vitest                          |
+| `npm run test:watch`    | Run tests in watch mode                             |
+| `npm run test:coverage` | Run tests with coverage report                      |
+| `npm run typecheck`     | Run TypeScript type checking (main + renderer)      |
+| `npm run lint`          | Run ESLint                                          |
 
 ## 🏛️ Project Architecture
 
@@ -65,6 +71,13 @@ Lunar is an Electron application built with `electron-vite`:
 - **Main Process**: Located in `src/main/`, handles system-level operations, SSH/SFTP logic, and database management.
 - **Renderer Process**: Located in `src/renderer/`, a React application that provides the user interface.
 - **Preload Scripts**: Located in `src/preload/`, exposes secure APIs from the main process to the renderer.
+- **Shared Modules**: Located in `src/shared/`, contains shared types and constants between the main and renderer processes.
+
+### Key Principles
+
+- **Process Isolation**: All sensitive operations (SSH, SFTP, credentials, database) run in the main process. The renderer communicates exclusively through typed IPC via the preload bridge.
+- **Credential Security**: Passwords and passphrases are encrypted with the OS keychain via Electron `safeStorage`, never stored in plain text.
+- **Host Key Verification**: Trust-on-first-use (TOFU) with explicit user confirmation — new host keys trigger a dialog; changed keys show a clear warning.
 
 ## 📜 Code of Conduct
 
