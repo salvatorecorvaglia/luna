@@ -72,17 +72,17 @@ npm run dev
 
 ## 🛠️ Tech Stack
 
-| Layer             | Technology                                             |
-| :---------------- | :----------------------------------------------------- |
+| Layer             | Technology                                                |
+| :---------------- | :-------------------------------------------------------- |
 | **Framework**     | Electron 41 + [electron-vite](https://electron-vite.org/) |
-| **Renderer**      | React 18 + TypeScript 5                                |
-| **Styling**       | Tailwind CSS v4 + Framer Motion                        |
-| **Terminal**      | xterm.js + WebGL                                       |
-| **Protocol**      | ssh2 (SSH/SFTP)                                        |
-| **Database**      | better-sqlite3 (WAL mode)                              |
-| **State**         | Zustand + React Query                                  |
-| **UI Components** | Lucide React + CMDK + Sonner                           |
-| **Testing**       | Vitest + Testing Library                               |
+| **Renderer**      | React 18 + TypeScript 5                                   |
+| **Styling**       | Tailwind CSS v4 + Framer Motion                           |
+| **Terminal**      | xterm.js + WebGL                                          |
+| **Protocol**      | ssh2 (SSH/SFTP)                                           |
+| **Database**      | better-sqlite3 (WAL mode)                                 |
+| **State**         | Zustand + React Query                                     |
+| **UI Components** | Lucide React + CMDK + Sonner                              |
+| **Testing**       | Vitest + Testing Library                                  |
 
 ---
 
