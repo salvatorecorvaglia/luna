@@ -1,5 +1,6 @@
 appId: com.lunar.app
 productName: Lunar
+copyright: "Copyright © ${author}"
 
 directories:
   buildResources: resources
@@ -11,31 +12,51 @@ files:
   - '!electron.vite.config.*'
   - '!{.eslintignore,.eslintrc.cjs,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!{.github,tests,coverage,vitest.config.*}'
 
 asarUnpack:
   - '**/*.node'
   - '**/better-sqlite3/**'
+  - '**/ssh2/**'
 
+# ─────────────────── macOS ───────────────────
 mac:
   target:
     - target: dmg
       arch:
-        - arm64
-        - x64
-  artifactName: '${name}-${version}.${ext}'
+        - universal
+    - target: zip
+      arch:
+        - universal
+  artifactName: '${name}-${version}-mac-${arch}.${ext}'
   category: public.app-category.developer-tools
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
-  notarize: true
+  notarize: false  # Set to true when you have an Apple Developer ID
 
+dmg:
+  sign: false
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+# ─────────────────── Windows ───────────────────
 win:
   target:
     - target: nsis
       arch:
         - x64
-  artifactName: '${name}-${version}-setup.${ext}'
+        - arm64
+    - target: portable
+      arch:
+        - x64
+  artifactName: '${name}-${version}-win-${arch}-setup.${ext}'
   signtoolOptions:
     publisherName: Salvatore Corvaglia
     signingHashAlgorithms:
@@ -46,20 +67,71 @@ nsis:
   perMachine: false
   allowToChangeInstallationDirectory: true
   deleteAppDataOnUninstall: false
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: Lunar
+  uninstallDisplayName: Lunar
 
+# ─────────────────── Linux ───────────────────
 linux:
   target:
     - target: AppImage
       arch:
         - x64
+        - arm64
     - target: deb
       arch:
         - x64
-  artifactName: '${name}-${version}-${arch}.${ext}'
-  category: Utility
+        - arm64
+    - target: rpm
+      arch:
+        - x64
+    - target: tar.gz
+      arch:
+        - x64
+        - arm64
+  artifactName: '${name}-${version}-linux-${arch}.${ext}'
+  category: Development;Utility;Network
   maintainer: Salvatore Corvaglia
+  synopsis: Premium SSH Terminal & SFTP File Manager
+  description: >-
+    A high-performance, cross-platform desktop application designed to streamline
+    your remote server workflows. Combining a powerful terminal with an intuitive
+    dual-pane SFTP browser.
+  desktop:
+    Name: Lunar
+    Comment: Premium SSH Terminal & SFTP File Manager
+    Keywords: ssh;sftp;terminal;file-manager;remote
 
+appImage:
+  license: LICENSE
+
+deb:
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - libatspi2.0-0
+    - libuuid1
+
+rpm:
+  depends:
+    - gtk3
+    - libnotify
+    - nss
+    - libXScrnSaver
+    - libXtst
+    - at-spi2-core
+    - libuuid
+
+# ─────────────────── Auto-update ───────────────────
 publish:
   provider: github
   owner: salvatorecorvaglia
   repo: lunar
+  releaseType: release
+
+# Generate latest.yml / latest-mac.yml / latest-linux.yml
+generateUpdatesFilesForAllChannels: false

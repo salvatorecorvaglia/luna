@@ -4,12 +4,6 @@
 
 Lunar is a high-performance, cross-platform desktop application designed to streamline your remote server workflows. Combining a powerful terminal with an intuitive dual-pane SFTP browser, Lunar offers a seamless bridge between your local environment and remote infrastructure.
 
-[![CI](https://github.com/salvatorecorvaglia/lunar/actions/workflows/ci.yml/badge.svg)](https://github.com/salvatorecorvaglia/lunar/actions/workflows/ci.yml)
-[![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Electron](https://img.shields.io/badge/Electron-v41.x-blue)](https://www.electronjs.org/)
-[![React](https://img.shields.io/badge/React-v18.x-61dafb)](https://reactjs.org/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4.0-38b2ac)](https://tailwindcss.com/)
-
 ---
 
 ## ✨ Key Features
@@ -104,9 +98,20 @@ npm run lint           # Static analysis with ESLint
 Build production-ready installers for all major platforms:
 
 ```bash
-npm run dist:mac       # Apple Silicon & Intel (dmg)
-npm run dist:win       # Windows (nsis setup)
-npm run dist:linux     # Linux (AppImage & deb)
+npm run dist:mac       # macOS Universal (dmg + zip)
+npm run dist:win       # Windows x64 & ARM64 (nsis setup + portable)
+npm run dist:linux     # Linux x64 & ARM64 (AppImage, deb, rpm, tar.gz)
+npm run dist:all       # All platforms at once (macOS host only)
+```
+
+### Releasing
+
+Create a new release with a single command — the CI will build and publish to GitHub Releases:
+
+```bash
+npm run release        # Patch
+npm run release:minor  # Minor
+npm run release:major  # Major
 ```
 
 ---
