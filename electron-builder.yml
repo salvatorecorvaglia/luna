@@ -55,9 +55,6 @@ win:
       arch:
         - x64
         - arm64
-    - target: portable
-      arch:
-        - x64
   artifactName: '${name}-${version}-win-${arch}-setup.${ext}'
   signtoolOptions:
     publisherName: Salvatore Corvaglia
