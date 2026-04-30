@@ -80,16 +80,17 @@ export function TerminalPane({ sessionId }: TerminalPaneProps) {
   useEffect(() => {
     if (!containerRef.current) return
 
-    const theme = terminalThemes[terminalTheme]
+    const { terminalTheme: initialThemeName, fontSize: initialFontSize, scrollback: initialScrollback } = useTerminalStore.getState()
+    const theme = terminalThemes[initialThemeName]
 
     const terminal = new Terminal({
       cursorBlink: true,
       cursorStyle: 'bar',
-      fontSize,
+      fontSize: initialFontSize,
       fontFamily: 'JetBrains Mono, Menlo, Consolas, monospace',
       lineHeight: 1.2,
       letterSpacing: 0,
-      scrollback,
+      scrollback: initialScrollback,
       allowProposedApi: true,
       screenReaderMode: true,
       theme

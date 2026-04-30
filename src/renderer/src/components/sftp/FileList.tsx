@@ -103,6 +103,7 @@ export function FileList({
   onSelectAll,
   emptyMessage = 'No files'
 }: FileListProps) {
+  'use no memo'
   const [sortField, setSortField] = useState<SortField>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [focusedIndex, setFocusedIndex] = useState(-1)
@@ -139,6 +140,7 @@ export function FileList({
   const ROW_HEIGHT = 32
   const parentRef = useRef<HTMLDivElement>(null)
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- opted out of memoization via "use no memo"
   const virtualizer = useVirtualizer({
     count: sorted.length,
     getScrollElement: () => parentRef.current,

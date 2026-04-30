@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import type { PaneNode } from '@shared/types/terminal'
 import { TerminalPane } from './TerminalPane'
 
@@ -15,15 +15,15 @@ export function SplitPane({ node }: SplitPaneProps) {
 }
 
 function SplitContainer({ node }: { node: Extract<PaneNode, { type: 'split' }> }) {
-  const [ratio, setRatio] = useState(node.ratio)
+  // Local ratio override is only used during an active drag gesture.
+  // Outside of drag, we derive from props to avoid calling setState inside an effect.
+  const [localRatio, setLocalRatio] = useState<number | null>(null)
   const [dragging, setDragging] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
 
-  // Sync ratio from props when the parent store updates it
-  useEffect(() => {
-    setRatio(node.ratio)
-  }, [node.ratio])
+  // Use local override while dragging, otherwise use prop value directly
+  const ratio = localRatio ?? node.ratio
 
   const isHorizontal = node.direction === 'horizontal'
 
@@ -40,7 +40,7 @@ function SplitContainer({ node }: { node: Extract<PaneNode, { type: 'split' }> }
       const flush = (): void => {
         rafId = null
         if (pendingRatio !== null) {
-          setRatio(pendingRatio)
+          setLocalRatio(pendingRatio)
           pendingRatio = null
         }
       }
@@ -62,6 +62,8 @@ function SplitContainer({ node }: { node: Extract<PaneNode, { type: 'split' }> }
           cancelAnimationFrame(rafId)
           flush()
         }
+        // Clear local override so we fall back to the prop value
+        setLocalRatio(null)
         document.removeEventListener('mousemove', onMouseMove)
         document.removeEventListener('mouseup', onMouseUp)
         document.body.style.cursor = ''
