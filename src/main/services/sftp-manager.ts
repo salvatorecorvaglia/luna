@@ -96,21 +96,21 @@ class SftpManager {
     timeoutMs: number = LIMITS.SFTP_OP_TIMEOUT_MS
   ): Promise<T> {
     this.acquireLease(sessionId)
+    let releasedInCatch = false
     try {
       const sftp = await this.getSftp(sessionId)
       return await withTimeout(fn(sftp), timeoutMs, `sftp:${op}`)
     } catch (err) {
       if (isSessionFatal(err)) {
         log.warn(`[SFTP] Invalidating session ${sessionId} after ${op} failure: ${String(err)}`)
-        // Release the lease before closing so closeSftp can clean leases entry.
-        this.releaseLease(sessionId)
+        // closeSftp wipes the leases entry entirely; mark released so finally is a no-op.
         this.closeSftp(sessionId)
+        releasedInCatch = true
         throw err
       }
       throw err
     } finally {
-      // If we closed in the catch branch, the session no longer exists in leases.
-      if (this.leases.has(sessionId)) this.releaseLease(sessionId)
+      if (!releasedInCatch && this.leases.has(sessionId)) this.releaseLease(sessionId)
     }
   }
 
@@ -318,8 +318,15 @@ class SftpManager {
     }
 
     return new Promise<void>((resolve, reject) => {
+      let settled = false
+      const settle = (fn: () => void): void => {
+        if (settled) return
+        settled = true
+        signal.removeEventListener('abort', onAbort)
+        fn()
+      }
       const onAbort = (): void => {
-        cleanupOnAbort().finally(() => reject(new Error('Cancelled')))
+        settle(() => cleanupOnAbort().finally(() => reject(new Error('Cancelled'))))
       }
 
       if (signal.aborted) {
@@ -333,16 +340,13 @@ class SftpManager {
         onStep(transferred, chunk.length, total)
       })
       readStream.on('error', (err: Error) => {
-        signal.removeEventListener('abort', onAbort)
-        cleanupOnAbort().finally(() => reject(err))
+        settle(() => cleanupOnAbort().finally(() => reject(err)))
       })
       writeStream.on('error', (err: Error) => {
-        signal.removeEventListener('abort', onAbort)
-        cleanupOnAbort().finally(() => reject(err))
+        settle(() => cleanupOnAbort().finally(() => reject(err)))
       })
       writeStream.on('finish', () => {
-        signal.removeEventListener('abort', onAbort)
-        resolve()
+        settle(() => resolve())
       })
 
       readStream.pipe(writeStream)
@@ -397,8 +401,15 @@ class SftpManager {
     }
 
     return new Promise<void>((resolve, reject) => {
+      let settled = false
+      const settle = (fn: () => void): void => {
+        if (settled) return
+        settled = true
+        signal.removeEventListener('abort', onAbort)
+        fn()
+      }
       const onAbort = (): void => {
-        cleanupOnAbort().finally(() => reject(new Error('Cancelled')))
+        settle(() => cleanupOnAbort().finally(() => reject(new Error('Cancelled'))))
       }
 
       if (signal.aborted) {
@@ -412,16 +423,13 @@ class SftpManager {
         onStep(transferred, chunk.length, total)
       })
       readStream.on('error', (err: Error) => {
-        signal.removeEventListener('abort', onAbort)
-        cleanupOnAbort().finally(() => reject(err))
+        settle(() => cleanupOnAbort().finally(() => reject(err)))
       })
       writeStream.on('error', (err: Error) => {
-        signal.removeEventListener('abort', onAbort)
-        cleanupOnAbort().finally(() => reject(err))
+        settle(() => cleanupOnAbort().finally(() => reject(err)))
       })
       writeStream.on('close', () => {
-        signal.removeEventListener('abort', onAbort)
-        resolve()
+        settle(() => resolve())
       })
 
       readStream.pipe(writeStream)

@@ -17,6 +17,7 @@ import {
   Eye
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { formatSize, formatDate } from '@/lib/format'
 import type { FileEntry } from '@shared/types/sftp'
 import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu'
 
@@ -86,29 +87,6 @@ function getFileIcon(entry: FileEntry) {
     return <FileText className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
 
   return <File className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-}
-
-function formatSize(bytes: number): string {
-  if (bytes <= 0) return '\u2014'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
-  return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`
-}
-
-function formatDate(timestamp: number): string {
-  const date = new Date(timestamp * 1000)
-  const now = new Date()
-  const isThisYear = date.getFullYear() === now.getFullYear()
-
-  if (isThisYear) {
-    return date.toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  }
-  return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
 export function FileList({
@@ -308,7 +286,7 @@ export function FileList({
             ]
             const row = (
               <div
-                key={entry.name}
+                key={entry.path}
                 role="option"
                 tabIndex={focusedIndex === virtualRow.index ? 0 : -1}
                 style={{
@@ -362,7 +340,7 @@ export function FileList({
               </div>
             )
             return contextItems.length > 0 ? (
-              <ContextMenu key={entry.name} items={contextItems}>
+              <ContextMenu key={entry.path} items={contextItems}>
                 {row}
               </ContextMenu>
             ) : (

@@ -302,6 +302,10 @@ export function CommandPalette() {
       }
     } else if (e.key === 'Escape') {
       setCommandPaletteOpen(false)
+    } else if (e.key === 'Tab') {
+      // Keep focus inside the palette — Arrow keys handle navigation, Tab would
+      // otherwise escape into the background and lose modal context.
+      e.preventDefault()
     }
   }
 

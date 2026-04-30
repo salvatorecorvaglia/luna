@@ -18,7 +18,7 @@ interface ContextMenuProps {
 export function ContextMenu({ items, children }: ContextMenuProps) {
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
-  const [focusIndex, setFocusIndex] = useState(0)
+  const focusIndexRef = useRef(0)
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -26,22 +26,29 @@ export function ContextMenu({ items, children }: ContextMenuProps) {
       // Adjust position to stay within viewport
       const x = Math.min(e.clientX, window.innerWidth - 180)
       const y = Math.min(e.clientY, window.innerHeight - items.length * 32 - 8)
+      focusIndexRef.current = 0
       setPosition({ x, y })
-      setFocusIndex(0)
     },
     [items.length]
   )
 
   const close = useCallback(() => setPosition(null), [])
 
+  // Focus the first item every time the menu (re-)opens at a new position.
   useEffect(() => {
     if (!position) return
-
-    // Focus first item when menu opens
-    requestAnimationFrame(() => {
+    focusIndexRef.current = 0
+    const id = requestAnimationFrame(() => {
       const firstItem = menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')
       firstItem?.focus()
     })
+    return () => cancelAnimationFrame(id)
+  }, [position])
+
+  // Keyboard + outside-click handlers. focusIndex is read via ref so the listener
+  // doesn't tear down and re-focus the first item on every arrow press.
+  useEffect(() => {
+    if (!position) return
 
     const handler = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -59,13 +66,13 @@ export function ContextMenu({ items, children }: ContextMenuProps) {
 
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        const next = (focusIndex + 1) % menuItems.length
-        setFocusIndex(next)
+        const next = (focusIndexRef.current + 1) % menuItems.length
+        focusIndexRef.current = next
         menuItems[next]?.focus()
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
-        const prev = (focusIndex - 1 + menuItems.length) % menuItems.length
-        setFocusIndex(prev)
+        const prev = (focusIndexRef.current - 1 + menuItems.length) % menuItems.length
+        focusIndexRef.current = prev
         menuItems[prev]?.focus()
       }
     }
@@ -75,7 +82,7 @@ export function ContextMenu({ items, children }: ContextMenuProps) {
       document.removeEventListener('mousedown', handler)
       document.removeEventListener('keydown', keyHandler)
     }
-  }, [position, close, focusIndex])
+  }, [position, close])
 
   return (
     <>

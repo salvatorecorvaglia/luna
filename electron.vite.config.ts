@@ -6,6 +6,9 @@ import { resolve } from 'path'
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
+    build: {
+      sourcemap: true
+    },
     resolve: {
       alias: {
         '@shared': resolve('src/shared')
@@ -14,6 +17,9 @@ export default defineConfig({
   },
   preload: {
     plugins: [externalizeDepsPlugin()],
+    build: {
+      sourcemap: true
+    },
     resolve: {
       alias: {
         '@shared': resolve('src/shared')
@@ -23,6 +29,7 @@ export default defineConfig({
   renderer: {
     root: 'src/renderer',
     build: {
+      sourcemap: true,
       rollupOptions: {
         input: resolve('src/renderer/index.html')
       }

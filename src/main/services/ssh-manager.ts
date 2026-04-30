@@ -11,6 +11,18 @@ import { withTimeout, TimeoutError } from '../lib/with-timeout'
 import { sanitizeStartupCommand } from '../lib/validate'
 import log from '../lib/logger'
 
+/**
+ * Extract the SSH host-key algorithm from the wire-format key buffer.
+ * SSH host keys are encoded as: uint32 length || algorithm-name-string || ...
+ * Returns 'unknown' if the buffer is malformed.
+ */
+function parseHostKeyAlgorithm(key: Buffer): string {
+  if (key.length < 4) return 'unknown'
+  const len = key.readUInt32BE(0)
+  if (len === 0 || len > 64 || key.length < 4 + len) return 'unknown'
+  return key.subarray(4, 4 + len).toString('ascii')
+}
+
 interface StreamListeners {
   onData: (data: Buffer) => void
   onClose: () => void
@@ -98,15 +110,17 @@ class SshManager {
       keepaliveCountMax: 3,
       readyTimeout: getSetting('ssh.readyTimeout', 30000),
       hostVerifier: (key: Buffer) => {
-        const result = verifyHostKey(row.host, row.port, key, 'ssh-rsa')
+        const algorithm = parseHostKeyAlgorithm(key)
+        const result = verifyHostKey(row.host, row.port, key, algorithm)
         if (!result.trusted) {
           // Capture the candidate key so the renderer can prompt the user.
           // The verifier is synchronous, so we cannot wait for confirmation —
-          // we reject, surface the change, and let the user re-attempt after trusting.
+          // we reject, surface the change (or first-use prompt), and let the
+          // user re-attempt after trusting.
           const stored = getStoredHostKey(row.host, row.port)
           this.pendingHostKeys.set(`${row.host}:${row.port}`, {
             key: Buffer.from(key),
-            algorithm: 'ssh-rsa'
+            algorithm
           })
           emitToRenderer(IPC.SSH_ON_HOST_KEY_CHANGE, {
             sessionId,
@@ -115,12 +129,13 @@ class SshManager {
             port: row.port,
             storedFingerprint: stored?.fingerprint ?? '',
             newFingerprint: fingerprintKey(key),
-            algorithm: 'ssh-rsa'
+            algorithm,
+            isFirst: result.isFirst
           })
-          emitToRenderer(IPC.SSH_ON_ERROR, {
-            sessionId,
-            error: `Host key for ${row.host}:${row.port} has changed. Confirm the new fingerprint before reconnecting.`
-          })
+          const reason = result.isFirst
+            ? `Unknown host ${row.host}:${row.port}. Verify the ${algorithm} fingerprint before trusting.`
+            : `Host key for ${row.host}:${row.port} has changed. Confirm the new fingerprint before reconnecting.`
+          emitToRenderer(IPC.SSH_ON_ERROR, { sessionId, error: reason })
         }
         return result.trusted
       }
@@ -450,6 +465,9 @@ class SshManager {
         try {
           client.removeAllListeners()
           client.end()
+          // Force-tear-down the underlying socket so a hung handshake doesn't
+          // leak a connection past the timeout window.
+          client.destroy()
         } catch {
           // ignore
         }

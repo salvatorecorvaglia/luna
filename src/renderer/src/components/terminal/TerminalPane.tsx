@@ -220,6 +220,8 @@ export function TerminalPane({ sessionId }: TerminalPaneProps) {
     const terminal = terminalRef.current
     if (terminal) {
       terminal.options.scrollback = scrollback
+      // Re-fit so the visible row count picks up the new buffer geometry.
+      fitAddonRef.current?.fit()
     }
   }, [scrollback])
 

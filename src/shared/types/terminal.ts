@@ -39,6 +39,8 @@ export interface SshHostKeyChangeEvent {
   /** New fingerprint presented by the server. */
   newFingerprint: string
   algorithm: string
+  /** True when the host has never been seen before (TOFU prompt vs. change warning). */
+  isFirst: boolean
 }
 
 export interface SshResizeParams {

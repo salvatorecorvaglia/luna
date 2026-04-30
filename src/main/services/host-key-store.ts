@@ -28,16 +28,17 @@ function fingerprint(key: Buffer): string {
 }
 
 /**
- * Verify a host key. Returns true if the key is trusted.
- * On first encounter the key is stored automatically (TOFU).
- * Returns false if the key has changed (possible MITM).
+ * Verify a host key.
+ * Returns `trusted: false, isFirst: true` for never-seen-before hosts so the caller
+ * can prompt the user for explicit trust (instead of silently auto-storing).
+ * Returns `trusted: false, changed: true` if the stored fingerprint differs.
  */
 export function verifyHostKey(
   host: string,
   port: number,
   keyData: Buffer,
-  algorithm: string
-): { trusted: boolean; changed: boolean } {
+  _algorithm: string
+): { trusted: boolean; changed: boolean; isFirst: boolean } {
   const db = getDatabase()
   const hostKey = `${host}:${port}`
   const fp = fingerprint(keyData)
@@ -47,21 +48,15 @@ export function verifyHostKey(
     .get(hostKey) as { fingerprint: string; algorithm: string } | undefined
 
   if (!row) {
-    // First connection — trust on first use
-    db.prepare('INSERT INTO known_hosts (host_key, algorithm, fingerprint) VALUES (?, ?, ?)').run(
-      hostKey,
-      algorithm,
-      fp
-    )
-    return { trusted: true, changed: false }
+    return { trusted: false, changed: false, isFirst: true }
   }
 
   if (row.fingerprint === fp) {
-    return { trusted: true, changed: false }
+    return { trusted: true, changed: false, isFirst: false }
   }
 
   // Key has changed — possible MITM
-  return { trusted: false, changed: true }
+  return { trusted: false, changed: true, isFirst: false }
 }
 
 /**

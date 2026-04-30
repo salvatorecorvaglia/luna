@@ -1,4 +1,4 @@
-import { useMemo, memo, useState, useCallback } from 'react'
+import { useMemo, memo, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus,
@@ -72,16 +72,22 @@ export function Sidebar() {
   )
 
   const [resizing, setResizing] = useState(false)
+  // Guard against double mousedown without an intervening mouseup (e.g. dev-tools
+  // stealing focus mid-drag) attaching duplicate listeners.
+  const resizingRef = useRef(false)
 
   const handleResizeMouseDown = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault()
+      if (resizingRef.current) return
+      resizingRef.current = true
       setResizing(true)
       const onMouseMove = (e: MouseEvent) => {
         const width = Math.max(200, Math.min(400, e.clientX))
         setSidebarWidth(width)
       }
       const onMouseUp = () => {
+        resizingRef.current = false
         setResizing(false)
         document.removeEventListener('mousemove', onMouseMove)
         document.removeEventListener('mouseup', onMouseUp)

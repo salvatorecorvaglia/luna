@@ -16,13 +16,6 @@ const fakeDb = {
         }
       }
     }
-    if (sql.startsWith('INSERT INTO known_hosts')) {
-      return {
-        run: (hostKey: string, algorithm: string, fingerprint: string) => {
-          table.set(hostKey, { host_key: hostKey, algorithm, fingerprint, first_seen: 0 })
-        }
-      }
-    }
     if (sql.startsWith('INSERT OR REPLACE INTO known_hosts')) {
       return {
         run: (hostKey: string, algorithm: string, fingerprint: string) => {
@@ -43,34 +36,35 @@ beforeEach(() => {
 })
 
 describe('host-key-store TOFU', () => {
-  it('trusts and stores a key on first encounter', () => {
+  it('signals first-use (untrusted) for a never-seen host', () => {
     const result = verifyHostKey('host', 22, Buffer.from('key-1'), 'ssh-rsa')
-    expect(result).toEqual({ trusted: true, changed: false })
-    expect(table.has('host:22')).toBe(true)
+    expect(result).toEqual({ trusted: false, changed: false, isFirst: true })
+    // Should NOT auto-store — explicit trust via updateHostKey is required.
+    expect(table.has('host:22')).toBe(false)
   })
 
-  it('trusts the same key on subsequent encounters', () => {
-    verifyHostKey('host', 22, Buffer.from('key-1'), 'ssh-rsa')
+  it('trusts the same key on subsequent encounters once stored', () => {
+    updateHostKey('host', 22, Buffer.from('key-1'), 'ssh-rsa')
     const result = verifyHostKey('host', 22, Buffer.from('key-1'), 'ssh-rsa')
-    expect(result).toEqual({ trusted: true, changed: false })
+    expect(result).toEqual({ trusted: true, changed: false, isFirst: false })
   })
 
   it('rejects when the key changes (possible MITM)', () => {
-    verifyHostKey('host', 22, Buffer.from('original'), 'ssh-rsa')
+    updateHostKey('host', 22, Buffer.from('original'), 'ssh-rsa')
     const result = verifyHostKey('host', 22, Buffer.from('different'), 'ssh-rsa')
-    expect(result).toEqual({ trusted: false, changed: true })
+    expect(result).toEqual({ trusted: false, changed: true, isFirst: false })
   })
 
   it('updateHostKey overwrites the stored fingerprint', () => {
-    verifyHostKey('host', 22, Buffer.from('original'), 'ssh-rsa')
+    updateHostKey('host', 22, Buffer.from('original'), 'ssh-rsa')
     updateHostKey('host', 22, Buffer.from('new-key'), 'ssh-rsa')
     const result = verifyHostKey('host', 22, Buffer.from('new-key'), 'ssh-rsa')
     expect(result.trusted).toBe(true)
   })
 
   it('treats different ports as different hosts', () => {
-    verifyHostKey('host', 22, Buffer.from('k22'), 'ssh-rsa')
+    updateHostKey('host', 22, Buffer.from('k22'), 'ssh-rsa')
     const onPort2222 = verifyHostKey('host', 2222, Buffer.from('k2222'), 'ssh-rsa')
-    expect(onPort2222.trusted).toBe(true)
+    expect(onPort2222).toEqual({ trusted: false, changed: false, isFirst: true })
   })
 })

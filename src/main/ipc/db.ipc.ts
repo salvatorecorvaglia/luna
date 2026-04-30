@@ -90,6 +90,21 @@ export function registerDbHandlers(): void {
     return rowToConnection(row)
   })
 
+  // Whitelist of UpdateConnectionInput keys → DB column names. Only fields listed
+  // here may be passed to the dynamic UPDATE; an explicit allow-list is safer than
+  // trusting future contributors to keep the if-chain in sync with the SQL.
+  const UPDATE_FIELD_MAP: Record<string, string> = {
+    name: 'name',
+    host: 'host',
+    port: 'port',
+    username: 'username',
+    authType: 'auth_type',
+    privateKeyPath: 'private_key_path',
+    folder: 'folder',
+    colorTag: 'color_tag',
+    startupCommand: 'startup_command'
+  }
+
   ipcMain.handle(IPC.CONNECTION_UPDATE, (_event, input: UpdateConnectionInput) => {
     const now = Math.floor(Date.now() / 1000)
     const existing = db.prepare('SELECT * FROM connections WHERE id = ?').get(input.id) as
@@ -100,49 +115,27 @@ export function registerDbHandlers(): void {
       throw new Error(`Connection not found: ${input.id}`)
     }
 
-    const fields: string[] = ['updated_at = ?']
+    const assignments: string[] = ['updated_at = ?']
     const values: (string | number | null)[] = [now]
 
-    if (input.name !== undefined) {
-      fields.push('name = ?')
-      values.push(input.name)
-    }
-    if (input.host !== undefined) {
-      fields.push('host = ?')
-      values.push(input.host)
-    }
-    if (input.port !== undefined) {
-      fields.push('port = ?')
-      values.push(input.port)
-    }
-    if (input.username !== undefined) {
-      fields.push('username = ?')
-      values.push(input.username)
-    }
-    if (input.authType !== undefined) {
-      fields.push('auth_type = ?')
-      values.push(input.authType)
-    }
-    if (input.privateKeyPath !== undefined) {
-      fields.push('private_key_path = ?')
-      values.push(input.privateKeyPath || null)
-    }
-    if (input.folder !== undefined) {
-      fields.push('folder = ?')
-      values.push(input.folder)
-    }
-    if (input.colorTag !== undefined) {
-      fields.push('color_tag = ?')
-      values.push(input.colorTag || null)
-    }
-    if (input.startupCommand !== undefined) {
-      fields.push('startup_command = ?')
-      values.push(sanitizeStartupCommand(input.startupCommand))
+    for (const [key, column] of Object.entries(UPDATE_FIELD_MAP)) {
+      const raw = (input as unknown as Record<string, unknown>)[key]
+      if (raw === undefined) continue
+      let value: string | number | null
+      if (key === 'startupCommand') {
+        value = sanitizeStartupCommand(raw)
+      } else if (key === 'privateKeyPath' || key === 'colorTag') {
+        value = (raw as string) || null
+      } else {
+        value = raw as string | number
+      }
+      assignments.push(`${column} = ?`)
+      values.push(value)
     }
 
     values.push(input.id)
 
-    db.prepare(`UPDATE connections SET ${fields.join(', ')} WHERE id = ?`).run(...values)
+    db.prepare(`UPDATE connections SET ${assignments.join(', ')} WHERE id = ?`).run(...values)
 
     // Update credential if provided
     if (input.password) {
@@ -185,35 +178,38 @@ export function registerDbHandlers(): void {
       'SELECT id FROM connections WHERE name = ? AND host = ? AND username = ?'
     )
     let imported = 0
-    for (const conn of connections) {
-      if (!conn.name || !conn.host || !conn.username) continue
-      if (findExisting.get(conn.name, conn.host, conn.username)) continue
-      let safeStartupCommand: string | null
-      try {
-        safeStartupCommand = sanitizeStartupCommand(conn.startupCommand)
-      } catch {
-        // Imported records with malformed startup commands are skipped rather
-        // than aborting the whole import.
-        continue
+    // Wrap the whole batch in a transaction so a malformed record at row N
+    // doesn't leave 0..N-1 partially imported.
+    const importAll = db.transaction((rows: ExportedConnection[]) => {
+      for (const conn of rows) {
+        if (!conn.name || !conn.host || !conn.username) continue
+        if (findExisting.get(conn.name, conn.host, conn.username)) continue
+        let safeStartupCommand: string | null
+        try {
+          safeStartupCommand = sanitizeStartupCommand(conn.startupCommand)
+        } catch {
+          continue
+        }
+        const id = uuidv4()
+        const now = Math.floor(Date.now() / 1000)
+        insert.run(
+          id,
+          conn.name,
+          conn.host,
+          conn.port || 22,
+          conn.username,
+          conn.authType || 'password',
+          conn.privateKeyPath || null,
+          conn.folder || 'default',
+          conn.colorTag || null,
+          safeStartupCommand,
+          now,
+          now
+        )
+        imported++
       }
-      const id = uuidv4()
-      const now = Math.floor(Date.now() / 1000)
-      insert.run(
-        id,
-        conn.name,
-        conn.host,
-        conn.port || 22,
-        conn.username,
-        conn.authType || 'password',
-        conn.privateKeyPath || null,
-        conn.folder || 'default',
-        conn.colorTag || null,
-        safeStartupCommand,
-        now,
-        now
-      )
-      imported++
-    }
+    })
+    importAll(connections)
     return imported
   }
 
