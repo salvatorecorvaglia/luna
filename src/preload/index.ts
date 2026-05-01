@@ -141,13 +141,19 @@ const api = {
     getAll: () => ipcRenderer.invoke(IPC.SETTINGS_GET_ALL)
   },
 
-  // App info
+  // App info & updates
   app: {
     getVersion: () => ipcRenderer.invoke(IPC.APP_GET_VERSION) as Promise<string>,
     checkUpdate: () => ipcRenderer.invoke(IPC.APP_CHECK_UPDATE),
     installUpdate: () => ipcRenderer.invoke(IPC.APP_INSTALL_UPDATE),
     getLogPath: () => ipcRenderer.invoke(IPC.APP_GET_LOG_PATH) as Promise<string>,
-    openLogFile: () => ipcRenderer.invoke(IPC.APP_OPEN_LOG_FILE)
+    openLogFile: () => ipcRenderer.invoke(IPC.APP_OPEN_LOG_FILE),
+    onUpdateAvailable: createEventListener<{ version: string }>(IPC.APP_UPDATE_AVAILABLE),
+    onUpdateDownloadProgress: createEventListener<{ percent: number; bytesPerSecond: number }>(
+      IPC.APP_UPDATE_DOWNLOAD_PROGRESS
+    ),
+    onUpdateDownloaded: createEventListener<Record<string, never>>(IPC.APP_UPDATE_DOWNLOADED),
+    onUpdateError: createEventListener<{ error: string }>(IPC.APP_UPDATE_ERROR)
   }
 }
 

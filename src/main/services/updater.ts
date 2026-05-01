@@ -1,4 +1,5 @@
 import { autoUpdater } from 'electron-updater'
+import { IPC } from '@shared/constants'
 import { emitToRenderer } from './emit'
 import log from '../lib/logger'
 
@@ -21,7 +22,7 @@ export function initAutoUpdater(): void {
   autoUpdater.on('update-available', (info) => {
     updateAvailable = true
     updateVersion = info.version
-    notifyRenderer('update-available', { version: info.version })
+    emitToRenderer(IPC.APP_UPDATE_AVAILABLE, { version: info.version })
   })
 
   autoUpdater.on('update-not-available', () => {
@@ -29,18 +30,19 @@ export function initAutoUpdater(): void {
   })
 
   autoUpdater.on('download-progress', (progress) => {
-    notifyRenderer('update-download-progress', {
+    emitToRenderer(IPC.APP_UPDATE_DOWNLOAD_PROGRESS, {
       percent: progress.percent,
       bytesPerSecond: progress.bytesPerSecond
     })
   })
 
   autoUpdater.on('update-downloaded', () => {
-    notifyRenderer('update-downloaded', {})
+    emitToRenderer(IPC.APP_UPDATE_DOWNLOADED, {})
   })
 
   autoUpdater.on('error', (err) => {
     log.error('[Updater] Error:', err.message)
+    emitToRenderer(IPC.APP_UPDATE_ERROR, { error: err.message })
   })
 
   // Check for updates after a short delay
@@ -68,10 +70,7 @@ export function installUpdate(): void {
     })
     .catch((err) => {
       log.error('[Updater] Failed to download update:', err.message)
-      notifyRenderer('update-error', { error: err.message })
+      emitToRenderer(IPC.APP_UPDATE_ERROR, { error: err.message })
     })
 }
 
-function notifyRenderer(event: string, data: unknown): void {
-  emitToRenderer(`app:${event}`, data)
-}

@@ -62,6 +62,12 @@ export const IPC = {
   APP_GET_VERSION: 'app:get-version',
   APP_GET_LOG_PATH: 'app:get-log-path',
   APP_OPEN_LOG_FILE: 'app:open-log-file',
+
+  // App update events (main -> renderer)
+  APP_UPDATE_AVAILABLE: 'app:update-available',
+  APP_UPDATE_DOWNLOAD_PROGRESS: 'app:update-download-progress',
+  APP_UPDATE_DOWNLOADED: 'app:update-downloaded',
+  APP_UPDATE_ERROR: 'app:update-error',
   WINDOW_MINIMIZE: 'window:minimize',
   WINDOW_MAXIMIZE: 'window:maximize',
   WINDOW_CLOSE: 'window:close',

@@ -12,6 +12,7 @@ import { HostKeyDialog } from '@/components/common/HostKeyDialog'
 import { TerminalView } from '@/components/terminal/TerminalView'
 import { SftpManager } from '@/components/sftp/SftpManager'
 import { useTransferEventListener } from '@/hooks/use-transfers'
+import { useUpdaterEventListener } from '@/hooks/use-updater'
 import { applyUIThemeTokens, buildUIThemeTokens } from '@/themes/ui-from-terminal'
 
 export default function App() {
@@ -28,6 +29,9 @@ export default function App() {
 
   // Wire IPC transfer events into the Zustand store
   useTransferEventListener()
+
+  // Wire IPC auto-update events into toast notifications
+  useUpdaterEventListener()
 
   // Global keyboard shortcuts
   useEffect(() => {
