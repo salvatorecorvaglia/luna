@@ -3,6 +3,8 @@ export type SessionStatus = 'connecting' | 'connected' | 'disconnected' | 'error
 export interface SshConnectParams {
   connectionId: string
   sessionId: string
+  cols?: number
+  rows?: number
 }
 
 export interface SshConnectResult {

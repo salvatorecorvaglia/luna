@@ -4,7 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { WebglAddon } from '@xterm/addon-webgl'
-import { X, ChevronUp, ChevronDown } from 'lucide-react'
+import { X, ChevronUp, ChevronDown, RefreshCcw } from 'lucide-react'
 import '@xterm/xterm/css/xterm.css'
 import { useTerminalStore } from '@/stores/terminal-store'
 import { terminalThemes } from '@/themes/terminal'
@@ -24,6 +24,8 @@ export function TerminalPane({ sessionId }: TerminalPaneProps) {
   const terminalTheme = useTerminalStore((s) => s.terminalTheme)
   const fontSize = useTerminalStore((s) => s.fontSize)
   const scrollback = useTerminalStore((s) => s.scrollback)
+  const session = useTerminalStore((s) => s.sessions.get(sessionId))
+  const status = session?.status
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -228,6 +230,34 @@ export function TerminalPane({ sessionId }: TerminalPaneProps) {
 
   return (
     <div className="relative h-full w-full overflow-hidden">
+      {/* Disconnected Overlay */}
+      {(status === 'error' || status === 'disconnected') && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-4 rounded-xl border border-border/80 bg-card p-6 shadow-2xl">
+            <div className="text-center">
+              <h3 className="text-lg font-medium text-foreground">
+                {status === 'error' ? 'Connection Error' : 'Disconnected'}
+              </h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                The SSH session to the server was lost.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                if (session?.connectionId) {
+                  useTerminalStore.getState().updateSessionStatus(sessionId, 'connecting')
+                  window.api.ssh.connect({ connectionId: session.connectionId, sessionId })
+                }
+              }}
+              className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              <RefreshCcw className="h-4 w-4" />
+              Reconnect
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Search bar */}
       {searchOpen && (
         <div className="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-lg border border-border/80 bg-card px-2 py-1 shadow-lg">

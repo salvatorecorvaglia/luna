@@ -7,6 +7,7 @@ import { transferQueue } from './transfer-queue'
 import { LIMITS } from '@shared/constants'
 import { withTimeout, TimeoutError } from '../lib/with-timeout'
 import log from '../lib/logger'
+import { SshConnectionError, SftpTransferError } from '../lib/errors'
 
 type StepCallback = (transferred: number, chunk: number, total: number) => void
 
@@ -81,7 +82,7 @@ class SftpManager {
 
     const session = sshManager.getSession(sessionId)
     if (!session) {
-      throw new Error('SSH session not found')
+      throw new SshConnectionError('SSH session not found')
     }
 
     return new Promise<SFTPWrapper>((resolve, reject) => {
@@ -195,16 +196,22 @@ class SftpManager {
       }
     )
 
-    for (const entry of entries) {
-      const fullPath = dirPath === '/' ? `/${entry.filename}` : `${dirPath}/${entry.filename}`
-      const fileType = entry.attrs.mode & 0o170000
-      if (fileType === 0o40000) {
-        await this.removeDir(sftp, fullPath)
-      } else {
-        await new Promise<void>((resolve, reject) => {
-          sftp.unlink(fullPath, (err) => (err ? reject(err) : resolve()))
+    const BATCH_SIZE = 5
+    for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+      const batch = entries.slice(i, i + BATCH_SIZE)
+      await Promise.all(
+        batch.map(async (entry) => {
+          const fullPath = dirPath === '/' ? `/${entry.filename}` : `${dirPath}/${entry.filename}`
+          const fileType = entry.attrs.mode & 0o170000
+          if (fileType === 0o40000) {
+            await this.removeDir(sftp, fullPath)
+          } else {
+            await new Promise<void>((resolve, reject) => {
+              sftp.unlink(fullPath, (err) => (err ? reject(err) : resolve()))
+            })
+          }
         })
-      }
+      )
     }
 
     await new Promise<void>((resolve, reject) => {
@@ -220,7 +227,7 @@ class SftpManager {
           if (err) return reject(err)
           if (stats.size > limit) {
             return reject(
-              new Error(
+              new SftpTransferError(
                 `File too large to preview: ${stats.size} bytes (max ${limit}). Download it instead.`
               )
             )
@@ -318,8 +325,11 @@ class SftpManager {
     const writeStream = createWriteStream(localPath)
 
     const cleanupOnAbort = async (): Promise<void> => {
-      readStream.destroy()
-      writeStream.destroy()
+      await new Promise<void>((resolve) => {
+        readStream.destroy()
+        writeStream.destroy()
+        setTimeout(resolve, 50)
+      })
       await unlink(localPath).catch((err: NodeJS.ErrnoException) => {
         if (err.code !== 'ENOENT') {
           log.warn(`[SFTP] Failed to remove partial download ${localPath}:`, err.message)
@@ -336,7 +346,7 @@ class SftpManager {
         fn()
       }
       const onAbort = (): void => {
-        settle(() => cleanupOnAbort().finally(() => reject(new Error('Cancelled'))))
+        settle(() => cleanupOnAbort().finally(() => reject(new SftpTransferError('Cancelled'))))
       }
 
       if (signal.aborted) {
@@ -403,8 +413,11 @@ class SftpManager {
     const writeStream = sftp.createWriteStream(remotePath)
 
     const cleanupOnAbort = async (): Promise<void> => {
-      readStream.destroy()
-      writeStream.destroy()
+      await new Promise<void>((resolve) => {
+        readStream.destroy()
+        writeStream.destroy()
+        setTimeout(resolve, 50)
+      })
       await new Promise<void>((resolve) => {
         sftp.unlink(remotePath, () => resolve())
       })
@@ -419,7 +432,7 @@ class SftpManager {
         fn()
       }
       const onAbort = (): void => {
-        settle(() => cleanupOnAbort().finally(() => reject(new Error('Cancelled'))))
+        settle(() => cleanupOnAbort().finally(() => reject(new SftpTransferError('Cancelled'))))
       }
 
       if (signal.aborted) {

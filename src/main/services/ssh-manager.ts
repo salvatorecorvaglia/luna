@@ -40,6 +40,8 @@ interface SshSession {
   reconnecting: boolean
   _streamListeners?: StreamListeners
   historyId?: string
+  cols?: number
+  rows?: number
 }
 
 class SshManager {
@@ -148,7 +150,9 @@ class SshManager {
 
   async connect(
     sessionId: string,
-    connectionId: string
+    connectionId: string,
+    cols = 80,
+    rows = 24
   ): Promise<{ success: boolean; error?: string }> {
     const db = getDatabase()
     const row = db.prepare('SELECT * FROM connections WHERE id = ?').get(connectionId) as
@@ -168,7 +172,9 @@ class SshManager {
       status: 'connecting',
       reconnectAttempts: 0,
       reconnectTimer: null,
-      reconnecting: false
+      reconnecting: false,
+      cols,
+      rows
     }
 
     this.sessions.set(sessionId, session)
@@ -205,11 +211,11 @@ class SshManager {
             historyId,
             connectionId
           )
-        } catch {
-          // History table may not exist on older DBs before migration runs
+        } catch (err) {
+          log.warn(`[SSH] Failed to record connection history for ${connectionId}:`, err)
         }
 
-        client.shell({ term: 'xterm-256color', cols: 80, rows: 24 }, (err, stream) => {
+        client.shell({ term: 'xterm-256color', cols, rows }, (err, stream) => {
           if (err) {
             // Clean up zombie session on shell creation failure
             this.sessions.delete(sessionId)
@@ -381,8 +387,10 @@ class SshManager {
       // Remove session, then reconnect (atomic: connect re-adds it)
       const connectionId = sess.connectionId
       const reconnectAttempts = sess.reconnectAttempts
+      const cols = sess.cols
+      const rows = sess.rows
       this.sessions.delete(sessionId)
-      const result = await this.connect(sessionId, connectionId)
+      const result = await this.connect(sessionId, connectionId, cols, rows)
 
       if (result.success) {
         const newSess = this.sessions.get(sessionId)
@@ -411,8 +419,12 @@ class SshManager {
 
   resize(sessionId: string, cols: number, rows: number): void {
     const session = this.sessions.get(sessionId)
-    if (session?.shell) {
-      session.shell.setWindow(rows, cols, rows * 16, cols * 8)
+    if (session) {
+      session.cols = cols
+      session.rows = rows
+      if (session.shell) {
+        session.shell.setWindow(rows, cols, rows * 16, cols * 8)
+      }
     }
   }
 
@@ -443,8 +455,8 @@ class SshManager {
         db.prepare(
           'UPDATE connection_history SET disconnected_at = ?, duration_secs = (? - connected_at) WHERE id = ?'
         ).run(now, now, session.historyId)
-      } catch {
-        // History recording is best-effort
+      } catch (err) {
+        log.warn(`[SSH] Failed to record disconnect history for ${session.historyId}:`, err)
       }
     }
 

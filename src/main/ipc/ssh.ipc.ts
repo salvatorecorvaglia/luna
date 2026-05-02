@@ -8,7 +8,7 @@ export function registerSshHandlers(): void {
   ipcMain.handle(IPC.SSH_CONNECT, async (_event, params: SshConnectParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId')
     assertNonEmptyString(params.connectionId, 'connectionId')
-    return sshManager.connect(params.sessionId, params.connectionId)
+    return sshManager.connect(params.sessionId, params.connectionId, params.cols, params.rows)
   })
 
   ipcMain.handle(IPC.SSH_DISCONNECT, (_event, sessionId: string) => {
