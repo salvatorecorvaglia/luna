@@ -1,5 +1,5 @@
 {
-  "name": "lunar",
+  "name": "Lunar",
   "version": "1.0.0",
   "description": "A modern SSH terminal and intuitive SFTP file manager built for modern developers",
   "main": "./out/main/index.js",
