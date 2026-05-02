@@ -84,7 +84,7 @@ linux:
   artifactName: '${name}-${version}-linux-${arch}.${ext}'
   category: Development;Utility;Network
   maintainer: Salvatore Corvaglia
-  synopsis: Premium SSH Terminal & SFTP File Manager
+  synopsis: A modern SSH terminal and intuitive SFTP file manager built for modern developers
   description: >-
     A high-performance, cross-platform desktop application designed to streamline
     your remote server workflows. Combining a powerful terminal with an intuitive
@@ -92,7 +92,7 @@ linux:
   desktop:
     entry:
       Name: Lunar
-      Comment: Premium SSH Terminal & SFTP File Manager
+      Comment: A modern SSH terminal and intuitive SFTP file manager built for modern developers
       Keywords: ssh;sftp;terminal;file-manager;remote
 
 appImage:

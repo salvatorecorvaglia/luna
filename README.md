@@ -1,6 +1,6 @@
 # Lunar 🌙
 
-> **A Premium SSH Terminal & SFTP File Manager for the Modern Developer.**
+> **A modern SSH terminal and intuitive SFTP file manager built for modern developers.**
 
 Lunar is a high-performance, cross-platform desktop application designed to streamline your remote server workflows. Combining a powerful terminal with an intuitive dual-pane SFTP browser, Lunar offers a seamless bridge between your local environment and remote infrastructure.
 
@@ -26,8 +26,7 @@ Lunar is a high-performance, cross-platform desktop application designed to stre
 
 - **Command Palette**: Access every action instantly with `Cmd+K` (macOS) or `Ctrl+K` (Linux/Windows).
 - **Connection Manager**: Securely store connections with password or SSH key auth. Organize via folders and color-coded tags.
-- **Auto-Update**: Always stay on the latest version with integrated GitHub-based updates.
-- **Keyboard-Driven**: `Cmd+1-9` for tab switching, `Cmd+Shift+1/2` for view switching, `Cmd+W` to close tabs, and more.
+- **Auto-Update**: Stay current with integrated GitHub-based updates, featuring real-time download progress and interactive toast notifications.
 
 ### 🔒 Security
 
@@ -87,17 +86,6 @@ npm run dist:win       # Windows x64 (NSIS installer)
 npm run dist:linux     # Linux x64 & ARM64 (AppImage + deb)
 npm run dist:all       # All platforms at once (macOS host only)
 ```
-
-### Releasing
-
-Create a new release with a single command — the CI will build and publish to GitHub Releases:
-
-```bash
-npm run release:patch
-npm run release:minor
-npm run release:major
-```
-
 ---
 
 ## 🤝 Contributing
