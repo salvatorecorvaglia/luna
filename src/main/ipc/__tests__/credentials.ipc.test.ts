@@ -19,6 +19,15 @@ vi.mock('../../services/credential-store', () => ({
   deleteCredential: (...a: unknown[]) => del(...a)
 }))
 
+vi.mock('../../lib/logger', () => ({
+  default: {
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn()
+  }
+}))
+
 import { registerCredentialHandlers } from '../credentials.ipc'
 import { IPC } from '@shared/constants'
 

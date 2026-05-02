@@ -1,3 +1,4 @@
+import { app } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { IPC } from '@shared/constants'
 import { emitToRenderer } from './emit'
@@ -8,6 +9,7 @@ let updateVersion = ''
 let inFlightCheck: Promise<unknown> | null = null
 
 function checkOnce(): Promise<unknown> {
+  if (!app.isPackaged) return Promise.resolve(null)
   if (inFlightCheck) return inFlightCheck
   inFlightCheck = autoUpdater.checkForUpdates().finally(() => {
     inFlightCheck = null
@@ -16,6 +18,8 @@ function checkOnce(): Promise<unknown> {
 }
 
 export function initAutoUpdater(): void {
+  if (!app.isPackaged) return
+
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = true
 
@@ -41,8 +45,12 @@ export function initAutoUpdater(): void {
   })
 
   autoUpdater.on('error', (err) => {
-    log.error('[Updater] Error:', err.message)
-    emitToRenderer(IPC.APP_UPDATE_ERROR, { error: err.message })
+    let errorMessage = err.message
+    if (errorMessage.includes('code signature at URL') || errorMessage.includes('did not pass validation')) {
+      errorMessage = 'Auto-update is not supported for unsigned applications. Please download the latest release manually.'
+    }
+    log.error('[Updater] Error:', errorMessage)
+    emitToRenderer(IPC.APP_UPDATE_ERROR, { error: errorMessage })
   })
 
   // Check for updates after a short delay
@@ -63,14 +71,20 @@ export function checkForUpdate(): { available: boolean; version?: string } {
 }
 
 export function installUpdate(): void {
+  if (!app.isPackaged) return
+
   autoUpdater
     .downloadUpdate()
     .then(() => {
       autoUpdater.quitAndInstall(false, true)
     })
     .catch((err) => {
-      log.error('[Updater] Failed to download update:', err.message)
-      emitToRenderer(IPC.APP_UPDATE_ERROR, { error: err.message })
+      let errorMessage = err.message
+      if (errorMessage.includes('code signature at URL') || errorMessage.includes('did not pass validation')) {
+        errorMessage = 'Auto-update is not supported for unsigned applications. Please download the latest release manually.'
+      }
+      log.error('[Updater] Failed to download update:', errorMessage)
+      emitToRenderer(IPC.APP_UPDATE_ERROR, { error: errorMessage })
     })
 }
 
