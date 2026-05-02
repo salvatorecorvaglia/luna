@@ -1,5 +1,6 @@
-import { Terminal, FolderOpen, Plus, Command, ArrowRight } from 'lucide-react'
+import { FolderOpen, Plus, Command, ArrowRight } from 'lucide-react'
 import { motion } from 'framer-motion'
+import lunarLogo from '../../../../../resources/lunar.png'
 import { useConnectionStore } from '@/stores/connection-store'
 import { useUIStore } from '@/stores/ui-store'
 
@@ -55,8 +56,8 @@ export function WelcomeView() {
       >
         {/* Logo */}
         <motion.div variants={fadeUp} className="mx-auto mb-6">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/25">
-            <Terminal className="h-8 w-8 text-white" />
+          <div className="mx-auto flex h-24 w-24 items-center justify-center">
+            <img src={lunarLogo} alt="Lunar Logo" className="h-full w-full object-contain drop-shadow-xl" />
           </div>
         </motion.div>
 
