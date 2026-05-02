@@ -17,6 +17,7 @@ import { useUIStore } from '@/stores/ui-store'
 import { useTerminalStore } from '@/stores/terminal-store'
 import type { TerminalThemeName } from '@shared/types/terminal'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
+import lunarLogo from '../../../../../resources/lunar.png'
 
 const TERMINAL_THEMES: {
   value: TerminalThemeName
@@ -355,8 +356,8 @@ export function SettingsPanel() {
               {/* About */}
               <Section title="About" icon={<Info className="h-4 w-4" />}>
                 <div className="rounded-lg border border-border/60 bg-background/50 p-4 text-center">
-                  <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-sm">
-                    <Terminal className="h-5 w-5 text-white" />
+                  <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center">
+                    <img src={lunarLogo} alt="Lunar Logo" className="h-full w-full object-contain drop-shadow-sm" />
                   </div>
                   <p className="text-sm font-semibold text-foreground">Lunar</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
