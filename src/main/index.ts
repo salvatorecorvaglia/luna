@@ -1,8 +1,7 @@
-import { app, BrowserWindow, shell, ipcMain } from 'electron'
+import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../resources/lunar.png?asset'
-import { IPC } from '@shared/constants'
 import { registerAllHandlers } from './ipc'
 import { closeDatabase } from './services/database'
 import { sshManager } from './services/ssh-manager'
@@ -58,26 +57,7 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
-  // Window management IPC
-  ipcMain.handle(IPC.WINDOW_MINIMIZE, () => {
-    mainWindow?.minimize()
-  })
 
-  ipcMain.handle(IPC.WINDOW_MAXIMIZE, () => {
-    if (mainWindow?.isMaximized()) {
-      mainWindow.unmaximize()
-    } else {
-      mainWindow?.maximize()
-    }
-  })
-
-  ipcMain.handle(IPC.WINDOW_CLOSE, () => {
-    mainWindow?.close()
-  })
-
-  ipcMain.handle(IPC.WINDOW_IS_MAXIMIZED, () => {
-    return mainWindow?.isMaximized() ?? false
-  })
 
   // HMR in dev, file:// in production
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
