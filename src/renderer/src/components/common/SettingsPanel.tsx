@@ -19,7 +19,6 @@ const TERMINAL_THEMES: {
   { value: 'dracula', label: 'Dracula', bg: '#282a36', fg: '#f8f8f2', accent: '#bd93f9' },
   { value: 'nord', label: 'Nord', bg: '#2e3440', fg: '#d8dee9', accent: '#88c0d0' },
   { value: 'tokyo-night', label: 'Tokyo Night', bg: '#1a1b26', fg: '#a9b1d6', accent: '#7aa2f7' },
-  { value: 'solarized-dark', label: 'Solarized', bg: '#002b36', fg: '#839496', accent: '#268bd2' },
   { value: 'gruvbox', label: 'Gruvbox', bg: '#282828', fg: '#ebdbb2', accent: '#fabd2f' },
   { value: 'one-dark', label: 'One Dark', bg: '#282c34', fg: '#abb2bf', accent: '#61afef' },
   { value: 'monokai', label: 'Monokai', bg: '#272822', fg: '#f8f8f2', accent: '#a6e22e' },

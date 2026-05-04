@@ -66,7 +66,6 @@ export type TerminalThemeName =
   | 'dracula'
   | 'nord'
   | 'tokyo-night'
-  | 'solarized-dark'
   | 'gruvbox'
   | 'one-dark'
   | 'monokai';

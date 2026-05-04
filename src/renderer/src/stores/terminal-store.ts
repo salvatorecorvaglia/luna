@@ -5,7 +5,6 @@ const VALID_THEMES: TerminalThemeName[] = [
   'dracula',
   'nord',
   'tokyo-night',
-  'solarized-dark',
   'gruvbox',
   'one-dark',
   'monokai',
