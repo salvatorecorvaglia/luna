@@ -16,11 +16,4 @@ export const terminalThemes: Record<TerminalThemeName, ITheme> = {
   monokai: monokaiTheme,
 };
 
-export {
-  draculaTheme,
-  nordTheme,
-  tokyoNightTheme,
-  gruvboxTheme,
-  oneDarkTheme,
-  monokaiTheme,
-};
+export { draculaTheme, nordTheme, tokyoNightTheme, gruvboxTheme, oneDarkTheme, monokaiTheme };

@@ -40,5 +40,3 @@ export function assertSafeAbsolutePath(value: unknown, name: string): asserts va
     throw new Error(`${name} must be canonical (no '..' or redundant separators)`);
   }
 }
-
-
