@@ -15,7 +15,12 @@ import type {
   TransferErrorEvent,
   TransferProgressEvent,
 } from '@shared/types/transfer';
-import type { AuthType, CreateConnectionInput, ExportedConnection, UpdateConnectionInput } from '@shared/types/connection';
+import type {
+  AuthType,
+  CreateConnectionInput,
+  ExportedConnection,
+  UpdateConnectionInput,
+} from '@shared/types/connection';
 import type {
   SftpDeleteParams,
   SftpListParams,

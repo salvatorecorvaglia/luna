@@ -51,7 +51,7 @@ describe('sshManager', () => {
   });
 
   it('testConnection should return ok for valid connection', async () => {
-    const result = await sshManager.testConnection('conn-id-1');
+    const result = await sshManager.testConnection({ connectionId: 'conn-id-1' });
     expect(result.ok).toBe(true);
   });
 
@@ -62,7 +62,7 @@ describe('sshManager', () => {
       }),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
-    const result = await sshManager.testConnection('invalid-id');
+    const result = await sshManager.testConnection({ connectionId: 'invalid-id' });
     expect(result.ok).toBe(false);
     expect(result.error).toBe('Connection not found');
   });

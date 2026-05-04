@@ -144,7 +144,8 @@ class SshManager {
     // Set up auth
     // If we have a password/passphrase in params, use them directly (testing unsaved)
     // Otherwise try to retrieve from store if we have a connectionId
-    const password = params.password ?? (connectionId ? retrieveCredential(connectionId) : undefined);
+    const password =
+      params.password ?? (connectionId ? retrieveCredential(connectionId) : undefined);
     const passphrase =
       params.passphrase ?? (connectionId ? retrieveCredential(connectionId) : undefined);
 
