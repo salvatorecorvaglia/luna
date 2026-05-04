@@ -342,15 +342,15 @@ export function CommandPalette() {
           >
             <div className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-xl">
               {/* Search input */}
-              <div className="flex items-center border-b border-border/60 px-3">
-                <Search className="h-4 w-4 text-muted-foreground/60 flex-shrink-0" />
+              <div className="flex items-center border-b border-border/60 px-3 rounded-t-xl">
+                <Search className="h-4 w-4 text-muted-foreground/60 flex-shrink-0" tabIndex={-1} />
                 <input
                   type="text"
                   placeholder="Type a command..."
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  className="flex-1 border-none bg-transparent py-3 pl-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
+                  className="flex-1 border-none bg-transparent py-3 pl-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:!outline-none focus:ring-2 focus:ring-inset focus:ring-sidebar-ring/60 rounded-lg transition-all duration-200"
                   autoFocus
                 />
               </div>
@@ -418,7 +418,7 @@ export function CommandPalette() {
               </div>
 
               {/* Footer */}
-              <div className="flex items-center justify-between border-t border-border/60 px-3 py-1.5 text-[11px] text-muted-foreground/50">
+              <div className="flex items-center justify-between border-t border-border/60 px-3 py-1.5 text-[11px] text-muted-foreground/50 rounded-b-xl">
                 <div className="flex items-center gap-3">
                   <span className="flex items-center gap-1">
                     <kbd className="rounded border border-border/60 bg-muted/50 px-1 py-px font-mono text-[10px]">
