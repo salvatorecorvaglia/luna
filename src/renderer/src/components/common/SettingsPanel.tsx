@@ -133,7 +133,7 @@ export function SettingsPanel() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="settings-dialog-title"
-            className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l border-border/60 bg-card shadow-xl"
+            className="no-drag fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l border-border/60 bg-card shadow-xl"
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">

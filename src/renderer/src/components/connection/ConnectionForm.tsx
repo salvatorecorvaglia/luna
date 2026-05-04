@@ -293,14 +293,14 @@ export function ConnectionForm() {
             initial="initial"
             animate="animate"
             exit="exit"
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            className="no-drag fixed inset-0 z-50 flex items-center justify-center p-4"
           >
             <div
               ref={dialogRef}
               role="dialog"
               aria-modal="true"
               aria-labelledby="connection-form-title"
-              className="w-full max-w-lg rounded-xl border border-border/80 bg-card shadow-xl"
+              className="no-drag w-full max-w-lg rounded-xl border border-border/80 bg-card shadow-xl"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}

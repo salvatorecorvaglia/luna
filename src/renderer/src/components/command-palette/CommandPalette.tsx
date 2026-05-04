@@ -338,7 +338,7 @@ export function CommandPalette() {
             initial="initial"
             animate="animate"
             exit="exit"
-            className="fixed left-1/2 top-[20%] z-50 w-full max-w-lg -translate-x-1/2"
+            className="no-drag fixed left-1/2 top-[20%] z-50 w-full max-w-lg -translate-x-1/2"
           >
             <div className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-xl">
               {/* Search input */}
