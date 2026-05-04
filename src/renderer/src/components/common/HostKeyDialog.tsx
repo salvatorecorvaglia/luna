@@ -1,16 +1,16 @@
-import {useCallback, useEffect, useRef, useState} from 'react'
-import {AnimatePresence, motion} from 'framer-motion'
-import {Check, Copy, Fingerprint, ShieldAlert, ShieldCheck} from 'lucide-react'
-import {cn} from '@/lib/utils'
-import {toast} from 'sonner'
-import type {SshHostKeyChangeEvent} from '@shared/types/terminal'
-import {connectToHost} from '@/lib/ssh'
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Check, Copy, Fingerprint, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+import type { SshHostKeyChangeEvent } from '@shared/types/terminal';
+import { connectToHost } from '@/lib/ssh';
 
 const overlayVariants = {
   initial: { opacity: 0 },
   animate: { opacity: 1 },
-  exit: { opacity: 0 }
-}
+  exit: { opacity: 0 },
+};
 
 const dialogVariants = {
   initial: { opacity: 0, scale: 0.96, y: 8 },
@@ -18,98 +18,98 @@ const dialogVariants = {
     opacity: 1,
     scale: 1,
     y: 0,
-    transition: { duration: 0.15, ease: [0.25, 0.46, 0.45, 0.94] }
+    transition: { duration: 0.15, ease: [0.25, 0.46, 0.45, 0.94] },
   },
-  exit: { opacity: 0, scale: 0.96, y: 8, transition: { duration: 0.1 } }
-}
+  exit: { opacity: 0, scale: 0.96, y: 8, transition: { duration: 0.1 } },
+};
 
 export function HostKeyDialog() {
-  const [event, setEvent] = useState<SshHostKeyChangeEvent | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const dialogRef = useRef<HTMLDivElement>(null)
+  const [event, setEvent] = useState<SshHostKeyChangeEvent | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const cleanup = window.api.ssh.onHostKeyChange((payload: SshHostKeyChangeEvent) => {
-      setEvent(payload)
-      setLoading(false)
-      setCopied(false)
-    })
-    return cleanup
-  }, [])
+      setEvent(payload);
+      setLoading(false);
+      setCopied(false);
+    });
+    return cleanup;
+  }, []);
 
   const handleTrust = useCallback(async () => {
-    if (!event) return
-    setLoading(true)
+    if (!event) return;
+    setLoading(true);
     try {
       const result = await window.api.ssh.trustHostKey({
         host: event.host,
-        port: event.port
-      })
+        port: event.port,
+      });
       if (result.trusted) {
-        toast.success(`Host key trusted for ${event.host}:${event.port}`)
-        setEvent(null)
+        toast.success(`Host key trusted for ${event.host}:${event.port}`);
+        setEvent(null);
         // Auto-reconnect after trusting
         if (event.connectionId) {
-          connectToHost(event.connectionId)
+          connectToHost(event.connectionId);
         }
       } else {
-        toast.error('Failed to trust host key')
+        toast.error('Failed to trust host key');
       }
     } catch (err) {
-      toast.error(`Trust failed: ${err instanceof Error ? err.message : String(err)}`)
+      toast.error(`Trust failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [event])
+  }, [event]);
 
   const handleReject = useCallback(() => {
-    setEvent(null)
-    toast.info('Host key rejected — connection was not established')
-  }, [])
+    setEvent(null);
+    toast.info('Host key rejected — connection was not established');
+  }, []);
 
   const handleCopyFingerprint = useCallback(async () => {
-    if (!event) return
-    await navigator.clipboard.writeText(event.newFingerprint)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }, [event])
+    if (!event) return;
+    await navigator.clipboard.writeText(event.newFingerprint);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [event]);
 
   // Focus trap + Escape
   useEffect(() => {
-    if (!event) return
-    const dialog = dialogRef.current
-    if (!dialog) return
+    if (!event) return;
+    const dialog = dialogRef.current;
+    if (!dialog) return;
 
     requestAnimationFrame(() => {
-      const rejectBtn = dialog.querySelector<HTMLElement>('[data-reject]')
-      rejectBtn?.focus()
-    })
+      const rejectBtn = dialog.querySelector<HTMLElement>('[data-reject]');
+      rejectBtn?.focus();
+    });
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        handleReject()
-        return
+        handleReject();
+        return;
       }
       if (e.key === 'Tab') {
         const focusable = dialog.querySelectorAll<HTMLElement>(
-          'button, [tabindex]:not([tabindex="-1"])'
-        )
-        const first = focusable[0]
-        const last = focusable[focusable.length - 1]
+          'button, [tabindex]:not([tabindex="-1"])',
+        );
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
         if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault()
-          last?.focus()
+          e.preventDefault();
+          last?.focus();
         } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault()
-          first?.focus()
+          e.preventDefault();
+          first?.focus();
         }
       }
-    }
+    };
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [event, handleReject])
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [event, handleReject]);
 
   return (
     <AnimatePresence>
@@ -144,9 +144,7 @@ export function HostKeyDialog() {
                 <div
                   className={cn(
                     'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full',
-                    event.isFirst
-                      ? 'bg-blue-500/10'
-                      : 'bg-destructive/10'
+                    event.isFirst ? 'bg-blue-500/10' : 'bg-destructive/10',
                   )}
                 >
                   {event.isFirst ? (
@@ -156,10 +154,7 @@ export function HostKeyDialog() {
                   )}
                 </div>
                 <div className="min-w-0">
-                  <h3
-                    id="host-key-dialog-title"
-                    className="text-sm font-semibold text-foreground"
-                  >
+                  <h3 id="host-key-dialog-title" className="text-sm font-semibold text-foreground">
                     {event.isFirst ? 'Unknown Host' : 'Host Key Changed'}
                   </h3>
                   <p
@@ -236,7 +231,7 @@ export function HostKeyDialog() {
                   disabled={loading}
                   className={cn(
                     event.isFirst ? 'btn-primary' : 'btn-destructive',
-                    loading && 'opacity-60 pointer-events-none'
+                    loading && 'opacity-60 pointer-events-none',
                   )}
                 >
                   {loading ? 'Trusting…' : event.isFirst ? 'Trust & Connect' : 'Trust New Key'}
@@ -247,5 +242,5 @@ export function HostKeyDialog() {
         </>
       )}
     </AnimatePresence>
-  )
+  );
 }

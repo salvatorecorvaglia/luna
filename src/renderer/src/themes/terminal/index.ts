@@ -1,12 +1,12 @@
-import type {ITheme} from '@xterm/xterm'
-import {draculaTheme} from './dracula'
-import {nordTheme} from './nord'
-import {tokyoNightTheme} from './tokyo-night'
-import {solarizedDarkTheme} from './solarized-dark'
-import {gruvboxTheme} from './gruvbox'
-import {oneDarkTheme} from './one-dark'
-import {monokaiTheme} from './monokai'
-import type {TerminalThemeName} from '@shared/types/terminal'
+import type { ITheme } from '@xterm/xterm';
+import { draculaTheme } from './dracula';
+import { nordTheme } from './nord';
+import { tokyoNightTheme } from './tokyo-night';
+import { solarizedDarkTheme } from './solarized-dark';
+import { gruvboxTheme } from './gruvbox';
+import { oneDarkTheme } from './one-dark';
+import { monokaiTheme } from './monokai';
+import type { TerminalThemeName } from '@shared/types/terminal';
 
 export const terminalThemes: Record<TerminalThemeName, ITheme> = {
   dracula: draculaTheme,
@@ -15,8 +15,8 @@ export const terminalThemes: Record<TerminalThemeName, ITheme> = {
   'solarized-dark': solarizedDarkTheme,
   gruvbox: gruvboxTheme,
   'one-dark': oneDarkTheme,
-  monokai: monokaiTheme
-}
+  monokai: monokaiTheme,
+};
 
 export {
   draculaTheme,
@@ -25,5 +25,5 @@ export {
   solarizedDarkTheme,
   gruvboxTheme,
   oneDarkTheme,
-  monokaiTheme
-}
+  monokaiTheme,
+};

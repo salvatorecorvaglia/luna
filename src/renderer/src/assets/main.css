@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /* ──────────────────────────────────────────────────
    Design Tokens
@@ -113,7 +113,7 @@ button,
 a,
 input,
 select,
-[role="button"],
+[role='button'],
 [data-interactive] {
   transition-property: color, background-color, border-color, box-shadow, opacity, transform;
   transition-duration: var(--duration-normal);
@@ -122,7 +122,10 @@ select,
 
 /* Theme transitions only on containers */
 .theme-transition {
-  transition: background-color var(--duration-slow) ease, border-color var(--duration-slow) ease, color var(--duration-slow) ease;
+  transition:
+    background-color var(--duration-slow) ease,
+    border-color var(--duration-slow) ease,
+    color var(--duration-slow) ease;
 }
 
 /* Terminal: no transitions at all */
@@ -141,7 +144,7 @@ select,
 }
 
 button:focus-visible,
-[role="button"]:focus-visible {
+[role='button']:focus-visible {
   outline: 2px solid var(--color-sidebar-ring);
   outline-offset: 2px;
 }
@@ -159,7 +162,9 @@ button:focus-visible,
   line-height: 1.5;
   color: var(--color-foreground);
   outline: none;
-  transition: border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
+  transition:
+    border-color var(--duration-fast) ease,
+    box-shadow var(--duration-fast) ease;
 }
 
 .form-input::placeholder {
@@ -278,7 +283,9 @@ button:focus-visible,
    Reduced motion
    ────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
@@ -289,13 +296,22 @@ button:focus-visible,
    Keyframes
    ────────────────────────────────────────────────── */
 @keyframes pulse-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
 }
 
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 .animate-pulse-dot {
@@ -303,7 +319,12 @@ button:focus-visible,
 }
 
 .skeleton {
-  background: linear-gradient(90deg, var(--color-muted) 25%, var(--color-accent) 50%, var(--color-muted) 75%);
+  background: linear-gradient(
+    90deg,
+    var(--color-muted) 25%,
+    var(--color-accent) 50%,
+    var(--color-muted) 75%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
   border-radius: var(--radius-sm);

@@ -1,52 +1,52 @@
-import {useCallback, useMemo, useRef, useState} from 'react'
-import {useVirtualizer} from '@tanstack/react-virtual'
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
-    ChevronDown,
-    ChevronUp,
-    Copy,
-    Eye,
-    File,
-    FileArchive,
-    FileCode,
-    FileImage,
-    FileText,
-    Folder,
-    FolderOpen,
-    Link2,
-    Pencil,
-    Trash2
-} from 'lucide-react'
-import {cn} from '@/lib/utils'
-import {formatDate, formatSize} from '@/lib/format'
-import type {FileEntry} from '@shared/types/sftp'
-import {ContextMenu, type ContextMenuItem} from '@/components/common/ContextMenu'
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Eye,
+  File,
+  FileArchive,
+  FileCode,
+  FileImage,
+  FileText,
+  Folder,
+  FolderOpen,
+  Link2,
+  Pencil,
+  Trash2,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { formatDate, formatSize } from '@/lib/format';
+import type { FileEntry } from '@shared/types/sftp';
+import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
 
-type SortField = 'name' | 'size' | 'modifiedAt'
-type SortDir = 'asc' | 'desc'
+type SortField = 'name' | 'size' | 'modifiedAt';
+type SortDir = 'asc' | 'desc';
 
 interface FileListProps {
-  entries: FileEntry[]
-  selection: Set<string>
-  onSelect: (name: string) => void
-  onOpen: (entry: FileEntry) => void
-  onDragStart?: (entry: FileEntry, e: React.DragEvent) => void
-  onRename?: (entry: FileEntry) => void
-  onDelete?: (entry: FileEntry) => void
-  onCopyPath?: (entry: FileEntry) => void
-  onPreview?: (entry: FileEntry) => void
-  showPermissions?: boolean
-  onSelectAll?: () => void
-  emptyMessage?: string
+  entries: FileEntry[];
+  selection: Set<string>;
+  onSelect: (name: string) => void;
+  onOpen: (entry: FileEntry) => void;
+  onDragStart?: (entry: FileEntry, e: React.DragEvent) => void;
+  onRename?: (entry: FileEntry) => void;
+  onDelete?: (entry: FileEntry) => void;
+  onCopyPath?: (entry: FileEntry) => void;
+  onPreview?: (entry: FileEntry) => void;
+  showPermissions?: boolean;
+  onSelectAll?: () => void;
+  emptyMessage?: string;
 }
 
 function getFileIcon(entry: FileEntry) {
-  if (entry.isDirectory) return <Folder className="h-4 w-4 text-info" aria-hidden="true" />
-  if (entry.isSymlink) return <Link2 className="h-4 w-4 text-cyan-500" aria-hidden="true" />
+  if (entry.isDirectory) return <Folder className="h-4 w-4 text-info" aria-hidden="true" />;
+  if (entry.isSymlink) return <Link2 className="h-4 w-4 text-cyan-500" aria-hidden="true" />;
 
-  const ext = entry.name.split('.').pop()?.toLowerCase()
+  const ext = entry.name.split('.').pop()?.toLowerCase();
 
   if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp'].includes(ext || ''))
-    return <FileImage className="h-4 w-4 text-pink-500" aria-hidden="true" />
+    return <FileImage className="h-4 w-4 text-pink-500" aria-hidden="true" />;
   if (
     [
       'js',
@@ -62,12 +62,12 @@ function getFileIcon(entry: FileEntry) {
       'cpp',
       'h',
       'sh',
-      'bash'
+      'bash',
     ].includes(ext || '')
   )
-    return <FileCode className="h-4 w-4 text-success" aria-hidden="true" />
+    return <FileCode className="h-4 w-4 text-success" aria-hidden="true" />;
   if (['zip', 'tar', 'gz', 'bz2', 'xz', '7z', 'rar'].includes(ext || ''))
-    return <FileArchive className="h-4 w-4 text-warning" aria-hidden="true" />
+    return <FileArchive className="h-4 w-4 text-warning" aria-hidden="true" />;
   if (
     [
       'md',
@@ -81,12 +81,12 @@ function getFileIcon(entry: FileEntry) {
       'toml',
       'ini',
       'cfg',
-      'conf'
+      'conf',
     ].includes(ext || '')
   )
-    return <FileText className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+    return <FileText className="h-4 w-4 text-muted-foreground" aria-hidden="true" />;
 
-  return <File className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+  return <File className="h-4 w-4 text-muted-foreground" aria-hidden="true" />;
 }
 
 export function FileList({
@@ -101,98 +101,98 @@ export function FileList({
   onPreview,
   showPermissions = false,
   onSelectAll,
-  emptyMessage = 'No files'
+  emptyMessage = 'No files',
 }: FileListProps) {
-  'use no memo'
-  const [sortField, setSortField] = useState<SortField>('name')
-  const [sortDir, setSortDir] = useState<SortDir>('asc')
-  const [focusedIndex, setFocusedIndex] = useState(-1)
+  'use no memo';
+  const [sortField, setSortField] = useState<SortField>('name');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [focusedIndex, setFocusedIndex] = useState(-1);
 
   const sorted = useMemo(() => {
     return [...entries].sort((a, b) => {
-      if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
+      if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
 
-      const mul = sortDir === 'asc' ? 1 : -1
-      if (sortField === 'name') return mul * a.name.localeCompare(b.name)
-      if (sortField === 'size') return mul * (a.size - b.size)
-      return mul * (a.modifiedAt - b.modifiedAt)
-    })
-  }, [entries, sortField, sortDir])
+      const mul = sortDir === 'asc' ? 1 : -1;
+      if (sortField === 'name') return mul * a.name.localeCompare(b.name);
+      if (sortField === 'size') return mul * (a.size - b.size);
+      return mul * (a.modifiedAt - b.modifiedAt);
+    });
+  }, [entries, sortField, sortDir]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     } else {
-      setSortField(field)
-      setSortDir('asc')
+      setSortField(field);
+      setSortDir('asc');
     }
-  }
+  };
 
   const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return null
+    if (sortField !== field) return null;
     return sortDir === 'asc' ? (
       <ChevronUp className="h-3 w-3" />
     ) : (
       <ChevronDown className="h-3 w-3" />
-    )
-  }
+    );
+  };
 
-  const ROW_HEIGHT = 32
-  const parentRef = useRef<HTMLDivElement>(null)
+  const ROW_HEIGHT = 32;
+  const parentRef = useRef<HTMLDivElement>(null);
 
   // eslint-disable-next-line react-hooks/incompatible-library -- opted out of memoization via "use no memo"
   const virtualizer = useVirtualizer({
     count: sorted.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => ROW_HEIGHT,
-    overscan: 10
-  })
+    overscan: 10,
+  });
 
   const handleListKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (sorted.length === 0) return
+      if (sorted.length === 0) return;
 
       switch (e.key) {
         case 'ArrowDown': {
-          e.preventDefault()
-          const next = Math.min(focusedIndex + 1, sorted.length - 1)
-          setFocusedIndex(next)
-          onSelect(sorted[next].name)
-          virtualizer.scrollToIndex(next, { align: 'auto' })
-          break
+          e.preventDefault();
+          const next = Math.min(focusedIndex + 1, sorted.length - 1);
+          setFocusedIndex(next);
+          onSelect(sorted[next].name);
+          virtualizer.scrollToIndex(next, { align: 'auto' });
+          break;
         }
         case 'ArrowUp': {
-          e.preventDefault()
-          const prev = Math.max(focusedIndex - 1, 0)
-          setFocusedIndex(prev)
-          onSelect(sorted[prev].name)
-          virtualizer.scrollToIndex(prev, { align: 'auto' })
-          break
+          e.preventDefault();
+          const prev = Math.max(focusedIndex - 1, 0);
+          setFocusedIndex(prev);
+          onSelect(sorted[prev].name);
+          virtualizer.scrollToIndex(prev, { align: 'auto' });
+          break;
         }
         case 'Enter': {
           if (focusedIndex >= 0 && focusedIndex < sorted.length) {
-            onOpen(sorted[focusedIndex])
+            onOpen(sorted[focusedIndex]);
           }
-          break
+          break;
         }
         case 'Delete':
         case 'Backspace': {
           if (focusedIndex >= 0 && focusedIndex < sorted.length && onDelete) {
-            onDelete(sorted[focusedIndex])
+            onDelete(sorted[focusedIndex]);
           }
-          break
+          break;
         }
         case 'a': {
           if (e.metaKey || e.ctrlKey) {
-            e.preventDefault()
-            onSelectAll?.()
+            e.preventDefault();
+            onSelectAll?.();
           }
-          break
+          break;
         }
       }
     },
-    [sorted, focusedIndex, onSelect, onOpen, onDelete, onSelectAll, virtualizer]
-  )
+    [sorted, focusedIndex, onSelect, onOpen, onDelete, onSelectAll, virtualizer],
+  );
 
   if (entries.length === 0) {
     return (
@@ -200,7 +200,7 @@ export function FileList({
         <FolderOpen className="h-8 w-8 text-muted-foreground/20" />
         <span className="text-xs">{emptyMessage}</span>
       </div>
-    )
+    );
   }
 
   return (
@@ -241,19 +241,19 @@ export function FileList({
           style={{
             height: `${virtualizer.getTotalSize()}px`,
             width: '100%',
-            position: 'relative'
+            position: 'relative',
           }}
         >
           {virtualizer.getVirtualItems().map((virtualRow) => {
-            const entry = sorted[virtualRow.index]
+            const entry = sorted[virtualRow.index];
             const contextItems: ContextMenuItem[] = [
               ...(!entry.isDirectory && onPreview
                 ? [
                     {
                       label: 'Preview',
                       icon: <Eye className="h-3.5 w-3.5" />,
-                      onClick: () => onPreview(entry)
-                    }
+                      onClick: () => onPreview(entry),
+                    },
                   ]
                 : []),
               ...(onCopyPath
@@ -261,8 +261,8 @@ export function FileList({
                     {
                       label: 'Copy Path',
                       icon: <Copy className="h-3.5 w-3.5" />,
-                      onClick: () => onCopyPath(entry)
-                    }
+                      onClick: () => onCopyPath(entry),
+                    },
                   ]
                 : []),
               ...(onRename
@@ -271,8 +271,8 @@ export function FileList({
                       label: 'Rename',
                       icon: <Pencil className="h-3.5 w-3.5" />,
                       onClick: () => onRename(entry),
-                      separator: true
-                    }
+                      separator: true,
+                    },
                   ]
                 : []),
               ...(onDelete
@@ -281,11 +281,11 @@ export function FileList({
                       label: 'Delete',
                       icon: <Trash2 className="h-3.5 w-3.5" />,
                       onClick: () => onDelete(entry),
-                      destructive: true
-                    }
+                      destructive: true,
+                    },
                   ]
-                : [])
-            ]
+                : []),
+            ];
             const row = (
               <div
                 key={entry.path}
@@ -297,7 +297,7 @@ export function FileList({
                   left: 0,
                   width: '100%',
                   height: `${virtualRow.size}px`,
-                  transform: `translateY(${virtualRow.start}px)`
+                  transform: `translateY(${virtualRow.start}px)`,
                 }}
                 aria-selected={selection.has(entry.name)}
                 className={cn(
@@ -305,18 +305,18 @@ export function FileList({
                   selection.has(entry.name)
                     ? 'bg-accent/80 border-b-border/30'
                     : 'hover:bg-accent/30',
-                  focusedIndex === virtualRow.index && 'ring-1 ring-inset ring-ring/50'
+                  focusedIndex === virtualRow.index && 'ring-1 ring-inset ring-ring/50',
                 )}
                 onClick={() => {
-                  setFocusedIndex(virtualRow.index)
-                  onSelect(entry.name)
+                  setFocusedIndex(virtualRow.index);
+                  onSelect(entry.name);
                 }}
                 onDoubleClick={() => onOpen(entry)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') onOpen(entry)
+                  if (e.key === 'Enter') onOpen(entry);
                   if (e.key === ' ') {
-                    e.preventDefault()
-                    onSelect(entry.name)
+                    e.preventDefault();
+                    onSelect(entry.name);
                   }
                 }}
                 draggable={!!onDragStart}
@@ -340,17 +340,17 @@ export function FileList({
                   {formatDate(entry.modifiedAt)}
                 </div>
               </div>
-            )
+            );
             return contextItems.length > 0 ? (
               <ContextMenu key={entry.path} items={contextItems}>
                 {row}
               </ContextMenu>
             ) : (
               row
-            )
+            );
           })}
         </div>
       </div>
     </div>
-  )
+  );
 }

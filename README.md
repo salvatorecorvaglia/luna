@@ -78,6 +78,7 @@ npm run test:watch     # Run tests in watch mode
 npm run test:coverage  # Run tests with coverage report
 npm run typecheck      # Run TypeScript compiler checks
 npm run lint           # Static analysis with ESLint
+npm run format         # Format code with Prettier
 ```
 
 ---

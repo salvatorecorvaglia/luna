@@ -1,23 +1,23 @@
-import {useEffect, useRef} from 'react'
-import {AnimatePresence, motion} from 'framer-motion'
-import {AlertTriangle} from 'lucide-react'
+import { useEffect, useRef } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { AlertTriangle } from 'lucide-react';
 
 interface ConfirmDialogProps {
-  open: boolean
-  title: string
-  message: string
-  confirmLabel?: string
-  cancelLabel?: string
-  destructive?: boolean
-  onConfirm: () => void
-  onCancel: () => void
+  open: boolean;
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  destructive?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
 }
 
 const overlayVariants = {
   initial: { opacity: 0 },
   animate: { opacity: 1 },
-  exit: { opacity: 0 }
-}
+  exit: { opacity: 0 },
+};
 
 const dialogVariants = {
   initial: { opacity: 0, scale: 0.96, y: 8 },
@@ -25,10 +25,10 @@ const dialogVariants = {
     opacity: 1,
     scale: 1,
     y: 0,
-    transition: { duration: 0.15, ease: [0.25, 0.46, 0.45, 0.94] }
+    transition: { duration: 0.15, ease: [0.25, 0.46, 0.45, 0.94] },
   },
-  exit: { opacity: 0, scale: 0.96, y: 8, transition: { duration: 0.1 } }
-}
+  exit: { opacity: 0, scale: 0.96, y: 8, transition: { duration: 0.1 } },
+};
 
 export function ConfirmDialog({
   open,
@@ -38,47 +38,47 @@ export function ConfirmDialog({
   cancelLabel = 'Cancel',
   destructive = false,
   onConfirm,
-  onCancel
+  onCancel,
 }: ConfirmDialogProps) {
-  const dialogRef = useRef<HTMLDivElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   // Focus trap + Escape
   useEffect(() => {
-    if (!open) return
-    const dialog = dialogRef.current
-    if (!dialog) return
+    if (!open) return;
+    const dialog = dialogRef.current;
+    if (!dialog) return;
 
     // Auto-focus cancel button
     requestAnimationFrame(() => {
-      const cancelBtn = dialog.querySelector<HTMLElement>('[data-cancel]')
-      cancelBtn?.focus()
-    })
+      const cancelBtn = dialog.querySelector<HTMLElement>('[data-cancel]');
+      cancelBtn?.focus();
+    });
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onCancel()
-        return
+        onCancel();
+        return;
       }
       if (e.key === 'Tab') {
         const focusable = dialog.querySelectorAll<HTMLElement>(
-          'button, [tabindex]:not([tabindex="-1"])'
-        )
-        const first = focusable[0]
-        const last = focusable[focusable.length - 1]
+          'button, [tabindex]:not([tabindex="-1"])',
+        );
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
 
         if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault()
-          last?.focus()
+          e.preventDefault();
+          last?.focus();
         } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault()
-          first?.focus()
+          e.preventDefault();
+          first?.focus();
         }
       }
-    }
+    };
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [open, onCancel])
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, onCancel]);
 
   return (
     <AnimatePresence>
@@ -142,5 +142,5 @@ export function ConfirmDialog({
         </>
       )}
     </AnimatePresence>
-  )
+  );
 }

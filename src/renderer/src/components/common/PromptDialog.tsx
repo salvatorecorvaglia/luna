@@ -1,23 +1,23 @@
-import {useEffect, useRef, useState} from 'react'
-import {AnimatePresence, motion} from 'framer-motion'
+import { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 
 interface PromptDialogProps {
-  open: boolean
-  title: string
-  message?: string
-  placeholder?: string
-  defaultValue?: string
-  confirmLabel?: string
-  cancelLabel?: string
-  onConfirm: (value: string) => void
-  onCancel: () => void
+  open: boolean;
+  title: string;
+  message?: string;
+  placeholder?: string;
+  defaultValue?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  onConfirm: (value: string) => void;
+  onCancel: () => void;
 }
 
 const overlayVariants = {
   initial: { opacity: 0 },
   animate: { opacity: 1 },
-  exit: { opacity: 0 }
-}
+  exit: { opacity: 0 },
+};
 
 const dialogVariants = {
   initial: { opacity: 0, scale: 0.96, y: 8 },
@@ -25,10 +25,10 @@ const dialogVariants = {
     opacity: 1,
     scale: 1,
     y: 0,
-    transition: { duration: 0.15, ease: [0.25, 0.46, 0.45, 0.94] }
+    transition: { duration: 0.15, ease: [0.25, 0.46, 0.45, 0.94] },
   },
-  exit: { opacity: 0, scale: 0.96, y: 8, transition: { duration: 0.1 } }
-}
+  exit: { opacity: 0, scale: 0.96, y: 8, transition: { duration: 0.1 } },
+};
 
 export function PromptDialog({
   open,
@@ -39,11 +39,11 @@ export function PromptDialog({
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
   onConfirm,
-  onCancel
+  onCancel,
 }: PromptDialogProps) {
-  const [value, setValue] = useState(defaultValue)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const dialogRef = useRef<HTMLDivElement>(null)
+  const [value, setValue] = useState(defaultValue);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   // Reset value when dialog opens. Setting state in an effect is intentional
   // here: the dialog mounts with a stale `defaultValue` and we want to refresh
@@ -52,52 +52,52 @@ export function PromptDialog({
   useEffect(() => {
     if (open) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setValue(defaultValue)
+      setValue(defaultValue);
       requestAnimationFrame(() => {
-        inputRef.current?.focus()
-        inputRef.current?.select()
-      })
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      });
     }
-  }, [open, defaultValue])
+  }, [open, defaultValue]);
 
   // Focus trap
   useEffect(() => {
-    if (!open) return
-    const dialog = dialogRef.current
-    if (!dialog) return
+    if (!open) return;
+    const dialog = dialogRef.current;
+    if (!dialog) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onCancel()
-        return
+        onCancel();
+        return;
       }
       if (e.key === 'Tab') {
         const focusable = dialog.querySelectorAll<HTMLElement>(
-          'input, button, [tabindex]:not([tabindex="-1"])'
-        )
-        const first = focusable[0]
-        const last = focusable[focusable.length - 1]
+          'input, button, [tabindex]:not([tabindex="-1"])',
+        );
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
 
         if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault()
-          last?.focus()
+          e.preventDefault();
+          last?.focus();
         } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault()
-          first?.focus()
+          e.preventDefault();
+          first?.focus();
         }
       }
-    }
+    };
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [open, onCancel])
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, onCancel]);
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (value.trim()) {
-      onConfirm(value.trim())
+      onConfirm(value.trim());
     }
-  }
+  };
 
   return (
     <AnimatePresence>
@@ -161,5 +161,5 @@ export function PromptDialog({
         </>
       )}
     </AnimatePresence>
-  )
+  );
 }

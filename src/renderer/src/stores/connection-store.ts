@@ -1,20 +1,20 @@
-import {create} from 'zustand'
+import { create } from 'zustand';
 
 interface ConnectionState {
-  activeConnectionId: string | null
-  quickConnectValue: string
-  connectionFormOpen: boolean
-  editingConnectionId: string | null
-  duplicatingConnectionId: string | null
+  activeConnectionId: string | null;
+  quickConnectValue: string;
+  connectionFormOpen: boolean;
+  editingConnectionId: string | null;
+  duplicatingConnectionId: string | null;
 
-  setActiveConnectionId: (id: string | null) => void
-  setQuickConnectValue: (value: string) => void
-  setConnectionFormOpen: (open: boolean) => void
-  setEditingConnectionId: (id: string | null) => void
-  openEditForm: (id: string) => void
-  openCreateForm: () => void
-  openDuplicateForm: (id: string) => void
-  closeForm: () => void
+  setActiveConnectionId: (id: string | null) => void;
+  setQuickConnectValue: (value: string) => void;
+  setConnectionFormOpen: (open: boolean) => void;
+  setEditingConnectionId: (id: string | null) => void;
+  openEditForm: (id: string) => void;
+  openCreateForm: () => void;
+  openDuplicateForm: (id: string) => void;
+  closeForm: () => void;
 }
 
 export const useConnectionStore = create<ConnectionState>((set) => ({
@@ -35,5 +35,5 @@ export const useConnectionStore = create<ConnectionState>((set) => ({
   openDuplicateForm: (id) =>
     set({ connectionFormOpen: true, editingConnectionId: null, duplicatingConnectionId: id }),
   closeForm: () =>
-    set({ connectionFormOpen: false, editingConnectionId: null, duplicatingConnectionId: null })
-}))
+    set({ connectionFormOpen: false, editingConnectionId: null, duplicatingConnectionId: null }),
+}));

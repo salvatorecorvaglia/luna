@@ -1,55 +1,55 @@
-import Database from 'better-sqlite3'
-import {app} from 'electron'
-import {join} from 'path'
-import {existsSync, mkdirSync} from 'fs'
-import type {AuthType} from '@shared/types/connection'
-import log from '../lib/logger'
+import Database from 'better-sqlite3';
+import { app } from 'electron';
+import { join } from 'path';
+import { existsSync, mkdirSync } from 'fs';
+import type { AuthType } from '@shared/types/connection';
+import log from '../lib/logger';
 
 /** Shape of a row in the `connections` table (snake_case DB columns). */
 export interface ConnectionRow {
-  id: string
-  name: string
-  host: string
-  port: number
-  username: string
-  auth_type: AuthType
-  private_key_path: string | null
-  folder: string
-  color_tag: string | null
-  startup_command: string | null
-  last_connected_at: number | null
-  created_at: number
-  updated_at: number
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  username: string;
+  auth_type: AuthType;
+  private_key_path: string | null;
+  folder: string;
+  color_tag: string | null;
+  startup_command: string | null;
+  last_connected_at: number | null;
+  created_at: number;
+  updated_at: number;
 }
 
-let db: Database.Database | null = null
+let db: Database.Database | null = null;
 
 export function getDatabase(): Database.Database {
-  if (db) return db
+  if (db) return db;
 
-  const userDataPath = app.getPath('userData')
-  const dbDir = join(userDataPath, 'data')
+  const userDataPath = app.getPath('userData');
+  const dbDir = join(userDataPath, 'data');
 
   if (!existsSync(dbDir)) {
-    mkdirSync(dbDir, { recursive: true })
+    mkdirSync(dbDir, { recursive: true });
   }
 
-  const dbPath = join(dbDir, 'lunar.db')
-  db = new Database(dbPath)
+  const dbPath = join(dbDir, 'lunar.db');
+  db = new Database(dbPath);
 
   // Enable WAL mode for better concurrent performance
-  db.pragma('journal_mode = WAL')
-  db.pragma('foreign_keys = ON')
+  db.pragma('journal_mode = WAL');
+  db.pragma('foreign_keys = ON');
 
   // Check database integrity
-  const integrityResult = db.pragma('integrity_check') as { integrity_check: string }[]
+  const integrityResult = db.pragma('integrity_check') as { integrity_check: string }[];
   if (integrityResult[0]?.integrity_check !== 'ok') {
-    log.warn('[database] Integrity check failed:', integrityResult)
+    log.warn('[database] Integrity check failed:', integrityResult);
   }
 
-  runMigrations(db)
+  runMigrations(db);
 
-  return db
+  return db;
 }
 
 function runMigrations(db: Database.Database): void {
@@ -60,27 +60,27 @@ function runMigrations(db: Database.Database): void {
       name TEXT NOT NULL UNIQUE,
       applied_at INTEGER NOT NULL DEFAULT (unixepoch())
     )
-  `)
+  `);
 
-  const migrations = getMigrations()
+  const migrations = getMigrations();
   const applied = new Set(
     db
       .prepare('SELECT name FROM _migrations')
       .all()
-      .map((row) => (row as { name: string }).name)
-  )
+      .map((row) => (row as { name: string }).name),
+  );
 
-  const insertMigration = db.prepare('INSERT INTO _migrations (name) VALUES (?)')
+  const insertMigration = db.prepare('INSERT INTO _migrations (name) VALUES (?)');
 
   for (const migration of migrations) {
-    if (applied.has(migration.name)) continue
+    if (applied.has(migration.name)) continue;
 
     const transaction = db.transaction(() => {
-      db!.exec(migration.sql)
-      insertMigration.run(migration.name)
-    })
-    transaction()
-    log.info(`[DB] Applied migration: ${migration.name}`)
+      db!.exec(migration.sql);
+      insertMigration.run(migration.name);
+    });
+    transaction();
+    log.info(`[DB] Applied migration: ${migration.name}`);
   }
 }
 
@@ -104,7 +104,7 @@ function getMigrations(): { name: string; sql: string }[] {
           created_at INTEGER NOT NULL DEFAULT (unixepoch()),
           updated_at INTEGER NOT NULL DEFAULT (unixepoch())
         );
-      `
+      `,
     },
     {
       name: '002_settings',
@@ -123,7 +123,7 @@ function getMigrations(): { name: string; sql: string }[] {
           ('ssh.autoReconnect', 'true'),
           ('ssh.keepAliveInterval', '10000'),
           ('ssh.maxReconnectAttempts', '5');
-      `
+      `,
     },
     {
       name: '003_history',
@@ -139,7 +139,7 @@ function getMigrations(): { name: string; sql: string }[] {
 
         CREATE INDEX IF NOT EXISTS idx_history_connection ON connection_history(connection_id);
         CREATE INDEX IF NOT EXISTS idx_history_connected ON connection_history(connected_at DESC);
-      `
+      `,
     },
     {
       name: '004_known_hosts_and_credentials',
@@ -155,18 +155,18 @@ function getMigrations(): { name: string; sql: string }[] {
           connection_id TEXT PRIMARY KEY,
           encrypted_data BLOB NOT NULL
         );
-      `
+      `,
     },
     {
       name: '005_ui_apply_terminal_theme',
       sql: `
         INSERT OR IGNORE INTO settings (key, value) VALUES
           ('ui.applyTerminalTheme', 'true');
-      `
+      `,
     },
     {
       name: '006_remove_app_theme',
-      sql: `DELETE FROM settings WHERE key = 'theme';`
+      sql: `DELETE FROM settings WHERE key = 'theme';`,
     },
     {
       name: '007_connection_indexes',
@@ -174,28 +174,28 @@ function getMigrations(): { name: string; sql: string }[] {
         CREATE INDEX IF NOT EXISTS idx_connections_name ON connections(name);
         CREATE INDEX IF NOT EXISTS idx_connections_host ON connections(host);
         CREATE INDEX IF NOT EXISTS idx_connections_folder ON connections(folder);
-      `
-    }
-  ]
+      `,
+    },
+  ];
 }
 
 /** Read a single setting from the DB, returning the parsed value or the provided default. */
 export function getSetting<T>(key: string, defaultValue: T): T {
-  const db = getDatabase()
+  const db = getDatabase();
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
     | { value: string }
-    | undefined
-  if (!row) return defaultValue
+    | undefined;
+  if (!row) return defaultValue;
   try {
-    return JSON.parse(row.value) as T
+    return JSON.parse(row.value) as T;
   } catch {
-    return defaultValue
+    return defaultValue;
   }
 }
 
 export function closeDatabase(): void {
   if (db) {
-    db.close()
-    db = null
+    db.close();
+    db = null;
   }
 }

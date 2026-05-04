@@ -1,10 +1,10 @@
-import {useEffect} from 'react'
-import {AnimatePresence, motion} from 'framer-motion'
-import {FileCode, FileImage, X} from 'lucide-react'
-import {useSftpStore} from '@/stores/sftp-store'
+import { useEffect } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { FileCode, FileImage, X } from 'lucide-react';
+import { useSftpStore } from '@/stores/sftp-store';
 
 function detectLanguage(name: string): string {
-  const ext = name.split('.').pop()?.toLowerCase()
+  const ext = name.split('.').pop()?.toLowerCase();
   const map: Record<string, string> = {
     js: 'javascript',
     ts: 'typescript',
@@ -25,40 +25,40 @@ function detectLanguage(name: string): string {
     bash: 'bash',
     md: 'markdown',
     sql: 'sql',
-    toml: 'toml'
-  }
-  return map[ext || ''] || 'text'
+    toml: 'toml',
+  };
+  return map[ext || ''] || 'text';
 }
 
 function isImageType(type: string): boolean {
-  return ['image/png', 'image/jpeg', 'image/gif', 'image/svg+xml', 'image/webp'].includes(type)
+  return ['image/png', 'image/jpeg', 'image/gif', 'image/svg+xml', 'image/webp'].includes(type);
 }
 
 const overlayVariants = {
   initial: { opacity: 0 },
   animate: { opacity: 1 },
-  exit: { opacity: 0 }
-}
+  exit: { opacity: 0 },
+};
 
 const dialogVariants = {
   initial: { opacity: 0, scale: 0.97 },
   animate: { opacity: 1, scale: 1, transition: { duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] } },
-  exit: { opacity: 0, scale: 0.97, transition: { duration: 0.15 } }
-}
+  exit: { opacity: 0, scale: 0.97, transition: { duration: 0.15 } },
+};
 
 export function FilePreview() {
-  const previewFile = useSftpStore((s) => s.previewFile)
-  const setPreviewFile = useSftpStore((s) => s.setPreviewFile)
+  const previewFile = useSftpStore((s) => s.previewFile);
+  const setPreviewFile = useSftpStore((s) => s.setPreviewFile);
 
   // Close on Escape
   useEffect(() => {
-    if (!previewFile) return
+    if (!previewFile) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setPreviewFile(null)
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [previewFile, setPreviewFile])
+      if (e.key === 'Escape') setPreviewFile(null);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [previewFile, setPreviewFile]);
 
   return (
     <AnimatePresence>
@@ -121,5 +121,5 @@ export function FilePreview() {
         </>
       )}
     </AnimatePresence>
-  )
+  );
 }

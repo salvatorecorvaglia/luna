@@ -1,82 +1,82 @@
-import {useCallback, useRef, useState} from 'react'
-import type {PaneNode} from '@shared/types/terminal'
-import {TerminalPane} from './TerminalPane'
+import { useCallback, useRef, useState } from 'react';
+import type { PaneNode } from '@shared/types/terminal';
+import { TerminalPane } from './TerminalPane';
 
 interface SplitPaneProps {
-  node: PaneNode
+  node: PaneNode;
 }
 
 export function SplitPane({ node }: SplitPaneProps) {
   if (node.type === 'terminal') {
-    return <TerminalPane sessionId={node.sessionId} />
+    return <TerminalPane sessionId={node.sessionId} />;
   }
 
-  return <SplitContainer node={node} />
+  return <SplitContainer node={node} />;
 }
 
 function SplitContainer({ node }: { node: Extract<PaneNode, { type: 'split' }> }) {
   // Local ratio override is only used during an active drag gesture.
   // Outside of drag, we derive from props to avoid calling setState inside an effect.
-  const [localRatio, setLocalRatio] = useState<number | null>(null)
-  const [dragging, setDragging] = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const isDragging = useRef(false)
+  const [localRatio, setLocalRatio] = useState<number | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isDragging = useRef(false);
 
   // Use local override while dragging, otherwise use prop value directly
-  const ratio = localRatio ?? node.ratio
+  const ratio = localRatio ?? node.ratio;
 
-  const isHorizontal = node.direction === 'horizontal'
+  const isHorizontal = node.direction === 'horizontal';
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      e.preventDefault()
-      isDragging.current = true
-      setDragging(true)
+      e.preventDefault();
+      isDragging.current = true;
+      setDragging(true);
 
       // Throttle ratio updates to one per animation frame to keep dragging
       // smooth on slower terminals & avoid layout thrash.
-      let rafId: number | null = null
-      let pendingRatio: number | null = null
+      let rafId: number | null = null;
+      let pendingRatio: number | null = null;
       const flush = (): void => {
-        rafId = null
+        rafId = null;
         if (pendingRatio !== null) {
-          setLocalRatio(pendingRatio)
-          pendingRatio = null
+          setLocalRatio(pendingRatio);
+          pendingRatio = null;
         }
-      }
+      };
 
       const onMouseMove = (e: MouseEvent): void => {
-        if (!isDragging.current || !containerRef.current) return
-        const rect = containerRef.current.getBoundingClientRect()
+        if (!isDragging.current || !containerRef.current) return;
+        const rect = containerRef.current.getBoundingClientRect();
         const newRatio = isHorizontal
           ? (e.clientX - rect.left) / rect.width
-          : (e.clientY - rect.top) / rect.height
-        pendingRatio = Math.max(0.15, Math.min(0.85, newRatio))
-        if (rafId === null) rafId = requestAnimationFrame(flush)
-      }
+          : (e.clientY - rect.top) / rect.height;
+        pendingRatio = Math.max(0.15, Math.min(0.85, newRatio));
+        if (rafId === null) rafId = requestAnimationFrame(flush);
+      };
 
       const onMouseUp = (): void => {
-        isDragging.current = false
-        setDragging(false)
+        isDragging.current = false;
+        setDragging(false);
         if (rafId !== null) {
-          cancelAnimationFrame(rafId)
-          flush()
+          cancelAnimationFrame(rafId);
+          flush();
         }
         // Clear local override so we fall back to the prop value
-        setLocalRatio(null)
-        document.removeEventListener('mousemove', onMouseMove)
-        document.removeEventListener('mouseup', onMouseUp)
-        document.body.style.cursor = ''
-        document.body.style.userSelect = ''
-      }
+        setLocalRatio(null);
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      };
 
-      document.body.style.cursor = isHorizontal ? 'col-resize' : 'row-resize'
-      document.body.style.userSelect = 'none'
-      document.addEventListener('mousemove', onMouseMove)
-      document.addEventListener('mouseup', onMouseUp)
+      document.body.style.cursor = isHorizontal ? 'col-resize' : 'row-resize';
+      document.body.style.userSelect = 'none';
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
     },
-    [isHorizontal]
-  )
+    [isHorizontal],
+  );
 
   return (
     <div
@@ -86,7 +86,7 @@ function SplitContainer({ node }: { node: Extract<PaneNode, { type: 'split' }> }
       <div
         style={{
           [isHorizontal ? 'width' : 'height']: `${ratio * 100}%`,
-          overflow: 'hidden'
+          overflow: 'hidden',
         }}
       >
         <SplitPane node={node.children[0]} />
@@ -119,11 +119,11 @@ function SplitContainer({ node }: { node: Extract<PaneNode, { type: 'split' }> }
       <div
         style={{
           [isHorizontal ? 'width' : 'height']: `${(1 - ratio) * 100}%`,
-          overflow: 'hidden'
+          overflow: 'hidden',
         }}
       >
         <SplitPane node={node.children[1]} />
       </div>
     </div>
-  )
+  );
 }

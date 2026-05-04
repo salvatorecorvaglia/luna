@@ -1,23 +1,23 @@
-import {memo} from 'react'
-import {AnimatePresence, motion} from 'framer-motion'
+import { memo } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
-    AlertCircle,
-    CheckCircle2,
-    ChevronDown,
-    ChevronUp,
-    Download,
-    Loader2,
-    RotateCw,
-    Trash2,
-    Upload,
-    X
-} from 'lucide-react'
-import {cn} from '@/lib/utils'
-import {useTransferStore} from '@/stores/transfer-store'
-import {cancelTransfer} from '@/hooks/use-transfers'
-import type {TransferItem} from '@shared/types/transfer'
-import {toast} from 'sonner'
-import {formatEta, formatSize, formatSpeed} from '@/lib/format'
+  AlertCircle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Download,
+  Loader2,
+  RotateCw,
+  Trash2,
+  Upload,
+  X,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useTransferStore } from '@/stores/transfer-store';
+import { cancelTransfer } from '@/hooks/use-transfers';
+import type { TransferItem } from '@shared/types/transfer';
+import { toast } from 'sonner';
+import { formatEta, formatSize, formatSpeed } from '@/lib/format';
 
 export function TransferQueue() {
   const {
@@ -26,24 +26,24 @@ export function TransferQueue() {
     toggleQueueExpanded,
     clearCompleted,
     removeTransfer,
-    addTransfer
-  } = useTransferStore()
+    addTransfer,
+  } = useTransferStore();
 
   const retryTransfer = async (item: TransferItem) => {
-    removeTransfer(item.id)
+    removeTransfer(item.id);
     try {
       const transferId =
         item.type === 'download'
           ? await window.api.sftp.download({
               sessionId: item.sessionId,
               remotePath: item.remotePath,
-              localPath: item.localPath
+              localPath: item.localPath,
             })
           : await window.api.sftp.upload({
               sessionId: item.sessionId,
               localPath: item.localPath,
-              remotePath: item.remotePath
-            })
+              remotePath: item.remotePath,
+            });
       addTransfer({
         id: transferId,
         type: item.type,
@@ -54,37 +54,37 @@ export function TransferQueue() {
         transferred: 0,
         status: 'queued',
         bytesPerSec: 0,
-        sessionId: item.sessionId
-      })
+        sessionId: item.sessionId,
+      });
     } catch (err: unknown) {
-      toast.error(`Retry failed: ${err instanceof Error ? err.message : String(err)}`)
+      toast.error(`Retry failed: ${err instanceof Error ? err.message : String(err)}`);
     }
-  }
+  };
 
-  const items = Array.from(transfers.values())
-  if (items.length === 0) return null
+  const items = Array.from(transfers.values());
+  if (items.length === 0) return null;
 
-  const activeCount = items.filter((t) => t.status === 'active' || t.status === 'queued').length
-  const completedCount = items.filter((t) => t.status === 'completed').length
+  const activeCount = items.filter((t) => t.status === 'active' || t.status === 'queued').length;
+  const completedCount = items.filter((t) => t.status === 'completed').length;
 
   const cancelAll = () => {
     for (const item of items) {
       if (item.status === 'active' || item.status === 'queued') {
-        cancelTransfer(item.id)
-        removeTransfer(item.id)
+        cancelTransfer(item.id);
+        removeTransfer(item.id);
       }
     }
-  }
+  };
 
   const summary =
     activeCount === 0 && completedCount === 0
       ? 'No transfers'
       : [
           activeCount > 0 ? `${activeCount} active` : null,
-          completedCount > 0 ? `${completedCount} completed` : null
+          completedCount > 0 ? `${completedCount} completed` : null,
         ]
           .filter(Boolean)
-          .join(', ')
+          .join(', ');
 
   return (
     <div className="border-t border-border/60 bg-card/80">
@@ -160,28 +160,28 @@ export function TransferQueue() {
         )}
       </AnimatePresence>
     </div>
-  )
+  );
 }
 
 const TransferRow = memo(function TransferRow({
   item,
   onRemove,
-  onRetry
+  onRetry,
 }: {
-  item: TransferItem
-  onRemove: () => void
-  onRetry: () => void
+  item: TransferItem;
+  onRemove: () => void;
+  onRetry: () => void;
 }) {
-  const percent = item.size > 0 ? Math.round((item.transferred / item.size) * 100) : 0
-  const isInProgress = item.status === 'active' || item.status === 'queued'
-  const eta = formatEta(item.size - item.transferred, item.bytesPerSec)
+  const percent = item.size > 0 ? Math.round((item.transferred / item.size) * 100) : 0;
+  const isInProgress = item.status === 'active' || item.status === 'queued';
+  const eta = formatEta(item.size - item.transferred, item.bytesPerSec);
 
   const handleRemove = () => {
     if (isInProgress) {
-      cancelTransfer(item.id)
+      cancelTransfer(item.id);
     }
-    onRemove()
-  }
+    onRemove();
+  };
 
   return (
     <div className="flex items-center gap-2.5 border-t border-border/40 px-3 py-2">
@@ -202,7 +202,7 @@ const TransferRow = memo(function TransferRow({
               <div
                 className={cn(
                   'h-full rounded-full transition-all duration-300',
-                  item.type === 'upload' ? 'bg-blue-500' : 'bg-emerald-500'
+                  item.type === 'upload' ? 'bg-blue-500' : 'bg-emerald-500',
                 )}
                 style={{ width: `${percent}%` }}
               />
@@ -249,5 +249,5 @@ const TransferRow = memo(function TransferRow({
         <X className="h-3 w-3" />
       </button>
     </div>
-  )
-})
+  );
+});

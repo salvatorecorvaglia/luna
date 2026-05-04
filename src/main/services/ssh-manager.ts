@@ -1,15 +1,15 @@
-import {Client, type ClientChannel, type ConnectConfig} from 'ssh2'
-import {readFile} from 'fs/promises'
-import {v4 as uuidv4} from 'uuid'
-import {IPC, LIMITS} from '@shared/constants'
-import {emitToRenderer} from './emit'
-import type {SessionStatus} from '@shared/types/terminal'
-import {type ConnectionRow, getDatabase, getSetting} from './database'
-import {retrieveCredential} from './credential-store'
-import {fingerprintKey, getStoredHostKey, updateHostKey, verifyHostKey} from './host-key-store'
-import {TimeoutError, withTimeout} from '../lib/with-timeout'
-import {sanitizeStartupCommand} from '../lib/validate'
-import log from '../lib/logger'
+import { Client, type ClientChannel, type ConnectConfig } from 'ssh2';
+import { readFile } from 'fs/promises';
+import { v4 as uuidv4 } from 'uuid';
+import { IPC, LIMITS } from '@shared/constants';
+import { emitToRenderer } from './emit';
+import type { SessionStatus } from '@shared/types/terminal';
+import { type ConnectionRow, getDatabase, getSetting } from './database';
+import { retrieveCredential } from './credential-store';
+import { fingerprintKey, getStoredHostKey, updateHostKey, verifyHostKey } from './host-key-store';
+import { TimeoutError, withTimeout } from '../lib/with-timeout';
+import { sanitizeStartupCommand } from '../lib/validate';
+import log from '../lib/logger';
 
 /**
  * Extract the SSH host-key algorithm from the wire-format key buffer.
@@ -17,52 +17,52 @@ import log from '../lib/logger'
  * Returns 'unknown' if the buffer is malformed.
  */
 function parseHostKeyAlgorithm(key: Buffer): string {
-  if (key.length < 4) return 'unknown'
-  const len = key.readUInt32BE(0)
-  if (len === 0 || len > 64 || key.length < 4 + len) return 'unknown'
-  return key.subarray(4, 4 + len).toString('ascii')
+  if (key.length < 4) return 'unknown';
+  const len = key.readUInt32BE(0);
+  if (len === 0 || len > 64 || key.length < 4 + len) return 'unknown';
+  return key.subarray(4, 4 + len).toString('ascii');
 }
 
 interface StreamListeners {
-  onData: (data: Buffer) => void
-  onClose: () => void
-  onStderrData: (data: Buffer) => void
+  onData: (data: Buffer) => void;
+  onClose: () => void;
+  onStderrData: (data: Buffer) => void;
 }
 
 interface SshSession {
-  id: string
-  connectionId: string
-  client: Client
-  shell: ClientChannel | null
-  status: SessionStatus
-  reconnectAttempts: number
-  reconnectTimer: ReturnType<typeof setTimeout> | null
-  reconnecting: boolean
-  _streamListeners?: StreamListeners
-  historyId?: string
-  cols?: number
-  rows?: number
+  id: string;
+  connectionId: string;
+  client: Client;
+  shell: ClientChannel | null;
+  status: SessionStatus;
+  reconnectAttempts: number;
+  reconnectTimer: ReturnType<typeof setTimeout> | null;
+  reconnecting: boolean;
+  _streamListeners?: StreamListeners;
+  historyId?: string;
+  cols?: number;
+  rows?: number;
 }
 
 class SshManager {
-  private sessions = new Map<string, SshSession>()
-  private onDisconnectCallbacks: ((sessionId: string) => void)[] = []
+  private sessions = new Map<string, SshSession>();
+  private onDisconnectCallbacks: ((sessionId: string) => void)[] = [];
   /** Guards per-session to prevent concurrent reconnect chains (B1 fix). */
-  private reconnectLocks = new Set<string>()
+  private reconnectLocks = new Set<string>();
   /** Candidate host keys captured during a rejected verification, awaiting user trust. */
-  private pendingHostKeys = new Map<string, { key: Buffer; algorithm: string }>()
+  private pendingHostKeys = new Map<string, { key: Buffer; algorithm: string }>();
   /** Cap on pending host-key candidates (LRU) — prevents unbounded growth on repeated mismatches. */
-  private static readonly PENDING_HOST_KEYS_MAX = 64
+  private static readonly PENDING_HOST_KEYS_MAX = 64;
 
   private rememberPendingHostKey(host: string, port: number, key: Buffer, algorithm: string): void {
-    const k = `${host}:${port}`
+    const k = `${host}:${port}`;
     // Refresh LRU order
-    if (this.pendingHostKeys.has(k)) this.pendingHostKeys.delete(k)
-    this.pendingHostKeys.set(k, { key: Buffer.from(key), algorithm })
+    if (this.pendingHostKeys.has(k)) this.pendingHostKeys.delete(k);
+    this.pendingHostKeys.set(k, { key: Buffer.from(key), algorithm });
     while (this.pendingHostKeys.size > SshManager.PENDING_HOST_KEYS_MAX) {
-      const oldest = this.pendingHostKeys.keys().next().value
-      if (oldest === undefined) break
-      this.pendingHostKeys.delete(oldest)
+      const oldest = this.pendingHostKeys.keys().next().value;
+      if (oldest === undefined) break;
+      this.pendingHostKeys.delete(oldest);
     }
   }
 
@@ -71,25 +71,25 @@ class SshManager {
    * Returns the fingerprint that was stored, or null if no candidate is pending.
    */
   trustPendingHostKey(host: string, port: number): string | null {
-    const key = `${host}:${port}`
-    const pending = this.pendingHostKeys.get(key)
-    if (!pending) return null
-    updateHostKey(host, port, pending.key, pending.algorithm)
-    this.pendingHostKeys.delete(key)
-    return fingerprintKey(pending.key)
+    const key = `${host}:${port}`;
+    const pending = this.pendingHostKeys.get(key);
+    if (!pending) return null;
+    updateHostKey(host, port, pending.key, pending.algorithm);
+    this.pendingHostKeys.delete(key);
+    return fingerprintKey(pending.key);
   }
 
   /** Register a callback invoked when a session disconnects or begins reconnecting. */
   onSessionDisconnect(cb: (sessionId: string) => void): void {
-    this.onDisconnectCallbacks.push(cb)
+    this.onDisconnectCallbacks.push(cb);
   }
 
   private setStatus(session: SshSession, status: SessionStatus): void {
-    session.status = status
+    session.status = status;
     emitToRenderer(IPC.SSH_ON_STATUS, {
       sessionId: session.id,
-      status
-    })
+      status,
+    });
   }
 
   /**
@@ -99,7 +99,7 @@ class SshManager {
   private async buildConnectConfig(
     row: ConnectionRow,
     connectionId: string,
-    sessionId?: string
+    sessionId?: string,
   ): Promise<{ config: ConnectConfig; error?: string }> {
     const config: ConnectConfig = {
       host: row.host,
@@ -109,11 +109,11 @@ class SshManager {
       keepaliveCountMax: 3,
       readyTimeout: getSetting('ssh.readyTimeout', 30000),
       hostVerifier: (key: Buffer) => {
-        const algorithm = parseHostKeyAlgorithm(key)
-        const result = verifyHostKey(row.host, row.port, key, algorithm)
+        const algorithm = parseHostKeyAlgorithm(key);
+        const result = verifyHostKey(row.host, row.port, key, algorithm);
         if (!result.trusted) {
-          const stored = getStoredHostKey(row.host, row.port)
-          this.rememberPendingHostKey(row.host, row.port, key, algorithm)
+          const stored = getStoredHostKey(row.host, row.port);
+          this.rememberPendingHostKey(row.host, row.port, key, algorithm);
           emitToRenderer(IPC.SSH_ON_HOST_KEY_CHANGE, {
             sessionId: sessionId ?? '',
             connectionId,
@@ -122,58 +122,58 @@ class SshManager {
             storedFingerprint: stored?.fingerprint ?? '',
             newFingerprint: fingerprintKey(key),
             algorithm,
-            isFirst: result.isFirst
-          })
+            isFirst: result.isFirst,
+          });
           const reason = result.isFirst
             ? `Unknown host ${row.host}:${row.port}. Verify the ${algorithm} fingerprint before trusting.`
-            : `Host key for ${row.host}:${row.port} has changed. Confirm the new fingerprint before reconnecting.`
-          emitToRenderer(IPC.SSH_ON_ERROR, { sessionId: sessionId ?? '', error: reason })
+            : `Host key for ${row.host}:${row.port} has changed. Confirm the new fingerprint before reconnecting.`;
+          emitToRenderer(IPC.SSH_ON_ERROR, { sessionId: sessionId ?? '', error: reason });
         }
-        return result.trusted
-      }
-    }
+        return result.trusted;
+      },
+    };
 
     // Set up auth
-    const credential = retrieveCredential(connectionId)
+    const credential = retrieveCredential(connectionId);
 
     if (row.auth_type === 'password') {
-      config.password = credential || undefined
+      config.password = credential || undefined;
     } else if (row.auth_type === 'key' || row.auth_type === 'key+passphrase') {
       if (!row.private_key_path) {
-        return { config, error: 'Private key path not configured' }
+        return { config, error: 'Private key path not configured' };
       }
       try {
-        const keyPath = row.private_key_path.replace(/^~/, process.env.HOME || '')
-        config.privateKey = await readFile(keyPath)
+        const keyPath = row.private_key_path.replace(/^~/, process.env.HOME || '');
+        config.privateKey = await readFile(keyPath);
         if (row.auth_type === 'key+passphrase' && credential) {
-          config.passphrase = credential
+          config.passphrase = credential;
         }
       } catch (err: unknown) {
         return {
           config,
-          error: `Failed to read key: ${err instanceof Error ? err.message : String(err)}`
-        }
+          error: `Failed to read key: ${err instanceof Error ? err.message : String(err)}`,
+        };
       }
     }
 
-    return { config }
+    return { config };
   }
 
   async connect(
     sessionId: string,
     connectionId: string,
     cols = 80,
-    rows = 24
+    rows = 24,
   ): Promise<{ success: boolean; error?: string }> {
-    const db = getDatabase()
+    const db = getDatabase();
     const row = db.prepare('SELECT * FROM connections WHERE id = ?').get(connectionId) as
       | ConnectionRow
-      | undefined
+      | undefined;
     if (!row) {
-      return { success: false, error: 'Connection not found' }
+      return { success: false, error: 'Connection not found' };
     }
 
-    const client = new Client()
+    const client = new Client();
 
     const session: SshSession = {
       id: sessionId,
@@ -185,315 +185,313 @@ class SshManager {
       reconnectTimer: null,
       reconnecting: false,
       cols,
-      rows
-    }
+      rows,
+    };
 
-    this.sessions.set(sessionId, session)
-    this.setStatus(session, 'connecting')
+    this.sessions.set(sessionId, session);
+    this.setStatus(session, 'connecting');
 
     const { config: connectConfig, error: configError } = await this.buildConnectConfig(
       row,
       connectionId,
-      sessionId
-    )
+      sessionId,
+    );
     if (configError) {
-      this.sessions.delete(sessionId)
-      return { success: false, error: configError }
+      this.sessions.delete(sessionId);
+      return { success: false, error: configError };
     }
-
-
 
     const connectPromise = new Promise<{ success: boolean; error?: string }>((resolve) => {
       client.on('ready', () => {
-        session.reconnectAttempts = 0
-        this.setStatus(session, 'connected')
+        session.reconnectAttempts = 0;
+        this.setStatus(session, 'connected');
 
         // Update last_connected_at and record history. Wrap in try/catch so a DB error
         // doesn't hang the connection promise before resolve() or client.shell().
         try {
           db.prepare('UPDATE connections SET last_connected_at = ? WHERE id = ?').run(
             Math.floor(Date.now() / 1000),
-            connectionId
-          )
+            connectionId,
+          );
 
-          const historyId = uuidv4()
-          session.historyId = historyId
+          const historyId = uuidv4();
+          session.historyId = historyId;
           db.prepare('INSERT INTO connection_history (id, connection_id) VALUES (?, ?)').run(
             historyId,
-            connectionId
-          )
+            connectionId,
+          );
         } catch (err) {
-          log.warn(`[SSH] Failed to record connection info for ${connectionId}:`, err)
+          log.warn(`[SSH] Failed to record connection info for ${connectionId}:`, err);
         }
 
         client.shell({ term: 'xterm-256color', cols, rows }, (err, stream) => {
           if (err) {
             // Clean up session on shell creation failure
-            this.sessions.delete(sessionId)
-            resolve({ success: false, error: err.message })
-            return
+            this.sessions.delete(sessionId);
+            resolve({ success: false, error: err.message });
+            return;
           }
 
-          session.shell = stream
+          session.shell = stream;
 
           const onData = (data: Buffer) => {
             emitToRenderer(IPC.SSH_ON_DATA, {
               sessionId,
-              data: data.toString('utf-8')
-            })
-          }
+              data: data.toString('utf-8'),
+            });
+          };
 
           const onClose = () => {
-            this.handleDisconnect(sessionId)
-          }
+            this.handleDisconnect(sessionId);
+          };
 
           const onStderrData = (data: Buffer) => {
             emitToRenderer(IPC.SSH_ON_DATA, {
               sessionId,
-              data: data.toString('utf-8')
-            })
-          }
+              data: data.toString('utf-8'),
+            });
+          };
 
-          stream.on('data', onData)
-          stream.on('close', onClose)
-          stream.stderr.on('data', onStderrData)
+          stream.on('data', onData);
+          stream.on('close', onClose);
+          stream.stderr.on('data', onStderrData);
 
           // Store listener refs for cleanup
-          session._streamListeners = { onData, onClose, onStderrData }
+          session._streamListeners = { onData, onClose, onStderrData };
 
           // Run startup command after shell is ready (wait for first data from server).
           // Sanitize defensively in case a record was written before validation existed,
           // or imported through an older code path.
           if (row.startup_command) {
-            let safeCmd: string | null = null
+            let safeCmd: string | null = null;
             try {
-              safeCmd = sanitizeStartupCommand(row.startup_command)
+              safeCmd = sanitizeStartupCommand(row.startup_command);
             } catch (err) {
               log.warn(
                 `[SSH] Refusing to run unsafe startup_command for ${connectionId}: ${
                   err instanceof Error ? err.message : String(err)
-                }`
-              )
+                }`,
+              );
             }
             if (safeCmd) {
-              const cmd = safeCmd
+              const cmd = safeCmd;
               const startupOnData = (): void => {
-                stream.removeListener('data', startupOnData)
-                stream.removeListener('close', startupOnClose)
-                if (stream.writable) stream.write(cmd + '\n')
-              }
+                stream.removeListener('data', startupOnData);
+                stream.removeListener('close', startupOnClose);
+                if (stream.writable) stream.write(cmd + '\n');
+              };
               const startupOnClose = (): void => {
-                stream.removeListener('data', startupOnData)
-                stream.removeListener('close', startupOnClose)
-              }
-              stream.on('data', startupOnData)
-              stream.on('close', startupOnClose)
+                stream.removeListener('data', startupOnData);
+                stream.removeListener('close', startupOnClose);
+              };
+              stream.on('data', startupOnData);
+              stream.on('close', startupOnClose);
             }
           }
 
-          resolve({ success: true })
-        })
-      })
+          resolve({ success: true });
+        });
+      });
 
       client.on('error', (err) => {
         emitToRenderer(IPC.SSH_ON_ERROR, {
           sessionId,
-          error: err.message
-        })
+          error: err.message,
+        });
 
         if (session.status === 'connecting') {
-          this.sessions.delete(sessionId)
-          resolve({ success: false, error: err.message })
+          this.sessions.delete(sessionId);
+          resolve({ success: false, error: err.message });
         } else {
-          this.handleDisconnect(sessionId)
+          this.handleDisconnect(sessionId);
         }
-      })
+      });
 
       client.on('close', () => {
         if (session.status === 'connected') {
-          this.handleDisconnect(sessionId)
+          this.handleDisconnect(sessionId);
         } else if (session.status === 'connecting') {
           // Handshake aborted or socket closed before ready
-          this.sessions.delete(sessionId)
-          resolve({ success: false, error: 'Connection closed during handshake' })
+          this.sessions.delete(sessionId);
+          resolve({ success: false, error: 'Connection closed during handshake' });
         }
-      })
+      });
 
-      client.connect(connectConfig)
-    })
+      client.connect(connectConfig);
+    });
 
-    const timeoutMs = getSetting('ssh.connectTimeoutMs', LIMITS.SSH_CONNECT_TIMEOUT_MS)
+    const timeoutMs = getSetting('ssh.connectTimeoutMs', LIMITS.SSH_CONNECT_TIMEOUT_MS);
     try {
-      return await withTimeout(connectPromise, timeoutMs, `ssh.connect(${sessionId})`)
+      return await withTimeout(connectPromise, timeoutMs, `ssh.connect(${sessionId})`);
     } catch (err: unknown) {
       try {
-        client.destroy()
+        client.destroy();
       } catch {
         // ignore
       }
-      this.sessions.delete(sessionId)
-      const isTimeout = err instanceof TimeoutError
-      const message = err instanceof Error ? err.message : String(err)
+      this.sessions.delete(sessionId);
+      const isTimeout = err instanceof TimeoutError;
+      const message = err instanceof Error ? err.message : String(err);
       return {
         success: false,
-        error: isTimeout ? `Connection timed out after ${timeoutMs}ms` : message
-      }
+        error: isTimeout ? `Connection timed out after ${timeoutMs}ms` : message,
+      };
     }
   }
 
   private cleanupStreamListeners(session: SshSession): void {
     if (session.shell && session._streamListeners) {
-      const { onData, onClose, onStderrData } = session._streamListeners
-      session.shell.removeListener('data', onData)
-      session.shell.removeListener('close', onClose)
-      session.shell.stderr.removeListener('data', onStderrData)
-      session._streamListeners = undefined
+      const { onData, onClose, onStderrData } = session._streamListeners;
+      session.shell.removeListener('data', onData);
+      session.shell.removeListener('close', onClose);
+      session.shell.stderr.removeListener('data', onStderrData);
+      session._streamListeners = undefined;
     }
   }
 
   private handleDisconnect(sessionId: string): void {
-    const session = this.sessions.get(sessionId)
-    if (!session) return
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
 
-    if (session.status === 'disconnected') return
+    if (session.status === 'disconnected') return;
 
-    this.cleanupStreamListeners(session)
-    this.setStatus(session, 'disconnected')
-    emitToRenderer(IPC.SSH_ON_CLOSE, { sessionId })
+    this.cleanupStreamListeners(session);
+    this.setStatus(session, 'disconnected');
+    emitToRenderer(IPC.SSH_ON_CLOSE, { sessionId });
 
     // Notify listeners (e.g. SFTP cache cleanup)
     for (const cb of this.onDisconnectCallbacks) {
-      cb(sessionId)
+      cb(sessionId);
     }
 
     // Auto-reconnect
-    this.attemptReconnect(sessionId)
+    this.attemptReconnect(sessionId);
   }
 
   private attemptReconnect(sessionId: string): void {
-    const session = this.sessions.get(sessionId)
-    if (!session) return
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
 
     // Per-session lock prevents concurrent reconnect chains
-    if (this.reconnectLocks.has(sessionId)) return
+    if (this.reconnectLocks.has(sessionId)) return;
 
-    const maxAttempts = getSetting('ssh.maxReconnectAttempts', 5)
+    const maxAttempts = getSetting('ssh.maxReconnectAttempts', 5);
     if (session.reconnectAttempts >= maxAttempts) {
-      session.reconnecting = false
-      this.reconnectLocks.delete(sessionId)
-      this.setStatus(session, 'error')
-      return
+      session.reconnecting = false;
+      this.reconnectLocks.delete(sessionId);
+      this.setStatus(session, 'error');
+      return;
     }
 
-    this.reconnectLocks.add(sessionId)
-    session.reconnecting = true
-    session.reconnectAttempts++
-    const delay = Math.min(1000 * Math.pow(2, session.reconnectAttempts - 1), 30000)
+    this.reconnectLocks.add(sessionId);
+    session.reconnecting = true;
+    session.reconnectAttempts++;
+    const delay = Math.min(1000 * Math.pow(2, session.reconnectAttempts - 1), 30000);
 
-    this.setStatus(session, 'reconnecting')
+    this.setStatus(session, 'reconnecting');
 
     session.reconnectTimer = setTimeout(async () => {
-      const sess = this.sessions.get(sessionId)
+      const sess = this.sessions.get(sessionId);
       if (!sess || sess.status === 'connected') {
-        if (sess) sess.reconnecting = false
-        this.reconnectLocks.delete(sessionId)
-        return
+        if (sess) sess.reconnecting = false;
+        this.reconnectLocks.delete(sessionId);
+        return;
       }
 
       // Clean up old client and stream listeners
-      this.cleanupStreamListeners(sess)
+      this.cleanupStreamListeners(sess);
       try {
-        sess.client.end()
+        sess.client.end();
       } catch (err) {
-        log.error(`[SSH] Error ending client for reconnect ${sessionId}:`, err)
+        log.error(`[SSH] Error ending client for reconnect ${sessionId}:`, err);
       }
 
       // Remove session, then reconnect (atomic: connect re-adds it)
-      const connectionId = sess.connectionId
-      const reconnectAttempts = sess.reconnectAttempts
-      const cols = sess.cols
-      const rows = sess.rows
-      this.sessions.delete(sessionId)
-      
-      const result = await this.connect(sessionId, connectionId, cols, rows)
+      const connectionId = sess.connectionId;
+      const reconnectAttempts = sess.reconnectAttempts;
+      const cols = sess.cols;
+      const rows = sess.rows;
+      this.sessions.delete(sessionId);
+
+      const result = await this.connect(sessionId, connectionId, cols, rows);
 
       // Restore reconnect attempt count if connect failed so we don't loop forever
       if (!result.success) {
-        const newSess = this.sessions.get(sessionId)
+        const newSess = this.sessions.get(sessionId);
         if (newSess) {
-          newSess.reconnectAttempts = reconnectAttempts
-          newSess.reconnecting = false
+          newSess.reconnectAttempts = reconnectAttempts;
+          newSess.reconnecting = false;
         }
         // Release lock before next attempt
-        this.reconnectLocks.delete(sessionId)
-        this.attemptReconnect(sessionId)
+        this.reconnectLocks.delete(sessionId);
+        this.attemptReconnect(sessionId);
       } else {
-        const newSess = this.sessions.get(sessionId)
-        if (newSess) newSess.reconnecting = false
-        this.reconnectLocks.delete(sessionId)
+        const newSess = this.sessions.get(sessionId);
+        if (newSess) newSess.reconnecting = false;
+        this.reconnectLocks.delete(sessionId);
       }
-    }, delay)
+    }, delay);
   }
 
   sendData(sessionId: string, data: string): void {
-    const session = this.sessions.get(sessionId)
+    const session = this.sessions.get(sessionId);
     if (session?.shell?.writable) {
-      session.shell.write(data)
+      session.shell.write(data);
     }
   }
 
   resize(sessionId: string, cols: number, rows: number): void {
-    const session = this.sessions.get(sessionId)
+    const session = this.sessions.get(sessionId);
     if (session) {
-      session.cols = cols
-      session.rows = rows
+      session.cols = cols;
+      session.rows = rows;
       if (session.shell) {
-        session.shell.setWindow(rows, cols, rows * 16, cols * 8)
+        session.shell.setWindow(rows, cols, rows * 16, cols * 8);
       }
     }
   }
 
   disconnect(sessionId: string): void {
-    const session = this.sessions.get(sessionId)
-    if (!session) return
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
 
     if (session.reconnectTimer) {
-      clearTimeout(session.reconnectTimer)
+      clearTimeout(session.reconnectTimer);
     }
     // Clear reconnect lock so no pending timer re-enters
-    this.reconnectLocks.delete(sessionId)
+    this.reconnectLocks.delete(sessionId);
 
-    this.cleanupStreamListeners(session)
+    this.cleanupStreamListeners(session);
 
     try {
-      session.shell?.close()
-      session.client.end()
+      session.shell?.close();
+      session.client.end();
     } catch (err) {
-      log.error(`[SSH] Error closing session ${sessionId}:`, err)
+      log.error(`[SSH] Error closing session ${sessionId}:`, err);
     }
 
     // Record disconnect in history
     if (session.historyId) {
       try {
-        const db = getDatabase()
-        const now = Math.floor(Date.now() / 1000)
+        const db = getDatabase();
+        const now = Math.floor(Date.now() / 1000);
         db.prepare(
-          'UPDATE connection_history SET disconnected_at = ?, duration_secs = (? - connected_at) WHERE id = ?'
-        ).run(now, now, session.historyId)
+          'UPDATE connection_history SET disconnected_at = ?, duration_secs = (? - connected_at) WHERE id = ?',
+        ).run(now, now, session.historyId);
       } catch (err) {
-        log.warn(`[SSH] Failed to record disconnect history for ${session.historyId}:`, err)
+        log.warn(`[SSH] Failed to record disconnect history for ${session.historyId}:`, err);
       }
     }
 
-    session.status = 'disconnected'
-    this.sessions.delete(sessionId)
+    session.status = 'disconnected';
+    this.sessions.delete(sessionId);
     // Drop any host-key candidate associated with this connection's host (best-effort).
     try {
-      const db = getDatabase()
+      const db = getDatabase();
       const row = db
         .prepare('SELECT host, port FROM connections WHERE id = ?')
-        .get(session.connectionId) as { host: string; port: number } | undefined
-      if (row) this.pendingHostKeys.delete(`${row.host}:${row.port}`)
+        .get(session.connectionId) as { host: string; port: number } | undefined;
+      if (row) this.pendingHostKeys.delete(`${row.host}:${row.port}`);
     } catch {
       // best-effort cleanup
     }
@@ -504,65 +502,65 @@ class SshManager {
    * Uses the shared buildConnectConfig so the hostVerifier (TOFU) is active (B2 fix).
    */
   async testConnection(connectionId: string): Promise<{ ok: boolean; error?: string }> {
-    const db = getDatabase()
+    const db = getDatabase();
     const row = db.prepare('SELECT * FROM connections WHERE id = ?').get(connectionId) as
       | ConnectionRow
-      | undefined
-    if (!row) return { ok: false, error: 'Connection not found' }
+      | undefined;
+    if (!row) return { ok: false, error: 'Connection not found' };
 
-    const { config, error: configError } = await this.buildConnectConfig(row, connectionId)
-    if (configError) return { ok: false, error: configError }
+    const { config, error: configError } = await this.buildConnectConfig(row, connectionId);
+    if (configError) return { ok: false, error: configError };
 
     return new Promise((resolve) => {
-      const client = new Client()
-      let settled = false
+      const client = new Client();
+      let settled = false;
       const finish = (result: { ok: boolean; error?: string }): void => {
-        if (settled) return
-        settled = true
+        if (settled) return;
+        settled = true;
         try {
-          client.removeAllListeners()
-          client.end()
+          client.removeAllListeners();
+          client.end();
           // Force-tear-down the underlying socket so a hung handshake doesn't
           // leak a connection past the timeout window.
-          client.destroy()
+          client.destroy();
         } catch {
           // ignore
         }
-        resolve(result)
-      }
+        resolve(result);
+      };
       const timer = setTimeout(
         () =>
           finish({
             ok: false,
-            error: `Connection test timed out after ${LIMITS.SSH_CONNECT_TIMEOUT_MS}ms`
+            error: `Connection test timed out after ${LIMITS.SSH_CONNECT_TIMEOUT_MS}ms`,
           }),
-        LIMITS.SSH_CONNECT_TIMEOUT_MS
-      )
+        LIMITS.SSH_CONNECT_TIMEOUT_MS,
+      );
       client.on('ready', () => {
-        clearTimeout(timer)
-        finish({ ok: true })
-      })
+        clearTimeout(timer);
+        finish({ ok: true });
+      });
       client.on('error', (err) => {
-        clearTimeout(timer)
-        finish({ ok: false, error: err.message })
-      })
+        clearTimeout(timer);
+        finish({ ok: false, error: err.message });
+      });
       try {
-        client.connect(config)
+        client.connect(config);
       } catch (err: unknown) {
-        finish({ ok: false, error: err instanceof Error ? err.message : String(err) })
+        finish({ ok: false, error: err instanceof Error ? err.message : String(err) });
       }
-    })
+    });
   }
 
   getSession(sessionId: string): SshSession | undefined {
-    return this.sessions.get(sessionId)
+    return this.sessions.get(sessionId);
   }
 
   disconnectAll(): void {
     for (const sessionId of this.sessions.keys()) {
-      this.disconnect(sessionId)
+      this.disconnect(sessionId);
     }
   }
 }
 
-export const sshManager = new SshManager()
+export const sshManager = new SshManager();

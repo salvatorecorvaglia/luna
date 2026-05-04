@@ -1,12 +1,12 @@
-import type {ITheme} from '@xterm/xterm'
-import type {UIThemeTokens} from '../ui-from-terminal'
+import type { ITheme } from '@xterm/xterm';
+import type { UIThemeTokens } from '../ui-from-terminal';
 
 export const nordUIOverrides: Partial<UIThemeTokens> = {
   primary: '#88c0d0',
   ring: '#88c0d0',
   'sidebar-primary': '#88c0d0',
-  'sidebar-ring': '#88c0d0'
-}
+  'sidebar-ring': '#88c0d0',
+};
 
 export const nordTheme: ITheme = {
   background: '#2e3440',
@@ -30,5 +30,5 @@ export const nordTheme: ITheme = {
   brightBlue: '#81a1c1',
   brightMagenta: '#b48ead',
   brightCyan: '#8fbcbb',
-  brightWhite: '#eceff4'
-}
+  brightWhite: '#eceff4',
+};

@@ -1,17 +1,17 @@
-import {ArrowRight, Command, FolderOpen, Plus} from 'lucide-react'
-import {motion} from 'framer-motion'
-import lunarLogo from '../../../../../resources/lunar.png'
-import {useConnectionStore} from '@/stores/connection-store'
-import {useUIStore} from '@/stores/ui-store'
+import { ArrowRight, Command, FolderOpen, Plus } from 'lucide-react';
+import { motion } from 'framer-motion';
+import lunarLogo from '../../../../../resources/lunar.png';
+import { useConnectionStore } from '@/stores/connection-store';
+import { useUIStore } from '@/stores/ui-store';
 
 const stagger = {
-  animate: { transition: { staggerChildren: 0.08 } }
-}
+  animate: { transition: { staggerChildren: 0.08 } },
+};
 
 const fadeUp = {
   initial: { opacity: 0, y: 16 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] } }
-}
+  animate: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] } },
+};
 
 const actions = [
   {
@@ -20,7 +20,7 @@ const actions = [
     color: 'text-blue-500',
     bg: 'bg-blue-500/10 group-hover:bg-blue-500/15',
     title: 'New Connection',
-    desc: 'Set up an SSH connection to a server'
+    desc: 'Set up an SSH connection to a server',
   },
   {
     key: 'sftp',
@@ -28,18 +28,18 @@ const actions = [
     color: 'text-violet-500',
     bg: 'bg-violet-500/10 group-hover:bg-violet-500/15',
     title: 'SFTP Browser',
-    desc: 'Browse and transfer files over SSH'
-  }
-] as const
+    desc: 'Browse and transfer files over SSH',
+  },
+] as const;
 
 export function WelcomeView() {
-  const { openCreateForm } = useConnectionStore()
-  const { setActiveView } = useUIStore()
+  const { openCreateForm } = useConnectionStore();
+  const { setActiveView } = useUIStore();
 
   const handleAction = (key: string) => {
-    if (key === 'new') openCreateForm()
-    else if (key === 'sftp') setActiveView('sftp')
-  }
+    if (key === 'new') openCreateForm();
+    else if (key === 'sftp') setActiveView('sftp');
+  };
 
   return (
     <div className="flex h-full items-center justify-center bg-background">
@@ -57,7 +57,11 @@ export function WelcomeView() {
         {/* Logo */}
         <motion.div variants={fadeUp} className="mx-auto mb-6">
           <div className="mx-auto flex h-24 w-24 items-center justify-center">
-            <img src={lunarLogo} alt="Lunar Logo" className="h-full w-full object-contain drop-shadow-xl" />
+            <img
+              src={lunarLogo}
+              alt="Lunar Logo"
+              className="h-full w-full object-contain drop-shadow-xl"
+            />
           </div>
         </motion.div>
 
@@ -110,5 +114,5 @@ export function WelcomeView() {
         </motion.div>
       </motion.div>
     </div>
-  )
+  );
 }

@@ -1,22 +1,22 @@
-import {Activity, Upload, Wifi, WifiOff} from 'lucide-react'
-import {cn} from '@/lib/utils'
-import {useTerminalStore} from '@/stores/terminal-store'
-import {useTransferStore} from '@/stores/transfer-store'
+import { Activity, Upload, Wifi, WifiOff } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useTerminalStore } from '@/stores/terminal-store';
+import { useTransferStore } from '@/stores/transfer-store';
 
 export function StatusBar() {
-  const sessions = useTerminalStore((s) => s.sessions)
-  const activeTabId = useTerminalStore((s) => s.activeTabId)
-  const transfers = useTransferStore((s) => s.transfers)
-  const toggleQueueExpanded = useTransferStore((s) => s.toggleQueueExpanded)
+  const sessions = useTerminalStore((s) => s.sessions);
+  const activeTabId = useTerminalStore((s) => s.activeTabId);
+  const transfers = useTransferStore((s) => s.transfers);
+  const toggleQueueExpanded = useTransferStore((s) => s.toggleQueueExpanded);
 
-  const activeSession = activeTabId ? sessions.get(activeTabId) : null
+  const activeSession = activeTabId ? sessions.get(activeTabId) : null;
   const activeSessions = Array.from(sessions.values()).filter(
-    (s) => s.status === 'connected'
-  ).length
+    (s) => s.status === 'connected',
+  ).length;
 
   const activeTransfers = Array.from(transfers.values()).filter(
-    (t) => t.status === 'active' || t.status === 'queued'
-  )
+    (t) => t.status === 'active' || t.status === 'queued',
+  );
 
   return (
     <div className="flex h-[26px] items-center justify-between border-t border-border/60 bg-card/60 px-3 text-[11px] text-muted-foreground no-select">
@@ -37,7 +37,7 @@ export function StatusBar() {
                   ? 'bg-emerald-500/10 text-emerald-500'
                   : activeSession.status === 'error'
                     ? 'bg-red-500/10 text-red-400'
-                    : 'bg-amber-500/10 text-amber-500'
+                    : 'bg-amber-500/10 text-amber-500',
               )}
             >
               {activeSession.status}
@@ -79,5 +79,5 @@ export function StatusBar() {
         )}
       </div>
     </div>
-  )
+  );
 }

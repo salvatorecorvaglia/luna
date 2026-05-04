@@ -1,48 +1,48 @@
-import {useEffect, useMemo, useRef, useState} from 'react'
-import {AnimatePresence, motion} from 'framer-motion'
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
-    ChevronLeft,
-    ChevronRight,
-    Eye,
-    EyeOff,
-    FolderOpen,
-    Palette,
-    PanelLeft,
-    Plus,
-    RefreshCw,
-    Search,
-    Server,
-    Settings,
-    Terminal,
-    X
-} from 'lucide-react'
-import {cn} from '@/lib/utils'
-import {useUIStore} from '@/stores/ui-store'
-import {useTerminalStore} from '@/stores/terminal-store'
-import {useConnectionStore} from '@/stores/connection-store'
-import {useSftpStore} from '@/stores/sftp-store'
-import {useConnections} from '@/hooks/use-connections'
-import {connectToHost} from '@/lib/ssh'
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  FolderOpen,
+  Palette,
+  PanelLeft,
+  Plus,
+  RefreshCw,
+  Search,
+  Server,
+  Settings,
+  Terminal,
+  X,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useUIStore } from '@/stores/ui-store';
+import { useTerminalStore } from '@/stores/terminal-store';
+import { useConnectionStore } from '@/stores/connection-store';
+import { useSftpStore } from '@/stores/sftp-store';
+import { useConnections } from '@/hooks/use-connections';
+import { connectToHost } from '@/lib/ssh';
 
 interface Command {
-  id: string
-  label: string
-  description?: string
-  icon: React.ReactNode
-  category: string
-  action: () => void
-  keywords?: string[]
-  shortcut?: string[]
+  id: string;
+  label: string;
+  description?: string;
+  icon: React.ReactNode;
+  category: string;
+  action: () => void;
+  keywords?: string[];
+  shortcut?: string[];
 }
 
-const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform)
-const MOD = isMac ? '⌘' : 'Ctrl'
+const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+const MOD = isMac ? '⌘' : 'Ctrl';
 
 const overlayVariants = {
   initial: { opacity: 0 },
   animate: { opacity: 1 },
-  exit: { opacity: 0 }
-}
+  exit: { opacity: 0 },
+};
 
 const dialogVariants = {
   initial: { opacity: 0, y: -10, scale: 0.98 },
@@ -50,10 +50,10 @@ const dialogVariants = {
     opacity: 1,
     y: 0,
     scale: 1,
-    transition: { duration: 0.15, ease: [0.25, 0.46, 0.45, 0.94] }
+    transition: { duration: 0.15, ease: [0.25, 0.46, 0.45, 0.94] },
   },
-  exit: { opacity: 0, y: -10, scale: 0.98, transition: { duration: 0.1 } }
-}
+  exit: { opacity: 0, y: -10, scale: 0.98, transition: { duration: 0.1 } },
+};
 
 export function CommandPalette() {
   const {
@@ -61,22 +61,22 @@ export function CommandPalette() {
     setCommandPaletteOpen,
     setActiveView,
     toggleSidebar,
-    setSettingsOpen
-  } = useUIStore()
-  const { setTerminalTheme, activeTabId, tabOrder, setActiveTab, closeTab } = useTerminalStore()
-  const { openCreateForm } = useConnectionStore()
-  const { toggleHiddenFiles, showHiddenFiles } = useSftpStore()
-  const { data: connections = [] } = useConnections()
-  const [query, setQuery] = useState('')
-  const [selectedIndex, setSelectedIndex] = useState(0)
-  const listRef = useRef<HTMLDivElement>(null)
+    setSettingsOpen,
+  } = useUIStore();
+  const { setTerminalTheme, activeTabId, tabOrder, setActiveTab, closeTab } = useTerminalStore();
+  const { openCreateForm } = useConnectionStore();
+  const { toggleHiddenFiles, showHiddenFiles } = useSftpStore();
+  const { data: connections = [] } = useConnections();
+  const [query, setQuery] = useState('');
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const listRef = useRef<HTMLDivElement>(null);
 
-  const [prevCommandPaletteOpen, setPrevCommandPaletteOpen] = useState(commandPaletteOpen)
+  const [prevCommandPaletteOpen, setPrevCommandPaletteOpen] = useState(commandPaletteOpen);
   if (prevCommandPaletteOpen !== commandPaletteOpen) {
-    setPrevCommandPaletteOpen(commandPaletteOpen)
+    setPrevCommandPaletteOpen(commandPaletteOpen);
     if (commandPaletteOpen) {
-      setQuery('')
-      setSelectedIndex(0)
+      setQuery('');
+      setSelectedIndex(0);
     }
   }
 
@@ -90,7 +90,7 @@ export function CommandPalette() {
         category: 'Connections',
         action: () => openCreateForm(),
         keywords: ['add', 'create', 'ssh'],
-        shortcut: [MOD, 'N']
+        shortcut: [MOD, 'N'],
       },
       {
         id: 'view-terminal',
@@ -98,7 +98,7 @@ export function CommandPalette() {
         icon: <Terminal className="h-4 w-4" aria-hidden="true" />,
         category: 'Views',
         action: () => setActiveView('terminal'),
-        keywords: ['tab', 'view']
+        keywords: ['tab', 'view'],
       },
       {
         id: 'view-sftp',
@@ -106,7 +106,7 @@ export function CommandPalette() {
         icon: <FolderOpen className="h-4 w-4" aria-hidden="true" />,
         category: 'Views',
         action: () => setActiveView('sftp'),
-        keywords: ['files', 'browse', 'view']
+        keywords: ['files', 'browse', 'view'],
       },
       {
         id: 'toggle-sidebar',
@@ -115,7 +115,7 @@ export function CommandPalette() {
         category: 'Interface',
         action: toggleSidebar,
         keywords: ['panel', 'hide', 'show'],
-        shortcut: [MOD, 'B']
+        shortcut: [MOD, 'B'],
       },
       {
         id: 'theme-dracula',
@@ -123,7 +123,7 @@ export function CommandPalette() {
         icon: <Palette className="h-4 w-4" />,
         category: 'Terminal',
         action: () => setTerminalTheme('dracula'),
-        keywords: ['theme', 'color']
+        keywords: ['theme', 'color'],
       },
       {
         id: 'theme-nord',
@@ -131,7 +131,7 @@ export function CommandPalette() {
         icon: <Palette className="h-4 w-4" />,
         category: 'Terminal',
         action: () => setTerminalTheme('nord'),
-        keywords: ['theme', 'color']
+        keywords: ['theme', 'color'],
       },
       {
         id: 'theme-tokyo-night',
@@ -139,7 +139,7 @@ export function CommandPalette() {
         icon: <Palette className="h-4 w-4" />,
         category: 'Terminal',
         action: () => setTerminalTheme('tokyo-night'),
-        keywords: ['theme', 'color']
+        keywords: ['theme', 'color'],
       },
       {
         id: 'settings',
@@ -148,7 +148,7 @@ export function CommandPalette() {
         category: 'Interface',
         action: () => setSettingsOpen(true),
         keywords: ['preferences', 'config'],
-        shortcut: [MOD, ',']
+        shortcut: [MOD, ','],
       },
       {
         id: 'sftp-toggle-hidden',
@@ -160,10 +160,10 @@ export function CommandPalette() {
         ),
         category: 'SFTP',
         action: () => {
-          setActiveView('sftp')
-          toggleHiddenFiles()
+          setActiveView('sftp');
+          toggleHiddenFiles();
         },
-        keywords: ['dotfiles', 'hidden']
+        keywords: ['dotfiles', 'hidden'],
       },
       {
         id: 'sftp-refresh',
@@ -171,20 +171,20 @@ export function CommandPalette() {
         icon: <RefreshCw className="h-4 w-4" aria-hidden="true" />,
         category: 'SFTP',
         action: () => {
-          setActiveView('sftp')
+          setActiveView('sftp');
           // FilePane re-fetches via useSftp hook keyed by path; nudge by re-setting same path
-          const { remotePath, setRemotePath, localPath, setLocalPath } = useSftpStore.getState()
-          setRemotePath(remotePath)
-          setLocalPath(localPath)
+          const { remotePath, setRemotePath, localPath, setLocalPath } = useSftpStore.getState();
+          setRemotePath(remotePath);
+          setLocalPath(localPath);
         },
-        keywords: ['reload', 'sftp']
-      }
-    ]
+        keywords: ['reload', 'sftp'],
+      },
+    ];
 
     if (activeTabId && tabOrder.length > 0) {
-      const idx = tabOrder.indexOf(activeTabId)
-      const next = tabOrder[(idx + 1) % tabOrder.length]
-      const prev = tabOrder[(idx - 1 + tabOrder.length) % tabOrder.length]
+      const idx = tabOrder.indexOf(activeTabId);
+      const next = tabOrder[(idx + 1) % tabOrder.length];
+      const prev = tabOrder[(idx - 1 + tabOrder.length) % tabOrder.length];
       cmds.push(
         {
           id: 'terminal-close-tab',
@@ -193,7 +193,7 @@ export function CommandPalette() {
           category: 'Terminal',
           action: () => closeTab(activeTabId),
           keywords: ['close', 'tab', 'kill'],
-          shortcut: [MOD, 'W']
+          shortcut: [MOD, 'W'],
         },
         {
           id: 'terminal-next-tab',
@@ -201,7 +201,7 @@ export function CommandPalette() {
           icon: <ChevronRight className="h-4 w-4" aria-hidden="true" />,
           category: 'Terminal',
           action: () => setActiveTab(next),
-          shortcut: [MOD, '⇧', ']']
+          shortcut: [MOD, '⇧', ']'],
         },
         {
           id: 'terminal-prev-tab',
@@ -209,9 +209,9 @@ export function CommandPalette() {
           icon: <ChevronLeft className="h-4 w-4" aria-hidden="true" />,
           category: 'Terminal',
           action: () => setActiveTab(prev),
-          shortcut: [MOD, '⇧', '[']
-        }
-      )
+          shortcut: [MOD, '⇧', '['],
+        },
+      );
     }
 
     for (const conn of connections) {
@@ -222,14 +222,14 @@ export function CommandPalette() {
         icon: <Server className="h-4 w-4" aria-hidden="true" />,
         category: 'Connections',
         action: () => {
-          setActiveView('terminal')
-          connectToHost(conn.id)
+          setActiveView('terminal');
+          connectToHost(conn.id);
         },
-        keywords: ['ssh', conn.host, conn.username]
-      })
+        keywords: ['ssh', conn.host, conn.username],
+      });
     }
 
-    return cmds
+    return cmds;
   }, [
     connections,
     openCreateForm,
@@ -242,84 +242,84 @@ export function CommandPalette() {
     activeTabId,
     tabOrder,
     setActiveTab,
-    closeTab
-  ])
+    closeTab,
+  ]);
 
   const filtered = useMemo(() => {
-    if (!query.trim()) return commands
+    if (!query.trim()) return commands;
 
-    const q = query.toLowerCase()
+    const q = query.toLowerCase();
     return commands.filter(
       (cmd) =>
         cmd.label.toLowerCase().includes(q) ||
         cmd.description?.toLowerCase().includes(q) ||
         cmd.category.toLowerCase().includes(q) ||
-        cmd.keywords?.some((k) => k.includes(q))
-    )
-  }, [commands, query])
+        cmd.keywords?.some((k) => k.includes(q)),
+    );
+  }, [commands, query]);
 
   const grouped = useMemo(() => {
-    const groups = new Map<string, Command[]>()
+    const groups = new Map<string, Command[]>();
     for (const cmd of filtered) {
-      const list = groups.get(cmd.category) || []
-      list.push(cmd)
-      groups.set(cmd.category, list)
+      const list = groups.get(cmd.category) || [];
+      list.push(cmd);
+      groups.set(cmd.category, list);
     }
-    return groups
-  }, [filtered])
+    return groups;
+  }, [filtered]);
 
   // Precompute flat index per command ID so we avoid a mutable counter during render.
   const flatIndexMap = useMemo(() => {
-    const map = new Map<string, number>()
-    let idx = 0
+    const map = new Map<string, number>();
+    let idx = 0;
     for (const [, cmds] of grouped) {
       for (const cmd of cmds) {
-        map.set(cmd.id, idx++)
+        map.set(cmd.id, idx++);
       }
     }
-    return map
-  }, [grouped])
+    return map;
+  }, [grouped]);
 
-  const [prevQuery, setPrevQuery] = useState(query)
+  const [prevQuery, setPrevQuery] = useState(query);
   if (prevQuery !== query) {
-    setPrevQuery(query)
-    setSelectedIndex(0)
+    setPrevQuery(query);
+    setSelectedIndex(0);
   }
 
   // Scroll selected item into view
   useEffect(() => {
-    if (!listRef.current) return
-    const selected = listRef.current.querySelector('[data-selected="true"]')
+    if (!listRef.current) return;
+    const selected = listRef.current.querySelector('[data-selected="true"]');
     if (selected) {
-      selected.scrollIntoView({ block: 'nearest' })
+      selected.scrollIntoView({ block: 'nearest' });
     }
-  }, [selectedIndex])
+  }, [selectedIndex]);
 
   const executeCommand = (cmd: Command) => {
-    cmd.action()
-    setCommandPaletteOpen(false)
-  }
+    cmd.action();
+    setCommandPaletteOpen(false);
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setSelectedIndex((i) => Math.min(i + 1, filtered.length - 1))
+      e.preventDefault();
+      setSelectedIndex((i) => Math.min(i + 1, filtered.length - 1));
     } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setSelectedIndex((i) => Math.max(i - 1, 0))
+      e.preventDefault();
+      setSelectedIndex((i) => Math.max(i - 1, 0));
     } else if (e.key === 'Enter') {
-      e.preventDefault()
+      e.preventDefault();
       if (filtered[selectedIndex]) {
-        executeCommand(filtered[selectedIndex])
+        executeCommand(filtered[selectedIndex]);
       }
     } else if (e.key === 'Escape') {
-      setCommandPaletteOpen(false)
+      setCommandPaletteOpen(false);
     } else if (e.key === 'Tab') {
       // Keep focus inside the palette — Arrow keys handle navigation, Tab would
       // otherwise escape into the background and lose modal context.
-      e.preventDefault()
+      e.preventDefault();
     }
-  }
+  };
 
   return (
     <AnimatePresence>
@@ -368,8 +368,8 @@ export function CommandPalette() {
                         {category}
                       </div>
                       {cmds.map((cmd) => {
-                        const index = flatIndexMap.get(cmd.id) ?? 0
-                        const isSelected = index === selectedIndex
+                        const index = flatIndexMap.get(cmd.id) ?? 0;
+                        const isSelected = index === selectedIndex;
                         return (
                           <button
                             key={cmd.id}
@@ -378,13 +378,13 @@ export function CommandPalette() {
                             onMouseEnter={() => setSelectedIndex(index)}
                             className={cn(
                               'flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm cursor-pointer',
-                              isSelected ? 'bg-accent text-foreground' : 'text-muted-foreground'
+                              isSelected ? 'bg-accent text-foreground' : 'text-muted-foreground',
                             )}
                           >
                             <div
                               className={cn(
                                 'flex-shrink-0',
-                                isSelected ? 'text-foreground' : 'text-muted-foreground/60'
+                                isSelected ? 'text-foreground' : 'text-muted-foreground/60',
                               )}
                             >
                               {cmd.icon}
@@ -410,7 +410,7 @@ export function CommandPalette() {
                               </div>
                             )}
                           </button>
-                        )
+                        );
                       })}
                     </div>
                   ))
@@ -446,5 +446,5 @@ export function CommandPalette() {
         </>
       )}
     </AnimatePresence>
-  )
+  );
 }

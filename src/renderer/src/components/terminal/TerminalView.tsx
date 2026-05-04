@@ -1,85 +1,81 @@
-import {useCallback, useEffect} from 'react'
-import {Plus, Terminal as TerminalIcon} from 'lucide-react'
-import {useTerminalStore} from '@/stores/terminal-store'
-import {useConnectionStore} from '@/stores/connection-store'
-import {terminalThemes} from '@/themes/terminal'
-import {connectToHost} from '@/lib/ssh'
-import {TerminalTabs} from './TerminalTabs'
-import {TerminalPane} from './TerminalPane'
+import { useCallback, useEffect } from 'react';
+import { Plus, Terminal as TerminalIcon } from 'lucide-react';
+import { useTerminalStore } from '@/stores/terminal-store';
+import { useConnectionStore } from '@/stores/connection-store';
+import { terminalThemes } from '@/themes/terminal';
+import { connectToHost } from '@/lib/ssh';
+import { TerminalTabs } from './TerminalTabs';
+import { TerminalPane } from './TerminalPane';
 
-export { connectToHost }
+export { connectToHost };
 
 export function TerminalView() {
-  const { tabOrder, activeTabId, terminalTheme } = useTerminalStore()
+  const { tabOrder, activeTabId, terminalTheme } = useTerminalStore();
 
   const handleNewTab = useCallback(() => {
-    const { activeConnectionId } = useConnectionStore.getState()
+    const { activeConnectionId } = useConnectionStore.getState();
     if (activeConnectionId) {
-      connectToHost(activeConnectionId)
+      connectToHost(activeConnectionId);
     } else {
-      useConnectionStore.getState().openCreateForm()
+      useConnectionStore.getState().openCreateForm();
     }
-  }, [])
+  }, []);
 
   // Keyboard shortcuts: Cmd+1..9 for tab switching, Cmd+Shift+]/[ for next/prev, Cmd+W close tab
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (!e.metaKey && !e.ctrlKey) return
+      if (!e.metaKey && !e.ctrlKey) return;
 
-      const { tabOrder, setActiveTab, activeTabId, closeTab } =
-        useTerminalStore.getState()
-      if (tabOrder.length === 0) return
+      const { tabOrder, setActiveTab, activeTabId, closeTab } = useTerminalStore.getState();
+      if (tabOrder.length === 0) return;
 
       // Cmd+W — delegate to closeTab (TerminalTabs owns the confirm dialog)
       if (e.key === 'w' && !e.shiftKey) {
-        e.preventDefault()
-        if (!activeTabId) return
-        closeTab(activeTabId)
-        return
+        e.preventDefault();
+        if (!activeTabId) return;
+        closeTab(activeTabId);
+        return;
       }
 
       // Cmd+1 through Cmd+9
-      const digit = parseInt(e.key, 10)
+      const digit = parseInt(e.key, 10);
       if (digit >= 1 && digit <= 9) {
-        e.preventDefault()
-        const index = Math.min(digit - 1, tabOrder.length - 1)
-        setActiveTab(tabOrder[index])
-        return
+        e.preventDefault();
+        const index = Math.min(digit - 1, tabOrder.length - 1);
+        setActiveTab(tabOrder[index]);
+        return;
       }
 
       // Cmd+Shift+] — next tab
       if (e.shiftKey && e.key === ']') {
-        e.preventDefault()
-        const idx = tabOrder.indexOf(activeTabId ?? '')
-        const next = (idx + 1) % tabOrder.length
-        setActiveTab(tabOrder[next])
-        return
+        e.preventDefault();
+        const idx = tabOrder.indexOf(activeTabId ?? '');
+        const next = (idx + 1) % tabOrder.length;
+        setActiveTab(tabOrder[next]);
+        return;
       }
 
       // Cmd+Shift+[ — previous tab
       if (e.shiftKey && e.key === '[') {
-        e.preventDefault()
-        const idx = tabOrder.indexOf(activeTabId ?? '')
-        const prev = (idx - 1 + tabOrder.length) % tabOrder.length
-        setActiveTab(tabOrder[prev])
-        return
+        e.preventDefault();
+        const idx = tabOrder.indexOf(activeTabId ?? '');
+        const prev = (idx - 1 + tabOrder.length) % tabOrder.length;
+        setActiveTab(tabOrder[prev]);
+        return;
       }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [])
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
-  const themeBg = terminalThemes[terminalTheme]?.background || '#282a36'
+  const themeBg = terminalThemes[terminalTheme]?.background || '#282a36';
 
   return (
     <div className="flex h-full flex-col">
       <TerminalTabs onNewTab={handleNewTab} />
       <div className="flex-1 relative overflow-hidden" style={{ backgroundColor: themeBg }}>
         {tabOrder.map((sessionId) => (
-          <div
-            key={sessionId}
-            className={sessionId === activeTabId ? 'h-full w-full' : 'hidden'}
-          >
+          <div key={sessionId} className={sessionId === activeTabId ? 'h-full w-full' : 'hidden'}>
             <TerminalPane sessionId={sessionId} isActive={sessionId === activeTabId} />
           </div>
         ))}
@@ -103,5 +99,5 @@ export function TerminalView() {
         )}
       </div>
     </div>
-  )
+  );
 }

@@ -1,29 +1,29 @@
-import {Component, type ReactNode} from 'react'
-import {AlertTriangle, RotateCcw} from 'lucide-react'
+import { Component, type ReactNode } from 'react';
+import { AlertTriangle, RotateCcw } from 'lucide-react';
 
 interface Props {
-  children: ReactNode
+  children: ReactNode;
 }
 
 interface State {
-  hasError: boolean
-  error: Error | null
+  hasError: boolean;
+  error: Error | null;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
-  state: State = { hasError: false, error: null }
+  state: State = { hasError: false, error: null };
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error }
+    return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo): void {
-    console.error('[ErrorBoundary]', error, info.componentStack)
+    console.error('[ErrorBoundary]', error, info.componentStack);
   }
 
   handleReload = (): void => {
-    window.location.reload()
-  }
+    window.location.reload();
+  };
 
   render(): ReactNode {
     if (this.state.hasError) {
@@ -42,9 +42,9 @@ export class ErrorBoundary extends Component<Props, State> {
             Reload
           </button>
         </div>
-      )
+      );
     }
 
-    return this.props.children
+    return this.props.children;
   }
 }

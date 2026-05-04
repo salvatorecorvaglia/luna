@@ -1,12 +1,12 @@
-import type {ITheme} from '@xterm/xterm'
-import type {UIThemeTokens} from '../ui-from-terminal'
+import type { ITheme } from '@xterm/xterm';
+import type { UIThemeTokens } from '../ui-from-terminal';
 
 export const tokyoNightUIOverrides: Partial<UIThemeTokens> = {
   primary: '#7aa2f7',
   ring: '#7aa2f7',
   'sidebar-primary': '#7aa2f7',
-  'sidebar-ring': '#7aa2f7'
-}
+  'sidebar-ring': '#7aa2f7',
+};
 
 export const tokyoNightTheme: ITheme = {
   background: '#1a1b26',
@@ -30,5 +30,5 @@ export const tokyoNightTheme: ITheme = {
   brightBlue: '#7aa2f7',
   brightMagenta: '#bb9af7',
   brightCyan: '#7dcfff',
-  brightWhite: '#c0caf5'
-}
+  brightWhite: '#c0caf5',
+};

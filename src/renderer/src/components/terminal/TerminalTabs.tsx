@@ -1,15 +1,15 @@
-import {memo, useCallback, useMemo, useState} from 'react'
-import {ArrowRightToLine, Copy, Loader2, Pencil, Plus, WifiOff, X, XCircle} from 'lucide-react'
-import {motion, Reorder} from 'framer-motion'
-import {cn} from '@/lib/utils'
-import {type TerminalSession, useTerminalStore} from '@/stores/terminal-store'
-import {ConfirmDialog} from '@/components/common/ConfirmDialog'
-import {PromptDialog} from '@/components/common/PromptDialog'
-import {ContextMenu, type ContextMenuItem} from '@/components/common/ContextMenu'
-import {connectToHost} from '@/lib/ssh'
+import { memo, useCallback, useMemo, useState } from 'react';
+import { ArrowRightToLine, Copy, Loader2, Pencil, Plus, WifiOff, X, XCircle } from 'lucide-react';
+import { motion, Reorder } from 'framer-motion';
+import { cn } from '@/lib/utils';
+import { type TerminalSession, useTerminalStore } from '@/stores/terminal-store';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { PromptDialog } from '@/components/common/PromptDialog';
+import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
+import { connectToHost } from '@/lib/ssh';
 
 interface TerminalTabsProps {
-  onNewTab: () => void
+  onNewTab: () => void;
 }
 
 export function TerminalTabs({ onNewTab }: TerminalTabsProps) {
@@ -22,35 +22,35 @@ export function TerminalTabs({ onNewTab }: TerminalTabsProps) {
     closeTab,
     renameTab,
     closeOtherTabs,
-    closeTabsToRight
-  } = useTerminalStore()
-  const [closingTabId, setClosingTabId] = useState<string | null>(null)
-  const [renamingTabId, setRenamingTabId] = useState<string | null>(null)
+    closeTabsToRight,
+  } = useTerminalStore();
+  const [closingTabId, setClosingTabId] = useState<string | null>(null);
+  const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
 
   const handleCloseTab = useCallback(
     (sessionId: string) => {
-      const session = sessions.get(sessionId)
+      const session = sessions.get(sessionId);
       if (session && (session.status === 'connected' || session.status === 'connecting')) {
-        setClosingTabId(sessionId)
+        setClosingTabId(sessionId);
       } else {
-        closeTab(sessionId)
+        closeTab(sessionId);
       }
     },
-    [sessions, closeTab]
-  )
+    [sessions, closeTab],
+  );
 
   const handleRename = useCallback((sessionId: string) => {
-    setRenamingTabId(sessionId)
-  }, [])
+    setRenamingTabId(sessionId);
+  }, []);
 
   const handleDuplicate = useCallback(
     (sessionId: string) => {
-      const session = sessions.get(sessionId)
-      if (!session) return
-      connectToHost(session.connectionId)
+      const session = sessions.get(sessionId);
+      if (!session) return;
+      connectToHost(session.connectionId);
     },
-    [sessions]
-  )
+    [sessions],
+  );
 
   return (
     <div className="flex h-9 items-center border-b border-border/60 bg-card/60 no-select">
@@ -62,8 +62,8 @@ export function TerminalTabs({ onNewTab }: TerminalTabsProps) {
         as="div"
       >
         {tabOrder.map((sessionId) => {
-          const session = sessions.get(sessionId)
-          if (!session) return null
+          const session = sessions.get(sessionId);
+          if (!session) return null;
 
           return (
             <Tab
@@ -78,7 +78,7 @@ export function TerminalTabs({ onNewTab }: TerminalTabsProps) {
               onCloseOthers={closeOtherTabs}
               onCloseToRight={closeTabsToRight}
             />
-          )
+          );
         })}
       </Reorder.Group>
       <button
@@ -97,8 +97,8 @@ export function TerminalTabs({ onNewTab }: TerminalTabsProps) {
         confirmLabel="Disconnect"
         destructive
         onConfirm={() => {
-          if (closingTabId) closeTab(closingTabId)
-          setClosingTabId(null)
+          if (closingTabId) closeTab(closingTabId);
+          setClosingTabId(null);
         }}
         onCancel={() => setClosingTabId(null)}
       />
@@ -116,25 +116,25 @@ export function TerminalTabs({ onNewTab }: TerminalTabsProps) {
         }
         confirmLabel="Rename"
         onConfirm={(newTitle) => {
-          if (renamingTabId) renameTab(renamingTabId, newTitle)
-          setRenamingTabId(null)
+          if (renamingTabId) renameTab(renamingTabId, newTitle);
+          setRenamingTabId(null);
         }}
         onCancel={() => setRenamingTabId(null)}
       />
     </div>
-  )
+  );
 }
 
 interface TabProps {
-  sessionId: string
-  session: TerminalSession
-  isActive: boolean
-  onActivate: (sessionId: string) => void
-  onClose: (sessionId: string) => void
-  onRename: (sessionId: string) => void
-  onDuplicate: (sessionId: string) => void
-  onCloseOthers: (sessionId: string) => void
-  onCloseToRight: (sessionId: string) => void
+  sessionId: string;
+  session: TerminalSession;
+  isActive: boolean;
+  onActivate: (sessionId: string) => void;
+  onClose: (sessionId: string) => void;
+  onRename: (sessionId: string) => void;
+  onDuplicate: (sessionId: string) => void;
+  onCloseOthers: (sessionId: string) => void;
+  onCloseToRight: (sessionId: string) => void;
 }
 
 const Tab = memo(function Tab({
@@ -146,55 +146,55 @@ const Tab = memo(function Tab({
   onRename,
   onDuplicate,
   onCloseOthers,
-  onCloseToRight
+  onCloseToRight,
 }: TabProps) {
   const statusIcon = () => {
     switch (session.status) {
       case 'connected':
-        return <div className="h-2 w-2 rounded-full bg-emerald-500" />
+        return <div className="h-2 w-2 rounded-full bg-emerald-500" />;
       case 'connecting':
       case 'reconnecting':
-        return <Loader2 className="h-3 w-3 text-amber-500 animate-spin" />
+        return <Loader2 className="h-3 w-3 text-amber-500 animate-spin" />;
       case 'error':
-        return <WifiOff className="h-3 w-3 text-destructive" />
+        return <WifiOff className="h-3 w-3 text-destructive" />;
       default:
-        return <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />
+        return <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />;
     }
-  }
+  };
 
   const contextItems: ContextMenuItem[] = useMemo(
     () => [
       {
         label: 'Rename Tab',
         icon: <Pencil className="h-3.5 w-3.5" />,
-        onClick: () => onRename(sessionId)
+        onClick: () => onRename(sessionId),
       },
       {
         label: 'Duplicate Session',
         icon: <Copy className="h-3.5 w-3.5" />,
-        onClick: () => onDuplicate(sessionId)
+        onClick: () => onDuplicate(sessionId),
       },
       {
         label: 'Close Other Tabs',
         icon: <XCircle className="h-3.5 w-3.5" />,
         onClick: () => onCloseOthers(sessionId),
-        separator: true
+        separator: true,
       },
       {
         label: 'Close Tabs to the Right',
         icon: <ArrowRightToLine className="h-3.5 w-3.5" />,
-        onClick: () => onCloseToRight(sessionId)
+        onClick: () => onCloseToRight(sessionId),
       },
       {
         label: 'Close',
         icon: <X className="h-3.5 w-3.5" />,
         onClick: () => onClose(sessionId),
         separator: true,
-        destructive: true
-      }
+        destructive: true,
+      },
     ],
-    [sessionId, onRename, onDuplicate, onCloseOthers, onCloseToRight, onClose]
-  )
+    [sessionId, onRename, onDuplicate, onCloseOthers, onCloseToRight, onClose],
+  );
 
   return (
     <Reorder.Item
@@ -204,7 +204,7 @@ const Tab = memo(function Tab({
         'group relative flex h-9 min-w-[120px] max-w-[200px] items-center gap-2 border-r border-border/40 px-3 text-xs cursor-grab active:cursor-grabbing',
         isActive
           ? 'bg-background text-foreground'
-          : 'text-muted-foreground hover:bg-background/50 hover:text-foreground'
+          : 'text-muted-foreground hover:bg-background/50 hover:text-foreground',
       )}
       whileDrag={{ opacity: 0.8, scale: 1.02, zIndex: 10 }}
       onClick={() => onActivate(sessionId)}
@@ -222,8 +222,8 @@ const Tab = memo(function Tab({
           <span className="truncate font-medium">{session.title || session.connectionName}</span>
           <button
             onClick={(e) => {
-              e.stopPropagation()
-              onClose(sessionId)
+              e.stopPropagation();
+              onClose(sessionId);
             }}
             className="ml-auto flex-shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-accent cursor-pointer"
             aria-label="Close tab"
@@ -233,5 +233,5 @@ const Tab = memo(function Tab({
         </div>
       </ContextMenu>
     </Reorder.Item>
-  )
-})
+  );
+});

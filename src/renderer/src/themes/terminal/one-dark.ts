@@ -1,12 +1,12 @@
-import type {ITheme} from '@xterm/xterm'
-import type {UIThemeTokens} from '../ui-from-terminal'
+import type { ITheme } from '@xterm/xterm';
+import type { UIThemeTokens } from '../ui-from-terminal';
 
 export const oneDarkUIOverrides: Partial<UIThemeTokens> = {
   primary: '#61afef',
   ring: '#61afef',
   'sidebar-primary': '#61afef',
-  'sidebar-ring': '#61afef'
-}
+  'sidebar-ring': '#61afef',
+};
 
 export const oneDarkTheme: ITheme = {
   background: '#282c34',
@@ -30,5 +30,5 @@ export const oneDarkTheme: ITheme = {
   brightBlue: '#61afef',
   brightMagenta: '#c678dd',
   brightCyan: '#56b6c2',
-  brightWhite: '#ffffff'
-}
+  brightWhite: '#ffffff',
+};

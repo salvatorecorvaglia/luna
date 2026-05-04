@@ -1,18 +1,18 @@
-import type {SFTPWrapper} from 'ssh2'
-import {createReadStream, createWriteStream} from 'fs'
-import {stat as fsStat, unlink} from 'fs/promises'
-import {sshManager} from './ssh-manager'
-import type {SftpEntry} from '@shared/types/sftp'
-import {transferQueue} from './transfer-queue'
-import {LIMITS} from '@shared/constants'
-import {TimeoutError, withTimeout} from '../lib/with-timeout'
-import log from '../lib/logger'
-import {AbortError, SftpTransferError, SshConnectionError} from '../lib/errors'
+import type { SFTPWrapper } from 'ssh2';
+import { createReadStream, createWriteStream } from 'fs';
+import { stat as fsStat, unlink } from 'fs/promises';
+import { sshManager } from './ssh-manager';
+import type { SftpEntry } from '@shared/types/sftp';
+import { transferQueue } from './transfer-queue';
+import { LIMITS } from '@shared/constants';
+import { TimeoutError, withTimeout } from '../lib/with-timeout';
+import log from '../lib/logger';
+import { AbortError, SftpTransferError, SshConnectionError } from '../lib/errors';
 
-type StepCallback = (transferred: number, chunk: number, total: number) => void
+type StepCallback = (transferred: number, chunk: number, total: number) => void;
 
-const IDLE_TIMEOUT_MS = 5 * 60 * 1000
-const IDLE_CHECK_INTERVAL_MS = 60 * 1000
+const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+const IDLE_CHECK_INTERVAL_MS = 60 * 1000;
 
 /** Node/ssh2 error codes that imply the SFTP channel/socket is gone. */
 const FATAL_ERR_CODES = new Set([
@@ -21,96 +21,96 @@ const FATAL_ERR_CODES = new Set([
   'ENOTCONN',
   'ECONNABORTED',
   'ERR_STREAM_DESTROYED',
-  'ERR_STREAM_PREMATURE_CLOSE'
-])
+  'ERR_STREAM_PREMATURE_CLOSE',
+]);
 
 /** Errors that indicate the SFTP session is unusable and must be re-opened. */
 function isSessionFatal(err: unknown): boolean {
-  if (err instanceof TimeoutError) return true
-  if (err instanceof SshConnectionError) return true
-  if (!(err instanceof Error)) return false
-  const code = (err as NodeJS.ErrnoException).code
-  if (code && FATAL_ERR_CODES.has(code)) return true
+  if (err instanceof TimeoutError) return true;
+  if (err instanceof SshConnectionError) return true;
+  if (!(err instanceof Error)) return false;
+  const code = (err as NodeJS.ErrnoException).code;
+  if (code && FATAL_ERR_CODES.has(code)) return true;
   // Fallback: ssh2 doesn't always populate codes for channel teardown.
-  const msg = err.message.toLowerCase()
+  const msg = err.message.toLowerCase();
   return (
     msg.includes('channel') ||
     msg.includes('connection') ||
     msg.includes('closed') ||
     msg.includes('not connected')
-  )
+  );
 }
 
 class SftpManager {
-  private sftpSessions = new Map<string, SFTPWrapper>()
-  private lastAccess = new Map<string, number>()
+  private sftpSessions = new Map<string, SFTPWrapper>();
+  private lastAccess = new Map<string, number>();
   /** Number of in-flight ops per session — idle sweep skips sessions with leases > 0. */
-  private leases = new Map<string, number>()
+  private leases = new Map<string, number>();
   /** Timer handle so the interval can be cleared on dispose. */
-  private idleCheckTimer: ReturnType<typeof setInterval> | null = null
+  private idleCheckTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     sshManager.onSessionDisconnect((sessionId) => {
-      this.sftpSessions.delete(sessionId)
-      this.lastAccess.delete(sessionId)
-      this.leases.delete(sessionId)
-    })
+      this.sftpSessions.delete(sessionId);
+      this.lastAccess.delete(sessionId);
+      this.leases.delete(sessionId);
+    });
 
-    this.idleCheckTimer = setInterval(() => this.cleanupIdle(), IDLE_CHECK_INTERVAL_MS)
+    this.idleCheckTimer = setInterval(() => this.cleanupIdle(), IDLE_CHECK_INTERVAL_MS);
   }
 
   /** Stop the idle-sweep timer. Call from `before-quit`. */
   dispose(): void {
     if (this.idleCheckTimer) {
-      clearInterval(this.idleCheckTimer)
-      this.idleCheckTimer = null
+      clearInterval(this.idleCheckTimer);
+      this.idleCheckTimer = null;
     }
   }
 
   private cleanupIdle(): void {
-    const now = Date.now()
+    const now = Date.now();
     for (const [sessionId, lastTime] of this.lastAccess) {
       if (now - lastTime > IDLE_TIMEOUT_MS && (this.leases.get(sessionId) ?? 0) === 0) {
-        log.info(`[SFTP] Closing idle session: ${sessionId}`)
-        this.closeSftp(sessionId)
+        log.info(`[SFTP] Closing idle session: ${sessionId}`);
+        this.closeSftp(sessionId);
       }
     }
   }
 
   private acquireLease(sessionId: string): void {
-    this.leases.set(sessionId, (this.leases.get(sessionId) ?? 0) + 1)
-    this.lastAccess.set(sessionId, Date.now())
+    this.leases.set(sessionId, (this.leases.get(sessionId) ?? 0) + 1);
+    this.lastAccess.set(sessionId, Date.now());
   }
 
   private releaseLease(sessionId: string): void {
-    const next = (this.leases.get(sessionId) ?? 0) - 1
-    if (next <= 0) this.leases.delete(sessionId)
-    else this.leases.set(sessionId, next)
-    this.lastAccess.set(sessionId, Date.now())
+    const next = (this.leases.get(sessionId) ?? 0) - 1;
+    if (next <= 0) this.leases.delete(sessionId);
+    else this.leases.set(sessionId, next);
+    this.lastAccess.set(sessionId, Date.now());
   }
 
   async getSftp(sessionId: string): Promise<SFTPWrapper> {
-    this.lastAccess.set(sessionId, Date.now())
-    const existing = this.sftpSessions.get(sessionId)
-    if (existing) return existing
+    this.lastAccess.set(sessionId, Date.now());
+    const existing = this.sftpSessions.get(sessionId);
+    if (existing) return existing;
 
-    const session = sshManager.getSession(sessionId)
+    const session = sshManager.getSession(sessionId);
     if (!session) {
-      throw new SshConnectionError('SSH session not found')
+      throw new SshConnectionError('SSH session not found');
     }
 
     return new Promise<SFTPWrapper>((resolve, reject) => {
       session.client.sftp((err, sftp) => {
-        if (err) return reject(err)
-        this.sftpSessions.set(sessionId, sftp)
+        if (err) return reject(err);
+        this.sftpSessions.set(sessionId, sftp);
 
         sftp.on('close', () => {
-          this.sftpSessions.delete(sessionId)
-        })
+          this.sftpSessions.delete(sessionId);
+        });
 
-        resolve(sftp)
-      })
-    })
+        resolve(sftp);
+      });
+    });
   }
 
   /** Run an SFTP operation with timeout + auto-invalidate the session on fatal errors. */
@@ -118,24 +118,24 @@ class SftpManager {
     sessionId: string,
     op: string,
     fn: (sftp: SFTPWrapper) => Promise<T>,
-    timeoutMs: number = LIMITS.SFTP_OP_TIMEOUT_MS
+    timeoutMs: number = LIMITS.SFTP_OP_TIMEOUT_MS,
   ): Promise<T> {
-    this.acquireLease(sessionId)
-    let releasedInCatch = false
+    this.acquireLease(sessionId);
+    let releasedInCatch = false;
     try {
-      const sftp = await this.getSftp(sessionId)
-      return await withTimeout(fn(sftp), timeoutMs, `sftp:${op}`)
+      const sftp = await this.getSftp(sessionId);
+      return await withTimeout(fn(sftp), timeoutMs, `sftp:${op}`);
     } catch (err) {
       if (isSessionFatal(err)) {
-        log.warn(`[SFTP] Invalidating session ${sessionId} after ${op} failure: ${String(err)}`)
+        log.warn(`[SFTP] Invalidating session ${sessionId} after ${op} failure: ${String(err)}`);
         // closeSftp wipes the leases entry entirely; mark released so finally is a no-op.
-        this.closeSftp(sessionId)
-        releasedInCatch = true
-        throw err
+        this.closeSftp(sessionId);
+        releasedInCatch = true;
+        throw err;
       }
-      throw err
+      throw err;
     } finally {
-      if (!releasedInCatch && this.leases.has(sessionId)) this.releaseLease(sessionId)
+      if (!releasedInCatch && this.leases.has(sessionId)) this.releaseLease(sessionId);
     }
   }
 
@@ -143,11 +143,11 @@ class SftpManager {
     return this.runOp(sessionId, 'list', (sftp) => {
       return new Promise<SftpEntry[]>((resolve, reject) => {
         sftp.readdir(remotePath, (err, list) => {
-          if (err) return reject(err)
+          if (err) return reject(err);
           const entries: SftpEntry[] = list.map((item) => {
-            const fileType = item.attrs.mode & 0o170000
-            const isDir = fileType === 0o40000
-            const isLink = fileType === 0o120000
+            const fileType = item.attrs.mode & 0o170000;
+            const isDir = fileType === 0o40000;
+            const isLink = fileType === 0o120000;
             return {
               name: item.filename,
               path: remotePath === '/' ? `/${item.filename}` : `${remotePath}/${item.filename}`,
@@ -157,29 +157,29 @@ class SftpManager {
               isSymlink: isLink,
               permissions: this.formatPermissions(item.attrs.mode),
               owner: item.attrs.uid,
-              group: item.attrs.gid
-            }
-          })
-          resolve(entries)
-        })
-      })
-    })
+              group: item.attrs.gid,
+            };
+          });
+          resolve(entries);
+        });
+      });
+    });
   }
 
   async mkdir(sessionId: string, remotePath: string): Promise<void> {
     return this.runOp(sessionId, 'mkdir', (sftp) => {
       return new Promise<void>((resolve, reject) => {
-        sftp.mkdir(remotePath, (err) => (err ? reject(err) : resolve()))
-      })
-    })
+        sftp.mkdir(remotePath, (err) => (err ? reject(err) : resolve()));
+      });
+    });
   }
 
   async rename(sessionId: string, oldPath: string, newPath: string): Promise<void> {
     return this.runOp(sessionId, 'rename', (sftp) => {
       return new Promise<void>((resolve, reject) => {
-        sftp.rename(oldPath, newPath, (err) => (err ? reject(err) : resolve()))
-      })
-    })
+        sftp.rename(oldPath, newPath, (err) => (err ? reject(err) : resolve()));
+      });
+    });
   }
 
   async remove(sessionId: string, remotePath: string, isDirectory: boolean): Promise<void> {
@@ -188,114 +188,114 @@ class SftpManager {
         sessionId,
         'rmdir',
         (sftp) => this.removeDir(sftp, remotePath),
-        LIMITS.SFTP_OP_TIMEOUT_MS * 4 // recursive ops can be slow
-      )
+        LIMITS.SFTP_OP_TIMEOUT_MS * 4, // recursive ops can be slow
+      );
     }
     return this.runOp(sessionId, 'unlink', (sftp) => {
       return new Promise<void>((resolve, reject) => {
-        sftp.unlink(remotePath, (err) => (err ? reject(err) : resolve()))
-      })
-    })
+        sftp.unlink(remotePath, (err) => (err ? reject(err) : resolve()));
+      });
+    });
   }
 
   /** Hard cap on recursive removeDir depth — defends against symlink/mountpoint cycles. */
-  private static readonly REMOVE_DIR_MAX_DEPTH = 64
+  private static readonly REMOVE_DIR_MAX_DEPTH = 64;
 
   private async removeDir(sftp: SFTPWrapper, dirPath: string, depth = 0): Promise<void> {
     if (depth > SftpManager.REMOVE_DIR_MAX_DEPTH) {
       throw new SftpTransferError(
-        `Refusing to recurse into ${dirPath}: max depth ${SftpManager.REMOVE_DIR_MAX_DEPTH} exceeded (possible symlink loop)`
-      )
+        `Refusing to recurse into ${dirPath}: max depth ${SftpManager.REMOVE_DIR_MAX_DEPTH} exceeded (possible symlink loop)`,
+      );
     }
 
     const entries = await new Promise<{ filename: string; attrs: { mode: number } }[]>(
       (resolve, reject) => {
         sftp.readdir(dirPath, (err, list) => {
-          if (err) return reject(err)
+          if (err) return reject(err);
           resolve(
-            list.map((item) => ({ filename: item.filename, attrs: { mode: item.attrs.mode } }))
-          )
-        })
-      }
-    )
+            list.map((item) => ({ filename: item.filename, attrs: { mode: item.attrs.mode } })),
+          );
+        });
+      },
+    );
 
-    const BATCH_SIZE = 5
+    const BATCH_SIZE = 5;
     for (let i = 0; i < entries.length; i += BATCH_SIZE) {
-      const batch = entries.slice(i, i + BATCH_SIZE)
+      const batch = entries.slice(i, i + BATCH_SIZE);
       await Promise.all(
         batch.map(async (entry) => {
-          const fullPath = dirPath === '/' ? `/${entry.filename}` : `${dirPath}/${entry.filename}`
+          const fullPath = dirPath === '/' ? `/${entry.filename}` : `${dirPath}/${entry.filename}`;
           // readdir on most servers returns lstat-style modes (no symlink follow), so
           // entry.attrs.mode reflects the link itself. Symlinks are unlinked, never recursed.
-          const fileType = entry.attrs.mode & 0o170000
-          const isSymlink = fileType === 0o120000
-          const isDir = fileType === 0o40000
+          const fileType = entry.attrs.mode & 0o170000;
+          const isSymlink = fileType === 0o120000;
+          const isDir = fileType === 0o40000;
           if (isDir && !isSymlink) {
-            await this.removeDir(sftp, fullPath, depth + 1)
+            await this.removeDir(sftp, fullPath, depth + 1);
           } else {
             await new Promise<void>((resolve, reject) => {
-              sftp.unlink(fullPath, (err) => (err ? reject(err) : resolve()))
-            })
+              sftp.unlink(fullPath, (err) => (err ? reject(err) : resolve()));
+            });
           }
-        })
-      )
+        }),
+      );
     }
 
     await new Promise<void>((resolve, reject) => {
-      sftp.rmdir(dirPath, (err) => (err ? reject(err) : resolve()))
-    })
+      sftp.rmdir(dirPath, (err) => (err ? reject(err) : resolve()));
+    });
   }
 
   async readFile(sessionId: string, remotePath: string, maxSize?: number): Promise<string> {
-    const limit = Math.min(maxSize || LIMITS.MAX_PREVIEW_BYTES, LIMITS.MAX_PREVIEW_BYTES)
+    const limit = Math.min(maxSize || LIMITS.MAX_PREVIEW_BYTES, LIMITS.MAX_PREVIEW_BYTES);
     return this.runOp(sessionId, 'readFile', (sftp) => {
       return new Promise<string>((resolve, reject) => {
         sftp.stat(remotePath, (err, stats) => {
-          if (err) return reject(err)
+          if (err) return reject(err);
           if (stats.size > limit) {
             return reject(
               new SftpTransferError(
-                `File too large to preview: ${stats.size} bytes (max ${limit}). Download it instead.`
-              )
-            )
+                `File too large to preview: ${stats.size} bytes (max ${limit}). Download it instead.`,
+              ),
+            );
           }
 
-          const chunks: Buffer[] = []
-          const stream = sftp.createReadStream(remotePath)
-          stream.on('data', (chunk: Buffer) => chunks.push(chunk))
-          stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')))
+          const chunks: Buffer[] = [];
+          const stream = sftp.createReadStream(remotePath);
+          stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+          stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
           stream.on('error', (err: Error) => {
-            stream.destroy()
-            reject(err)
-          })
-        })
-      })
-    })
+            stream.destroy();
+            reject(err);
+          });
+        });
+      });
+    });
   }
 
   async statSize(sessionId: string, remotePath: string): Promise<number> {
     return this.runOp(sessionId, 'stat', (sftp) => {
       return new Promise<number>((resolve, reject) => {
-        sftp.stat(remotePath, (err, stats) => (err ? reject(err) : resolve(stats.size)))
-      })
-    })
+        sftp.stat(remotePath, (err, stats) => (err ? reject(err) : resolve(stats.size)));
+      });
+    });
   }
 
   async stat(sessionId: string, remotePath: string) {
     return this.runOp(sessionId, 'stat', (sftp) => {
       return new Promise<{
-        size: number
-        mode: number
-        modifiedAt: number
-        uid: number
-        gid: number
-        isDirectory: boolean
-        isSymlink: boolean
-        permissions: string
+        size: number;
+        mode: number;
+        modifiedAt: number;
+        uid: number;
+        gid: number;
+        isDirectory: boolean;
+        isSymlink: boolean;
+        permissions: string;
       }>((resolve, reject) => {
         sftp.stat(remotePath, (err, stats) => {
-          if (err) return reject(err)
-          const fileType = stats.mode & 0o170000
+          if (err) return reject(err);
+          const fileType = stats.mode & 0o170000;
           resolve({
             size: stats.size,
             mode: stats.mode,
@@ -304,11 +304,11 @@ class SftpManager {
             gid: stats.gid,
             isDirectory: fileType === 0o040000,
             isSymlink: fileType === 0o120000,
-            permissions: this.formatPermissions(stats.mode)
-          })
-        })
-      })
-    })
+            permissions: this.formatPermissions(stats.mode),
+          });
+        });
+      });
+    });
   }
 
   /**
@@ -320,13 +320,13 @@ class SftpManager {
     remotePath: string,
     localPath: string,
     onStep: StepCallback,
-    signal: AbortSignal
+    signal: AbortSignal,
   ): Promise<void> {
-    this.acquireLease(sessionId)
+    this.acquireLease(sessionId);
     try {
-      return await this._streamDownload(sessionId, remotePath, localPath, onStep, signal)
+      return await this._streamDownload(sessionId, remotePath, localPath, onStep, signal);
     } finally {
-      this.releaseLease(sessionId)
+      this.releaseLease(sessionId);
     }
   }
 
@@ -335,69 +335,69 @@ class SftpManager {
     remotePath: string,
     localPath: string,
     onStep: StepCallback,
-    signal: AbortSignal
+    signal: AbortSignal,
   ): Promise<void> {
-    const sftp = await this.getSftp(sessionId)
-    let total = 0
+    const sftp = await this.getSftp(sessionId);
+    let total = 0;
     try {
       total = await new Promise<number>((resolve, reject) => {
-        sftp.stat(remotePath, (err, stats) => (err ? reject(err) : resolve(stats.size)))
-      })
+        sftp.stat(remotePath, (err, stats) => (err ? reject(err) : resolve(stats.size)));
+      });
     } catch {
       // size unknown — progress will lack a denominator
     }
 
-    let transferred = 0
-    const readStream = sftp.createReadStream(remotePath)
-    const writeStream = createWriteStream(localPath)
+    let transferred = 0;
+    const readStream = sftp.createReadStream(remotePath);
+    const writeStream = createWriteStream(localPath);
 
     const cleanupOnAbort = async (): Promise<void> => {
       await new Promise<void>((resolve) => {
-        readStream.destroy()
-        writeStream.destroy()
-        setTimeout(resolve, 50)
-      })
+        readStream.destroy();
+        writeStream.destroy();
+        setTimeout(resolve, 50);
+      });
       await unlink(localPath).catch((err: NodeJS.ErrnoException) => {
         if (err.code !== 'ENOENT') {
-          log.warn(`[SFTP] Failed to remove partial download ${localPath}:`, err.message)
+          log.warn(`[SFTP] Failed to remove partial download ${localPath}:`, err.message);
         }
-      })
-    }
+      });
+    };
 
     return new Promise<void>((resolve, reject) => {
-      let settled = false
+      let settled = false;
       const settle = (fn: () => void): void => {
-        if (settled) return
-        settled = true
-        signal.removeEventListener('abort', onAbort)
-        fn()
-      }
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener('abort', onAbort);
+        fn();
+      };
       const onAbort = (): void => {
-        settle(() => cleanupOnAbort().finally(() => reject(new AbortError('Transfer cancelled'))))
-      }
+        settle(() => cleanupOnAbort().finally(() => reject(new AbortError('Transfer cancelled'))));
+      };
 
       if (signal.aborted) {
-        onAbort()
-        return
+        onAbort();
+        return;
       }
-      signal.addEventListener('abort', onAbort, { once: true })
+      signal.addEventListener('abort', onAbort, { once: true });
 
       readStream.on('data', (chunk: Buffer) => {
-        transferred += chunk.length
-        onStep(transferred, chunk.length, total)
-      })
+        transferred += chunk.length;
+        onStep(transferred, chunk.length, total);
+      });
       readStream.on('error', (err: Error) => {
-        settle(() => cleanupOnAbort().finally(() => reject(err)))
-      })
+        settle(() => cleanupOnAbort().finally(() => reject(err)));
+      });
       writeStream.on('error', (err: Error) => {
-        settle(() => cleanupOnAbort().finally(() => reject(err)))
-      })
+        settle(() => cleanupOnAbort().finally(() => reject(err)));
+      });
       writeStream.on('finish', () => {
-        settle(() => resolve())
-      })
+        settle(() => resolve());
+      });
 
-      readStream.pipe(writeStream)
-    })
+      readStream.pipe(writeStream);
+    });
   }
 
   /**
@@ -409,13 +409,13 @@ class SftpManager {
     localPath: string,
     remotePath: string,
     onStep: StepCallback,
-    signal: AbortSignal
+    signal: AbortSignal,
   ): Promise<void> {
-    this.acquireLease(sessionId)
+    this.acquireLease(sessionId);
     try {
-      return await this._streamUpload(sessionId, localPath, remotePath, onStep, signal)
+      return await this._streamUpload(sessionId, localPath, remotePath, onStep, signal);
     } finally {
-      this.releaseLease(sessionId)
+      this.releaseLease(sessionId);
     }
   }
 
@@ -424,98 +424,98 @@ class SftpManager {
     localPath: string,
     remotePath: string,
     onStep: StepCallback,
-    signal: AbortSignal
+    signal: AbortSignal,
   ): Promise<void> {
-    const sftp = await this.getSftp(sessionId)
-    let total = 0
+    const sftp = await this.getSftp(sessionId);
+    let total = 0;
     try {
-      const stats = await fsStat(localPath)
-      total = stats.size
+      const stats = await fsStat(localPath);
+      total = stats.size;
     } catch {
       // size unknown
     }
 
-    let transferred = 0
-    const readStream = createReadStream(localPath)
-    const writeStream = sftp.createWriteStream(remotePath)
+    let transferred = 0;
+    const readStream = createReadStream(localPath);
+    const writeStream = sftp.createWriteStream(remotePath);
 
     const cleanupOnAbort = async (): Promise<void> => {
       await new Promise<void>((resolve) => {
-        readStream.destroy()
-        writeStream.destroy()
-        setTimeout(resolve, 50)
-      })
+        readStream.destroy();
+        writeStream.destroy();
+        setTimeout(resolve, 50);
+      });
       await new Promise<void>((resolve) => {
-        sftp.unlink(remotePath, () => resolve())
-      })
-    }
+        sftp.unlink(remotePath, () => resolve());
+      });
+    };
 
     return new Promise<void>((resolve, reject) => {
-      let settled = false
+      let settled = false;
       const settle = (fn: () => void): void => {
-        if (settled) return
-        settled = true
-        signal.removeEventListener('abort', onAbort)
-        fn()
-      }
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener('abort', onAbort);
+        fn();
+      };
       const onAbort = (): void => {
-        settle(() => cleanupOnAbort().finally(() => reject(new AbortError('Transfer cancelled'))))
-      }
+        settle(() => cleanupOnAbort().finally(() => reject(new AbortError('Transfer cancelled'))));
+      };
 
       if (signal.aborted) {
-        onAbort()
-        return
+        onAbort();
+        return;
       }
-      signal.addEventListener('abort', onAbort, { once: true })
+      signal.addEventListener('abort', onAbort, { once: true });
 
       readStream.on('data', (chunk: Buffer) => {
-        transferred += chunk.length
-        onStep(transferred, chunk.length, total)
-      })
+        transferred += chunk.length;
+        onStep(transferred, chunk.length, total);
+      });
       readStream.on('error', (err: Error) => {
-        settle(() => cleanupOnAbort().finally(() => reject(err)))
-      })
+        settle(() => cleanupOnAbort().finally(() => reject(err)));
+      });
       writeStream.on('error', (err: Error) => {
-        settle(() => cleanupOnAbort().finally(() => reject(err)))
-      })
+        settle(() => cleanupOnAbort().finally(() => reject(err)));
+      });
       writeStream.on('close', () => {
-        settle(() => resolve())
-      })
+        settle(() => resolve());
+      });
 
-      readStream.pipe(writeStream)
-    })
+      readStream.pipe(writeStream);
+    });
   }
 
   async download(sessionId: string, remotePath: string, localPath: string): Promise<string> {
-    return transferQueue.enqueue('download', sessionId, localPath, remotePath)
+    return transferQueue.enqueue('download', sessionId, localPath, remotePath);
   }
 
   async upload(sessionId: string, localPath: string, remotePath: string): Promise<string> {
-    return transferQueue.enqueue('upload', sessionId, localPath, remotePath)
+    return transferQueue.enqueue('upload', sessionId, localPath, remotePath);
   }
 
   closeSftp(sessionId: string): void {
-    const sftp = this.sftpSessions.get(sessionId)
+    const sftp = this.sftpSessions.get(sessionId);
     if (sftp) {
       try {
-        sftp.end()
+        sftp.end();
       } catch {
         // ignore close errors on an already-broken handle
       }
-      this.sftpSessions.delete(sessionId)
+      this.sftpSessions.delete(sessionId);
     }
-    this.lastAccess.delete(sessionId)
-    this.leases.delete(sessionId)
+    this.lastAccess.delete(sessionId);
+    this.leases.delete(sessionId);
   }
 
   private formatPermissions(mode: number): string {
-    const chars = 'rwxrwxrwx'
-    let result = ''
+    const chars = 'rwxrwxrwx';
+    let result = '';
     for (let i = 0; i < 9; i++) {
-      result += mode & (1 << (8 - i)) ? chars[i] : '-'
+      result += mode & (1 << (8 - i)) ? chars[i] : '-';
     }
-    return result
+    return result;
   }
 }
 
-export const sftpManager = new SftpManager()
+export const sftpManager = new SftpManager();

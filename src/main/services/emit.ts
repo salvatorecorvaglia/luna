@@ -1,10 +1,10 @@
-import {BrowserWindow} from 'electron'
+import { BrowserWindow } from 'electron';
 
 /** Broadcast a message to all renderer windows. */
 export function emitToRenderer(channel: string, data: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) {
-      win.webContents.send(channel, data)
+      win.webContents.send(channel, data);
     }
   }
 }

@@ -1,29 +1,34 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import {useCallback, useEffect, useId, useMemo, useRef, useState} from 'react'
-import {AnimatePresence, motion} from 'framer-motion'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
-    Check,
-    Eye,
-    EyeOff,
-    FileKey,
-    FolderClosed,
-    Globe,
-    Hash,
-    Key,
-    Loader2,
-    Lock,
-    Palette,
-    Server,
-    Terminal as TerminalIcon,
-    User,
-    Wifi,
-    X
-} from 'lucide-react'
-import {cn} from '@/lib/utils'
-import {useConnectionStore} from '@/stores/connection-store'
-import {useConnection, useConnections, useCreateConnection, useUpdateConnection} from '@/hooks/use-connections'
-import type {AuthType} from '@shared/types/connection'
-import {toast} from 'sonner'
+  Check,
+  Eye,
+  EyeOff,
+  FileKey,
+  FolderClosed,
+  Globe,
+  Hash,
+  Key,
+  Loader2,
+  Lock,
+  Palette,
+  Server,
+  Terminal as TerminalIcon,
+  User,
+  Wifi,
+  X,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useConnectionStore } from '@/stores/connection-store';
+import {
+  useConnection,
+  useConnections,
+  useCreateConnection,
+  useUpdateConnection,
+} from '@/hooks/use-connections';
+import type { AuthType } from '@shared/types/connection';
+import { toast } from 'sonner';
 
 const AUTH_TYPES: { value: AuthType; label: string; icon: React.ReactNode }[] = [
   { value: 'password', label: 'Password', icon: <Lock className="h-4 w-4" /> },
@@ -31,9 +36,9 @@ const AUTH_TYPES: { value: AuthType; label: string; icon: React.ReactNode }[] = 
   {
     value: 'key+passphrase',
     label: 'Key + Pass',
-    icon: <FileKey className="h-4 w-4" />
-  }
-]
+    icon: <FileKey className="h-4 w-4" />,
+  },
+];
 
 const COLOR_OPTIONS: { hex: string; name: string }[] = [
   { hex: '#22c55e', name: 'Green' },
@@ -43,14 +48,14 @@ const COLOR_OPTIONS: { hex: string; name: string }[] = [
   { hex: '#f97316', name: 'Orange' },
   { hex: '#eab308', name: 'Yellow' },
   { hex: '#06b6d4', name: 'Cyan' },
-  { hex: '#ec4899', name: 'Pink' }
-]
+  { hex: '#ec4899', name: 'Pink' },
+];
 
 const overlayVariants = {
   initial: { opacity: 0 },
   animate: { opacity: 1 },
-  exit: { opacity: 0 }
-}
+  exit: { opacity: 0 },
+};
 
 const dialogVariants = {
   initial: { opacity: 0, scale: 0.96, y: 12 },
@@ -58,164 +63,164 @@ const dialogVariants = {
     opacity: 1,
     scale: 1,
     y: 0,
-    transition: { duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }
+    transition: { duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] },
   },
-  exit: { opacity: 0, scale: 0.96, y: 12, transition: { duration: 0.15 } }
-}
+  exit: { opacity: 0, scale: 0.96, y: 12, transition: { duration: 0.15 } },
+};
 
 export function ConnectionForm() {
   const { connectionFormOpen, editingConnectionId, duplicatingConnectionId, closeForm } =
-    useConnectionStore()
-  const { data: editingConnection } = useConnection(editingConnectionId)
-  const { data: duplicatingConnection } = useConnection(duplicatingConnectionId)
-  const { data: existingConnections } = useConnections()
-  const createMutation = useCreateConnection()
-  const updateMutation = useUpdateConnection()
+    useConnectionStore();
+  const { data: editingConnection } = useConnection(editingConnectionId);
+  const { data: duplicatingConnection } = useConnection(duplicatingConnectionId);
+  const { data: existingConnections } = useConnections();
+  const createMutation = useCreateConnection();
+  const updateMutation = useUpdateConnection();
 
-  const [name, setName] = useState('')
-  const [host, setHost] = useState('')
-  const [port, setPort] = useState('22')
-  const [username, setUsername] = useState('')
-  const [authType, setAuthType] = useState<AuthType>('password')
-  const [password, setPassword] = useState('')
-  const [privateKeyPath, setPrivateKeyPath] = useState('')
-  const [passphrase, setPassphrase] = useState('')
-  const [folder, setFolder] = useState('default')
-  const [colorTag, setColorTag] = useState<string>(COLOR_OPTIONS[0].hex)
-  const [startupCommand, setStartupCommand] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [showGroupsDropdown, setShowGroupsDropdown] = useState(false)
-  const [touched, setTouched] = useState<Record<string, boolean>>({})
-  const [testing, setTesting] = useState(false)
+  const [name, setName] = useState('');
+  const [host, setHost] = useState('');
+  const [port, setPort] = useState('22');
+  const [username, setUsername] = useState('');
+  const [authType, setAuthType] = useState<AuthType>('password');
+  const [password, setPassword] = useState('');
+  const [privateKeyPath, setPrivateKeyPath] = useState('');
+  const [passphrase, setPassphrase] = useState('');
+  const [folder, setFolder] = useState('default');
+  const [colorTag, setColorTag] = useState<string>(COLOR_OPTIONS[0].hex);
+  const [startupCommand, setStartupCommand] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showGroupsDropdown, setShowGroupsDropdown] = useState(false);
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [testing, setTesting] = useState(false);
 
-  const dialogRef = useRef<HTMLDivElement>(null)
-  const fieldId = useId()
-  const isEditing = !!editingConnectionId
-  const isSaving = createMutation.isPending || updateMutation.isPending
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const fieldId = useId();
+  const isEditing = !!editingConnectionId;
+  const isSaving = createMutation.isPending || updateMutation.isPending;
 
   const uniqueFolders = useMemo(() => {
-    if (!existingConnections) return []
-    const folders = new Set(existingConnections.map((c) => c.folder).filter(Boolean))
-    return Array.from(folders).sort()
-  }, [existingConnections])
+    if (!existingConnections) return [];
+    const folders = new Set(existingConnections.map((c) => c.folder).filter(Boolean));
+    return Array.from(folders).sort();
+  }, [existingConnections]);
 
   const filteredFolders = useMemo(() => {
-    const search = folder === 'default' ? '' : folder.toLowerCase()
-    return uniqueFolders.filter((f) => f.toLowerCase().includes(search))
-  }, [uniqueFolders, folder])
+    const search = folder === 'default' ? '' : folder.toLowerCase();
+    return uniqueFolders.filter((f) => f.toLowerCase().includes(search));
+  }, [uniqueFolders, folder]);
 
   // Focus trap + Escape
   useEffect(() => {
-    if (!connectionFormOpen) return
-    const dialog = dialogRef.current
-    if (!dialog) return
+    if (!connectionFormOpen) return;
+    const dialog = dialogRef.current;
+    if (!dialog) return;
 
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        closeForm()
-        return
+        closeForm();
+        return;
       }
       if (e.key === 'Tab') {
         const focusable = dialog.querySelectorAll<HTMLElement>(
-          'input:not([disabled]), button:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
-        )
-        const first = focusable[0]
-        const last = focusable[focusable.length - 1]
+          'input:not([disabled]), button:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        );
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
 
         if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault()
-          last?.focus()
+          e.preventDefault();
+          last?.focus();
         } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault()
-          first?.focus()
+          e.preventDefault();
+          first?.focus();
         }
       }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [connectionFormOpen, closeForm])
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [connectionFormOpen, closeForm]);
 
   const resetForm = useCallback(() => {
-    setName('')
-    setHost('')
-    setPort('22')
-    setUsername('')
-    setAuthType('password')
-    setPassword('')
-    setPrivateKeyPath('')
-    setPassphrase('')
-    setFolder('default')
-    setColorTag(COLOR_OPTIONS[0].hex)
-    setStartupCommand('')
-    setShowPassword(false)
-    setTouched({})
-  }, [])
+    setName('');
+    setHost('');
+    setPort('22');
+    setUsername('');
+    setAuthType('password');
+    setPassword('');
+    setPrivateKeyPath('');
+    setPassphrase('');
+    setFolder('default');
+    setColorTag(COLOR_OPTIONS[0].hex);
+    setStartupCommand('');
+    setShowPassword(false);
+    setTouched({});
+  }, []);
 
   useEffect(() => {
-    const source = editingConnection || duplicatingConnection
+    const source = editingConnection || duplicatingConnection;
     if (source) {
-      setName(duplicatingConnection ? `${source.name} (copy)` : source.name)
-      setHost(source.host)
-      setPort(String(source.port))
-      setUsername(source.username)
-      setAuthType(source.authType)
-      setPrivateKeyPath(source.privateKeyPath || '')
-      setFolder(source.folder)
-      setColorTag(source.colorTag || COLOR_OPTIONS[0].hex)
-      setStartupCommand(source.startupCommand || '')
-      setPassword('')
-      setPassphrase('')
+      setName(duplicatingConnection ? `${source.name} (copy)` : source.name);
+      setHost(source.host);
+      setPort(String(source.port));
+      setUsername(source.username);
+      setAuthType(source.authType);
+      setPrivateKeyPath(source.privateKeyPath || '');
+      setFolder(source.folder);
+      setColorTag(source.colorTag || COLOR_OPTIONS[0].hex);
+      setStartupCommand(source.startupCommand || '');
+      setPassword('');
+      setPassphrase('');
     } else {
-      resetForm()
+      resetForm();
     }
-    setTouched({})
-  }, [editingConnection, duplicatingConnection, connectionFormOpen, resetForm])
+    setTouched({});
+  }, [editingConnection, duplicatingConnection, connectionFormOpen, resetForm]);
 
   const markTouched = useCallback((field: string) => {
-    setTouched((prev) => ({ ...prev, [field]: true }))
-  }, [])
+    setTouched((prev) => ({ ...prev, [field]: true }));
+  }, []);
 
-  const errors: Record<string, string> = {}
+  const errors: Record<string, string> = {};
   if (!name.trim()) {
-    errors.name = 'Connection name is required'
+    errors.name = 'Connection name is required';
   } else if (
     existingConnections?.some(
       (c) =>
-        c.name.trim().toLowerCase() === name.trim().toLowerCase() && c.id !== editingConnectionId
+        c.name.trim().toLowerCase() === name.trim().toLowerCase() && c.id !== editingConnectionId,
     )
   ) {
-    errors.name = 'A connection with this name already exists'
+    errors.name = 'A connection with this name already exists';
   }
   if (!host.trim()) {
-    errors.host = 'Host is required'
+    errors.host = 'Host is required';
   }
-  const portNum = parseInt(port, 10)
+  const portNum = parseInt(port, 10);
   if (port.trim() === '' || Number.isNaN(portNum) || portNum < 1 || portNum > 65535) {
-    errors.port = 'Port must be between 1 and 65535'
+    errors.port = 'Port must be between 1 and 65535';
   }
   if (!username.trim()) {
-    errors.username = 'Username is required'
+    errors.username = 'Username is required';
   }
   if ((authType === 'key' || authType === 'key+passphrase') && !privateKeyPath.trim()) {
-    errors.privateKeyPath = 'Private key path is required'
+    errors.privateKeyPath = 'Private key path is required';
   }
 
   const visibleError = (field: string): string | undefined =>
-    touched[field] ? errors[field] : undefined
+    touched[field] ? errors[field] : undefined;
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+    e.preventDefault();
     setTouched({
       name: true,
       host: true,
       port: true,
       username: true,
-      privateKeyPath: true
-    })
+      privateKeyPath: true,
+    });
 
     if (Object.keys(errors).length > 0) {
-      toast.error('Please fix the highlighted fields')
-      return
+      toast.error('Please fix the highlighted fields');
+      return;
     }
 
     const data = {
@@ -229,47 +234,47 @@ export function ConnectionForm() {
       passphrase: passphrase || undefined,
       folder: folder.trim() || 'default',
       colorTag,
-      startupCommand: startupCommand.trim() || undefined
-    }
+      startupCommand: startupCommand.trim() || undefined,
+    };
 
     try {
       if (isEditing) {
-        await updateMutation.mutateAsync({ id: editingConnectionId!, ...data })
-        toast.success('Connection updated')
+        await updateMutation.mutateAsync({ id: editingConnectionId!, ...data });
+        toast.success('Connection updated');
       } else {
-        await createMutation.mutateAsync(data)
-        toast.success('Connection created')
+        await createMutation.mutateAsync(data);
+        toast.success('Connection created');
       }
-      closeForm()
+      closeForm();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save connection')
+      toast.error(err instanceof Error ? err.message : 'Failed to save connection');
     }
   }
 
   async function handleTest() {
     if (!isEditing || !editingConnectionId) {
-      toast.info('Save the connection first, then test it')
-      return
+      toast.info('Save the connection first, then test it');
+      return;
     }
-    setTesting(true)
+    setTesting(true);
     try {
-      const result = await window.api.ssh.testConnection({ connectionId: editingConnectionId })
+      const result = await window.api.ssh.testConnection({ connectionId: editingConnectionId });
       if (result.ok) {
-        toast.success('Connection successful')
+        toast.success('Connection successful');
       } else {
-        toast.error(result.error || 'Connection failed')
+        toast.error(result.error || 'Connection failed');
       }
     } finally {
-      setTesting(false)
+      setTesting(false);
     }
   }
 
   async function handleBrowseKey() {
     const path = await window.api.shell.openFileDialog({
-      filters: [{ name: 'SSH Keys', extensions: ['pem', 'key', 'pub', ''] }]
-    })
+      filters: [{ name: 'SSH Keys', extensions: ['pem', 'key', 'pub', ''] }],
+    });
     if (path) {
-      setPrivateKeyPath(path)
+      setPrivateKeyPath(path);
     }
   }
 
@@ -346,7 +351,7 @@ export function ConnectionForm() {
                     aria-describedby={visibleError('name') ? `${fieldId}-name-error` : undefined}
                     className={cn(
                       'form-input',
-                      visibleError('name') && 'border-destructive/60 focus:border-destructive'
+                      visibleError('name') && 'border-destructive/60 focus:border-destructive',
                     )}
                     autoFocus
                   />
@@ -375,7 +380,7 @@ export function ConnectionForm() {
                         }
                         className={cn(
                           'form-input',
-                          visibleError('host') && 'border-destructive/60 focus:border-destructive'
+                          visibleError('host') && 'border-destructive/60 focus:border-destructive',
                         )}
                       />
                     </FormField>
@@ -399,7 +404,7 @@ export function ConnectionForm() {
                       aria-describedby={visibleError('port') ? `${fieldId}-port-error` : undefined}
                       className={cn(
                         'form-input',
-                        visibleError('port') && 'border-destructive/60 focus:border-destructive'
+                        visibleError('port') && 'border-destructive/60 focus:border-destructive',
                       )}
                     />
                   </FormField>
@@ -426,7 +431,7 @@ export function ConnectionForm() {
                     }
                     className={cn(
                       'form-input',
-                      visibleError('username') && 'border-destructive/60 focus:border-destructive'
+                      visibleError('username') && 'border-destructive/60 focus:border-destructive',
                     )}
                   />
                 </FormField>
@@ -453,7 +458,7 @@ export function ConnectionForm() {
                           'flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium cursor-pointer',
                           authType === type.value
                             ? 'border-ring bg-accent text-foreground shadow-xs'
-                            : 'border-border text-muted-foreground hover:border-ring/50 hover:bg-accent/50'
+                            : 'border-border text-muted-foreground hover:border-ring/50 hover:bg-accent/50',
                         )}
                       >
                         {type.icon}
@@ -535,7 +540,7 @@ export function ConnectionForm() {
                             className={cn(
                               'form-input flex-1',
                               visibleError('privateKeyPath') &&
-                                'border-destructive/60 focus:border-destructive'
+                                'border-destructive/60 focus:border-destructive',
                             )}
                           />
                           <button
@@ -587,7 +592,7 @@ export function ConnectionForm() {
                           'relative h-7 w-7 rounded-full cursor-pointer',
                           colorTag === color.hex
                             ? 'ring-2 ring-ring ring-offset-2 ring-offset-card'
-                            : 'hover:scale-110'
+                            : 'hover:scale-110',
                         )}
                         style={{ backgroundColor: color.hex }}
                       >
@@ -613,13 +618,13 @@ export function ConnectionForm() {
                         type="text"
                         value={folder === 'default' ? '' : folder}
                         onChange={(e) => {
-                          setFolder(e.target.value || 'default')
-                          setShowGroupsDropdown(true)
+                          setFolder(e.target.value || 'default');
+                          setShowGroupsDropdown(true);
                         }}
                         onFocus={() => setShowGroupsDropdown(true)}
                         onBlur={() => {
                           // Small delay to allow click on dropdown items
-                          setTimeout(() => setShowGroupsDropdown(false), 200)
+                          setTimeout(() => setShowGroupsDropdown(false), 200);
                         }}
                         placeholder="default"
                         className="form-input"
@@ -653,14 +658,14 @@ export function ConnectionForm() {
                                 key={f}
                                 type="button"
                                 onClick={() => {
-                                  setFolder(f)
-                                  setShowGroupsDropdown(false)
+                                  setFolder(f);
+                                  setShowGroupsDropdown(false);
                                 }}
                                 className={cn(
                                   'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs font-medium transition-colors',
                                   folder === f
                                     ? 'bg-primary/10 text-primary'
-                                    : 'text-foreground hover:bg-accent hover:text-accent-foreground'
+                                    : 'text-foreground hover:bg-accent hover:text-accent-foreground',
                                 )}
                               >
                                 <FolderClosed className="h-3.5 w-3.5 opacity-50" />
@@ -690,15 +695,19 @@ export function ConnectionForm() {
                               onClick={() => setFolder(folder === f ? 'default' : f)}
                               className={cn(
                                 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all cursor-pointer border shadow-xs',
-                                (folder === f || (f === 'default' && folder === 'default'))
+                                folder === f || (f === 'default' && folder === 'default')
                                   ? 'bg-primary/5 border-primary/40 text-primary shadow-[0_0_12px_-3px_rgba(99,102,241,0.2)] ring-1 ring-primary/20'
-                                  : 'bg-muted/10 border-border/40 text-muted-foreground hover:bg-muted/20 hover:border-border/60 hover:text-foreground'
+                                  : 'bg-muted/10 border-border/40 text-muted-foreground hover:bg-muted/20 hover:border-border/60 hover:text-foreground',
                               )}
                             >
-                              <FolderClosed className={cn(
-                                'h-3 w-3 transition-opacity',
-                                (folder === f || (f === 'default' && folder === 'default')) ? 'opacity-100' : 'opacity-40'
-                              )} />
+                              <FolderClosed
+                                className={cn(
+                                  'h-3 w-3 transition-opacity',
+                                  folder === f || (f === 'default' && folder === 'default')
+                                    ? 'opacity-100'
+                                    : 'opacity-40',
+                                )}
+                              />
                               {f}
                             </motion.button>
                           ))}
@@ -765,7 +774,7 @@ export function ConnectionForm() {
         </>
       )}
     </AnimatePresence>
-  )
+  );
 }
 
 function FormField({
@@ -775,15 +784,15 @@ function FormField({
   required,
   optional,
   id,
-  error
+  error,
 }: {
-  label: string
-  icon: React.ReactNode
-  children: React.ReactNode
-  required?: boolean
-  optional?: boolean
-  id?: string
-  error?: string
+  label: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  required?: boolean;
+  optional?: boolean;
+  id?: string;
+  error?: string;
 }) {
   return (
     <div>
@@ -811,5 +820,5 @@ function FormField({
         </p>
       )}
     </div>
-  )
+  );
 }

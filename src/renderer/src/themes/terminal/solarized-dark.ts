@@ -1,5 +1,5 @@
-import type {ITheme} from '@xterm/xterm'
-import type {UIThemeTokens} from '../ui-from-terminal'
+import type { ITheme } from '@xterm/xterm';
+import type { UIThemeTokens } from '../ui-from-terminal';
 
 export const solarizedDarkUIOverrides: Partial<UIThemeTokens> = {
   primary: '#268bd2',
@@ -7,8 +7,8 @@ export const solarizedDarkUIOverrides: Partial<UIThemeTokens> = {
   'sidebar-primary': '#268bd2',
   'sidebar-ring': '#268bd2',
   foreground: '#93a1a1',
-  'sidebar-foreground': '#93a1a1'
-}
+  'sidebar-foreground': '#93a1a1',
+};
 
 export const solarizedDarkTheme: ITheme = {
   background: '#002b36',
@@ -32,5 +32,5 @@ export const solarizedDarkTheme: ITheme = {
   brightBlue: '#839496',
   brightMagenta: '#6c71c4',
   brightCyan: '#93a1a1',
-  brightWhite: '#fdf6e3'
-}
+  brightWhite: '#fdf6e3',
+};

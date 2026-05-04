@@ -1,26 +1,26 @@
-import {app, BrowserWindow, session, shell} from 'electron'
-import {join} from 'path'
-import {is} from '@electron-toolkit/utils'
-import icon from '../../resources/lunar.png?asset'
-import {registerAllHandlers} from './ipc'
-import {setMainWindow} from './ipc/app.ipc'
-import {closeDatabase} from './services/database'
-import {sshManager} from './services/ssh-manager'
-import {sftpManager} from './services/sftp-manager'
-import {transferQueue} from './services/transfer-queue'
-import {initAutoUpdater} from './services/updater'
-import log from './lib/logger'
+import { app, BrowserWindow, session, shell } from 'electron';
+import { join } from 'path';
+import { is } from '@electron-toolkit/utils';
+import icon from '../../resources/lunar.png?asset';
+import { registerAllHandlers } from './ipc';
+import { setMainWindow } from './ipc/app.ipc';
+import { closeDatabase } from './services/database';
+import { sshManager } from './services/ssh-manager';
+import { sftpManager } from './services/sftp-manager';
+import { transferQueue } from './services/transfer-queue';
+import { initAutoUpdater } from './services/updater';
+import log from './lib/logger';
 
 // Global error handlers
 process.on('uncaughtException', (err) => {
-  log.error('[Main] Uncaught exception:', err)
-})
+  log.error('[Main] Uncaught exception:', err);
+});
 
 process.on('unhandledRejection', (reason) => {
-  log.error('[Main] Unhandled rejection:', reason)
-})
+  log.error('[Main] Unhandled rejection:', reason);
+});
 
-let mainWindow: BrowserWindow | null = null
+let mainWindow: BrowserWindow | null = null;
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -38,41 +38,39 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
-    }
-  })
+      sandbox: true,
+    },
+  });
 
-  setMainWindow(mainWindow)
+  setMainWindow(mainWindow);
   mainWindow.on('closed', () => {
-    setMainWindow(null)
-    mainWindow = null
-  })
+    setMainWindow(null);
+    mainWindow = null;
+  });
 
   mainWindow.on('ready-to-show', () => {
-    mainWindow?.show()
-  })
+    mainWindow?.show();
+  });
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     try {
-      const parsed = new URL(details.url)
+      const parsed = new URL(details.url);
       if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
-        shell.openExternal(details.url)
+        shell.openExternal(details.url);
       } else {
-        log.warn('[Main] Blocked openExternal for non-http(s) URL:', details.url)
+        log.warn('[Main] Blocked openExternal for non-http(s) URL:', details.url);
       }
     } catch {
-      log.warn('[Main] Blocked openExternal for invalid URL:', details.url)
+      log.warn('[Main] Blocked openExternal for invalid URL:', details.url);
     }
-    return { action: 'deny' }
-  })
-
-
+    return { action: 'deny' };
+  });
 
   // HMR in dev, file:// in production
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
   }
 }
 
@@ -96,55 +94,55 @@ app.whenReady().then(() => {
               "frame-ancestors 'none'; " +
               "base-uri 'self'; " +
               "form-action 'none'; " +
-              "object-src 'none'"
-          ]
-        }
-      })
-    })
+              "object-src 'none'",
+          ],
+        },
+      });
+    });
   }
 
-  registerAllHandlers()
-  createWindow()
-  initAutoUpdater()
+  registerAllHandlers();
+  createWindow();
+  initAutoUpdater();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow()
+      createWindow();
     }
-  })
-})
+  });
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    app.quit()
+    app.quit();
   }
-})
+});
 
-let isQuitting = false
+let isQuitting = false;
 
 app.on('before-quit', (event) => {
-  if (isQuitting) return
+  if (isQuitting) return;
   // Cancel in-flight transfers, dispose timers, then wait for things to settle
   // before letting the process exit. Without this, an SFTP transfer's local
   // file descriptor can be left half-flushed.
-  isQuitting = true
-  event.preventDefault()
-  ;(async () => {
+  isQuitting = true;
+  event.preventDefault();
+  (async () => {
     try {
-      transferQueue.cancelAll()
-      sftpManager.dispose()
-      sshManager.disconnectAll()
+      transferQueue.cancelAll();
+      sftpManager.dispose();
+      sshManager.disconnectAll();
       // Give in-flight aborts a short window to settle.
-      await new Promise<void>((resolve) => setTimeout(resolve, 250))
+      await new Promise<void>((resolve) => setTimeout(resolve, 250));
     } catch (err) {
-      log.error('[Main] before-quit cleanup error:', err)
+      log.error('[Main] before-quit cleanup error:', err);
     } finally {
       try {
-        closeDatabase()
+        closeDatabase();
       } catch (err) {
-        log.error('[Main] closeDatabase error:', err)
+        log.error('[Main] closeDatabase error:', err);
       }
-      app.quit()
+      app.quit();
     }
-  })()
-})
+  })();
+});

@@ -1,5 +1,5 @@
-import type {ITheme} from '@xterm/xterm'
-import type {UIThemeTokens} from '../ui-from-terminal'
+import type { ITheme } from '@xterm/xterm';
+import type { UIThemeTokens } from '../ui-from-terminal';
 
 export const monokaiUIOverrides: Partial<UIThemeTokens> = {
   primary: '#a6e22e',
@@ -7,8 +7,8 @@ export const monokaiUIOverrides: Partial<UIThemeTokens> = {
   'sidebar-primary': '#a6e22e',
   'sidebar-ring': '#a6e22e',
   'primary-foreground': '#272822',
-  'sidebar-primary-foreground': '#272822'
-}
+  'sidebar-primary-foreground': '#272822',
+};
 
 export const monokaiTheme: ITheme = {
   background: '#272822',
@@ -32,5 +32,5 @@ export const monokaiTheme: ITheme = {
   brightBlue: '#66d9ef',
   brightMagenta: '#ae81ff',
   brightCyan: '#a1efe4',
-  brightWhite: '#f9f8f5'
-}
+  brightWhite: '#f9f8f5',
+};

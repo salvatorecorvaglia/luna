@@ -1,40 +1,48 @@
-import {contextBridge, ipcRenderer} from 'electron'
-import {IPC} from '@shared/constants'
+import { contextBridge, ipcRenderer } from 'electron';
+import { IPC } from '@shared/constants';
 import type {
-    SshCloseEvent,
-    SshConnectParams,
-    SshDataEvent,
-    SshErrorEvent,
-    SshHostKeyChangeEvent,
-    SshResizeParams,
-    SshSendDataParams,
-    SshStatusEvent
-} from '@shared/types/terminal'
-import type {TransferCompleteEvent, TransferErrorEvent, TransferProgressEvent} from '@shared/types/transfer'
-import type {CreateConnectionInput, ExportedConnection, UpdateConnectionInput} from '@shared/types/connection'
+  SshCloseEvent,
+  SshConnectParams,
+  SshDataEvent,
+  SshErrorEvent,
+  SshHostKeyChangeEvent,
+  SshResizeParams,
+  SshSendDataParams,
+  SshStatusEvent,
+} from '@shared/types/terminal';
 import type {
-    SftpDeleteParams,
-    SftpListParams,
-    SftpMkdirParams,
-    SftpReadFileParams,
-    SftpRenameParams,
-    SftpStatParams,
-    SftpStatResult,
-    SftpTransferParams
-} from '@shared/types/sftp'
+  TransferCompleteEvent,
+  TransferErrorEvent,
+  TransferProgressEvent,
+} from '@shared/types/transfer';
+import type {
+  CreateConnectionInput,
+  ExportedConnection,
+  UpdateConnectionInput,
+} from '@shared/types/connection';
+import type {
+  SftpDeleteParams,
+  SftpListParams,
+  SftpMkdirParams,
+  SftpReadFileParams,
+  SftpRenameParams,
+  SftpStatParams,
+  SftpStatResult,
+  SftpTransferParams,
+} from '@shared/types/sftp';
 
-type CleanupFn = () => void
+type CleanupFn = () => void;
 
 function createEventListener<T>(channel: string) {
   return (callback: (payload: T) => void): CleanupFn => {
     const listener = (_event: Electron.IpcRendererEvent, payload: T): void => {
-      callback(payload)
-    }
-    ipcRenderer.on(channel, listener)
+      callback(payload);
+    };
+    ipcRenderer.on(channel, listener);
     return () => {
-      ipcRenderer.removeListener(channel, listener)
-    }
-  }
+      ipcRenderer.removeListener(channel, listener);
+    };
+  };
 }
 
 const api = {
@@ -43,7 +51,7 @@ const api = {
     minimize: () => ipcRenderer.invoke(IPC.WINDOW_MINIMIZE),
     maximize: () => ipcRenderer.invoke(IPC.WINDOW_MAXIMIZE),
     close: () => ipcRenderer.invoke(IPC.WINDOW_CLOSE),
-    isMaximized: () => ipcRenderer.invoke(IPC.WINDOW_IS_MAXIMIZED) as Promise<boolean>
+    isMaximized: () => ipcRenderer.invoke(IPC.WINDOW_IS_MAXIMIZED) as Promise<boolean>,
   },
 
   // Connection CRUD
@@ -56,15 +64,14 @@ const api = {
     export: () => ipcRenderer.invoke(IPC.CONNECTION_EXPORT) as Promise<ExportedConnection[]>,
     import: (connections: ExportedConnection[]) =>
       ipcRenderer.invoke(IPC.CONNECTION_IMPORT, connections) as Promise<{
-        imported: number
-        skipped: { name: string; reason: string }[]
+        imported: number;
+        skipped: { name: string; reason: string }[];
       }>,
     importFromFile: () =>
       ipcRenderer.invoke(IPC.CONNECTION_IMPORT_FROM_FILE) as Promise<{
-        imported: number
-        skipped: { name: string; reason: string }[]
-      }>
-
+        imported: number;
+        skipped: { name: string; reason: string }[];
+      }>,
   },
 
   // SSH sessions
@@ -72,8 +79,8 @@ const api = {
     connect: (params: SshConnectParams) => ipcRenderer.invoke(IPC.SSH_CONNECT, params),
     testConnection: (params: { connectionId: string }) =>
       ipcRenderer.invoke(IPC.SSH_TEST_CONNECTION, params) as Promise<{
-        ok: boolean
-        error?: string
+        ok: boolean;
+        error?: string;
       }>,
     disconnect: (sessionId: string) => ipcRenderer.invoke(IPC.SSH_DISCONNECT, sessionId),
     sendData: (params: SshSendDataParams) => ipcRenderer.invoke(IPC.SSH_SEND_DATA, params),
@@ -85,9 +92,9 @@ const api = {
     onHostKeyChange: createEventListener<SshHostKeyChangeEvent>(IPC.SSH_ON_HOST_KEY_CHANGE),
     trustHostKey: (params: { host: string; port: number }) =>
       ipcRenderer.invoke(IPC.SSH_TRUST_HOST_KEY, params) as Promise<{
-        trusted: boolean
-        fingerprint?: string
-      }>
+        trusted: boolean;
+        fingerprint?: string;
+      }>,
   },
 
   // SFTP operations
@@ -100,7 +107,7 @@ const api = {
     delete: (params: SftpDeleteParams) => ipcRenderer.invoke(IPC.SFTP_DELETE, params),
     readFile: (params: SftpReadFileParams) => ipcRenderer.invoke(IPC.SFTP_READ_FILE, params),
     download: (params: SftpTransferParams) => ipcRenderer.invoke(IPC.SFTP_DOWNLOAD, params),
-    upload: (params: SftpTransferParams) => ipcRenderer.invoke(IPC.SFTP_UPLOAD, params)
+    upload: (params: SftpTransferParams) => ipcRenderer.invoke(IPC.SFTP_UPLOAD, params),
   },
 
   // Local filesystem
@@ -109,12 +116,12 @@ const api = {
     homeDir: () => ipcRenderer.invoke(IPC.SHELL_HOME_DIR),
     openFileDialog: (options?: unknown) => ipcRenderer.invoke(IPC.SHELL_OPEN_FILE_DIALOG, options),
     saveFileDialog: (options: {
-      defaultPath?: string
-      filters?: { name: string; extensions: string[] }[]
-      content: string
+      defaultPath?: string;
+      filters?: { name: string; extensions: string[] }[];
+      content: string;
     }) => ipcRenderer.invoke(IPC.SHELL_SAVE_FILE_DIALOG, options) as Promise<string | null>,
     joinPath: (base: string, fileName: string) =>
-      ipcRenderer.invoke(IPC.SHELL_JOIN_PATH, { base, fileName }) as Promise<string>
+      ipcRenderer.invoke(IPC.SHELL_JOIN_PATH, { base, fileName }) as Promise<string>,
   },
 
   // Transfer events
@@ -123,7 +130,7 @@ const api = {
     onProgress: createEventListener<TransferProgressEvent>(IPC.TRANSFER_PROGRESS),
     onComplete: createEventListener<TransferCompleteEvent>(IPC.TRANSFER_COMPLETE),
     onError: createEventListener<TransferErrorEvent>(IPC.TRANSFER_ERROR),
-    onCancelled: createEventListener<TransferCompleteEvent>(IPC.TRANSFER_CANCELLED)
+    onCancelled: createEventListener<TransferCompleteEvent>(IPC.TRANSFER_CANCELLED),
   },
 
   // Credentials
@@ -131,14 +138,14 @@ const api = {
     store: (connectionId: string, secret: string) =>
       ipcRenderer.invoke(IPC.CREDENTIAL_STORE, { connectionId, secret }),
     retrieve: (connectionId: string) => ipcRenderer.invoke(IPC.CREDENTIAL_RETRIEVE, connectionId),
-    delete: (connectionId: string) => ipcRenderer.invoke(IPC.CREDENTIAL_DELETE, connectionId)
+    delete: (connectionId: string) => ipcRenderer.invoke(IPC.CREDENTIAL_DELETE, connectionId),
   },
 
   // Settings
   settings: {
     get: (key: string) => ipcRenderer.invoke(IPC.SETTINGS_GET, key),
     set: (key: string, value: string) => ipcRenderer.invoke(IPC.SETTINGS_SET, { key, value }),
-    getAll: () => ipcRenderer.invoke(IPC.SETTINGS_GET_ALL)
+    getAll: () => ipcRenderer.invoke(IPC.SETTINGS_GET_ALL),
   },
 
   // App info & updates
@@ -150,13 +157,13 @@ const api = {
     openLogFile: () => ipcRenderer.invoke(IPC.APP_OPEN_LOG_FILE),
     onUpdateAvailable: createEventListener<{ version: string }>(IPC.APP_UPDATE_AVAILABLE),
     onUpdateDownloadProgress: createEventListener<{ percent: number; bytesPerSecond: number }>(
-      IPC.APP_UPDATE_DOWNLOAD_PROGRESS
+      IPC.APP_UPDATE_DOWNLOAD_PROGRESS,
     ),
     onUpdateDownloaded: createEventListener<Record<string, never>>(IPC.APP_UPDATE_DOWNLOADED),
-    onUpdateError: createEventListener<{ error: string }>(IPC.APP_UPDATE_ERROR)
-  }
-}
+    onUpdateError: createEventListener<{ error: string }>(IPC.APP_UPDATE_ERROR),
+  },
+};
 
-contextBridge.exposeInMainWorld('api', api)
+contextBridge.exposeInMainWorld('api', api);
 
-export type LunarAPI = typeof api
+export type LunarAPI = typeof api;

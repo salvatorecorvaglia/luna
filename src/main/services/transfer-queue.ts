@@ -1,69 +1,69 @@
-import {stat} from 'fs/promises'
-import {basename} from 'path'
-import {v4 as uuidv4} from 'uuid'
-import {IPC, LIMITS} from '@shared/constants'
-import type {TransferType} from '@shared/types/transfer'
-import {sftpManager} from './sftp-manager'
-import {emitToRenderer} from './emit'
-import {AbortError} from '../lib/errors'
+import { stat } from 'fs/promises';
+import { basename } from 'path';
+import { v4 as uuidv4 } from 'uuid';
+import { IPC, LIMITS } from '@shared/constants';
+import type { TransferType } from '@shared/types/transfer';
+import { sftpManager } from './sftp-manager';
+import { emitToRenderer } from './emit';
+import { AbortError } from '../lib/errors';
 
 interface QueuedTransfer {
-  id: string
-  type: TransferType
-  sessionId: string
-  localPath: string
-  remotePath: string
-  fileName: string
-  size: number
-  controller: AbortController
-  lastEmitTime: number
-  lastTransferred: number
+  id: string;
+  type: TransferType;
+  sessionId: string;
+  localPath: string;
+  remotePath: string;
+  fileName: string;
+  size: number;
+  controller: AbortController;
+  lastEmitTime: number;
+  lastTransferred: number;
 }
 
 class TransferQueue {
-  private queue: QueuedTransfer[] = []
-  private active = new Map<string, QueuedTransfer>()
-  private maxConcurrent = 3
+  private queue: QueuedTransfer[] = [];
+  private active = new Map<string, QueuedTransfer>();
+  private maxConcurrent = 3;
   /** Re-entrancy guard: only one synchronous dispatch loop at a time. */
-  private dispatching = false
+  private dispatching = false;
 
   setMaxConcurrent(max: number): void {
-    this.maxConcurrent = Math.max(1, Math.min(LIMITS.MAX_CONCURRENT_TRANSFERS, max))
-    this.processQueue()
+    this.maxConcurrent = Math.max(1, Math.min(LIMITS.MAX_CONCURRENT_TRANSFERS, max));
+    this.processQueue();
   }
 
   async enqueue(
     type: TransferType,
     sessionId: string,
     localPath: string,
-    remotePath: string
+    remotePath: string,
   ): Promise<string> {
     const isDuplicate = (t: QueuedTransfer): boolean =>
       t.type === type &&
       t.sessionId === sessionId &&
       t.localPath === localPath &&
       t.remotePath === remotePath &&
-      !t.controller.signal.aborted
+      !t.controller.signal.aborted;
     const existing =
-      this.queue.find(isDuplicate) || Array.from(this.active.values()).find(isDuplicate)
-    if (existing) return existing.id
+      this.queue.find(isDuplicate) || Array.from(this.active.values()).find(isDuplicate);
+    if (existing) return existing.id;
 
     if (this.queue.length >= LIMITS.MAX_QUEUED_TRANSFERS) {
       throw new Error(
-        `Transfer queue is full (${LIMITS.MAX_QUEUED_TRANSFERS} pending). Wait for transfers to complete or cancel some.`
-      )
+        `Transfer queue is full (${LIMITS.MAX_QUEUED_TRANSFERS} pending). Wait for transfers to complete or cancel some.`,
+      );
     }
 
-    const transferId = uuidv4()
-    const fileName = basename(type === 'upload' ? localPath : remotePath)
+    const transferId = uuidv4();
+    const fileName = basename(type === 'upload' ? localPath : remotePath);
 
-    let size = 0
+    let size = 0;
     try {
       if (type === 'upload') {
-        const stats = await stat(localPath)
-        size = stats.size
+        const stats = await stat(localPath);
+        size = stats.size;
       } else {
-        size = await sftpManager.statSize(sessionId, remotePath)
+        size = await sftpManager.statSize(sessionId, remotePath);
       }
     } catch {
       // size will be reported by progress callback
@@ -79,79 +79,79 @@ class TransferQueue {
       size,
       controller: new AbortController(),
       lastEmitTime: Date.now(),
-      lastTransferred: 0
-    }
+      lastTransferred: 0,
+    };
 
-    this.queue.push(transfer)
+    this.queue.push(transfer);
 
     emitToRenderer(IPC.TRANSFER_PROGRESS, {
       transferId,
       transferred: 0,
       total: size,
-      bytesPerSec: 0
-    })
+      bytesPerSec: 0,
+    });
 
-    this.processQueue()
-    return transferId
+    this.processQueue();
+    return transferId;
   }
 
   cancel(transferId: string): void {
-    const queueIndex = this.queue.findIndex((t) => t.id === transferId)
+    const queueIndex = this.queue.findIndex((t) => t.id === transferId);
     if (queueIndex !== -1) {
-      const [transfer] = this.queue.splice(queueIndex, 1)
-      transfer.controller.abort()
-      emitToRenderer(IPC.TRANSFER_CANCELLED, { transferId })
-      return
+      const [transfer] = this.queue.splice(queueIndex, 1);
+      transfer.controller.abort();
+      emitToRenderer(IPC.TRANSFER_CANCELLED, { transferId });
+      return;
     }
 
-    const active = this.active.get(transferId)
+    const active = this.active.get(transferId);
     if (active) {
-      active.controller.abort()
+      active.controller.abort();
     }
   }
 
   private processQueue(): void {
-    if (this.dispatching) return
-    this.dispatching = true
+    if (this.dispatching) return;
+    this.dispatching = true;
     try {
       while (this.active.size < this.maxConcurrent && this.queue.length > 0) {
-        const transfer = this.queue.shift()!
-        this.active.set(transfer.id, transfer)
+        const transfer = this.queue.shift()!;
+        this.active.set(transfer.id, transfer);
         // executeTransfer is async — fire and forget. The finally branch re-enters
         // processQueue() after each completion, but the dispatching flag means
         // re-entrant calls during the loop are absorbed.
-        this.executeTransfer(transfer)
+        this.executeTransfer(transfer);
       }
     } finally {
-      this.dispatching = false
+      this.dispatching = false;
     }
   }
 
   private async executeTransfer(transfer: QueuedTransfer): Promise<void> {
-    const { id, type, sessionId, localPath, remotePath, controller } = transfer
+    const { id, type, sessionId, localPath, remotePath, controller } = transfer;
 
     try {
       const onStep = (transferred: number, _chunk: number, total: number): void => {
-        const now = Date.now()
-        const elapsed = (now - transfer.lastEmitTime) / 1000
+        const now = Date.now();
+        const elapsed = (now - transfer.lastEmitTime) / 1000;
         if (elapsed >= 0.2) {
-          const delta = transferred - transfer.lastTransferred
-          const bytesPerSec = Math.round(delta / elapsed)
-          transfer.lastEmitTime = now
-          transfer.lastTransferred = transferred
+          const delta = transferred - transfer.lastTransferred;
+          const bytesPerSec = Math.round(delta / elapsed);
+          transfer.lastEmitTime = now;
+          transfer.lastTransferred = transferred;
 
           if (transfer.size === 0 && total > 0) {
-            transfer.size = total
+            transfer.size = total;
           }
 
           emitToRenderer(IPC.TRANSFER_PROGRESS, {
             transferId: id,
             transferred,
             total: transfer.size || total,
-            bytesPerSec
-          })
+            bytesPerSec,
+          });
         }
-      }
+      };
 
       if (type === 'download') {
         await sftpManager.streamDownload(
@@ -159,44 +159,44 @@ class TransferQueue {
           remotePath,
           localPath,
           onStep,
-          controller.signal
-        )
+          controller.signal,
+        );
       } else {
-        await sftpManager.streamUpload(sessionId, localPath, remotePath, onStep, controller.signal)
+        await sftpManager.streamUpload(sessionId, localPath, remotePath, onStep, controller.signal);
       }
 
-      emitToRenderer(IPC.TRANSFER_COMPLETE, { transferId: id })
+      emitToRenderer(IPC.TRANSFER_COMPLETE, { transferId: id });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Transfer failed'
+      const msg = err instanceof Error ? err.message : 'Transfer failed';
       if (controller.signal.aborted || err instanceof AbortError) {
-        emitToRenderer(IPC.TRANSFER_CANCELLED, { transferId: id })
+        emitToRenderer(IPC.TRANSFER_CANCELLED, { transferId: id });
       } else {
-        emitToRenderer(IPC.TRANSFER_ERROR, { transferId: id, error: msg })
+        emitToRenderer(IPC.TRANSFER_ERROR, { transferId: id, error: msg });
       }
     } finally {
-      this.active.delete(id)
-      this.processQueue()
+      this.active.delete(id);
+      this.processQueue();
     }
   }
 
   getActiveCount(): number {
-    return this.active.size
+    return this.active.size;
   }
 
   getQueuedCount(): number {
-    return this.queue.length
+    return this.queue.length;
   }
 
   cancelAll(): void {
     for (const transfer of this.active.values()) {
-      transfer.controller.abort()
+      transfer.controller.abort();
     }
     for (const transfer of this.queue) {
-      transfer.controller.abort()
-      emitToRenderer(IPC.TRANSFER_CANCELLED, { transferId: transfer.id })
+      transfer.controller.abort();
+      emitToRenderer(IPC.TRANSFER_CANCELLED, { transferId: transfer.id });
     }
-    this.queue = []
+    this.queue = [];
   }
 }
 
-export const transferQueue = new TransferQueue()
+export const transferQueue = new TransferQueue();

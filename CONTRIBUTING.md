@@ -28,6 +28,7 @@ Have an idea for a new feature?
 4. **Quality Checks**:
    - Run tests: `npm test`
    - Check types: `npm run typecheck`
+   - Format your code: `npm run format`
    - Lint your code: `npm run lint`
 5. **Commit**: Follow [Conventional Commits](https://www.conventionalcommits.org/) (e.g., `feat(terminal): add support for custom font ligatures` or `fix(sftp): resolve drag-and-drop ghosting issue`).
 6. **Submit**: Push to your fork and open a Pull Request to the `main` branch.

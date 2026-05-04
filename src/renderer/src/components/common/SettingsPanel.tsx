@@ -1,20 +1,20 @@
-import {AnimatePresence, motion} from 'framer-motion'
-import {useCallback, useEffect, useId, useRef, useState} from 'react'
-import {Database, Download, FileText, Info, Terminal, Upload, Wifi, X} from 'lucide-react'
-import {toast} from 'sonner'
-import {cn} from '@/lib/utils'
-import {useUIStore} from '@/stores/ui-store'
-import {useTerminalStore} from '@/stores/terminal-store'
-import type {TerminalThemeName} from '@shared/types/terminal'
-import {DEFAULT_SETTINGS} from '@shared/types/settings'
-import lunarLogo from '../../../../../resources/lunar.png'
+import { AnimatePresence, motion } from 'framer-motion';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { Database, Download, FileText, Info, Terminal, Upload, Wifi, X } from 'lucide-react';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import { useUIStore } from '@/stores/ui-store';
+import { useTerminalStore } from '@/stores/terminal-store';
+import type { TerminalThemeName } from '@shared/types/terminal';
+import { DEFAULT_SETTINGS } from '@shared/types/settings';
+import lunarLogo from '../../../../../resources/lunar.png';
 
 const TERMINAL_THEMES: {
-  value: TerminalThemeName
-  label: string
-  bg: string
-  fg: string
-  accent: string
+  value: TerminalThemeName;
+  label: string;
+  bg: string;
+  fg: string;
+  accent: string;
 }[] = [
   { value: 'dracula', label: 'Dracula', bg: '#282a36', fg: '#f8f8f2', accent: '#bd93f9' },
   { value: 'nord', label: 'Nord', bg: '#2e3440', fg: '#d8dee9', accent: '#88c0d0' },
@@ -22,90 +22,94 @@ const TERMINAL_THEMES: {
   { value: 'solarized-dark', label: 'Solarized', bg: '#002b36', fg: '#839496', accent: '#268bd2' },
   { value: 'gruvbox', label: 'Gruvbox', bg: '#282828', fg: '#ebdbb2', accent: '#fabd2f' },
   { value: 'one-dark', label: 'One Dark', bg: '#282c34', fg: '#abb2bf', accent: '#61afef' },
-  { value: 'monokai', label: 'Monokai', bg: '#272822', fg: '#f8f8f2', accent: '#a6e22e' }
-]
+  { value: 'monokai', label: 'Monokai', bg: '#272822', fg: '#f8f8f2', accent: '#a6e22e' },
+];
 
 const overlayVariants = {
   initial: { opacity: 0 },
   animate: { opacity: 1 },
-  exit: { opacity: 0 }
-}
+  exit: { opacity: 0 },
+};
 
 const panelVariants = {
   initial: { opacity: 0, x: '100%' },
   animate: { opacity: 1, x: 0, transition: { type: 'spring', damping: 28, stiffness: 320 } },
-  exit: { opacity: 0, x: '100%', transition: { duration: 0.2 } }
-}
+  exit: { opacity: 0, x: '100%', transition: { duration: 0.2 } },
+};
 
 export function SettingsPanel() {
-  const settingsOpen = useUIStore((s) => s.settingsOpen)
-  const setSettingsOpen = useUIStore((s) => s.setSettingsOpen)
+  const settingsOpen = useUIStore((s) => s.settingsOpen);
+  const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
   const { terminalTheme, setTerminalTheme, fontSize, setFontSize, scrollback, setScrollback } =
-    useTerminalStore()
-  const [concurrency, setConcurrency] = useState(DEFAULT_SETTINGS['transfer.concurrency'])
-  const [autoReconnect, setAutoReconnect] = useState(DEFAULT_SETTINGS['ssh.autoReconnect'])
-  const [readyTimeout, setReadyTimeout] = useState(DEFAULT_SETTINGS['ssh.readyTimeout'] / 1000)
-  const [keepAliveInterval, setKeepAliveInterval] = useState(DEFAULT_SETTINGS['ssh.keepAliveInterval'] / 1000)
-  const [maxReconnectAttempts, setMaxReconnectAttempts] = useState(DEFAULT_SETTINGS['ssh.maxReconnectAttempts'])
-  const [appVersion, setAppVersion] = useState('0.0.0')
+    useTerminalStore();
+  const [concurrency, setConcurrency] = useState(DEFAULT_SETTINGS['transfer.concurrency']);
+  const [autoReconnect, setAutoReconnect] = useState(DEFAULT_SETTINGS['ssh.autoReconnect']);
+  const [readyTimeout, setReadyTimeout] = useState(DEFAULT_SETTINGS['ssh.readyTimeout'] / 1000);
+  const [keepAliveInterval, setKeepAliveInterval] = useState(
+    DEFAULT_SETTINGS['ssh.keepAliveInterval'] / 1000,
+  );
+  const [maxReconnectAttempts, setMaxReconnectAttempts] = useState(
+    DEFAULT_SETTINGS['ssh.maxReconnectAttempts'],
+  );
+  const [appVersion, setAppVersion] = useState('0.0.0');
 
   // Load settings from DB on open
   useEffect(() => {
-    if (!settingsOpen) return
-    window.api.app.getVersion().then(setAppVersion)
+    if (!settingsOpen) return;
+    window.api.app.getVersion().then(setAppVersion);
     window.api.settings.getAll().then((settings: Record<string, unknown>) => {
-      if (settings['terminal.fontSize'] != null) setFontSize(Number(settings['terminal.fontSize']))
+      if (settings['terminal.fontSize'] != null) setFontSize(Number(settings['terminal.fontSize']));
       if (settings['terminal.scrollback'] != null)
-        setScrollback(Number(settings['terminal.scrollback']))
+        setScrollback(Number(settings['terminal.scrollback']));
       if (settings['transfer.concurrency'] != null)
-        setConcurrency(Number(settings['transfer.concurrency']))
+        setConcurrency(Number(settings['transfer.concurrency']));
       if (settings['ssh.autoReconnect'] != null)
-        setAutoReconnect(Boolean(settings['ssh.autoReconnect']))
+        setAutoReconnect(Boolean(settings['ssh.autoReconnect']));
       if (settings['ssh.readyTimeout'] != null)
-        setReadyTimeout(Number(settings['ssh.readyTimeout']) / 1000)
+        setReadyTimeout(Number(settings['ssh.readyTimeout']) / 1000);
       if (settings['ssh.keepAliveInterval'] != null)
-        setKeepAliveInterval(Number(settings['ssh.keepAliveInterval']) / 1000)
+        setKeepAliveInterval(Number(settings['ssh.keepAliveInterval']) / 1000);
       if (settings['ssh.maxReconnectAttempts'] != null)
-        setMaxReconnectAttempts(Number(settings['ssh.maxReconnectAttempts']))
-    })
-  }, [settingsOpen, setFontSize, setScrollback])
+        setMaxReconnectAttempts(Number(settings['ssh.maxReconnectAttempts']));
+    });
+  }, [settingsOpen, setFontSize, setScrollback]);
 
   const persistSetting = useCallback((key: string, value: unknown) => {
-    window.api.settings.set(key, JSON.stringify(value))
-  }, [])
+    window.api.settings.set(key, JSON.stringify(value));
+  }, []);
 
-  const panelRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null);
 
   // Focus trap + Escape
   useEffect(() => {
-    if (!settingsOpen) return
-    const panel = panelRef.current
-    if (!panel) return
+    if (!settingsOpen) return;
+    const panel = panelRef.current;
+    if (!panel) return;
 
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setSettingsOpen(false)
-        return
+        setSettingsOpen(false);
+        return;
       }
       if (e.key === 'Tab') {
         const focusable = panel.querySelectorAll<HTMLElement>(
-          'input:not([disabled]), button:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
-        )
-        const first = focusable[0]
-        const last = focusable[focusable.length - 1]
+          'input:not([disabled]), button:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        );
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
 
         if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault()
-          last?.focus()
+          e.preventDefault();
+          last?.focus();
         } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault()
-          first?.focus()
+          e.preventDefault();
+          first?.focus();
         }
       }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [settingsOpen, setSettingsOpen])
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [settingsOpen, setSettingsOpen]);
 
   return (
     <AnimatePresence>
@@ -145,7 +149,6 @@ export function SettingsPanel() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-5 space-y-6">
-
               {/* Terminal */}
               <Section title="Terminal" icon={<Terminal className="h-4 w-4" />}>
                 <div>
@@ -161,7 +164,7 @@ export function SettingsPanel() {
                           'group flex flex-col items-center gap-2 rounded-lg border p-3 cursor-pointer',
                           terminalTheme === t.value
                             ? 'border-ring bg-accent shadow-xs'
-                            : 'border-border hover:border-ring/50 hover:bg-accent/40'
+                            : 'border-border hover:border-ring/50 hover:bg-accent/40',
                         )}
                       >
                         {/* Mini terminal preview */}
@@ -187,8 +190,8 @@ export function SettingsPanel() {
                   max={24}
                   suffix="px"
                   onChange={(v) => {
-                    setFontSize(v)
-                    persistSetting('terminal.fontSize', v)
+                    setFontSize(v);
+                    persistSetting('terminal.fontSize', v);
                   }}
                 />
                 <EditableNumberRow
@@ -199,8 +202,8 @@ export function SettingsPanel() {
                   step={1000}
                   suffix=" lines"
                   onChange={(v) => {
-                    setScrollback(v)
-                    persistSetting('terminal.scrollback', v)
+                    setScrollback(v);
+                    persistSetting('terminal.scrollback', v);
                   }}
                 />
               </Section>
@@ -211,8 +214,8 @@ export function SettingsPanel() {
                   label="Auto-reconnect"
                   enabled={autoReconnect}
                   onToggle={(v) => {
-                    setAutoReconnect(v)
-                    persistSetting('ssh.autoReconnect', v)
+                    setAutoReconnect(v);
+                    persistSetting('ssh.autoReconnect', v);
                   }}
                 />
                 <EditableNumberRow
@@ -222,8 +225,8 @@ export function SettingsPanel() {
                   max={120}
                   suffix="s"
                   onChange={(v) => {
-                    setReadyTimeout(v)
-                    persistSetting('ssh.readyTimeout', v * 1000)
+                    setReadyTimeout(v);
+                    persistSetting('ssh.readyTimeout', v * 1000);
                   }}
                 />
                 <EditableNumberRow
@@ -233,8 +236,8 @@ export function SettingsPanel() {
                   max={120}
                   suffix="s"
                   onChange={(v) => {
-                    setKeepAliveInterval(v)
-                    persistSetting('ssh.keepAliveInterval', v * 1000)
+                    setKeepAliveInterval(v);
+                    persistSetting('ssh.keepAliveInterval', v * 1000);
                   }}
                 />
                 <EditableNumberRow
@@ -243,8 +246,8 @@ export function SettingsPanel() {
                   min={0}
                   max={20}
                   onChange={(v) => {
-                    setMaxReconnectAttempts(v)
-                    persistSetting('ssh.maxReconnectAttempts', v)
+                    setMaxReconnectAttempts(v);
+                    persistSetting('ssh.maxReconnectAttempts', v);
                   }}
                 />
               </Section>
@@ -257,8 +260,8 @@ export function SettingsPanel() {
                   min={1}
                   max={10}
                   onChange={(v) => {
-                    setConcurrency(v)
-                    persistSetting('transfer.concurrency', v)
+                    setConcurrency(v);
+                    persistSetting('transfer.concurrency', v);
                   }}
                 />
               </Section>
@@ -269,22 +272,22 @@ export function SettingsPanel() {
                   <button
                     onClick={async () => {
                       try {
-                        const connections = await window.api.connections.export()
+                        const connections = await window.api.connections.export();
                         if (connections.length === 0) {
-                          toast.info('No connections to export')
-                          return
+                          toast.info('No connections to export');
+                          return;
                         }
-                        const content = JSON.stringify(connections, null, 2)
+                        const content = JSON.stringify(connections, null, 2);
                         const saved = await window.api.shell.saveFileDialog({
                           defaultPath: 'lunar-connections.json',
                           filters: [{ name: 'JSON', extensions: ['json'] }],
-                          content
-                        })
-                        if (saved) toast.success(`Exported ${connections.length} connections`)
+                          content,
+                        });
+                        if (saved) toast.success(`Exported ${connections.length} connections`);
                       } catch (err: unknown) {
                         toast.error(
-                          `Export failed: ${err instanceof Error ? err.message : String(err)}`
-                        )
+                          `Export failed: ${err instanceof Error ? err.message : String(err)}`,
+                        );
                       }
                     }}
                     className="btn-outline flex-1"
@@ -295,28 +298,27 @@ export function SettingsPanel() {
                   <button
                     onClick={async () => {
                       try {
-                        const { imported, skipped } =
-                          await window.api.connections.importFromFile()
-                        if (imported === -1) return // Dialog cancelled
+                        const { imported, skipped } = await window.api.connections.importFromFile();
+                        if (imported === -1) return; // Dialog cancelled
                         if (imported > 0) {
                           toast.success(
                             `Imported ${imported} connection${imported > 1 ? 's' : ''}` +
-                              (skipped.length > 0 ? ` — ${skipped.length} skipped` : '')
-                          )
+                              (skipped.length > 0 ? ` — ${skipped.length} skipped` : ''),
+                          );
                         } else {
                           toast.info(
                             skipped.length > 0
                               ? `No new connections imported (${skipped.length} skipped)`
-                              : 'No new connections to import'
-                          )
+                              : 'No new connections to import',
+                          );
                         }
                         for (const s of skipped.slice(0, 5)) {
-                          toast.warning(`Skipped "${s.name}": ${s.reason}`)
+                          toast.warning(`Skipped "${s.name}": ${s.reason}`);
                         }
                       } catch (err: unknown) {
                         toast.error(
-                          `Import failed: ${err instanceof Error ? err.message : String(err)}`
-                        )
+                          `Import failed: ${err instanceof Error ? err.message : String(err)}`,
+                        );
                       }
                     }}
                     className="btn-outline flex-1"
@@ -345,7 +347,11 @@ export function SettingsPanel() {
               <Section title="About" icon={<Info className="h-4 w-4" />}>
                 <div className="rounded-lg border border-border/60 bg-background/50 p-4 text-center">
                   <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center">
-                    <img src={lunarLogo} alt="Lunar Logo" className="h-full w-full object-contain drop-shadow-sm" />
+                    <img
+                      src={lunarLogo}
+                      alt="Lunar Logo"
+                      className="h-full w-full object-contain drop-shadow-sm"
+                    />
                   </div>
                   <p className="text-sm font-semibold text-foreground">Lunar</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
@@ -359,17 +365,17 @@ export function SettingsPanel() {
         </>
       )}
     </AnimatePresence>
-  )
+  );
 }
 
 function Section({
   title,
   icon,
-  children
+  children,
 }: {
-  title: string
-  icon: React.ReactNode
-  children: React.ReactNode
+  title: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
 }) {
   return (
     <div>
@@ -379,7 +385,7 @@ function Section({
       </div>
       <div className="space-y-3 pl-6">{children}</div>
     </div>
-  )
+  );
 }
 
 function SettingRow({ label, value }: { label: string; value: string }) {
@@ -388,20 +394,20 @@ function SettingRow({ label, value }: { label: string; value: string }) {
       <span className="text-xs text-muted-foreground/70">{label}</span>
       <span className="text-xs text-muted-foreground/70">{value}</span>
     </div>
-  )
+  );
 }
 
 function ToggleRow({
   label,
   enabled,
-  onToggle
+  onToggle,
 }: {
-  label: string
-  enabled: boolean
-  onToggle?: (value: boolean) => void
+  label: string;
+  enabled: boolean;
+  onToggle?: (value: boolean) => void;
 }) {
   // Use React.useId for stable, unique IDs instead of module-level counter
-  const labelId = useId()
+  const labelId = useId();
 
   return (
     <div className="flex items-center justify-between py-1">
@@ -416,18 +422,18 @@ function ToggleRow({
         onClick={() => onToggle?.(!enabled)}
         className={cn(
           'flex h-5 w-9 items-center rounded-full px-0.5 cursor-pointer transition-colors',
-          enabled ? 'bg-emerald-500' : 'bg-muted'
+          enabled ? 'bg-emerald-500' : 'bg-muted',
         )}
       >
         <div
           className={cn(
             'h-4 w-4 rounded-full bg-white shadow-sm transition-transform',
-            enabled ? 'translate-x-[14px]' : 'translate-x-0'
+            enabled ? 'translate-x-[14px]' : 'translate-x-0',
           )}
         />
       </button>
     </div>
-  )
+  );
 }
 
 function EditableNumberRow({
@@ -437,15 +443,15 @@ function EditableNumberRow({
   max,
   step = 1,
   suffix = '',
-  onChange
+  onChange,
 }: {
-  label: string
-  value: number
-  min: number
-  max: number
-  step?: number
-  suffix?: string
-  onChange: (value: number) => void
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  suffix?: string;
+  onChange: (value: number) => void;
 }) {
   return (
     <div className="flex items-center justify-between py-1">
@@ -458,13 +464,13 @@ function EditableNumberRow({
           max={max}
           step={step}
           onChange={(e) => {
-            const v = parseInt(e.target.value, 10)
-            if (!isNaN(v) && v >= min && v <= max) onChange(v)
+            const v = parseInt(e.target.value, 10);
+            if (!isNaN(v) && v >= min && v <= max) onChange(v);
           }}
           className="w-16 rounded border border-border bg-background px-2 py-0.5 text-right text-xs font-medium text-foreground outline-none focus:border-ring"
         />
         {suffix && <span className="text-[11px] text-muted-foreground">{suffix}</span>}
       </div>
     </div>
-  )
+  );
 }

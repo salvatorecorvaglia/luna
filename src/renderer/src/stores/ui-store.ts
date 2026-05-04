@@ -1,26 +1,26 @@
-import {create} from 'zustand'
+import { create } from 'zustand';
 
-export type ActiveView = 'terminal' | 'sftp'
+export type ActiveView = 'terminal' | 'sftp';
 
 // Enable smooth theme transitions after initial load
 if (typeof document !== 'undefined') {
-  requestAnimationFrame(() => document.documentElement.classList.add('theme-transition'))
+  requestAnimationFrame(() => document.documentElement.classList.add('theme-transition'));
 }
 
 interface UIState {
-  sidebarOpen: boolean
-  sidebarWidth: number
-  commandPaletteOpen: boolean
-  activeView: ActiveView
-  settingsOpen: boolean
+  sidebarOpen: boolean;
+  sidebarWidth: number;
+  commandPaletteOpen: boolean;
+  activeView: ActiveView;
+  settingsOpen: boolean;
 
-  toggleSidebar: () => void
-  setSidebarOpen: (open: boolean) => void
-  setSidebarWidth: (width: number) => void
-  toggleCommandPalette: () => void
-  setCommandPaletteOpen: (open: boolean) => void
-  setActiveView: (view: ActiveView) => void
-  setSettingsOpen: (open: boolean) => void
+  toggleSidebar: () => void;
+  setSidebarOpen: (open: boolean) => void;
+  setSidebarWidth: (width: number) => void;
+  toggleCommandPalette: () => void;
+  setCommandPaletteOpen: (open: boolean) => void;
+  setActiveView: (view: ActiveView) => void;
+  setSettingsOpen: (open: boolean) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -36,5 +36,5 @@ export const useUIStore = create<UIState>((set) => ({
   toggleCommandPalette: () => set((s) => ({ commandPaletteOpen: !s.commandPaletteOpen })),
   setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
   setActiveView: (view) => set({ activeView: view }),
-  setSettingsOpen: (open) => set({ settingsOpen: open })
-}))
+  setSettingsOpen: (open) => set({ settingsOpen: open }),
+}));

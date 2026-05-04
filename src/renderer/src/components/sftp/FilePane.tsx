@@ -1,48 +1,58 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {ArrowUp, ChevronRight, Eye, EyeOff, FolderPlus, Home, RefreshCw, Search, X} from 'lucide-react'
-import {cn} from '@/lib/utils'
-import {FileList} from './FileList'
-import type {FileEntry} from '@shared/types/sftp'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ArrowUp,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  FolderPlus,
+  Home,
+  RefreshCw,
+  Search,
+  X,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { FileList } from './FileList';
+import type { FileEntry } from '@shared/types/sftp';
 
-export type { FileEntry }
-const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform)
-const MOD = isMac ? '⌘' : 'Ctrl'
+export type { FileEntry };
+const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+const MOD = isMac ? '⌘' : 'Ctrl';
 
 interface FilePaneProps {
-  title: string
-  path: string
-  entries: FileEntry[]
-  isLoading: boolean
-  error: Error | null
-  selection: Set<string>
-  onPathChange: (path: string) => void
-  onSelect: (name: string) => void
-  onRefresh: () => void
-  onDragStart?: (entry: FileEntry, e: React.DragEvent) => void
-  onDrop?: (e: React.DragEvent) => void
-  onFileOpen?: (entry: FileEntry) => void
-  onRename?: (entry: FileEntry) => void
-  onDelete?: (entry: FileEntry) => void
-  onCopyPath?: (entry: FileEntry) => void
-  onPreview?: (entry: FileEntry) => void
-  showHidden?: boolean
-  onToggleHidden?: () => void
-  onMkdir?: () => void
-  onSelectAll?: () => void
-  side: 'local' | 'remote'
+  title: string;
+  path: string;
+  entries: FileEntry[];
+  isLoading: boolean;
+  error: Error | null;
+  selection: Set<string>;
+  onPathChange: (path: string) => void;
+  onSelect: (name: string) => void;
+  onRefresh: () => void;
+  onDragStart?: (entry: FileEntry, e: React.DragEvent) => void;
+  onDrop?: (e: React.DragEvent) => void;
+  onFileOpen?: (entry: FileEntry) => void;
+  onRename?: (entry: FileEntry) => void;
+  onDelete?: (entry: FileEntry) => void;
+  onCopyPath?: (entry: FileEntry) => void;
+  onPreview?: (entry: FileEntry) => void;
+  showHidden?: boolean;
+  onToggleHidden?: () => void;
+  onMkdir?: () => void;
+  onSelectAll?: () => void;
+  side: 'local' | 'remote';
 }
 
 function splitBreadcrumbs(path: string): { name: string; path: string }[] {
-  const parts = path.split('/').filter(Boolean)
-  const crumbs = [{ name: '/', path: '/' }]
+  const parts = path.split('/').filter(Boolean);
+  const crumbs = [{ name: '/', path: '/' }];
 
-  let current = ''
+  let current = '';
   for (const part of parts) {
-    current += '/' + part
-    crumbs.push({ name: part, path: current })
+    current += '/' + part;
+    crumbs.push({ name: part, path: current });
   }
 
-  return crumbs
+  return crumbs;
 }
 
 export function FilePane({
@@ -66,84 +76,84 @@ export function FilePane({
   onToggleHidden,
   onMkdir,
   onSelectAll,
-  side
+  side,
 }: FilePaneProps) {
-  const breadcrumbs = useMemo(() => splitBreadcrumbs(path), [path])
-  const [dragOver, setDragOver] = useState(false)
-  const [filterOpen, setFilterOpen] = useState(false)
-  const [filterQuery, setFilterQuery] = useState('')
-  const [prevPath, setPrevPath] = useState(path)
-  const filterInputRef = useRef<HTMLInputElement>(null)
+  const breadcrumbs = useMemo(() => splitBreadcrumbs(path), [path]);
+  const [dragOver, setDragOver] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterQuery, setFilterQuery] = useState('');
+  const [prevPath, setPrevPath] = useState(path);
+  const filterInputRef = useRef<HTMLInputElement>(null);
 
   if (prevPath !== path) {
-    setPrevPath(path)
-    if (filterQuery) setFilterQuery('')
-    if (filterOpen) setFilterOpen(false)
+    setPrevPath(path);
+    if (filterQuery) setFilterQuery('');
+    if (filterOpen) setFilterOpen(false);
   }
 
   useEffect(() => {
-    if (filterOpen) filterInputRef.current?.focus()
-  }, [filterOpen])
+    if (filterOpen) filterInputRef.current?.focus();
+  }, [filterOpen]);
 
   const visibleEntries = useMemo(() => {
-    let list = showHidden ? entries : entries.filter((e) => !e.name.startsWith('.'))
-    const q = filterQuery.trim().toLowerCase()
-    if (q) list = list.filter((e) => e.name.toLowerCase().includes(q))
-    return list
-  }, [entries, showHidden, filterQuery])
+    let list = showHidden ? entries : entries.filter((e) => !e.name.startsWith('.'));
+    const q = filterQuery.trim().toLowerCase();
+    if (q) list = list.filter((e) => e.name.toLowerCase().includes(q));
+    return list;
+  }, [entries, showHidden, filterQuery]);
 
   const navigateUp = useCallback(() => {
-    const parent = path.split('/').slice(0, -1).join('/') || '/'
-    onPathChange(parent)
-  }, [path, onPathChange])
+    const parent = path.split('/').slice(0, -1).join('/') || '/';
+    onPathChange(parent);
+  }, [path, onPathChange]);
 
   const handleOpen = useCallback(
     (entry: FileEntry) => {
       if (entry.isDirectory) {
-        onPathChange(entry.path)
+        onPathChange(entry.path);
       } else {
-        onFileOpen?.(entry)
+        onFileOpen?.(entry);
       }
     },
-    [onPathChange, onFileOpen]
-  )
+    [onPathChange, onFileOpen],
+  );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'copy'
-    setDragOver(true)
-  }, [])
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setDragOver(true);
+  }, []);
 
   const handleDragLeave = useCallback(() => {
-    setDragOver(false)
-  }, [])
+    setDragOver(false);
+  }, []);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
-      setDragOver(false)
-      onDrop?.(e)
+      setDragOver(false);
+      onDrop?.(e);
     },
-    [onDrop]
-  )
+    [onDrop],
+  );
 
   const handlePaneKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
-        e.preventDefault()
-        setFilterOpen(true)
+        e.preventDefault();
+        setFilterOpen(true);
       } else if (e.key === 'Escape' && filterOpen) {
-        setFilterOpen(false)
-        setFilterQuery('')
+        setFilterOpen(false);
+        setFilterQuery('');
       }
     },
-    [filterOpen, setFilterOpen, setFilterQuery]
-  )
+    [filterOpen, setFilterOpen, setFilterQuery],
+  );
 
   return (
     <div
       className={cn(
         'flex h-full flex-col overflow-hidden',
-        dragOver && 'ring-2 ring-inset ring-primary/40 bg-primary/[0.02]'
+        dragOver && 'ring-2 ring-inset ring-primary/40 bg-primary/[0.02]',
       )}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -156,7 +166,7 @@ export function FilePane({
           <span
             className={cn(
               'inline-block h-2 w-2 rounded-full',
-              side === 'local' ? 'bg-blue-500' : 'bg-emerald-500'
+              side === 'local' ? 'bg-blue-500' : 'bg-emerald-500',
             )}
           />
           <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -261,8 +271,8 @@ export function FilePane({
               className="form-input !py-1 !pl-7 !pr-7 !text-xs"
               onKeyDown={(e) => {
                 if (e.key === 'Escape') {
-                  setFilterOpen(false)
-                  setFilterQuery('')
+                  setFilterOpen(false);
+                  setFilterQuery('');
                 }
               }}
             />
@@ -317,7 +327,7 @@ export function FilePane({
         )}
       </div>
     </div>
-  )
+  );
 }
 
 function FilePaneSkeleton({ showPermissions }: { showPermissions: boolean }) {
@@ -357,5 +367,5 @@ function FilePaneSkeleton({ showPermissions }: { showPermissions: boolean }) {
       </div>
       <span className="sr-only">Loading directory contents…</span>
     </div>
-  )
+  );
 }

@@ -1,5 +1,5 @@
-import {useQuery, useQueryClient} from '@tanstack/react-query'
-import type {LocalFileEntry, SftpEntry} from '@shared/types/sftp'
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import type { LocalFileEntry, SftpEntry } from '@shared/types/sftp';
 
 export function useSftpDirectory(sessionId: string | null, path: string) {
   return useQuery<SftpEntry[]>({
@@ -7,8 +7,8 @@ export function useSftpDirectory(sessionId: string | null, path: string) {
     queryFn: () => window.api.sftp.list({ sessionId: sessionId!, path }),
     enabled: !!sessionId && !!path,
     staleTime: 30_000,
-    retry: 1
-  })
+    retry: 1,
+  });
 }
 
 export function useLocalDirectory(path: string) {
@@ -17,28 +17,28 @@ export function useLocalDirectory(path: string) {
     queryFn: () => window.api.shell.readdir(path),
     enabled: !!path,
     staleTime: 30_000,
-    retry: 1
-  })
+    retry: 1,
+  });
 }
 
 export function useInvalidateSftp() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
   return (sessionId: string, path?: string) => {
     if (path) {
-      queryClient.invalidateQueries({ queryKey: ['sftp', sessionId, path] })
+      queryClient.invalidateQueries({ queryKey: ['sftp', sessionId, path] });
     } else {
-      queryClient.invalidateQueries({ queryKey: ['sftp', sessionId] })
+      queryClient.invalidateQueries({ queryKey: ['sftp', sessionId] });
     }
-  }
+  };
 }
 
 export function useInvalidateLocalDir() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
   return (path?: string) => {
     if (path) {
-      queryClient.invalidateQueries({ queryKey: ['local-dir', path] })
+      queryClient.invalidateQueries({ queryKey: ['local-dir', path] });
     } else {
-      queryClient.invalidateQueries({ queryKey: ['local-dir'] })
+      queryClient.invalidateQueries({ queryKey: ['local-dir'] });
     }
-  }
+  };
 }

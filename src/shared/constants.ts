@@ -77,8 +77,8 @@ export const IPC = {
   TRANSFER_CANCELLED: 'transfer:cancelled',
 
   // SSH (additional)
-  SSH_TEST_CONNECTION: 'ssh:test-connection'
-} as const
+  SSH_TEST_CONNECTION: 'ssh:test-connection',
+} as const;
 
 /** Resource limits — centralised so renderer + main agree. */
 export const LIMITS = {
@@ -93,5 +93,5 @@ export const LIMITS = {
   /** Hard cap on transfers waiting in the queue (excluding in-flight). Protects main process from OOM. */
   MAX_QUEUED_TRANSFERS: 1_000,
   /** Per-op SSH connect timeout (ms). Wraps the entire connect promise so renderers never hang. */
-  SSH_CONNECT_TIMEOUT_MS: 60_000
-} as const
+  SSH_CONNECT_TIMEOUT_MS: 60_000,
+} as const;

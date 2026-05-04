@@ -1,19 +1,19 @@
-import {createHash} from 'crypto'
-import {getDatabase} from './database'
+import { createHash } from 'crypto';
+import { getDatabase } from './database';
 
 export function fingerprintKey(key: Buffer): string {
-  return createHash('sha256').update(key).digest('base64')
+  return createHash('sha256').update(key).digest('base64');
 }
 
 export function getStoredHostKey(
   host: string,
-  port: number
+  port: number,
 ): { fingerprint: string; algorithm: string } | null {
-  const db = getDatabase()
+  const db = getDatabase();
   const row = db
     .prepare('SELECT fingerprint, algorithm FROM known_hosts WHERE host_key = ?')
-    .get(`${host}:${port}`) as { fingerprint: string; algorithm: string } | undefined
-  return row ?? null
+    .get(`${host}:${port}`) as { fingerprint: string; algorithm: string } | undefined;
+  return row ?? null;
 }
 
 /**
@@ -33,26 +33,26 @@ export function verifyHostKey(
   host: string,
   port: number,
   keyData: Buffer,
-  _algorithm: string
+  _algorithm: string,
 ): { trusted: boolean; changed: boolean; isFirst: boolean } {
-  const db = getDatabase()
-  const hostKey = `${host}:${port}`
-  const fp = fingerprintKey(keyData)
+  const db = getDatabase();
+  const hostKey = `${host}:${port}`;
+  const fp = fingerprintKey(keyData);
 
   const row = db
     .prepare('SELECT fingerprint, algorithm FROM known_hosts WHERE host_key = ?')
-    .get(hostKey) as { fingerprint: string; algorithm: string } | undefined
+    .get(hostKey) as { fingerprint: string; algorithm: string } | undefined;
 
   if (!row) {
-    return { trusted: false, changed: false, isFirst: true }
+    return { trusted: false, changed: false, isFirst: true };
   }
 
   if (row.fingerprint === fp) {
-    return { trusted: true, changed: false, isFirst: false }
+    return { trusted: true, changed: false, isFirst: false };
   }
 
   // Key has changed — possible MITM
-  return { trusted: false, changed: true, isFirst: false }
+  return { trusted: false, changed: true, isFirst: false };
 }
 
 /**
@@ -62,15 +62,15 @@ export function updateHostKey(
   host: string,
   port: number,
   keyData: Buffer,
-  algorithm: string
+  algorithm: string,
 ): void {
-  const db = getDatabase()
-  const hostKey = `${host}:${port}`
-  const fp = fingerprintKey(keyData)
+  const db = getDatabase();
+  const hostKey = `${host}:${port}`;
+  const fp = fingerprintKey(keyData);
 
   db.prepare(
     `INSERT INTO known_hosts (host_key, algorithm, fingerprint, first_seen)
      VALUES (?, ?, ?, unixepoch())
-     ON CONFLICT(host_key) DO UPDATE SET algorithm = excluded.algorithm, fingerprint = excluded.fingerprint`
-  ).run(hostKey, algorithm, fp)
+     ON CONFLICT(host_key) DO UPDATE SET algorithm = excluded.algorithm, fingerprint = excluded.fingerprint`,
+  ).run(hostKey, algorithm, fp);
 }

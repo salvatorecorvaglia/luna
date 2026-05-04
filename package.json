@@ -1,6 +1,6 @@
 {
   "name": "lunar",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A modern SSH terminal and intuitive SFTP file manager built for modern developers",
   "main": "./out/main/index.js",
   "author": "Salvatore Corvaglia",
@@ -14,6 +14,7 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "lint": "eslint src/",
+    "format": "prettier --write \"src/**/*.{js,ts,jsx,tsx,json,css,scss,md}\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
@@ -58,8 +59,10 @@
     "electron-builder": "^26.8.1",
     "electron-vite": "^5.0.0",
     "eslint": "^10.2.1",
+    "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
     "jsdom": "^29.0.2",
+    "prettier": "^3.8.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tailwindcss": "^4.0.0",

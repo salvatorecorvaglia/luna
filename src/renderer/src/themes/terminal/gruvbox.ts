@@ -1,5 +1,5 @@
-import type {ITheme} from '@xterm/xterm'
-import type {UIThemeTokens} from '../ui-from-terminal'
+import type { ITheme } from '@xterm/xterm';
+import type { UIThemeTokens } from '../ui-from-terminal';
 
 export const gruvboxUIOverrides: Partial<UIThemeTokens> = {
   primary: '#fabd2f',
@@ -7,8 +7,8 @@ export const gruvboxUIOverrides: Partial<UIThemeTokens> = {
   'sidebar-primary': '#fabd2f',
   'sidebar-ring': '#fabd2f',
   'primary-foreground': '#282828',
-  'sidebar-primary-foreground': '#282828'
-}
+  'sidebar-primary-foreground': '#282828',
+};
 
 export const gruvboxTheme: ITheme = {
   background: '#282828',
@@ -32,5 +32,5 @@ export const gruvboxTheme: ITheme = {
   brightBlue: '#83a598',
   brightMagenta: '#d3869b',
   brightCyan: '#8ec07c',
-  brightWhite: '#ebdbb2'
-}
+  brightWhite: '#ebdbb2',
+};

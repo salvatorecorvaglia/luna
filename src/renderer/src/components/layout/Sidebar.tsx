@@ -1,48 +1,48 @@
-import {memo, useCallback, useMemo, useRef, useState} from 'react'
-import {AnimatePresence, motion} from 'framer-motion'
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
-    ChevronDown,
-    ChevronRight,
-    Clock,
-    Copy,
-    FolderClosed,
-    Loader2,
-    Pencil,
-    Plus,
-    Search,
-    Server,
-    Settings,
-    Terminal,
-    Trash2,
-    X
-} from 'lucide-react'
-import {cn} from '@/lib/utils'
-import {toast} from 'sonner'
-import {useUIStore} from '@/stores/ui-store'
-import {useConnectionStore} from '@/stores/connection-store'
-import {useTerminalStore} from '@/stores/terminal-store'
-import {useConnections, useDeleteConnection} from '@/hooks/use-connections'
-import {connectToHost} from '@/lib/ssh'
-import {ContextMenu, type ContextMenuItem} from '@/components/common/ContextMenu'
-import {ConfirmDialog} from '@/components/common/ConfirmDialog'
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  Copy,
+  FolderClosed,
+  Loader2,
+  Pencil,
+  Plus,
+  Search,
+  Server,
+  Settings,
+  Terminal,
+  Trash2,
+  X,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+import { useUIStore } from '@/stores/ui-store';
+import { useConnectionStore } from '@/stores/connection-store';
+import { useTerminalStore } from '@/stores/terminal-store';
+import { useConnections, useDeleteConnection } from '@/hooks/use-connections';
+import { connectToHost } from '@/lib/ssh';
+import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 
 export function Sidebar() {
-  const { sidebarOpen, sidebarWidth, setSidebarWidth, setSettingsOpen } = useUIStore()
-  const { openCreateForm } = useConnectionStore()
-  const { data: connections, isLoading } = useConnections()
-  const connectionList = useMemo(() => connections ?? [], [connections])
-  const [searchQuery, setSearchQuery] = useState('')
+  const { sidebarOpen, sidebarWidth, setSidebarWidth, setSettingsOpen } = useUIStore();
+  const { openCreateForm } = useConnectionStore();
+  const { data: connections, isLoading } = useConnections();
+  const connectionList = useMemo(() => connections ?? [], [connections]);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const filteredConnections = useMemo(() => {
-    if (!searchQuery.trim()) return connectionList
-    const q = searchQuery.toLowerCase()
+    if (!searchQuery.trim()) return connectionList;
+    const q = searchQuery.toLowerCase();
     return connectionList.filter(
       (c) =>
         c.name.toLowerCase().includes(q) ||
         c.host.toLowerCase().includes(q) ||
-        c.username.toLowerCase().includes(q)
-    )
-  }, [connectionList, searchQuery])
+        c.username.toLowerCase().includes(q),
+    );
+  }, [connectionList, searchQuery]);
 
   const recentConnections = useMemo(
     () =>
@@ -52,56 +52,56 @@ export function Sidebar() {
             .filter((c) => c.lastConnectedAt)
             .sort((a, b) => (b.lastConnectedAt || 0) - (a.lastConnectedAt || 0))
             .slice(0, 5),
-    [connectionList, searchQuery]
-  )
+    [connectionList, searchQuery],
+  );
 
   const groupedConnections = useMemo(() => {
-    const groups = new Map<string, typeof filteredConnections>()
+    const groups = new Map<string, typeof filteredConnections>();
     for (const conn of filteredConnections) {
-      const folder = conn.folder || 'default'
-      const list = groups.get(folder) ?? []
-      list.push(conn)
-      groups.set(folder, list)
+      const folder = conn.folder || 'default';
+      const list = groups.get(folder) ?? [];
+      list.push(conn);
+      groups.set(folder, list);
     }
-    return groups
-  }, [filteredConnections])
+    return groups;
+  }, [filteredConnections]);
 
   const hasNonDefaultFolders = useMemo(
     () => Array.from(groupedConnections.keys()).some((k) => k !== 'default'),
-    [groupedConnections]
-  )
+    [groupedConnections],
+  );
 
-  const [resizing, setResizing] = useState(false)
-  const [recentOpen, setRecentOpen] = useState(true)
+  const [resizing, setResizing] = useState(false);
+  const [recentOpen, setRecentOpen] = useState(true);
   // Guard against double mousedown without an intervening mouseup (e.g. dev-tools
   // stealing focus mid-drag) attaching duplicate listeners.
-  const resizingRef = useRef(false)
+  const resizingRef = useRef(false);
 
   const handleResizeMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      e.preventDefault()
-      if (resizingRef.current) return
-      resizingRef.current = true
-      setResizing(true)
+      e.preventDefault();
+      if (resizingRef.current) return;
+      resizingRef.current = true;
+      setResizing(true);
       const onMouseMove = (e: MouseEvent) => {
-        const width = Math.max(200, Math.min(400, e.clientX))
-        setSidebarWidth(width)
-      }
+        const width = Math.max(200, Math.min(400, e.clientX));
+        setSidebarWidth(width);
+      };
       const onMouseUp = () => {
-        resizingRef.current = false
-        setResizing(false)
-        document.removeEventListener('mousemove', onMouseMove)
-        document.removeEventListener('mouseup', onMouseUp)
-        document.body.style.cursor = ''
-        document.body.style.userSelect = ''
-      }
-      document.body.style.cursor = 'col-resize'
-      document.body.style.userSelect = 'none'
-      document.addEventListener('mousemove', onMouseMove)
-      document.addEventListener('mouseup', onMouseUp)
+        resizingRef.current = false;
+        setResizing(false);
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      };
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
     },
-    [setSidebarWidth]
-  )
+    [setSidebarWidth],
+  );
 
   return (
     <AnimatePresence mode="wait">
@@ -213,7 +213,7 @@ export function Sidebar() {
                   <ChevronDown
                     className={cn(
                       'h-3 w-3 transition-transform duration-150',
-                      !recentOpen && '-rotate-90'
+                      !recentOpen && '-rotate-90',
                     )}
                   />
                   <Clock className="h-3 w-3" />
@@ -249,7 +249,7 @@ export function Sidebar() {
             <div
               className={cn(
                 'absolute inset-0 bg-border',
-                resizing ? 'bg-primary/60' : 'hover:bg-primary/40'
+                resizing ? 'bg-primary/60' : 'hover:bg-primary/40',
               )}
               style={{ transition: 'background-color 150ms' }}
             />
@@ -261,26 +261,26 @@ export function Sidebar() {
         </motion.aside>
       )}
     </AnimatePresence>
-  )
+  );
 }
 
 function FolderGroup({
   name,
-  connections
+  connections,
 }: {
-  name: string
+  name: string;
   connections: {
-    id: string
-    name: string
-    host: string
-    username: string
-    colorTag?: string
-    folder: string
-  }[]
+    id: string;
+    name: string;
+    host: string;
+    username: string;
+    colorTag?: string;
+    folder: string;
+  }[];
 }) {
-  const [open, setOpen] = useState(true)
-  const isDefault = name === 'default'
-  const groupId = `folder-group-${name}`
+  const [open, setOpen] = useState(true);
+  const isDefault = name === 'default';
+  const groupId = `folder-group-${name}`;
 
   if (isDefault) {
     return (
@@ -289,7 +289,7 @@ function FolderGroup({
           <ConnectionItem key={conn.id} connection={conn} />
         ))}
       </div>
-    )
+    );
   }
 
   return (
@@ -316,75 +316,76 @@ function FolderGroup({
         </div>
       )}
     </div>
-  )
+  );
 }
 
 const ConnectionItem = memo(function ConnectionItem({
   connection,
-  compact = false
+  compact = false,
 }: {
-  connection: { id: string; name: string; host: string; username: string; colorTag?: string }
-  compact?: boolean
+  connection: { id: string; name: string; host: string; username: string; colorTag?: string };
+  compact?: boolean;
 }) {
   const { activeConnectionId, setActiveConnectionId, openEditForm, openDuplicateForm } =
-    useConnectionStore()
-  const { setActiveView } = useUIStore()
-  const { sessions } = useTerminalStore()
-  const deleteMutation = useDeleteConnection()
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const isActive = activeConnectionId === connection.id
+    useConnectionStore();
+  const { setActiveView } = useUIStore();
+  const { sessions } = useTerminalStore();
+  const deleteMutation = useDeleteConnection();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const isActive = activeConnectionId === connection.id;
   const isConnected = Array.from(sessions.values()).some(
-    (s) => s.connectionId === connection.id && s.status === 'connected'
-  )
+    (s) => s.connectionId === connection.id && s.status === 'connected',
+  );
   const isConnecting = Array.from(sessions.values()).some(
     (s) =>
-      s.connectionId === connection.id && (s.status === 'connecting' || s.status === 'reconnecting')
-  )
+      s.connectionId === connection.id &&
+      (s.status === 'connecting' || s.status === 'reconnecting'),
+  );
 
   const handleConnect = () => {
-    setActiveConnectionId(connection.id)
-    setActiveView('terminal')
+    setActiveConnectionId(connection.id);
+    setActiveView('terminal');
 
     // If already connected, switch to the existing tab instead of opening a new one
     const existingSession = Array.from(sessions.values()).find(
       (s) =>
         s.connectionId === connection.id &&
-        (s.status === 'connected' || s.status === 'connecting' || s.status === 'reconnecting')
-    )
+        (s.status === 'connected' || s.status === 'connecting' || s.status === 'reconnecting'),
+    );
     if (existingSession) {
-      useTerminalStore.getState().setActiveTab(existingSession.id)
-      return
+      useTerminalStore.getState().setActiveTab(existingSession.id);
+      return;
     }
 
-    connectToHost(connection.id)
-  }
+    connectToHost(connection.id);
+  };
 
   const contextMenuItems: ContextMenuItem[] = [
     {
       label: 'Connect',
       icon: <Terminal className="h-3.5 w-3.5" />,
-      onClick: handleConnect
+      onClick: handleConnect,
     },
     {
       label: 'Edit',
       icon: <Pencil className="h-3.5 w-3.5" />,
-      onClick: () => openEditForm(connection.id)
+      onClick: () => openEditForm(connection.id),
     },
     {
       label: 'Duplicate',
       icon: <Copy className="h-3.5 w-3.5" />,
-      onClick: () => openDuplicateForm(connection.id)
+      onClick: () => openDuplicateForm(connection.id),
     },
     {
       label: 'Delete',
       icon: <Trash2 className="h-3.5 w-3.5" />,
       onClick: () => setConfirmDelete(true),
       destructive: true,
-      separator: true
-    }
-  ]
+      separator: true,
+    },
+  ];
 
-  const statusLabel = isConnected ? 'connected' : isConnecting ? 'connecting' : 'disconnected'
+  const statusLabel = isConnected ? 'connected' : isConnecting ? 'connecting' : 'disconnected';
 
   return (
     <>
@@ -397,16 +398,13 @@ const ConnectionItem = memo(function ConnectionItem({
             compact ? 'py-[7px]' : 'py-2',
             isActive
               ? 'bg-sidebar-accent border-l-[3px] border-l-sidebar-primary pl-[7px]'
-              : 'hover:bg-sidebar-accent/60'
+              : 'hover:bg-sidebar-accent/60',
           )}
         >
           {/* Status dot */}
           <div className="relative flex-shrink-0" aria-hidden="true">
             <div
-              className={cn(
-                'h-2.5 w-2.5 rounded-full',
-                !connection.colorTag && 'bg-emerald-500'
-              )}
+              className={cn('h-2.5 w-2.5 rounded-full', !connection.colorTag && 'bg-emerald-500')}
               style={connection.colorTag ? { backgroundColor: connection.colorTag } : undefined}
             />
             {isConnected && (
@@ -447,12 +445,12 @@ const ConnectionItem = memo(function ConnectionItem({
         onConfirm={() => {
           deleteMutation.mutate(connection.id, {
             onSuccess: () => toast.success('Connection deleted'),
-            onError: () => toast.error('Failed to delete connection')
-          })
-          setConfirmDelete(false)
+            onError: () => toast.error('Failed to delete connection'),
+          });
+          setConfirmDelete(false);
         }}
         onCancel={() => setConfirmDelete(false)}
       />
     </>
-  )
-})
+  );
+});
