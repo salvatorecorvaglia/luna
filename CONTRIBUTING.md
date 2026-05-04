@@ -54,7 +54,6 @@ npm install
 | `npm run dev`           | Start Electron with HMR for the renderer            |
 | `npm run build`         | Build the application for production (no packaging) |
 | `npm run preview`       | Preview the production build locally                |
-| `npm run dist`          | Package the application for the current platform    |
 | `npm test`              | Run all tests using Vitest                          |
 | `npm run test:watch`    | Run tests in watch mode                             |
 | `npm run test:coverage` | Run tests with coverage report                      |

@@ -58,7 +58,7 @@ export function initAutoUpdater(): void {
   autoUpdater.on('error', (err) => {
     let errorMessage = err.message
     if (errorMessage.includes('code signature at URL') || errorMessage.includes('did not pass validation')) {
-      errorMessage = 'Auto-update is not supported for unsigned applications. Please download the latest release manually.'
+      errorMessage = 'Auto-update is currently unavailable because the application is not signed with a developer certificate. Please download the latest version manually from GitHub.'
     }
     log.error('[Updater] Error:', errorMessage)
     emitToRenderer(IPC.APP_UPDATE_ERROR, { error: errorMessage })
@@ -92,7 +92,7 @@ export function installUpdate(): void {
     .catch((err) => {
       let errorMessage = err.message
       if (errorMessage.includes('code signature at URL') || errorMessage.includes('did not pass validation')) {
-        errorMessage = 'Auto-update is not supported for unsigned applications. Please download the latest release manually.'
+        errorMessage = 'Update download failed: the new version cannot be verified (missing code signature). Please update manually from GitHub.'
       }
       log.error('[Updater] Failed to download update:', errorMessage)
       emitToRenderer(IPC.APP_UPDATE_ERROR, { error: errorMessage })

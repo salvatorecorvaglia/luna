@@ -39,6 +39,10 @@ Lunar is a high-performance, cross-platform desktop application designed to stre
 
 ## 🚀 Getting Started
 
+### Download
+
+You can find the latest binaries for **macOS, Windows, and Linux** in the [Releases](https://github.com/salvatorecorvaglia/lunar/releases) section.
+
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) (v18 or higher)
@@ -64,7 +68,7 @@ npm run dev
 
 ---
 
-## 🧪 Quality & Distribution
+## 🧪 Quality
 
 ### Testing & Linting
 
@@ -76,13 +80,6 @@ npm run typecheck      # Run TypeScript compiler checks
 npm run lint           # Static analysis with ESLint
 ```
 
-### Distribution
-
-Build production-ready installers for the current platform:
-
-```bash
-npm run dist           # Package the application for the current platform
-```
 ---
 
 ## 🤝 Contributing
