@@ -2,6 +2,7 @@ import {useEffect, useState} from 'react'
 import {FolderOpen, Maximize2, Minimize2, Minus, PanelLeft, Terminal, X} from 'lucide-react'
 import {cn} from '@/lib/utils'
 import {useUIStore} from '@/stores/ui-store'
+import lunarLogo from '../../../../../resources/lunar.png'
 
 export function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false)
@@ -30,15 +31,15 @@ export function TitleBar() {
   return (
     <div
       className={cn(
-        'drag-region flex h-11 items-center justify-between border-b border-border/60 bg-card/80 backdrop-blur-md px-2 no-select',
-        isMac && 'pl-[76px]'
+        'drag-region flex h-[46px] items-center justify-between border-b border-border/60 bg-card/80 backdrop-blur-md px-2 no-select',
+        isMac && 'pl-[84px]'
       )}
     >
       {/* Left: logo + sidebar toggle + view switcher */}
       <div className="no-drag flex items-center gap-1.5">
         {/* Logo */}
         <div className="flex items-center gap-2 pl-1 pr-2">
-          <div className="h-[18px] w-[18px] rounded-md bg-gradient-to-br from-indigo-500 to-violet-600 shadow-sm" />
+          <img src={lunarLogo} alt="Lunar Logo" className="h-[18px] w-[18px] object-contain" />
           <span className="text-[13px] font-semibold tracking-tight text-foreground">Lunar</span>
         </div>
 

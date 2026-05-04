@@ -26,7 +26,7 @@ export function initAutoUpdater(): void {
   // Refuse to operate against an unencrypted update feed.
   try {
     const feedURL = autoUpdater.getFeedURL?.()
-    if (feedURL && !feedURL.startsWith('https://')) {
+    if (feedURL && feedURL.startsWith('http://')) {
       log.error(`[Updater] Refusing non-HTTPS update feed: ${feedURL}`)
       return
     }

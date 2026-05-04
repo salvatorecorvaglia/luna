@@ -97,8 +97,14 @@ export function WelcomeView() {
           variants={fadeUp}
           className="mt-6 flex items-center justify-center gap-1.5 text-xs text-muted-foreground/70"
         >
-          <kbd className="inline-flex items-center gap-0.5 rounded-md border border-border/80 bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-            <Command className="h-2.5 w-2.5" />K
+          <kbd className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+            {/Mac|iPod|iPhone|iPad/.test(navigator.userAgent) ? (
+              <>
+                <Command className="h-2.5 w-2.5" />K
+              </>
+            ) : (
+              'Ctrl+K'
+            )}
           </kbd>
           <span>to open command palette</span>
         </motion.div>

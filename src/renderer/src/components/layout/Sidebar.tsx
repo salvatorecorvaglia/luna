@@ -72,6 +72,7 @@ export function Sidebar() {
   )
 
   const [resizing, setResizing] = useState(false)
+  const [recentOpen, setRecentOpen] = useState(true)
   // Guard against double mousedown without an intervening mouseup (e.g. dev-tools
   // stealing focus mid-drag) attaching duplicate listeners.
   const resizingRef = useRef(false)
@@ -205,17 +206,29 @@ export function Sidebar() {
             {recentConnections.length > 0 && (
               <>
                 <div className="mx-2 my-3 h-px bg-border/50" />
-                <div className="flex items-center gap-1.5 px-2.5 pb-1.5">
-                  <Clock className="h-3 w-3 text-muted-foreground/60" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-                    Recent
+                <button
+                  onClick={() => setRecentOpen((o) => !o)}
+                  className="flex w-full items-center gap-1.5 px-2.5 pb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 hover:text-muted-foreground transition-colors cursor-pointer"
+                >
+                  <ChevronDown
+                    className={cn(
+                      'h-3 w-3 transition-transform duration-150',
+                      !recentOpen && '-rotate-90'
+                    )}
+                  />
+                  <Clock className="h-3 w-3" />
+                  <span>Recent</span>
+                  <span className="ml-auto text-[9px] font-medium opacity-50">
+                    {recentConnections.length}
                   </span>
-                </div>
-                <div className="space-y-0.5">
-                  {recentConnections.map((conn) => (
-                    <ConnectionItem key={`recent-${conn.id}`} connection={conn} compact />
-                  ))}
-                </div>
+                </button>
+                {recentOpen && (
+                  <div className="space-y-0.5">
+                    {recentConnections.map((conn) => (
+                      <ConnectionItem key={`recent-${conn.id}`} connection={conn} compact />
+                    ))}
+                  </div>
+                )}
               </>
             )}
           </div>

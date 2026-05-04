@@ -5,6 +5,8 @@ import {FileList} from './FileList'
 import type {FileEntry} from '@shared/types/sftp'
 
 export type { FileEntry }
+const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform)
+const MOD = isMac ? '⌘' : 'Ctrl'
 
 interface FilePaneProps {
   title: string
@@ -189,7 +191,7 @@ export function FilePane({
           <button
             onClick={() => setFilterOpen((o) => !o)}
             className={cn('btn-icon !p-1', filterOpen && 'text-foreground bg-accent')}
-            title="Filter (⌘F)"
+            title={`Filter (${MOD}F)`}
             aria-label="Filter files"
             aria-pressed={filterOpen}
           >
