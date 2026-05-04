@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import {useCallback, useEffect, useId, useRef, useState} from 'react'
+import {useCallback, useEffect, useId, useMemo, useRef, useState} from 'react'
 import {AnimatePresence, motion} from 'framer-motion'
 import {
     Check,
@@ -84,6 +84,7 @@ export function ConnectionForm() {
   const [colorTag, setColorTag] = useState<string>(COLOR_OPTIONS[0].hex)
   const [startupCommand, setStartupCommand] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [showGroupsDropdown, setShowGroupsDropdown] = useState(false)
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [testing, setTesting] = useState(false)
 
@@ -91,6 +92,17 @@ export function ConnectionForm() {
   const fieldId = useId()
   const isEditing = !!editingConnectionId
   const isSaving = createMutation.isPending || updateMutation.isPending
+
+  const uniqueFolders = useMemo(() => {
+    if (!existingConnections) return []
+    const folders = new Set(existingConnections.map((c) => c.folder).filter(Boolean))
+    return Array.from(folders).sort()
+  }, [existingConnections])
+
+  const filteredFolders = useMemo(() => {
+    const search = folder === 'default' ? '' : folder.toLowerCase()
+    return uniqueFolders.filter((f) => f.toLowerCase().includes(search))
+  }, [uniqueFolders, folder])
 
   // Focus trap + Escape
   useEffect(() => {
@@ -594,14 +606,106 @@ export function ConnectionForm() {
                   optional
                   id={`${fieldId}-group`}
                 >
-                  <input
-                    id={`${fieldId}-group`}
-                    type="text"
-                    value={folder === 'default' ? '' : folder}
-                    onChange={(e) => setFolder(e.target.value || 'default')}
-                    placeholder="default"
-                    className="form-input"
-                  />
+                  <div className="space-y-3">
+                    <div className="relative group/input">
+                      <input
+                        id={`${fieldId}-group`}
+                        type="text"
+                        value={folder === 'default' ? '' : folder}
+                        onChange={(e) => {
+                          setFolder(e.target.value || 'default')
+                          setShowGroupsDropdown(true)
+                        }}
+                        onFocus={() => setShowGroupsDropdown(true)}
+                        onBlur={() => {
+                          // Small delay to allow click on dropdown items
+                          setTimeout(() => setShowGroupsDropdown(false), 200)
+                        }}
+                        placeholder="default"
+                        className="form-input"
+                        style={{ paddingLeft: '2.5rem' }}
+                      />
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/40 group-focus-within/input:text-primary transition-colors pointer-events-none">
+                        <FolderClosed className="h-4 w-4" />
+                      </div>
+
+                      {folder !== 'default' && (
+                        <button
+                          type="button"
+                          onClick={() => setFolder('default')}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-foreground transition-colors cursor-pointer"
+                          title="Clear group"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+
+                      <AnimatePresence>
+                        {showGroupsDropdown && filteredFolders.length > 0 && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 4, scale: 0.98 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                            className="absolute top-full left-0 right-0 z-50 mt-1 max-h-48 overflow-auto rounded-lg border border-border bg-popover p-1 shadow-xl backdrop-blur-sm scrollbar-none"
+                          >
+                            {filteredFolders.map((f) => (
+                              <button
+                                key={f}
+                                type="button"
+                                onClick={() => {
+                                  setFolder(f)
+                                  setShowGroupsDropdown(false)
+                                }}
+                                className={cn(
+                                  'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs font-medium transition-colors',
+                                  folder === f
+                                    ? 'bg-primary/10 text-primary'
+                                    : 'text-foreground hover:bg-accent hover:text-accent-foreground'
+                                )}
+                              >
+                                <FolderClosed className="h-3.5 w-3.5 opacity-50" />
+                                {f}
+                              </button>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    {uniqueFolders.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-semibold text-muted-foreground/40 uppercase tracking-widest">
+                            Existing Groups
+                          </span>
+                          <div className="h-px flex-1 bg-border/30" />
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {uniqueFolders.map((f) => (
+                            <motion.button
+                              key={f}
+                              whileHover={{ y: -1, scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              type="button"
+                              onClick={() => setFolder(folder === f ? 'default' : f)}
+                              className={cn(
+                                'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all cursor-pointer border shadow-xs',
+                                (folder === f || (f === 'default' && folder === 'default'))
+                                  ? 'bg-primary/5 border-primary/40 text-primary shadow-[0_0_12px_-3px_rgba(99,102,241,0.2)] ring-1 ring-primary/20'
+                                  : 'bg-muted/10 border-border/40 text-muted-foreground hover:bg-muted/20 hover:border-border/60 hover:text-foreground'
+                              )}
+                            >
+                              <FolderClosed className={cn(
+                                'h-3 w-3 transition-opacity',
+                                (folder === f || (f === 'default' && folder === 'default')) ? 'opacity-100' : 'opacity-40'
+                              )} />
+                              {f}
+                            </motion.button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </FormField>
 
                 {/* Startup Command */}
