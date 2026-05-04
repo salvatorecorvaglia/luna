@@ -1,6 +1,6 @@
 import {AnimatePresence, motion} from 'framer-motion'
 import {useCallback, useEffect, useId, useRef, useState} from 'react'
-import {Database, Download, FileText, Info, Monitor, Terminal, Upload, Wifi, X} from 'lucide-react'
+import {Database, Download, FileText, Info, Terminal, Upload, Wifi, X} from 'lucide-react'
 import {toast} from 'sonner'
 import {cn} from '@/lib/utils'
 import {useUIStore} from '@/stores/ui-store'
@@ -40,8 +40,6 @@ const panelVariants = {
 export function SettingsPanel() {
   const settingsOpen = useUIStore((s) => s.settingsOpen)
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen)
-  const applyTerminalThemeToUI = useUIStore((s) => s.applyTerminalThemeToUI)
-  const setApplyTerminalThemeToUI = useUIStore((s) => s.setApplyTerminalThemeToUI)
   const { terminalTheme, setTerminalTheme, fontSize, setFontSize, scrollback, setScrollback } =
     useTerminalStore()
   const [concurrency, setConcurrency] = useState(DEFAULT_SETTINGS['transfer.concurrency'])
@@ -69,11 +67,8 @@ export function SettingsPanel() {
         setKeepAliveInterval(Number(settings['ssh.keepAliveInterval']) / 1000)
       if (settings['ssh.maxReconnectAttempts'] != null)
         setMaxReconnectAttempts(Number(settings['ssh.maxReconnectAttempts']))
-      if (settings['ui.applyTerminalTheme'] != null) {
-        setApplyTerminalThemeToUI(Boolean(settings['ui.applyTerminalTheme']))
-      }
     })
-  }, [settingsOpen, setFontSize, setScrollback, setApplyTerminalThemeToUI])
+  }, [settingsOpen, setFontSize, setScrollback])
 
   const persistSetting = useCallback((key: string, value: unknown) => {
     window.api.settings.set(key, JSON.stringify(value))
@@ -150,14 +145,6 @@ export function SettingsPanel() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-5 space-y-6">
-              {/* Appearance */}
-              <Section title="Appearance" icon={<Monitor className="h-4 w-4" />}>
-                <ToggleRow
-                  label="Apply terminal theme to UI"
-                  enabled={applyTerminalThemeToUI}
-                  onToggle={setApplyTerminalThemeToUI}
-                />
-              </Section>
 
               {/* Terminal */}
               <Section title="Terminal" icon={<Terminal className="h-4 w-4" />}>

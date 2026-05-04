@@ -18,14 +18,13 @@ import {applyUIThemeTokens, buildUIThemeTokens} from '@/themes/ui-from-terminal'
 export default function App() {
   const activeView = useUIStore((s) => s.activeView)
   const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen)
-  const applyTerminalThemeToUI = useUIStore((s) => s.applyTerminalThemeToUI)
   const tabOrder = useTerminalStore((s) => s.tabOrder)
   const terminalTheme = useTerminalStore((s) => s.terminalTheme)
 
-  // Apply terminal palette to UI tokens when toggled on
+  // Apply terminal palette to UI tokens
   useEffect(() => {
-    applyUIThemeTokens(applyTerminalThemeToUI ? buildUIThemeTokens(terminalTheme) : null)
-  }, [applyTerminalThemeToUI, terminalTheme])
+    applyUIThemeTokens(buildUIThemeTokens(terminalTheme))
+  }, [terminalTheme])
 
   // Wire IPC transfer events into the Zustand store
   useTransferEventListener()
