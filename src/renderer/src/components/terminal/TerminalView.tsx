@@ -6,7 +6,6 @@ import {terminalThemes} from '@/themes/terminal'
 import {connectToHost} from '@/lib/ssh'
 import {TerminalTabs} from './TerminalTabs'
 import {TerminalPane} from './TerminalPane'
-import {SplitPane} from './SplitPane'
 
 export { connectToHost }
 
