@@ -1,8 +1,8 @@
-import { app } from 'electron'
-import { randomBytes, createCipheriv, createDecipheriv } from 'crypto'
-import { existsSync, readFileSync, writeFileSync } from 'fs'
-import { join } from 'path'
-import { getDatabase } from './database'
+import {app} from 'electron'
+import {createCipheriv, createDecipheriv, randomBytes} from 'crypto'
+import {existsSync, readFileSync, writeFileSync} from 'fs'
+import {join} from 'path'
+import {getDatabase} from './database'
 import log from '../lib/logger'
 
 // The credentials table is created by migration 004_known_hosts_and_credentials.
