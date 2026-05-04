@@ -354,7 +354,6 @@ export function ConnectionForm() {
                       'form-input',
                       visibleError('name') && 'border-destructive/60 focus:border-destructive',
                     )}
-                    autoFocus
                   />
                 </FormField>
 
