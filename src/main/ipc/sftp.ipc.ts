@@ -1,22 +1,16 @@
-import { ipcMain } from 'electron'
-import { IPC } from '@shared/constants'
-import { sftpManager } from '../services/sftp-manager'
-import { transferQueue } from '../services/transfer-queue'
-import {
-  assertNonEmptyString,
-  assertValidPath,
-  assertBoundedInt,
-  assertSafeAbsolutePath
-} from '../lib/validate'
-import { LIMITS } from '@shared/constants'
+import {ipcMain} from 'electron'
+import {IPC, LIMITS} from '@shared/constants'
+import {sftpManager} from '../services/sftp-manager'
+import {transferQueue} from '../services/transfer-queue'
+import {assertBoundedInt, assertNonEmptyString, assertSafeAbsolutePath, assertValidPath} from '../lib/validate'
 import type {
-  SftpListParams,
-  SftpStatParams,
-  SftpMkdirParams,
-  SftpRenameParams,
-  SftpDeleteParams,
-  SftpReadFileParams,
-  SftpTransferParams
+    SftpDeleteParams,
+    SftpListParams,
+    SftpMkdirParams,
+    SftpReadFileParams,
+    SftpRenameParams,
+    SftpStatParams,
+    SftpTransferParams
 } from '@shared/types/sftp'
 
 export function registerSftpHandlers(): void {

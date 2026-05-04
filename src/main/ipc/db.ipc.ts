@@ -1,18 +1,18 @@
-import { ipcMain, dialog } from 'electron'
-import { readFile } from 'fs/promises'
-import { v4 as uuidv4 } from 'uuid'
-import { IPC, LIMITS } from '@shared/constants'
-import { getDatabase, type ConnectionRow } from '../services/database'
-import { transferQueue } from '../services/transfer-queue'
+import {dialog, ipcMain} from 'electron'
+import {readFile} from 'fs/promises'
+import {v4 as uuidv4} from 'uuid'
+import {IPC, LIMITS} from '@shared/constants'
+import {type ConnectionRow, getDatabase} from '../services/database'
+import {transferQueue} from '../services/transfer-queue'
 import type {
-  Connection,
-  CreateConnectionInput,
-  UpdateConnectionInput,
-  ExportedConnection
+    Connection,
+    CreateConnectionInput,
+    ExportedConnection,
+    UpdateConnectionInput
 } from '@shared/types/connection'
-import { storeCredential, deleteCredential } from '../services/credential-store'
-import { sanitizeStartupCommand } from '../lib/validate'
-import type { AppSettings } from '@shared/types/settings'
+import {deleteCredential, storeCredential} from '../services/credential-store'
+import {sanitizeStartupCommand} from '../lib/validate'
+import type {AppSettings} from '@shared/types/settings'
 
 const VALID_AUTH_TYPES = ['password', 'key', 'key+passphrase'] as const
 

@@ -1,28 +1,28 @@
-import { useEffect, useState, useMemo, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import {useEffect, useMemo, useRef, useState} from 'react'
+import {AnimatePresence, motion} from 'framer-motion'
 import {
-  Search,
-  Terminal,
-  FolderOpen,
-  Plus,
-  Settings,
-  PanelLeft,
-  Palette,
-  Server,
-  X,
-  ChevronLeft,
-  ChevronRight,
-  Eye,
-  EyeOff,
-  RefreshCw
+    ChevronLeft,
+    ChevronRight,
+    Eye,
+    EyeOff,
+    FolderOpen,
+    Palette,
+    PanelLeft,
+    Plus,
+    RefreshCw,
+    Search,
+    Server,
+    Settings,
+    Terminal,
+    X
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { useUIStore } from '@/stores/ui-store'
-import { useTerminalStore } from '@/stores/terminal-store'
-import { useConnectionStore } from '@/stores/connection-store'
-import { useSftpStore } from '@/stores/sftp-store'
-import { useConnections } from '@/hooks/use-connections'
-import { connectToHost } from '@/lib/ssh'
+import {cn} from '@/lib/utils'
+import {useUIStore} from '@/stores/ui-store'
+import {useTerminalStore} from '@/stores/terminal-store'
+import {useConnectionStore} from '@/stores/connection-store'
+import {useSftpStore} from '@/stores/sftp-store'
+import {useConnections} from '@/hooks/use-connections'
+import {connectToHost} from '@/lib/ssh'
 
 interface Command {
   id: string

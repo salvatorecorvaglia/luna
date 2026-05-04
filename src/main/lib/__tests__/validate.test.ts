@@ -1,11 +1,11 @@
-import { describe, it, expect } from 'vitest'
+import {describe, expect, it} from 'vitest'
 import {
-  assertNonEmptyString,
-  assertBoundedInt,
-  assertValidPath,
-  assertSafeAbsolutePath,
-  sanitizeStartupCommand,
-  MAX_STARTUP_COMMAND_LEN
+    assertBoundedInt,
+    assertNonEmptyString,
+    assertSafeAbsolutePath,
+    assertValidPath,
+    MAX_STARTUP_COMMAND_LEN,
+    sanitizeStartupCommand
 } from '../validate'
 
 describe('assertNonEmptyString', () => {

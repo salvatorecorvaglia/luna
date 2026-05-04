@@ -1,6 +1,6 @@
-import { useEffect } from 'react'
-import { useTransferStore } from '@/stores/transfer-store'
-import { useInvalidateSftp, useInvalidateLocalDir } from '@/hooks/use-sftp'
+import {useEffect} from 'react'
+import {useTransferStore} from '@/stores/transfer-store'
+import {useInvalidateLocalDir, useInvalidateSftp} from '@/hooks/use-sftp'
 
 /**
  * Subscribes to IPC transfer events (progress, complete, error) and

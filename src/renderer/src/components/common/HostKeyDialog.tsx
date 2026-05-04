@@ -1,10 +1,10 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { ShieldAlert, ShieldCheck, Fingerprint, Copy, Check } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { toast } from 'sonner'
-import type { SshHostKeyChangeEvent } from '@shared/types/terminal'
-import { connectToHost } from '@/lib/ssh'
+import {useCallback, useEffect, useRef, useState} from 'react'
+import {AnimatePresence, motion} from 'framer-motion'
+import {Check, Copy, Fingerprint, ShieldAlert, ShieldCheck} from 'lucide-react'
+import {cn} from '@/lib/utils'
+import {toast} from 'sonner'
+import type {SshHostKeyChangeEvent} from '@shared/types/terminal'
+import {connectToHost} from '@/lib/ssh'
 
 const overlayVariants = {
   initial: { opacity: 0 },

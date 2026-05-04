@@ -1,4 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import {beforeEach, describe, expect, it, vi} from 'vitest'
+import {registerCredentialHandlers} from '../credentials.ipc'
+import {IPC} from '@shared/constants'
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>()
 
@@ -27,9 +29,6 @@ vi.mock('../../lib/logger', () => ({
     debug: vi.fn()
   }
 }))
-
-import { registerCredentialHandlers } from '../credentials.ipc'
-import { IPC } from '@shared/constants'
 
 beforeEach(() => {
   handlers.clear()

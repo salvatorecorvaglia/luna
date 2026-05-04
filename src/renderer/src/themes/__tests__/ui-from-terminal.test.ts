@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { deriveUITokens, buildUIThemeTokens } from '../ui-from-terminal'
+import {describe, expect, it} from 'vitest'
+import {buildUIThemeTokens, deriveUITokens} from '../ui-from-terminal'
 
 describe('deriveUITokens', () => {
   it('preserves explicit background and foreground', () => {

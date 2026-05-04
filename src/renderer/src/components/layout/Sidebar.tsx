@@ -1,30 +1,30 @@
-import { useMemo, memo, useRef, useState, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import {memo, useCallback, useMemo, useRef, useState} from 'react'
+import {AnimatePresence, motion} from 'framer-motion'
 import {
-  Plus,
-  Server,
-  Clock,
-  Settings,
-  ChevronRight,
-  ChevronDown,
-  Loader2,
-  Pencil,
-  Trash2,
-  Terminal,
-  FolderClosed,
-  Search,
-  Copy,
-  X
+    ChevronDown,
+    ChevronRight,
+    Clock,
+    Copy,
+    FolderClosed,
+    Loader2,
+    Pencil,
+    Plus,
+    Search,
+    Server,
+    Settings,
+    Terminal,
+    Trash2,
+    X
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { toast } from 'sonner'
-import { useUIStore } from '@/stores/ui-store'
-import { useConnectionStore } from '@/stores/connection-store'
-import { useTerminalStore } from '@/stores/terminal-store'
-import { useConnections, useDeleteConnection } from '@/hooks/use-connections'
-import { connectToHost } from '@/lib/ssh'
-import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu'
-import { ConfirmDialog } from '@/components/common/ConfirmDialog'
+import {cn} from '@/lib/utils'
+import {toast} from 'sonner'
+import {useUIStore} from '@/stores/ui-store'
+import {useConnectionStore} from '@/stores/connection-store'
+import {useTerminalStore} from '@/stores/terminal-store'
+import {useConnections, useDeleteConnection} from '@/hooks/use-connections'
+import {connectToHost} from '@/lib/ssh'
+import {ContextMenu, type ContextMenuItem} from '@/components/common/ContextMenu'
+import {ConfirmDialog} from '@/components/common/ConfirmDialog'
 
 export function Sidebar() {
   const { sidebarOpen, sidebarWidth, setSidebarWidth, setSettingsOpen } = useUIStore()

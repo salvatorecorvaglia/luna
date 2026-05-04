@@ -1,4 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import {beforeEach, describe, expect, it, vi} from 'vitest'
+import {sshManager} from '../ssh-manager'
+
+import {getDatabase} from '../database'
 
 vi.mock('ssh2', () => {
   return {
@@ -41,10 +44,6 @@ vi.mock('../host-key-store', () => ({
 vi.mock('../emit', () => ({
   emitToRenderer: vi.fn()
 }))
-
-import { sshManager } from '../ssh-manager'
-
-import { getDatabase } from '../database'
 
 describe('sshManager', () => {
   beforeEach(() => {

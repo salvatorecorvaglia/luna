@@ -1,10 +1,10 @@
-import { ipcMain, dialog } from 'electron'
-import { readdir, stat, writeFile } from 'fs/promises'
-import { join, basename, resolve, isAbsolute } from 'path'
-import { homedir } from 'os'
-import { IPC } from '@shared/constants'
-import { assertValidPath } from '../lib/validate'
-import type { LocalFileEntry } from '@shared/types/sftp'
+import {dialog, ipcMain} from 'electron'
+import {readdir, stat, writeFile} from 'fs/promises'
+import {basename, isAbsolute, join, resolve} from 'path'
+import {homedir} from 'os'
+import {IPC} from '@shared/constants'
+import {assertValidPath} from '../lib/validate'
+import type {LocalFileEntry} from '@shared/types/sftp'
 
 export function registerShellHandlers(): void {
   ipcMain.handle(IPC.SHELL_READDIR, async (_event, dirPath: string) => {

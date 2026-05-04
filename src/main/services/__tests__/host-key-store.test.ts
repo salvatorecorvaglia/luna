@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import {beforeEach, describe, expect, it, vi} from 'vitest'
+import {updateHostKey, verifyHostKey} from '../host-key-store'
 
 // In-memory shim of the subset of better-sqlite3 used by host-key-store.
 // We avoid loading the native module here because its ABI is compiled for
@@ -28,8 +29,6 @@ const fakeDb = {
 }
 
 vi.mock('../database', () => ({ getDatabase: () => fakeDb }))
-
-import { verifyHostKey, updateHostKey } from '../host-key-store'
 
 beforeEach(() => {
   table.clear()

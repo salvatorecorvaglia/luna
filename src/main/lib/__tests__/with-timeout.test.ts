@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { withTimeout, TimeoutError } from '../with-timeout'
+import {describe, expect, it} from 'vitest'
+import {TimeoutError, withTimeout} from '../with-timeout'
 
 describe('withTimeout', () => {
   it('resolves with the promise value when it wins the race', async () => {

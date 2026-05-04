@@ -1,11 +1,11 @@
-import { stat } from 'fs/promises'
-import { basename } from 'path'
-import { v4 as uuidv4 } from 'uuid'
-import { IPC, LIMITS } from '@shared/constants'
-import type { TransferType } from '@shared/types/transfer'
-import { sftpManager } from './sftp-manager'
-import { emitToRenderer } from './emit'
-import { AbortError } from '../lib/errors'
+import {stat} from 'fs/promises'
+import {basename} from 'path'
+import {v4 as uuidv4} from 'uuid'
+import {IPC, LIMITS} from '@shared/constants'
+import type {TransferType} from '@shared/types/transfer'
+import {sftpManager} from './sftp-manager'
+import {emitToRenderer} from './emit'
+import {AbortError} from '../lib/errors'
 
 interface QueuedTransfer {
   id: string

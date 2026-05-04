@@ -1,7 +1,7 @@
-import { app } from 'electron'
-import { autoUpdater } from 'electron-updater'
-import { IPC } from '@shared/constants'
-import { emitToRenderer } from './emit'
+import {app} from 'electron'
+import {autoUpdater} from 'electron-updater'
+import {IPC} from '@shared/constants'
+import {emitToRenderer} from './emit'
 import log from '../lib/logger'
 
 let updateAvailable = false

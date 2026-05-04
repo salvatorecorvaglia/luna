@@ -1,5 +1,5 @@
-import type { ITheme } from '@xterm/xterm'
-import type { UIThemeTokens } from '../ui-from-terminal'
+import type {ITheme} from '@xterm/xterm'
+import type {UIThemeTokens} from '../ui-from-terminal'
 
 export const nordUIOverrides: Partial<UIThemeTokens> = {
   primary: '#88c0d0',

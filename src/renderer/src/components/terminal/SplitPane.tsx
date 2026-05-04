@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback } from 'react'
-import type { PaneNode } from '@shared/types/terminal'
-import { TerminalPane } from './TerminalPane'
+import {useCallback, useRef, useState} from 'react'
+import type {PaneNode} from '@shared/types/terminal'
+import {TerminalPane} from './TerminalPane'
 
 interface SplitPaneProps {
   node: PaneNode

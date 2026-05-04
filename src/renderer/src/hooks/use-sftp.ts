@@ -1,5 +1,5 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import type { SftpEntry, LocalFileEntry } from '@shared/types/sftp'
+import {useQuery, useQueryClient} from '@tanstack/react-query'
+import type {LocalFileEntry, SftpEntry} from '@shared/types/sftp'
 
 export function useSftpDirectory(sessionId: string | null, path: string) {
   return useQuery<SftpEntry[]>({

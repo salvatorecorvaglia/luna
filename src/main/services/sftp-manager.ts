@@ -1,13 +1,13 @@
-import type { SFTPWrapper } from 'ssh2'
-import { createWriteStream, createReadStream } from 'fs'
-import { unlink, stat as fsStat } from 'fs/promises'
-import { sshManager } from './ssh-manager'
-import type { SftpEntry } from '@shared/types/sftp'
-import { transferQueue } from './transfer-queue'
-import { LIMITS } from '@shared/constants'
-import { withTimeout, TimeoutError } from '../lib/with-timeout'
+import type {SFTPWrapper} from 'ssh2'
+import {createReadStream, createWriteStream} from 'fs'
+import {stat as fsStat, unlink} from 'fs/promises'
+import {sshManager} from './ssh-manager'
+import type {SftpEntry} from '@shared/types/sftp'
+import {transferQueue} from './transfer-queue'
+import {LIMITS} from '@shared/constants'
+import {TimeoutError, withTimeout} from '../lib/with-timeout'
 import log from '../lib/logger'
-import { SshConnectionError, SftpTransferError, AbortError } from '../lib/errors'
+import {AbortError, SftpTransferError, SshConnectionError} from '../lib/errors'
 
 type StepCallback = (transferred: number, chunk: number, total: number) => void
 

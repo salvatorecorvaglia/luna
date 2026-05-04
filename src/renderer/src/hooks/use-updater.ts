@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { toast } from 'sonner'
+import {useEffect} from 'react'
+import {toast} from 'sonner'
 
 /**
  * Subscribes to auto-update IPC events and displays toast notifications.

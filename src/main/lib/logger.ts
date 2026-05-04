@@ -1,5 +1,5 @@
 import log from 'electron-log/main'
-import { redact } from './redact'
+import {redact} from './redact'
 
 log.initialize()
 

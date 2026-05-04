@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electron'
+import {BrowserWindow} from 'electron'
 
 /** Broadcast a message to all renderer windows. */
 export function emitToRenderer(channel: string, data: unknown): void {

@@ -1,18 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import {
-  ChevronRight,
-  Home,
-  RefreshCw,
-  ArrowUp,
-  Eye,
-  EyeOff,
-  FolderPlus,
-  Search,
-  X
-} from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { FileList } from './FileList'
-import type { FileEntry } from '@shared/types/sftp'
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {ArrowUp, ChevronRight, Eye, EyeOff, FolderPlus, Home, RefreshCw, Search, X} from 'lucide-react'
+import {cn} from '@/lib/utils'
+import {FileList} from './FileList'
+import type {FileEntry} from '@shared/types/sftp'
 
 export type { FileEntry }
 

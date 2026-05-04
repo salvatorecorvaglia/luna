@@ -1,34 +1,29 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useState, useEffect, useCallback, useRef, useId } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import {useCallback, useEffect, useId, useRef, useState} from 'react'
+import {AnimatePresence, motion} from 'framer-motion'
 import {
-  X,
-  Server,
-  Key,
-  Lock,
-  User,
-  Globe,
-  Hash,
-  FileKey,
-  Palette,
-  Terminal as TerminalIcon,
-  Eye,
-  EyeOff,
-  Loader2,
-  Check,
-  FolderClosed,
-  Wifi
+    Check,
+    Eye,
+    EyeOff,
+    FileKey,
+    FolderClosed,
+    Globe,
+    Hash,
+    Key,
+    Loader2,
+    Lock,
+    Palette,
+    Server,
+    Terminal as TerminalIcon,
+    User,
+    Wifi,
+    X
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { useConnectionStore } from '@/stores/connection-store'
-import {
-  useCreateConnection,
-  useUpdateConnection,
-  useConnection,
-  useConnections
-} from '@/hooks/use-connections'
-import type { AuthType } from '@shared/types/connection'
-import { toast } from 'sonner'
+import {cn} from '@/lib/utils'
+import {useConnectionStore} from '@/stores/connection-store'
+import {useConnection, useConnections, useCreateConnection, useUpdateConnection} from '@/hooks/use-connections'
+import type {AuthType} from '@shared/types/connection'
+import {toast} from 'sonner'
 
 const AUTH_TYPES: { value: AuthType; label: string; icon: React.ReactNode }[] = [
   { value: 'password', label: 'Password', icon: <Lock className="h-4 w-4" /> },

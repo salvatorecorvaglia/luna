@@ -1,5 +1,5 @@
-import { safeStorage } from 'electron'
-import { getDatabase } from './database'
+import {safeStorage} from 'electron'
+import {getDatabase} from './database'
 import log from '../lib/logger'
 
 // The credentials table is created by migration 004_known_hosts_and_credentials.

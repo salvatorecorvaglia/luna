@@ -1,6 +1,6 @@
-import { TitleBar } from './TitleBar'
-import { Sidebar } from './Sidebar'
-import { StatusBar } from './StatusBar'
+import {TitleBar} from './TitleBar'
+import {Sidebar} from './Sidebar'
+import {StatusBar} from './StatusBar'
 
 interface AppShellProps {
   children: React.ReactNode

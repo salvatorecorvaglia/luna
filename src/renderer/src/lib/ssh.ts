@@ -1,6 +1,6 @@
-import { v4 as uuidv4 } from 'uuid'
-import { toast } from 'sonner'
-import { useTerminalStore } from '@/stores/terminal-store'
+import {v4 as uuidv4} from 'uuid'
+import {toast} from 'sonner'
+import {useTerminalStore} from '@/stores/terminal-store'
 
 /**
  * Connect to a host by connectionId — creates a new terminal session,

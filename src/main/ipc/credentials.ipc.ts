@@ -1,7 +1,7 @@
-import { ipcMain } from 'electron'
-import { IPC } from '@shared/constants'
-import { storeCredential, retrieveCredential, deleteCredential } from '../services/credential-store'
-import { assertNonEmptyString } from '../lib/validate'
+import {ipcMain} from 'electron'
+import {IPC} from '@shared/constants'
+import {deleteCredential, retrieveCredential, storeCredential} from '../services/credential-store'
+import {assertNonEmptyString} from '../lib/validate'
 
 /**
  * Rate-limit credential retrievals so a compromised renderer can't enumerate

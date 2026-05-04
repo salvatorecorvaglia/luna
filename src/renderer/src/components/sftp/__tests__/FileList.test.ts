@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { formatSize, formatDate } from '@/lib/format'
+import {describe, expect, it} from 'vitest'
+import {formatDate, formatSize} from '@/lib/format'
 
 describe('formatSize', () => {
   it('returns dash for zero bytes', () => {

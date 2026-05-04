@@ -1,12 +1,12 @@
-import { useState, useCallback, useMemo, memo } from 'react'
-import { Plus, X, WifiOff, Loader2, Pencil, Copy, XCircle, ArrowRightToLine } from 'lucide-react'
-import { motion, Reorder } from 'framer-motion'
-import { cn } from '@/lib/utils'
-import { useTerminalStore, type TerminalSession } from '@/stores/terminal-store'
-import { ConfirmDialog } from '@/components/common/ConfirmDialog'
-import { PromptDialog } from '@/components/common/PromptDialog'
-import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu'
-import { connectToHost } from '@/lib/ssh'
+import {memo, useCallback, useMemo, useState} from 'react'
+import {ArrowRightToLine, Copy, Loader2, Pencil, Plus, WifiOff, X, XCircle} from 'lucide-react'
+import {motion, Reorder} from 'framer-motion'
+import {cn} from '@/lib/utils'
+import {type TerminalSession, useTerminalStore} from '@/stores/terminal-store'
+import {ConfirmDialog} from '@/components/common/ConfirmDialog'
+import {PromptDialog} from '@/components/common/PromptDialog'
+import {ContextMenu, type ContextMenuItem} from '@/components/common/ContextMenu'
+import {connectToHost} from '@/lib/ssh'
 
 interface TerminalTabsProps {
   onNewTab: () => void

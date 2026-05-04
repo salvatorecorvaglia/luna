@@ -1,11 +1,11 @@
-import { useCallback, useEffect } from 'react'
-import { Terminal, Plus } from 'lucide-react'
-import { useTerminalStore } from '@/stores/terminal-store'
-import { useConnectionStore } from '@/stores/connection-store'
-import { terminalThemes } from '@/themes/terminal'
-import { connectToHost } from '@/lib/ssh'
-import { TerminalTabs } from './TerminalTabs'
-import { SplitPane } from './SplitPane'
+import {useCallback, useEffect} from 'react'
+import {Plus, Terminal} from 'lucide-react'
+import {useTerminalStore} from '@/stores/terminal-store'
+import {useConnectionStore} from '@/stores/connection-store'
+import {terminalThemes} from '@/themes/terminal'
+import {connectToHost} from '@/lib/ssh'
+import {TerminalTabs} from './TerminalTabs'
+import {SplitPane} from './SplitPane'
 
 export { connectToHost }
 

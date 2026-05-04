@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { AlertTriangle } from 'lucide-react'
+import {useEffect, useRef} from 'react'
+import {AnimatePresence, motion} from 'framer-motion'
+import {AlertTriangle} from 'lucide-react'
 
 interface ConfirmDialogProps {
   open: boolean

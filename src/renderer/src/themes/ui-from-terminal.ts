@@ -1,13 +1,13 @@
-import type { ITheme } from '@xterm/xterm'
-import type { TerminalThemeName } from '@shared/types/terminal'
-import { terminalThemes } from './terminal'
-import { draculaUIOverrides } from './terminal/dracula'
-import { nordUIOverrides } from './terminal/nord'
-import { tokyoNightUIOverrides } from './terminal/tokyo-night'
-import { solarizedDarkUIOverrides } from './terminal/solarized-dark'
-import { gruvboxUIOverrides } from './terminal/gruvbox'
-import { oneDarkUIOverrides } from './terminal/one-dark'
-import { monokaiUIOverrides } from './terminal/monokai'
+import type {ITheme} from '@xterm/xterm'
+import type {TerminalThemeName} from '@shared/types/terminal'
+import {terminalThemes} from './terminal'
+import {draculaUIOverrides} from './terminal/dracula'
+import {nordUIOverrides} from './terminal/nord'
+import {tokyoNightUIOverrides} from './terminal/tokyo-night'
+import {solarizedDarkUIOverrides} from './terminal/solarized-dark'
+import {gruvboxUIOverrides} from './terminal/gruvbox'
+import {oneDarkUIOverrides} from './terminal/one-dark'
+import {monokaiUIOverrides} from './terminal/monokai'
 
 export interface UIThemeTokens {
   background: string

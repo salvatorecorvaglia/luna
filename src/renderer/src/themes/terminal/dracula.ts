@@ -1,5 +1,5 @@
-import type { ITheme } from '@xterm/xterm'
-import type { UIThemeTokens } from '../ui-from-terminal'
+import type {ITheme} from '@xterm/xterm'
+import type {UIThemeTokens} from '../ui-from-terminal'
 
 export const draculaUIOverrides: Partial<UIThemeTokens> = {
   primary: '#bd93f9',

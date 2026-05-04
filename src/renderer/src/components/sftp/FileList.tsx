@@ -1,25 +1,25 @@
-import { useMemo, useState, useRef, useCallback } from 'react'
-import { useVirtualizer } from '@tanstack/react-virtual'
+import {useCallback, useMemo, useRef, useState} from 'react'
+import {useVirtualizer} from '@tanstack/react-virtual'
 import {
-  Folder,
-  File,
-  FileText,
-  FileImage,
-  FileCode,
-  FileArchive,
-  ChevronUp,
-  ChevronDown,
-  Link2,
-  FolderOpen,
-  Pencil,
-  Trash2,
-  Copy,
-  Eye
+    ChevronDown,
+    ChevronUp,
+    Copy,
+    Eye,
+    File,
+    FileArchive,
+    FileCode,
+    FileImage,
+    FileText,
+    Folder,
+    FolderOpen,
+    Link2,
+    Pencil,
+    Trash2
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { formatSize, formatDate } from '@/lib/format'
-import type { FileEntry } from '@shared/types/sftp'
-import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu'
+import {cn} from '@/lib/utils'
+import {formatDate, formatSize} from '@/lib/format'
+import type {FileEntry} from '@shared/types/sftp'
+import {ContextMenu, type ContextMenuItem} from '@/components/common/ContextMenu'
 
 type SortField = 'name' | 'size' | 'modifiedAt'
 type SortDir = 'asc' | 'desc'

@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { useSftpStore } from '../sftp-store'
+import {beforeEach, describe, expect, it} from 'vitest'
+import {useSftpStore} from '../sftp-store'
 
 describe('sftp-store', () => {
   beforeEach(() => {

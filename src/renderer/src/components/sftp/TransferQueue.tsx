@@ -1,23 +1,23 @@
-import { memo } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import {memo} from 'react'
+import {AnimatePresence, motion} from 'framer-motion'
 import {
-  Upload,
-  Download,
-  X,
-  ChevronUp,
-  ChevronDown,
-  CheckCircle2,
-  AlertCircle,
-  Loader2,
-  Trash2,
-  RotateCw
+    AlertCircle,
+    CheckCircle2,
+    ChevronDown,
+    ChevronUp,
+    Download,
+    Loader2,
+    RotateCw,
+    Trash2,
+    Upload,
+    X
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { useTransferStore } from '@/stores/transfer-store'
-import { cancelTransfer } from '@/hooks/use-transfers'
-import type { TransferItem } from '@shared/types/transfer'
-import { toast } from 'sonner'
-import { formatSize, formatSpeed, formatEta } from '@/lib/format'
+import {cn} from '@/lib/utils'
+import {useTransferStore} from '@/stores/transfer-store'
+import {cancelTransfer} from '@/hooks/use-transfers'
+import type {TransferItem} from '@shared/types/transfer'
+import {toast} from 'sonner'
+import {formatEta, formatSize, formatSpeed} from '@/lib/format'
 
 export function TransferQueue() {
   const {

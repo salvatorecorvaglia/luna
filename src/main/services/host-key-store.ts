@@ -1,5 +1,5 @@
-import { createHash } from 'crypto'
-import { getDatabase } from './database'
+import {createHash} from 'crypto'
+import {getDatabase} from './database'
 
 export function fingerprintKey(key: Buffer): string {
   return createHash('sha256').update(key).digest('base64')

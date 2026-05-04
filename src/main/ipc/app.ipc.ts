@@ -1,6 +1,6 @@
-import { ipcMain, app, shell, BrowserWindow, type WebContents } from 'electron'
-import { IPC } from '@shared/constants'
-import { checkForUpdate, installUpdate } from '../services/updater'
+import {app, BrowserWindow, ipcMain, shell, type WebContents} from 'electron'
+import {IPC} from '@shared/constants'
+import {checkForUpdate, installUpdate} from '../services/updater'
 import log from '../lib/logger'
 
 let mainWindowRef: BrowserWindow | null = null

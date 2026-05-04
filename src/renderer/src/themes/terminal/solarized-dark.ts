@@ -1,5 +1,5 @@
-import type { ITheme } from '@xterm/xterm'
-import type { UIThemeTokens } from '../ui-from-terminal'
+import type {ITheme} from '@xterm/xterm'
+import type {UIThemeTokens} from '../ui-from-terminal'
 
 export const solarizedDarkUIOverrides: Partial<UIThemeTokens> = {
   primary: '#268bd2',

@@ -1,7 +1,7 @@
-import { Wifi, WifiOff, Upload, Activity } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { useTerminalStore } from '@/stores/terminal-store'
-import { useTransferStore } from '@/stores/transfer-store'
+import {Activity, Upload, Wifi, WifiOff} from 'lucide-react'
+import {cn} from '@/lib/utils'
+import {useTerminalStore} from '@/stores/terminal-store'
+import {useTransferStore} from '@/stores/transfer-store'
 
 export function StatusBar() {
   const sessions = useTerminalStore((s) => s.sessions)

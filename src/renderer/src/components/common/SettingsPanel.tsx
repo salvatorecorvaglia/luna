@@ -1,22 +1,12 @@
-import { motion, AnimatePresence } from 'framer-motion'
-import { useEffect, useState, useCallback, useRef, useId } from 'react'
-import {
-  X,
-  Monitor,
-  Terminal,
-  Upload,
-  Download,
-  Wifi,
-  Info,
-  Database,
-  FileText
-} from 'lucide-react'
-import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
-import { useUIStore } from '@/stores/ui-store'
-import { useTerminalStore } from '@/stores/terminal-store'
-import type { TerminalThemeName } from '@shared/types/terminal'
-import { DEFAULT_SETTINGS } from '@shared/types/settings'
+import {AnimatePresence, motion} from 'framer-motion'
+import {useCallback, useEffect, useId, useRef, useState} from 'react'
+import {Database, Download, FileText, Info, Monitor, Terminal, Upload, Wifi, X} from 'lucide-react'
+import {toast} from 'sonner'
+import {cn} from '@/lib/utils'
+import {useUIStore} from '@/stores/ui-store'
+import {useTerminalStore} from '@/stores/terminal-store'
+import type {TerminalThemeName} from '@shared/types/terminal'
+import {DEFAULT_SETTINGS} from '@shared/types/settings'
 import lunarLogo from '../../../../../resources/lunar.png'
 
 const TERMINAL_THEMES: {

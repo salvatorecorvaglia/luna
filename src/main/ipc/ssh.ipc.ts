@@ -1,8 +1,8 @@
-import { ipcMain } from 'electron'
-import { IPC } from '@shared/constants'
-import { sshManager } from '../services/ssh-manager'
-import { assertNonEmptyString, assertBoundedInt } from '../lib/validate'
-import type { SshConnectParams, SshSendDataParams, SshResizeParams } from '@shared/types/terminal'
+import {ipcMain} from 'electron'
+import {IPC} from '@shared/constants'
+import {sshManager} from '../services/ssh-manager'
+import {assertBoundedInt, assertNonEmptyString} from '../lib/validate'
+import type {SshConnectParams, SshResizeParams, SshSendDataParams} from '@shared/types/terminal'
 
 export function registerSshHandlers(): void {
   ipcMain.handle(IPC.SSH_CONNECT, async (_event, params: SshConnectParams) => {

@@ -1,26 +1,26 @@
-import type { Connection, CreateConnectionInput, UpdateConnectionInput } from './connection'
+import type {Connection, CreateConnectionInput, UpdateConnectionInput} from './connection'
 import type {
-  SshConnectParams,
-  SshConnectResult,
-  SshDataEvent,
-  SshCloseEvent,
-  SshErrorEvent,
-  SshStatusEvent,
-  SshResizeParams,
-  SshSendDataParams
+    SshCloseEvent,
+    SshConnectParams,
+    SshConnectResult,
+    SshDataEvent,
+    SshErrorEvent,
+    SshResizeParams,
+    SshSendDataParams,
+    SshStatusEvent
 } from './terminal'
 import type {
-  SftpEntry,
-  SftpListParams,
-  SftpMkdirParams,
-  SftpRenameParams,
-  SftpDeleteParams,
-  SftpReadFileParams,
-  SftpTransferParams,
-  LocalFileEntry
+    LocalFileEntry,
+    SftpDeleteParams,
+    SftpEntry,
+    SftpListParams,
+    SftpMkdirParams,
+    SftpReadFileParams,
+    SftpRenameParams,
+    SftpTransferParams
 } from './sftp'
-import type { TransferProgressEvent, TransferCompleteEvent, TransferErrorEvent } from './transfer'
-import type { AppSettings } from './settings'
+import type {TransferCompleteEvent, TransferErrorEvent, TransferProgressEvent} from './transfer'
+import type {AppSettings} from './settings'
 
 // Request-response IPC (invoke/handle)
 export interface IpcHandlerMap {

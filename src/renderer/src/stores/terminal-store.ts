@@ -1,5 +1,5 @@
-import { create } from 'zustand'
-import type { PaneNode, SessionStatus, TerminalThemeName } from '@shared/types/terminal'
+import {create} from 'zustand'
+import type {PaneNode, SessionStatus, TerminalThemeName} from '@shared/types/terminal'
 
 const VALID_THEMES: TerminalThemeName[] = [
   'dracula',

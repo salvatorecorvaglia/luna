@@ -1,21 +1,16 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
-import { toast } from 'sonner'
-import { Unplug, Plus, WifiOff } from 'lucide-react'
-import { useSftpStore } from '@/stores/sftp-store'
-import { useTerminalStore } from '@/stores/terminal-store'
-import { useTransferStore } from '@/stores/transfer-store'
-import { useConnectionStore } from '@/stores/connection-store'
-import {
-  useSftpDirectory,
-  useLocalDirectory,
-  useInvalidateSftp,
-  useInvalidateLocalDir
-} from '@/hooks/use-sftp'
-import { FilePane, type FileEntry } from './FilePane'
-import { TransferQueue } from './TransferQueue'
-import { FilePreview } from './FilePreview'
-import { PromptDialog } from '@/components/common/PromptDialog'
-import { ConfirmDialog } from '@/components/common/ConfirmDialog'
+import {useCallback, useEffect, useRef, useState} from 'react'
+import {toast} from 'sonner'
+import {Plus, Unplug, WifiOff} from 'lucide-react'
+import {useSftpStore} from '@/stores/sftp-store'
+import {useTerminalStore} from '@/stores/terminal-store'
+import {useTransferStore} from '@/stores/transfer-store'
+import {useConnectionStore} from '@/stores/connection-store'
+import {useInvalidateLocalDir, useInvalidateSftp, useLocalDirectory, useSftpDirectory} from '@/hooks/use-sftp'
+import {type FileEntry, FilePane} from './FilePane'
+import {TransferQueue} from './TransferQueue'
+import {FilePreview} from './FilePreview'
+import {PromptDialog} from '@/components/common/PromptDialog'
+import {ConfirmDialog} from '@/components/common/ConfirmDialog'
 
 export function SftpManager() {
   const localPath = useSftpStore((s) => s.localPath)

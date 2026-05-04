@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { LIMITS } from '@shared/constants'
+import {beforeEach, describe, expect, it, vi} from 'vitest'
+import {LIMITS} from '@shared/constants'
+import {transferQueue} from '../transfer-queue'
 
 // Mock peers before importing the module under test. We make stream operations
 // hang forever so transfers stay either queued or active for the duration of a
@@ -19,8 +20,6 @@ vi.mock('fs/promises', () => ({
 vi.mock('../emit', () => ({
   emitToRenderer: vi.fn()
 }))
-
-import { transferQueue } from '../transfer-queue'
 
 // The TransferQueue is a module-level singleton. Reach into private state to
 // reset it between tests so each test starts from a clean slate.

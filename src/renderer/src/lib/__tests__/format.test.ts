@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { formatSize, formatSpeed, formatEta } from '../format'
+import {describe, expect, it} from 'vitest'
+import {formatEta, formatSize, formatSpeed} from '../format'
 
 describe('formatSize', () => {
   it('returns em-dash for non-positive byte counts', () => {

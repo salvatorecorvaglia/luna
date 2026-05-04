@@ -1,15 +1,7 @@
-import { useState, useEffect } from 'react'
-import {
-  Minus,
-  Maximize2,
-  Minimize2,
-  X,
-  Terminal,
-  FolderOpen,
-  PanelLeft
-} from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { useUIStore } from '@/stores/ui-store'
+import {useEffect, useState} from 'react'
+import {FolderOpen, Maximize2, Minimize2, Minus, PanelLeft, Terminal, X} from 'lucide-react'
+import {cn} from '@/lib/utils'
+import {useUIStore} from '@/stores/ui-store'
 
 export function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false)

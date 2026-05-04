@@ -1,4 +1,4 @@
-import { isAbsolute, resolve as resolvePath } from 'path'
+import {isAbsolute, resolve as resolvePath} from 'path'
 
 export function assertNonEmptyString(value: unknown, name: string): asserts value is string {
   if (typeof value !== 'string' || value.trim().length === 0) {

@@ -1,8 +1,8 @@
 import Database from 'better-sqlite3'
-import { app } from 'electron'
-import { join } from 'path'
-import { existsSync, mkdirSync } from 'fs'
-import type { AuthType } from '@shared/types/connection'
+import {app} from 'electron'
+import {join} from 'path'
+import {existsSync, mkdirSync} from 'fs'
+import type {AuthType} from '@shared/types/connection'
 import log from '../lib/logger'
 
 /** Shape of a row in the `connections` table (snake_case DB columns). */

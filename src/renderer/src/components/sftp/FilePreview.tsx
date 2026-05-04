@@ -1,7 +1,7 @@
-import { useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { X, FileImage, FileCode } from 'lucide-react'
-import { useSftpStore } from '@/stores/sftp-store'
+import {useEffect} from 'react'
+import {AnimatePresence, motion} from 'framer-motion'
+import {FileCode, FileImage, X} from 'lucide-react'
+import {useSftpStore} from '@/stores/sftp-store'
 
 function detectLanguage(name: string): string {
   const ext = name.split('.').pop()?.toLowerCase()

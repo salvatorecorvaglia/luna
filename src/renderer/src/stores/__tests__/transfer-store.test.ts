@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { useTransferStore } from '../transfer-store'
-import type { TransferItem } from '@shared/types/transfer'
+import {beforeEach, describe, expect, it} from 'vitest'
+import {useTransferStore} from '../transfer-store'
+import type {TransferItem} from '@shared/types/transfer'
 
 function makeTransfer(overrides: Partial<TransferItem> = {}): TransferItem {
   return {

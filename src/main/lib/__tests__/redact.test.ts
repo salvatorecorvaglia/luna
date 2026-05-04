@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { redact, redactString } from '../redact'
+import {describe, expect, it} from 'vitest'
+import {redact, redactString} from '../redact'
 
 describe('redactString', () => {
   it('redacts password=… style fragments', () => {
