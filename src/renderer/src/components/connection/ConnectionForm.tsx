@@ -14,7 +14,6 @@ import {
   Lock,
   Palette,
   Server,
-  Terminal as TerminalIcon,
   User,
   Wifi,
   X,
