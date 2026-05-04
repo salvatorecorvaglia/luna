@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { IPC, LIMITS } from '@shared/constants';
 import { emitToRenderer } from './emit';
 import type { SessionStatus } from '@shared/types/terminal';
+import type { AuthType } from '@shared/types/connection';
 import { type ConnectionRow, getDatabase, getSetting } from './database';
 import { retrieveCredential } from './credential-store';
 import { fingerprintKey, getStoredHostKey, updateHostKey, verifyHostKey } from './host-key-store';
@@ -92,40 +93,48 @@ class SshManager {
   }
 
   /**
-   * Build a ConnectConfig from a saved connection row. Extracted so both
+   * Build a ConnectConfig from raw parameters. Extracted so both
    * `connect()` and `testConnection()` share the same auth + hostVerifier logic.
    */
   private async buildConnectConfig(
-    row: ConnectionRow,
-    connectionId: string,
+    params: {
+      host: string;
+      port: number;
+      username: string;
+      authType: AuthType;
+      privateKeyPath?: string | null;
+      password?: string;
+      passphrase?: string;
+    },
+    connectionId?: string,
     sessionId?: string,
   ): Promise<{ config: ConnectConfig; error?: string }> {
     const config: ConnectConfig = {
-      host: row.host,
-      port: row.port,
-      username: row.username,
+      host: params.host,
+      port: params.port,
+      username: params.username,
       keepaliveInterval: getSetting('ssh.keepAliveInterval', 10000),
       keepaliveCountMax: 3,
       readyTimeout: getSetting('ssh.readyTimeout', 30000),
       hostVerifier: (key: Buffer) => {
         const algorithm = parseHostKeyAlgorithm(key);
-        const result = verifyHostKey(row.host, row.port, key, algorithm);
+        const result = verifyHostKey(params.host, params.port, key, algorithm);
         if (!result.trusted) {
-          const stored = getStoredHostKey(row.host, row.port);
-          this.rememberPendingHostKey(row.host, row.port, key, algorithm);
+          const stored = getStoredHostKey(params.host, params.port);
+          this.rememberPendingHostKey(params.host, params.port, key, algorithm);
           emitToRenderer(IPC.SSH_ON_HOST_KEY_CHANGE, {
             sessionId: sessionId ?? '',
-            connectionId,
-            host: row.host,
-            port: row.port,
+            connectionId: connectionId ?? '',
+            host: params.host,
+            port: params.port,
             storedFingerprint: stored?.fingerprint ?? '',
             newFingerprint: fingerprintKey(key),
             algorithm,
             isFirst: result.isFirst,
           });
           const reason = result.isFirst
-            ? `Unknown host ${row.host}:${row.port}. Verify the ${algorithm} fingerprint before trusting.`
-            : `Host key for ${row.host}:${row.port} has changed. Confirm the new fingerprint before reconnecting.`;
+            ? `Unknown host ${params.host}:${params.port}. Verify the ${algorithm} fingerprint before trusting.`
+            : `Host key for ${params.host}:${params.port} has changed. Confirm the new fingerprint before reconnecting.`;
           emitToRenderer(IPC.SSH_ON_ERROR, { sessionId: sessionId ?? '', error: reason });
         }
         return result.trusted;
@@ -133,19 +142,23 @@ class SshManager {
     };
 
     // Set up auth
-    const credential = retrieveCredential(connectionId);
+    // If we have a password/passphrase in params, use them directly (testing unsaved)
+    // Otherwise try to retrieve from store if we have a connectionId
+    const password = params.password ?? (connectionId ? retrieveCredential(connectionId) : undefined);
+    const passphrase =
+      params.passphrase ?? (connectionId ? retrieveCredential(connectionId) : undefined);
 
-    if (row.auth_type === 'password') {
-      config.password = credential || undefined;
-    } else if (row.auth_type === 'key' || row.auth_type === 'key+passphrase') {
-      if (!row.private_key_path) {
+    if (params.authType === 'password') {
+      config.password = password || undefined;
+    } else if (params.authType === 'key' || params.authType === 'key+passphrase') {
+      if (!params.privateKeyPath) {
         return { config, error: 'Private key path not configured' };
       }
       try {
-        const keyPath = row.private_key_path.replace(/^~/, process.env.HOME || '');
+        const keyPath = params.privateKeyPath.replace(/^~/, process.env.HOME || '');
         config.privateKey = await readFile(keyPath);
-        if (row.auth_type === 'key+passphrase' && credential) {
-          config.passphrase = credential;
+        if (params.authType === 'key+passphrase' && passphrase) {
+          config.passphrase = passphrase;
         }
       } catch (err: unknown) {
         return {
@@ -191,7 +204,13 @@ class SshManager {
     this.setStatus(session, 'connecting');
 
     const { config: connectConfig, error: configError } = await this.buildConnectConfig(
-      row,
+      {
+        host: row.host,
+        port: row.port,
+        username: row.username,
+        authType: row.auth_type,
+        privateKeyPath: row.private_key_path,
+      },
       connectionId,
       sessionId,
     );
@@ -467,17 +486,54 @@ class SshManager {
   }
 
   /**
-   * Open a transient SSH connection using a saved connection's config, then close it.
-   * Uses the shared buildConnectConfig so the hostVerifier (TOFU) is active (B2 fix).
+   * Open a transient SSH connection to test settings.
+   * Can be used with an existing connectionId or with raw configuration.
    */
-  async testConnection(connectionId: string): Promise<{ ok: boolean; error?: string }> {
-    const db = getDatabase();
-    const row = db.prepare('SELECT * FROM connections WHERE id = ?').get(connectionId) as
-      | ConnectionRow
-      | undefined;
-    if (!row) return { ok: false, error: 'Connection not found' };
+  async testConnection(params: {
+    connectionId?: string;
+    config?: {
+      host: string;
+      port: number;
+      username: string;
+      authType: AuthType;
+      privateKeyPath?: string;
+      password?: string;
+      passphrase?: string;
+    };
+  }): Promise<{ ok: boolean; error?: string }> {
+    let host: string, port: number, username: string, authType: AuthType;
+    let privateKeyPath: string | undefined;
+    let password: string | undefined;
+    let passphrase: string | undefined;
 
-    const { config, error: configError } = await this.buildConnectConfig(row, connectionId);
+    if (params.config) {
+      host = params.config.host;
+      port = params.config.port;
+      username = params.config.username;
+      authType = params.config.authType;
+      privateKeyPath = params.config.privateKeyPath;
+      password = params.config.password;
+      passphrase = params.config.passphrase;
+    } else if (params.connectionId) {
+      const db = getDatabase();
+      const row = db.prepare('SELECT * FROM connections WHERE id = ?').get(params.connectionId) as
+        | ConnectionRow
+        | undefined;
+      if (!row) return { ok: false, error: 'Connection not found' };
+
+      host = row.host;
+      port = row.port;
+      username = row.username;
+      authType = row.auth_type;
+      privateKeyPath = row.private_key_path || undefined;
+    } else {
+      return { ok: false, error: 'Invalid test parameters' };
+    }
+
+    const { config, error: configError } = await this.buildConnectConfig(
+      { host, port, username, authType, privateKeyPath, password, passphrase },
+      params.connectionId,
+    );
     if (configError) return { ok: false, error: configError };
 
     return new Promise((resolve) => {
@@ -489,8 +545,6 @@ class SshManager {
         try {
           client.removeAllListeners();
           client.end();
-          // Force-tear-down the underlying socket so a hung handshake doesn't
-          // leak a connection past the timeout window.
           client.destroy();
         } catch {
           // ignore

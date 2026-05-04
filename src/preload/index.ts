@@ -15,11 +15,7 @@ import type {
   TransferErrorEvent,
   TransferProgressEvent,
 } from '@shared/types/transfer';
-import type {
-  CreateConnectionInput,
-  ExportedConnection,
-  UpdateConnectionInput,
-} from '@shared/types/connection';
+import type { AuthType, CreateConnectionInput, ExportedConnection, UpdateConnectionInput } from '@shared/types/connection';
 import type {
   SftpDeleteParams,
   SftpListParams,
@@ -77,7 +73,18 @@ const api = {
   // SSH sessions
   ssh: {
     connect: (params: SshConnectParams) => ipcRenderer.invoke(IPC.SSH_CONNECT, params),
-    testConnection: (params: { connectionId: string }) =>
+    testConnection: (params: {
+      connectionId?: string;
+      config?: {
+        host: string;
+        port: number;
+        username: string;
+        authType: AuthType;
+        privateKeyPath?: string;
+        password?: string;
+        passphrase?: string;
+      };
+    }) =>
       ipcRenderer.invoke(IPC.SSH_TEST_CONNECTION, params) as Promise<{
         ok: boolean;
         error?: string;

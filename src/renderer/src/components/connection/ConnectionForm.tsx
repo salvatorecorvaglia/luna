@@ -247,13 +247,24 @@ export function ConnectionForm() {
   }
 
   async function handleTest() {
-    if (!isEditing || !editingConnectionId) {
-      toast.info('Save the connection first, then test it');
+    if (!host.trim() || !username.trim()) {
+      toast.error('Host and Username are required to test');
       return;
     }
     setTesting(true);
     try {
-      const result = await window.api.ssh.testConnection({ connectionId: editingConnectionId });
+      const result = await window.api.ssh.testConnection({
+        connectionId: editingConnectionId || undefined,
+        config: {
+          host: host.trim(),
+          port: parseInt(port) || 22,
+          username: username.trim(),
+          authType,
+          privateKeyPath: privateKeyPath || undefined,
+          password: password || undefined,
+          passphrase: passphrase || undefined,
+        },
+      });
       if (result.ok) {
         toast.success('Connection successful');
       } else {
@@ -714,23 +725,19 @@ export function ConnectionForm() {
 
                 {/* Actions */}
                 <div className="flex items-center justify-between gap-2 pt-2">
-                  {isEditing ? (
-                    <button
-                      type="button"
-                      onClick={handleTest}
-                      disabled={testing}
-                      className="btn-ghost"
-                    >
-                      {testing ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Wifi className="h-3.5 w-3.5" />
-                      )}
-                      {testing ? 'Testing...' : 'Test connection'}
-                    </button>
-                  ) : (
-                    <span />
-                  )}
+                  <button
+                    type="button"
+                    onClick={handleTest}
+                    disabled={testing}
+                    className="btn-ghost"
+                  >
+                    {testing ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Wifi className="h-3.5 w-3.5" />
+                    )}
+                    {testing ? 'Testing...' : 'Test connection'}
+                  </button>
                   <div className="flex gap-2">
                     <button type="button" onClick={closeForm} className="btn-ghost">
                       Cancel

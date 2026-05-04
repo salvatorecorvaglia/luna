@@ -3,6 +3,7 @@ import { IPC } from '@shared/constants';
 import { sshManager } from '../services/ssh-manager';
 import { assertBoundedInt, assertNonEmptyString } from '../lib/validate';
 import type { SshConnectParams, SshResizeParams, SshSendDataParams } from '@shared/types/terminal';
+import type { AuthType } from '@shared/types/connection';
 
 export function registerSshHandlers(): void {
   ipcMain.handle(IPC.SSH_CONNECT, async (_event, params: SshConnectParams) => {
@@ -21,10 +22,26 @@ export function registerSshHandlers(): void {
     sshManager.sendData(params.sessionId, params.data);
   });
 
-  ipcMain.handle(IPC.SSH_TEST_CONNECTION, async (_event, params: { connectionId: string }) => {
-    assertNonEmptyString(params.connectionId, 'connectionId');
-    return sshManager.testConnection(params.connectionId);
-  });
+  ipcMain.handle(
+    IPC.SSH_TEST_CONNECTION,
+    async (
+      _event,
+      params: {
+        connectionId?: string;
+        config?: {
+          host: string;
+          port: number;
+          username: string;
+          authType: AuthType;
+          privateKeyPath?: string;
+          password?: string;
+          passphrase?: string;
+        };
+      },
+    ) => {
+      return sshManager.testConnection(params);
+    },
+  );
 
   ipcMain.handle(IPC.SSH_RESIZE, (_event, params: SshResizeParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
