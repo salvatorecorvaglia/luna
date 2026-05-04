@@ -40,9 +40,9 @@ const AUTH_TYPES: { value: AuthType; label: string; icon: React.ReactNode }[] = 
 ];
 
 const COLOR_OPTIONS: { hex: string; name: string }[] = [
-  { hex: '#22c55e', name: 'Green' },
   { hex: '#3b82f6', name: 'Blue' },
   { hex: '#a855f7', name: 'Purple' },
+  { hex: '#22c55e', name: 'Green' },
   { hex: '#f43f5e', name: 'Rose' },
   { hex: '#f97316', name: 'Orange' },
   { hex: '#eab308', name: 'Yellow' },
