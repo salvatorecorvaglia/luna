@@ -8,7 +8,6 @@ import { type ConnectionRow, getDatabase, getSetting } from './database';
 import { retrieveCredential } from './credential-store';
 import { fingerprintKey, getStoredHostKey, updateHostKey, verifyHostKey } from './host-key-store';
 import { TimeoutError, withTimeout } from '../lib/with-timeout';
-import { sanitizeStartupCommand } from '../lib/validate';
 import log from '../lib/logger';
 
 /**
@@ -258,36 +257,6 @@ class SshManager {
 
           // Store listener refs for cleanup
           session._streamListeners = { onData, onClose, onStderrData };
-
-          // Run startup command after shell is ready (wait for first data from server).
-          // Sanitize defensively in case a record was written before validation existed,
-          // or imported through an older code path.
-          if (row.startup_command) {
-            let safeCmd: string | null = null;
-            try {
-              safeCmd = sanitizeStartupCommand(row.startup_command);
-            } catch (err) {
-              log.warn(
-                `[SSH] Refusing to run unsafe startup_command for ${connectionId}: ${
-                  err instanceof Error ? err.message : String(err)
-                }`,
-              );
-            }
-            if (safeCmd) {
-              const cmd = safeCmd;
-              const startupOnData = (): void => {
-                stream.removeListener('data', startupOnData);
-                stream.removeListener('close', startupOnClose);
-                if (stream.writable) stream.write(cmd + '\n');
-              };
-              const startupOnClose = (): void => {
-                stream.removeListener('data', startupOnData);
-                stream.removeListener('close', startupOnClose);
-              };
-              stream.on('data', startupOnData);
-              stream.on('close', startupOnClose);
-            }
-          }
 
           resolve({ success: true });
         });

@@ -10,7 +10,6 @@ export interface Connection {
   privateKeyPath?: string;
   folder: string;
   colorTag?: string;
-  startupCommand?: string;
   lastConnectedAt?: number;
   createdAt: number;
   updatedAt: number;
@@ -27,7 +26,6 @@ export interface CreateConnectionInput {
   passphrase?: string;
   folder?: string;
   colorTag?: string;
-  startupCommand?: string;
 }
 
 export interface UpdateConnectionInput extends Partial<CreateConnectionInput> {
@@ -44,7 +42,6 @@ export interface ExportedConnection {
   privateKeyPath?: string;
   folder?: string;
   colorTag?: string;
-  startupCommand?: string;
 }
 
 export interface ConnectionHistory {

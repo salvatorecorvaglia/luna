@@ -87,7 +87,6 @@ export function ConnectionForm() {
   const [passphrase, setPassphrase] = useState('');
   const [folder, setFolder] = useState('default');
   const [colorTag, setColorTag] = useState<string>(COLOR_OPTIONS[0].hex);
-  const [startupCommand, setStartupCommand] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showGroupsDropdown, setShowGroupsDropdown] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -151,7 +150,6 @@ export function ConnectionForm() {
     setPassphrase('');
     setFolder('default');
     setColorTag(COLOR_OPTIONS[0].hex);
-    setStartupCommand('');
     setShowPassword(false);
     setTouched({});
   }, []);
@@ -167,7 +165,6 @@ export function ConnectionForm() {
       setPrivateKeyPath(source.privateKeyPath || '');
       setFolder(source.folder);
       setColorTag(source.colorTag || COLOR_OPTIONS[0].hex);
-      setStartupCommand(source.startupCommand || '');
       setPassword('');
       setPassphrase('');
     } else {
@@ -234,7 +231,6 @@ export function ConnectionForm() {
       passphrase: passphrase || undefined,
       folder: folder.trim() || 'default',
       colorTag,
-      startupCommand: startupCommand.trim() || undefined,
     };
 
     try {
@@ -715,23 +711,6 @@ export function ConnectionForm() {
                       </div>
                     )}
                   </div>
-                </FormField>
-
-                {/* Startup Command */}
-                <FormField
-                  label="Startup Command"
-                  icon={<TerminalIcon className="h-3.5 w-3.5" />}
-                  optional
-                  id={`${fieldId}-cmd`}
-                >
-                  <input
-                    id={`${fieldId}-cmd`}
-                    type="text"
-                    value={startupCommand}
-                    onChange={(e) => setStartupCommand(e.target.value)}
-                    placeholder="cd /var/www && ls -la"
-                    className="form-input"
-                  />
                 </FormField>
 
                 {/* Actions */}

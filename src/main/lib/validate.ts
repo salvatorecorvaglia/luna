@@ -41,29 +41,4 @@ export function assertSafeAbsolutePath(value: unknown, name: string): asserts va
   }
 }
 
-/** Hard cap on a saved startup command. */
-export const MAX_STARTUP_COMMAND_LEN = 2000;
 
-/**
- * Validate a user-supplied startup command before persisting it.
- * Allows printable text, tab and newline. Rejects null bytes, other control
- * characters, and over-long input. Returns the trimmed string, or null when
- * input is empty/missing.
- */
-export function sanitizeStartupCommand(value: unknown): string | null {
-  if (value === undefined || value === null) return null;
-  if (typeof value !== 'string') {
-    throw new Error('startupCommand must be a string');
-  }
-  const trimmed = value.replace(/^\s+|\s+$/g, '');
-  if (trimmed.length === 0) return null;
-  if (trimmed.length > MAX_STARTUP_COMMAND_LEN) {
-    throw new Error(`startupCommand exceeds ${MAX_STARTUP_COMMAND_LEN} characters`);
-  }
-  // Disallow control chars except tab (\x09) and newline (\x0A); explicitly reject \0.
-  // eslint-disable-next-line no-control-regex
-  if (/[\x00-\x08\x0B-\x1F\x7F]/.test(trimmed)) {
-    throw new Error('startupCommand contains disallowed control characters');
-  }
-  return trimmed;
-}

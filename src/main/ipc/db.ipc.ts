@@ -11,7 +11,6 @@ import type {
   UpdateConnectionInput,
 } from '@shared/types/connection';
 import { deleteCredential, storeCredential } from '../services/credential-store';
-import { sanitizeStartupCommand } from '../lib/validate';
 import type { AppSettings } from '@shared/types/settings';
 
 const VALID_AUTH_TYPES = ['password', 'key', 'key+passphrase'] as const;
@@ -41,7 +40,6 @@ function rowToConnection(row: ConnectionRow): Connection {
     privateKeyPath: row.private_key_path || undefined,
     folder: row.folder,
     colorTag: row.color_tag || undefined,
-    startupCommand: row.startup_command || undefined,
     lastConnectedAt: row.last_connected_at || undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -74,12 +72,11 @@ export function registerDbHandlers(): void {
 
     const id = uuidv4();
     const now = Math.floor(Date.now() / 1000);
-    const startupCommand = sanitizeStartupCommand(input.startupCommand);
 
     db.prepare(
       `
-      INSERT INTO connections (id, name, host, port, username, auth_type, private_key_path, folder, color_tag, startup_command, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO connections (id, name, host, port, username, auth_type, private_key_path, folder, color_tag, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     ).run(
       id,
@@ -91,7 +88,6 @@ export function registerDbHandlers(): void {
       input.privateKeyPath || null,
       input.folder || 'default',
       input.colorTag || null,
-      startupCommand,
       now,
       now,
     );
@@ -119,7 +115,6 @@ export function registerDbHandlers(): void {
     privateKeyPath: 'private_key_path',
     folder: 'folder',
     colorTag: 'color_tag',
-    startupCommand: 'startup_command',
   };
 
   ipcMain.handle(IPC.CONNECTION_UPDATE, (_event, input: UpdateConnectionInput) => {
@@ -139,9 +134,7 @@ export function registerDbHandlers(): void {
       const raw = (input as unknown as Record<string, unknown>)[key];
       if (raw === undefined) continue;
       let value: string | number | null;
-      if (key === 'startupCommand') {
-        value = sanitizeStartupCommand(raw);
-      } else if (key === 'privateKeyPath' || key === 'colorTag') {
+      if (key === 'privateKeyPath' || key === 'colorTag') {
         value = (raw as string) || null;
       } else {
         value = raw as string | number;
@@ -181,7 +174,6 @@ export function registerDbHandlers(): void {
       ...(row.private_key_path ? { privateKeyPath: row.private_key_path } : {}),
       ...(row.folder && row.folder !== 'default' ? { folder: row.folder } : {}),
       ...(row.color_tag ? { colorTag: row.color_tag } : {}),
-      ...(row.startup_command ? { startupCommand: row.startup_command } : {}),
     }));
   });
 
@@ -191,8 +183,8 @@ export function registerDbHandlers(): void {
   } {
     if (!Array.isArray(connections)) throw new Error('Expected an array of connections');
     const insert = db.prepare(
-      `INSERT INTO connections (id, name, host, port, username, auth_type, private_key_path, folder, color_tag, startup_command, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO connections (id, name, host, port, username, auth_type, private_key_path, folder, color_tag, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const findExisting = db.prepare(
       'SELECT id FROM connections WHERE name = ? AND host = ? AND username = ?',
@@ -212,16 +204,6 @@ export function registerDbHandlers(): void {
           skipped.push({ name: label, reason: 'duplicate of existing connection' });
           continue;
         }
-        let safeStartupCommand: string | null;
-        try {
-          safeStartupCommand = sanitizeStartupCommand(conn.startupCommand);
-        } catch (err) {
-          skipped.push({
-            name: label,
-            reason: `invalid startupCommand (${err instanceof Error ? err.message : 'unknown'})`,
-          });
-          continue;
-        }
         const id = uuidv4();
         const now = Math.floor(Date.now() / 1000);
         const authType = conn.authType || 'password';
@@ -239,7 +221,6 @@ export function registerDbHandlers(): void {
           conn.privateKeyPath || null,
           conn.folder || 'default',
           conn.colorTag || null,
-          safeStartupCommand,
           now,
           now,
         );
