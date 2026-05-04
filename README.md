@@ -78,13 +78,10 @@ npm run lint           # Static analysis with ESLint
 
 ### Distribution
 
-Build production-ready installers for all major platforms:
+Build production-ready installers for the current platform:
 
 ```bash
-npm run dist:mac       # macOS x64 & ARM64 (dmg + zip)
-npm run dist:win       # Windows x64 (NSIS installer)
-npm run dist:linux     # Linux x64 & ARM64 (AppImage + deb)
-npm run dist:all       # All platforms at once (macOS host only)
+npm run dist           # Package the application for the current platform
 ```
 ---
 

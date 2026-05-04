@@ -55,9 +55,6 @@ npm install
 | `npm run build`         | Build the application for production (no packaging) |
 | `npm run preview`       | Preview the production build locally                |
 | `npm run dist`          | Package the application for the current platform    |
-| `npm run dist:mac`      | Package for macOS (dmg)                             |
-| `npm run dist:win`      | Package for Windows (nsis)                          |
-| `npm run dist:linux`    | Package for Linux (AppImage & deb)                  |
 | `npm test`              | Run all tests using Vitest                          |
 | `npm run test:watch`    | Run tests in watch mode                             |
 | `npm run test:coverage` | Run tests with coverage report                      |
