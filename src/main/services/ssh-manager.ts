@@ -208,27 +208,27 @@ class SshManager {
         session.reconnectAttempts = 0
         this.setStatus(session, 'connected')
 
-        // Update last_connected_at
-        db.prepare('UPDATE connections SET last_connected_at = ? WHERE id = ?').run(
-          Math.floor(Date.now() / 1000),
-          connectionId
-        )
-
-        // Record connection history
-        const historyId = uuidv4()
-        session.historyId = historyId
+        // Update last_connected_at and record history. Wrap in try/catch so a DB error
+        // doesn't hang the connection promise before resolve() or client.shell().
         try {
+          db.prepare('UPDATE connections SET last_connected_at = ? WHERE id = ?').run(
+            Math.floor(Date.now() / 1000),
+            connectionId
+          )
+
+          const historyId = uuidv4()
+          session.historyId = historyId
           db.prepare('INSERT INTO connection_history (id, connection_id) VALUES (?, ?)').run(
             historyId,
             connectionId
           )
         } catch (err) {
-          log.warn(`[SSH] Failed to record connection history for ${connectionId}:`, err)
+          log.warn(`[SSH] Failed to record connection info for ${connectionId}:`, err)
         }
 
         client.shell({ term: 'xterm-256color', cols, rows }, (err, stream) => {
           if (err) {
-            // Clean up zombie session on shell creation failure
+            // Clean up session on shell creation failure
             this.sessions.delete(sessionId)
             resolve({ success: false, error: err.message })
             return
@@ -312,6 +312,10 @@ class SshManager {
       client.on('close', () => {
         if (session.status === 'connected') {
           this.handleDisconnect(sessionId)
+        } else if (session.status === 'connecting') {
+          // Handshake aborted or socket closed before ready
+          this.sessions.delete(sessionId)
+          resolve({ success: false, error: 'Connection closed during handshake' })
         }
       })
 
@@ -323,7 +327,7 @@ class SshManager {
       return await withTimeout(connectPromise, timeoutMs, `ssh.connect(${sessionId})`)
     } catch (err: unknown) {
       try {
-        client.end()
+        client.destroy()
       } catch {
         // ignore
       }
@@ -410,22 +414,23 @@ class SshManager {
       const cols = sess.cols
       const rows = sess.rows
       this.sessions.delete(sessionId)
+      
       const result = await this.connect(sessionId, connectionId, cols, rows)
 
-      if (result.success) {
-        const newSess = this.sessions.get(sessionId)
-        if (newSess) newSess.reconnecting = false
-        this.reconnectLocks.delete(sessionId)
-      } else {
-        // Restore reconnect attempt count on the new session
+      // Restore reconnect attempt count if connect failed so we don't loop forever
+      if (!result.success) {
         const newSess = this.sessions.get(sessionId)
         if (newSess) {
           newSess.reconnectAttempts = reconnectAttempts
           newSess.reconnecting = false
         }
-        // Release lock before next attempt so it can re-acquire
+        // Release lock before next attempt
         this.reconnectLocks.delete(sessionId)
         this.attemptReconnect(sessionId)
+      } else {
+        const newSess = this.sessions.get(sessionId)
+        if (newSess) newSess.reconnecting = false
+        this.reconnectLocks.delete(sessionId)
       }
     }, delay)
   }

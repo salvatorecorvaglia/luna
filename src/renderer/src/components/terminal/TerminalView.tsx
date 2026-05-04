@@ -1,16 +1,17 @@
 import {useCallback, useEffect} from 'react'
-import {Plus, Terminal} from 'lucide-react'
+import {Plus, Terminal as TerminalIcon} from 'lucide-react'
 import {useTerminalStore} from '@/stores/terminal-store'
 import {useConnectionStore} from '@/stores/connection-store'
 import {terminalThemes} from '@/themes/terminal'
 import {connectToHost} from '@/lib/ssh'
 import {TerminalTabs} from './TerminalTabs'
+import {TerminalPane} from './TerminalPane'
 import {SplitPane} from './SplitPane'
 
 export { connectToHost }
 
 export function TerminalView() {
-  const { splitTree, terminalTheme } = useTerminalStore()
+  const { tabOrder, activeTabId, terminalTheme } = useTerminalStore()
 
   const handleNewTab = useCallback(() => {
     const { activeConnectionId } = useConnectionStore.getState()
@@ -74,13 +75,20 @@ export function TerminalView() {
   return (
     <div className="flex h-full flex-col">
       <TerminalTabs onNewTab={handleNewTab} />
-      <div className="flex-1 overflow-hidden" style={{ backgroundColor: themeBg }}>
-        {splitTree ? (
-          <SplitPane node={splitTree} />
-        ) : (
+      <div className="flex-1 relative overflow-hidden" style={{ backgroundColor: themeBg }}>
+        {tabOrder.map((sessionId) => (
+          <div
+            key={sessionId}
+            className={sessionId === activeTabId ? 'h-full w-full' : 'hidden'}
+          >
+            <TerminalPane sessionId={sessionId} isActive={sessionId === activeTabId} />
+          </div>
+        ))}
+
+        {tabOrder.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center gap-4 text-muted-foreground">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/50">
-              <Terminal className="h-7 w-7 text-muted-foreground/30" />
+              <TerminalIcon className="h-7 w-7 text-muted-foreground/30" />
             </div>
             <div className="text-center">
               <p className="text-sm font-medium text-foreground/60">No active sessions</p>

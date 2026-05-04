@@ -67,10 +67,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       const sessions = new Map(s.sessions)
       sessions.set(session.id, session)
       const tabOrder = [...s.tabOrder, session.id]
-      const splitTree: PaneNode = s.splitTree
-        ? s.splitTree
-        : { type: 'terminal', sessionId: session.id }
-      return { sessions, tabOrder, activeTabId: session.id, splitTree }
+      return { sessions, tabOrder, activeTabId: session.id }
     }),
 
   removeSession: (sessionId) =>
@@ -101,8 +98,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
 
   setActiveTab: (sessionId) =>
     set(() => ({
-      activeTabId: sessionId,
-      splitTree: { type: 'terminal', sessionId }
+      activeTabId: sessionId
     })),
 
   setTabOrder: (order) => set({ tabOrder: order }),

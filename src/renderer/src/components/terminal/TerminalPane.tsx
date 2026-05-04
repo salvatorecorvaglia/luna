@@ -12,9 +12,10 @@ import type {SessionStatus} from '@shared/types/terminal'
 
 interface TerminalPaneProps {
   sessionId: string
+  isActive?: boolean
 }
 
-export function TerminalPane({ sessionId }: TerminalPaneProps) {
+export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -227,6 +228,16 @@ export function TerminalPane({ sessionId }: TerminalPaneProps) {
       fitAddonRef.current?.fit()
     }
   }, [scrollback])
+
+  // Re-fit and focus when tab becomes active
+  useEffect(() => {
+    if (isActive) {
+      setTimeout(() => {
+        handleResize()
+        terminalRef.current?.focus()
+      }, 50)
+    }
+  }, [isActive, handleResize])
 
   return (
     <div className="relative h-full w-full overflow-hidden">
