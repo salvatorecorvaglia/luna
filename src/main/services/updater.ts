@@ -20,6 +20,7 @@ function checkOnce(): Promise<unknown> {
 export function initAutoUpdater(): void {
   if (!app.isPackaged) return;
 
+  autoUpdater.logger = log;
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
 
