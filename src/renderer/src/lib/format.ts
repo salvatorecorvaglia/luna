@@ -6,6 +6,23 @@ export function formatSize(bytes: number): string {
   return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`
 }
 
+/** Format a byte/sec rate, e.g. "12 KB/s". Returns "—" for non-positive rates. */
+export function formatSpeed(bytesPerSec: number): string {
+  if (!Number.isFinite(bytesPerSec) || bytesPerSec <= 0) return '—'
+  return `${formatSize(bytesPerSec)}/s`
+}
+
+/** Estimated time-to-arrival in human-readable form, or null if not knowable. */
+export function formatEta(remainingBytes: number, bytesPerSec: number): string | null {
+  if (!Number.isFinite(bytesPerSec) || bytesPerSec <= 0 || remainingBytes <= 0) return null
+  const seconds = Math.round(remainingBytes / bytesPerSec)
+  if (seconds < 60) return `${seconds}s`
+  const m = Math.floor(seconds / 60)
+  if (m < 60) return `${m}m ${seconds % 60}s`
+  const h = Math.floor(m / 60)
+  return `${h}h ${m % 60}m`
+}
+
 /** Format a unix timestamp (seconds) — short form for current year, full date otherwise. */
 export function formatDate(timestamp: number): string {
   const date = new Date(timestamp * 1000)

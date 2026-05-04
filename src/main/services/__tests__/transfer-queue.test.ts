@@ -66,4 +66,22 @@ describe('transferQueue', () => {
     transferQueue.cancel(queuedId)
     expect(transferQueue.getQueuedCount()).toBe(0)
   })
+
+  it('drains the queue when an active transfer aborts', async () => {
+    transferQueue.setMaxConcurrent(1)
+    await transferQueue.enqueue('upload', 'sess', '/local/a', '/remote/a')
+    expect(transferQueue.getActiveCount()).toBe(1)
+    expect(transferQueue.getQueuedCount()).toBe(0)
+  })
+
+  it('processQueue is re-entrancy guarded', async () => {
+    // Enqueueing many at concurrency 1 must not lose transfers to a re-entrant
+    // dispatch loop (each one beyond the first should land in the queue).
+    transferQueue.setMaxConcurrent(1)
+    for (let i = 0; i < 5; i++) {
+      await transferQueue.enqueue('upload', 'sess', `/local/${i}`, `/remote/${i}`)
+    }
+    expect(transferQueue.getActiveCount()).toBe(1)
+    expect(transferQueue.getQueuedCount()).toBe(4)
+  })
 })

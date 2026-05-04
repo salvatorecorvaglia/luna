@@ -51,6 +51,20 @@ class SshManager {
   private reconnectLocks = new Set<string>()
   /** Candidate host keys captured during a rejected verification, awaiting user trust. */
   private pendingHostKeys = new Map<string, { key: Buffer; algorithm: string }>()
+  /** Cap on pending host-key candidates (LRU) — prevents unbounded growth on repeated mismatches. */
+  private static readonly PENDING_HOST_KEYS_MAX = 64
+
+  private rememberPendingHostKey(host: string, port: number, key: Buffer, algorithm: string): void {
+    const k = `${host}:${port}`
+    // Refresh LRU order
+    if (this.pendingHostKeys.has(k)) this.pendingHostKeys.delete(k)
+    this.pendingHostKeys.set(k, { key: Buffer.from(key), algorithm })
+    while (this.pendingHostKeys.size > SshManager.PENDING_HOST_KEYS_MAX) {
+      const oldest = this.pendingHostKeys.keys().next().value
+      if (oldest === undefined) break
+      this.pendingHostKeys.delete(oldest)
+    }
+  }
 
   /**
    * Trust a captured host key so the next connect succeeds.
@@ -99,10 +113,7 @@ class SshManager {
         const result = verifyHostKey(row.host, row.port, key, algorithm)
         if (!result.trusted) {
           const stored = getStoredHostKey(row.host, row.port)
-          this.pendingHostKeys.set(`${row.host}:${row.port}`, {
-            key: Buffer.from(key),
-            algorithm
-          })
+          this.rememberPendingHostKey(row.host, row.port, key, algorithm)
           emitToRenderer(IPC.SSH_ON_HOST_KEY_CHANGE, {
             sessionId: sessionId ?? '',
             connectionId,
@@ -265,9 +276,18 @@ class SshManager {
               )
             }
             if (safeCmd) {
-              stream.once('data', () => {
-                stream.write(safeCmd + '\n')
-              })
+              const cmd = safeCmd
+              const startupOnData = (): void => {
+                stream.removeListener('data', startupOnData)
+                stream.removeListener('close', startupOnClose)
+                if (stream.writable) stream.write(cmd + '\n')
+              }
+              const startupOnClose = (): void => {
+                stream.removeListener('data', startupOnData)
+                stream.removeListener('close', startupOnClose)
+              }
+              stream.on('data', startupOnData)
+              stream.on('close', startupOnClose)
             }
           }
 
@@ -462,6 +482,16 @@ class SshManager {
 
     session.status = 'disconnected'
     this.sessions.delete(sessionId)
+    // Drop any host-key candidate associated with this connection's host (best-effort).
+    try {
+      const db = getDatabase()
+      const row = db
+        .prepare('SELECT host, port FROM connections WHERE id = ?')
+        .get(session.connectionId) as { host: string; port: number } | undefined
+      if (row) this.pendingHostKeys.delete(`${row.host}:${row.port}`)
+    } catch {
+      // best-effort cleanup
+    }
   }
 
   /**

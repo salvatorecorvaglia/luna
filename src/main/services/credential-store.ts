@@ -1,5 +1,6 @@
 import { safeStorage } from 'electron'
 import { getDatabase } from './database'
+import log from '../lib/logger'
 
 // The credentials table is created by migration 004_known_hosts_and_credentials.
 // A fallback CREATE IF NOT EXISTS is kept for databases initialized before that migration.
@@ -46,7 +47,25 @@ export function retrieveCredential(connectionId: string): string | null {
     throw new Error('Encryption is not available on this system')
   }
 
-  return safeStorage.decryptString(Buffer.from(row.encrypted_data))
+  try {
+    return safeStorage.decryptString(Buffer.from(row.encrypted_data))
+  } catch (err) {
+    // The OS keychain entry that wrapped this blob is gone (reinstall, OS
+    // upgrade, profile move). Drop the unusable row so the user is prompted
+    // to re-enter the secret on the next attempt instead of hitting this on
+    // every reconnect.
+    log.warn(
+      `[Credentials] Failed to decrypt credential for ${connectionId}; deleting stale entry: ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    )
+    try {
+      db.prepare('DELETE FROM credentials WHERE connection_id = ?').run(connectionId)
+    } catch (deleteErr) {
+      log.warn('[Credentials] Failed to delete stale credential row:', deleteErr)
+    }
+    return null
+  }
 }
 
 export function deleteCredential(connectionId: string): void {

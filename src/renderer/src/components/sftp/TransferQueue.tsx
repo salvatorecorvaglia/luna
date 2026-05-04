@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Upload,
@@ -16,27 +17,7 @@ import { useTransferStore } from '@/stores/transfer-store'
 import { cancelTransfer } from '@/hooks/use-transfers'
 import type { TransferItem } from '@shared/types/transfer'
 import { toast } from 'sonner'
-
-function formatBytes(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB']
-  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
-  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`
-}
-
-function formatSpeed(bytesPerSec: number): string {
-  return `${formatBytes(bytesPerSec)}/s`
-}
-
-function formatEta(remainingBytes: number, bytesPerSec: number): string | null {
-  if (bytesPerSec <= 0 || remainingBytes <= 0) return null
-  const seconds = Math.round(remainingBytes / bytesPerSec)
-  if (seconds < 60) return `${seconds}s`
-  const m = Math.floor(seconds / 60)
-  if (m < 60) return `${m}m ${seconds % 60}s`
-  const h = Math.floor(m / 60)
-  return `${h}h ${m % 60}m`
-}
+import { formatSize, formatSpeed, formatEta } from '@/lib/format'
 
 export function TransferQueue() {
   const {
@@ -182,7 +163,7 @@ export function TransferQueue() {
   )
 }
 
-function TransferRow({
+const TransferRow = memo(function TransferRow({
   item,
   onRemove,
   onRetry
@@ -233,7 +214,7 @@ function TransferRow({
               : item.status === 'queued'
                 ? 'Queued'
                 : item.status === 'completed'
-                  ? formatBytes(item.size)
+                  ? formatSize(item.size)
                   : item.error || 'Error'}
           </span>
         </div>
@@ -269,4 +250,4 @@ function TransferRow({
       </button>
     </div>
   )
-}
+})

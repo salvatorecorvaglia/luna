@@ -2,7 +2,12 @@ import { ipcMain } from 'electron'
 import { IPC } from '@shared/constants'
 import { sftpManager } from '../services/sftp-manager'
 import { transferQueue } from '../services/transfer-queue'
-import { assertNonEmptyString, assertValidPath, assertBoundedInt } from '../lib/validate'
+import {
+  assertNonEmptyString,
+  assertValidPath,
+  assertBoundedInt,
+  assertSafeAbsolutePath
+} from '../lib/validate'
 import { LIMITS } from '@shared/constants'
 import type {
   SftpListParams,
@@ -58,13 +63,13 @@ export function registerSftpHandlers(): void {
   ipcMain.handle(IPC.SFTP_DOWNLOAD, async (_event, params: SftpTransferParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId')
     assertValidPath(params.remotePath, 'remotePath')
-    assertValidPath(params.localPath, 'localPath')
+    assertSafeAbsolutePath(params.localPath, 'localPath')
     return sftpManager.download(params.sessionId, params.remotePath, params.localPath)
   })
 
   ipcMain.handle(IPC.SFTP_UPLOAD, async (_event, params: SftpTransferParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId')
-    assertValidPath(params.localPath, 'localPath')
+    assertSafeAbsolutePath(params.localPath, 'localPath')
     assertValidPath(params.remotePath, 'remotePath')
     return sftpManager.upload(params.sessionId, params.localPath, params.remotePath)
   })

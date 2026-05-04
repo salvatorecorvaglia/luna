@@ -23,6 +23,17 @@ export function initAutoUpdater(): void {
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = true
 
+  // Refuse to operate against an unencrypted update feed.
+  try {
+    const feedURL = autoUpdater.getFeedURL?.()
+    if (feedURL && !feedURL.startsWith('https://')) {
+      log.error(`[Updater] Refusing non-HTTPS update feed: ${feedURL}`)
+      return
+    }
+  } catch {
+    // older electron-updater versions throw before a feed is set; ignore.
+  }
+
   autoUpdater.on('update-available', (info) => {
     updateAvailable = true
     updateVersion = info.version

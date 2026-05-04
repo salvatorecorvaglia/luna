@@ -318,12 +318,23 @@ export function SettingsPanel() {
                   <button
                     onClick={async () => {
                       try {
-                        const count = await window.api.connections.importFromFile()
-                        if (count === -1) return // Dialog cancelled
-                        if (count > 0) {
-                          toast.success(`Imported ${count} connection${count > 1 ? 's' : ''}`)
+                        const { imported, skipped } =
+                          await window.api.connections.importFromFile()
+                        if (imported === -1) return // Dialog cancelled
+                        if (imported > 0) {
+                          toast.success(
+                            `Imported ${imported} connection${imported > 1 ? 's' : ''}` +
+                              (skipped.length > 0 ? ` — ${skipped.length} skipped` : '')
+                          )
                         } else {
-                          toast.info('No new connections to import (all duplicates)')
+                          toast.info(
+                            skipped.length > 0
+                              ? `No new connections imported (${skipped.length} skipped)`
+                              : 'No new connections to import'
+                          )
+                        }
+                        for (const s of skipped.slice(0, 5)) {
+                          toast.warning(`Skipped "${s.name}": ${s.reason}`)
                         }
                       } catch (err: unknown) {
                         toast.error(

@@ -5,6 +5,7 @@ import { IPC, LIMITS } from '@shared/constants'
 import type { TransferType } from '@shared/types/transfer'
 import { sftpManager } from './sftp-manager'
 import { emitToRenderer } from './emit'
+import { AbortError } from '../lib/errors'
 
 interface QueuedTransfer {
   id: string
@@ -23,6 +24,8 @@ class TransferQueue {
   private queue: QueuedTransfer[] = []
   private active = new Map<string, QueuedTransfer>()
   private maxConcurrent = 3
+  /** Re-entrancy guard: only one synchronous dispatch loop at a time. */
+  private dispatching = false
 
   setMaxConcurrent(max: number): void {
     this.maxConcurrent = Math.max(1, Math.min(LIMITS.MAX_CONCURRENT_TRANSFERS, max))
@@ -108,10 +111,19 @@ class TransferQueue {
   }
 
   private processQueue(): void {
-    while (this.active.size < this.maxConcurrent && this.queue.length > 0) {
-      const transfer = this.queue.shift()!
-      this.active.set(transfer.id, transfer)
-      this.executeTransfer(transfer)
+    if (this.dispatching) return
+    this.dispatching = true
+    try {
+      while (this.active.size < this.maxConcurrent && this.queue.length > 0) {
+        const transfer = this.queue.shift()!
+        this.active.set(transfer.id, transfer)
+        // executeTransfer is async — fire and forget. The finally branch re-enters
+        // processQueue() after each completion, but the dispatching flag means
+        // re-entrant calls during the loop are absorbed.
+        this.executeTransfer(transfer)
+      }
+    } finally {
+      this.dispatching = false
     }
   }
 
@@ -156,7 +168,7 @@ class TransferQueue {
       emitToRenderer(IPC.TRANSFER_COMPLETE, { transferId: id })
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Transfer failed'
-      if (controller.signal.aborted || msg === 'Cancelled') {
+      if (controller.signal.aborted || err instanceof AbortError) {
         emitToRenderer(IPC.TRANSFER_CANCELLED, { transferId: id })
       } else {
         emitToRenderer(IPC.TRANSFER_ERROR, { transferId: id, error: msg })

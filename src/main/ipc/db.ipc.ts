@@ -185,7 +185,10 @@ export function registerDbHandlers(): void {
     }))
   })
 
-  function importConnections(connections: ExportedConnection[]): number {
+  function importConnections(connections: ExportedConnection[]): {
+    imported: number
+    skipped: { name: string; reason: string }[]
+  } {
     if (!Array.isArray(connections)) throw new Error('Expected an array of connections')
     const insert = db.prepare(
       `INSERT INTO connections (id, name, host, port, username, auth_type, private_key_path, folder, color_tag, startup_command, created_at, updated_at)
@@ -195,23 +198,37 @@ export function registerDbHandlers(): void {
       'SELECT id FROM connections WHERE name = ? AND host = ? AND username = ?'
     )
     let imported = 0
+    const skipped: { name: string; reason: string }[] = []
     // Wrap the whole batch in a transaction so a malformed record at row N
     // doesn't leave 0..N-1 partially imported.
     const importAll = db.transaction((rows: ExportedConnection[]) => {
       for (const conn of rows) {
-        if (!conn.name || !conn.host || !conn.username) continue
-        if (findExisting.get(conn.name, conn.host, conn.username)) continue
+        const label = conn?.name ?? '(unnamed)'
+        if (!conn?.name || !conn?.host || !conn?.username) {
+          skipped.push({ name: label, reason: 'missing name/host/username' })
+          continue
+        }
+        if (findExisting.get(conn.name, conn.host, conn.username)) {
+          skipped.push({ name: label, reason: 'duplicate of existing connection' })
+          continue
+        }
         let safeStartupCommand: string | null
         try {
           safeStartupCommand = sanitizeStartupCommand(conn.startupCommand)
-        } catch {
+        } catch (err) {
+          skipped.push({
+            name: label,
+            reason: `invalid startupCommand (${err instanceof Error ? err.message : 'unknown'})`
+          })
           continue
         }
         const id = uuidv4()
         const now = Math.floor(Date.now() / 1000)
         const authType = conn.authType || 'password'
-        // Validate authType enum so the DB CHECK constraint doesn't produce cryptic errors
-        if (!VALID_AUTH_TYPES.includes(authType as (typeof VALID_AUTH_TYPES)[number])) continue
+        if (!VALID_AUTH_TYPES.includes(authType as (typeof VALID_AUTH_TYPES)[number])) {
+          skipped.push({ name: label, reason: `unsupported authType "${authType}"` })
+          continue
+        }
         insert.run(
           id,
           conn.name,
@@ -230,19 +247,21 @@ export function registerDbHandlers(): void {
       }
     })
     importAll(connections)
-    return imported
+    return { imported, skipped }
   }
 
-  ipcMain.handle(IPC.CONNECTION_IMPORT, (_event, connections: ExportedConnection[]): number =>
+  ipcMain.handle(IPC.CONNECTION_IMPORT, (_event, connections: ExportedConnection[]) =>
     importConnections(connections)
   )
 
-  ipcMain.handle(IPC.CONNECTION_IMPORT_FROM_FILE, async (): Promise<number> => {
+  ipcMain.handle(IPC.CONNECTION_IMPORT_FROM_FILE, async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: [{ name: 'JSON', extensions: ['json'] }]
     })
-    if (result.canceled || result.filePaths.length === 0) return -1
+    if (result.canceled || result.filePaths.length === 0) {
+      return { imported: -1, skipped: [] as { name: string; reason: string }[] }
+    }
 
     const path = result.filePaths[0]
     const { stat } = await import('fs/promises')
@@ -252,8 +271,14 @@ export function registerDbHandlers(): void {
       throw new Error(`Import file is too large: ${stats.size} bytes (max ${MAX_IMPORT_BYTES})`)
     }
     const content = await readFile(path, 'utf-8')
-    const connections = JSON.parse(content) as ExportedConnection[]
-    return importConnections(connections)
+    let parsed: ExportedConnection[]
+    try {
+      parsed = JSON.parse(content) as ExportedConnection[]
+    } catch {
+      // Don't surface raw file content (which may include arbitrary bytes) to the renderer.
+      throw new Error('Import file is not valid JSON')
+    }
+    return importConnections(parsed)
   })
 
   // Settings

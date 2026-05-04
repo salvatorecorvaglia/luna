@@ -40,6 +40,10 @@ jobs:
       - name: Run TypeScript type-checking
         run: npm run typecheck
 
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+        continue-on-error: false
+
   # ──────────────────────────────────────────────
   # Unit & Component Tests
   # ──────────────────────────────────────────────

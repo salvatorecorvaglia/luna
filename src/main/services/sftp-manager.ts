@@ -7,17 +7,31 @@ import { transferQueue } from './transfer-queue'
 import { LIMITS } from '@shared/constants'
 import { withTimeout, TimeoutError } from '../lib/with-timeout'
 import log from '../lib/logger'
-import { SshConnectionError, SftpTransferError } from '../lib/errors'
+import { SshConnectionError, SftpTransferError, AbortError } from '../lib/errors'
 
 type StepCallback = (transferred: number, chunk: number, total: number) => void
 
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000
 const IDLE_CHECK_INTERVAL_MS = 60 * 1000
 
+/** Node/ssh2 error codes that imply the SFTP channel/socket is gone. */
+const FATAL_ERR_CODES = new Set([
+  'ECONNRESET',
+  'EPIPE',
+  'ENOTCONN',
+  'ECONNABORTED',
+  'ERR_STREAM_DESTROYED',
+  'ERR_STREAM_PREMATURE_CLOSE'
+])
+
 /** Errors that indicate the SFTP session is unusable and must be re-opened. */
 function isSessionFatal(err: unknown): boolean {
   if (err instanceof TimeoutError) return true
+  if (err instanceof SshConnectionError) return true
   if (!(err instanceof Error)) return false
+  const code = (err as NodeJS.ErrnoException).code
+  if (code && FATAL_ERR_CODES.has(code)) return true
+  // Fallback: ssh2 doesn't always populate codes for channel teardown.
   const msg = err.message.toLowerCase()
   return (
     msg.includes('channel') ||
@@ -184,7 +198,16 @@ class SftpManager {
     })
   }
 
-  private async removeDir(sftp: SFTPWrapper, dirPath: string): Promise<void> {
+  /** Hard cap on recursive removeDir depth — defends against symlink/mountpoint cycles. */
+  private static readonly REMOVE_DIR_MAX_DEPTH = 64
+
+  private async removeDir(sftp: SFTPWrapper, dirPath: string, depth = 0): Promise<void> {
+    if (depth > SftpManager.REMOVE_DIR_MAX_DEPTH) {
+      throw new SftpTransferError(
+        `Refusing to recurse into ${dirPath}: max depth ${SftpManager.REMOVE_DIR_MAX_DEPTH} exceeded (possible symlink loop)`
+      )
+    }
+
     const entries = await new Promise<{ filename: string; attrs: { mode: number } }[]>(
       (resolve, reject) => {
         sftp.readdir(dirPath, (err, list) => {
@@ -202,9 +225,13 @@ class SftpManager {
       await Promise.all(
         batch.map(async (entry) => {
           const fullPath = dirPath === '/' ? `/${entry.filename}` : `${dirPath}/${entry.filename}`
+          // readdir on most servers returns lstat-style modes (no symlink follow), so
+          // entry.attrs.mode reflects the link itself. Symlinks are unlinked, never recursed.
           const fileType = entry.attrs.mode & 0o170000
-          if (fileType === 0o40000) {
-            await this.removeDir(sftp, fullPath)
+          const isSymlink = fileType === 0o120000
+          const isDir = fileType === 0o40000
+          if (isDir && !isSymlink) {
+            await this.removeDir(sftp, fullPath, depth + 1)
           } else {
             await new Promise<void>((resolve, reject) => {
               sftp.unlink(fullPath, (err) => (err ? reject(err) : resolve()))
@@ -346,7 +373,7 @@ class SftpManager {
         fn()
       }
       const onAbort = (): void => {
-        settle(() => cleanupOnAbort().finally(() => reject(new SftpTransferError('Cancelled'))))
+        settle(() => cleanupOnAbort().finally(() => reject(new AbortError('Transfer cancelled'))))
       }
 
       if (signal.aborted) {
@@ -432,7 +459,7 @@ class SftpManager {
         fn()
       }
       const onAbort = (): void => {
-        settle(() => cleanupOnAbort().finally(() => reject(new SftpTransferError('Cancelled'))))
+        settle(() => cleanupOnAbort().finally(() => reject(new AbortError('Transfer cancelled'))))
       }
 
       if (signal.aborted) {

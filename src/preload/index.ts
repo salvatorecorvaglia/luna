@@ -63,8 +63,16 @@ const api = {
     delete: (id: string) => ipcRenderer.invoke(IPC.CONNECTION_DELETE, id),
     export: () => ipcRenderer.invoke(IPC.CONNECTION_EXPORT) as Promise<ExportedConnection[]>,
     import: (connections: ExportedConnection[]) =>
-      ipcRenderer.invoke(IPC.CONNECTION_IMPORT, connections) as Promise<number>,
-    importFromFile: () => ipcRenderer.invoke(IPC.CONNECTION_IMPORT_FROM_FILE) as Promise<number>
+      ipcRenderer.invoke(IPC.CONNECTION_IMPORT, connections) as Promise<{
+        imported: number
+        skipped: { name: string; reason: string }[]
+      }>,
+    importFromFile: () =>
+      ipcRenderer.invoke(IPC.CONNECTION_IMPORT_FROM_FILE) as Promise<{
+        imported: number
+        skipped: { name: string; reason: string }[]
+      }>
+
   },
 
   // SSH sessions

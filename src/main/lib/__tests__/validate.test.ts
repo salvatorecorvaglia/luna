@@ -3,6 +3,7 @@ import {
   assertNonEmptyString,
   assertBoundedInt,
   assertValidPath,
+  assertSafeAbsolutePath,
   sanitizeStartupCommand,
   MAX_STARTUP_COMMAND_LEN
 } from '../validate'
@@ -60,6 +61,25 @@ describe('assertValidPath', () => {
 
   it('rejects paths with null bytes', () => {
     expect(() => assertValidPath('/home/\0/x', 'path')).toThrow(/null bytes/)
+  })
+})
+
+describe('assertSafeAbsolutePath', () => {
+  it('accepts an absolute, canonical path', () => {
+    expect(() => assertSafeAbsolutePath('/home/user/file.txt', 'p')).not.toThrow()
+  })
+
+  it('rejects relative paths', () => {
+    expect(() => assertSafeAbsolutePath('./file.txt', 'p')).toThrow(/absolute/)
+    expect(() => assertSafeAbsolutePath('file.txt', 'p')).toThrow(/absolute/)
+  })
+
+  it('rejects paths with traversal segments', () => {
+    expect(() => assertSafeAbsolutePath('/home/user/../etc/passwd', 'p')).toThrow(/canonical/)
+  })
+
+  it('rejects paths with null bytes', () => {
+    expect(() => assertSafeAbsolutePath('/home/\0/x', 'p')).toThrow(/null bytes/)
   })
 })
 

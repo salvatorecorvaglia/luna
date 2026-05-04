@@ -23,10 +23,6 @@ export function getStoredHostKey(
  * On subsequent connections, the key must match.
  */
 
-function fingerprint(key: Buffer): string {
-  return fingerprintKey(key)
-}
-
 /**
  * Verify a host key.
  * Returns `trusted: false, isFirst: true` for never-seen-before hosts so the caller
@@ -41,7 +37,7 @@ export function verifyHostKey(
 ): { trusted: boolean; changed: boolean; isFirst: boolean } {
   const db = getDatabase()
   const hostKey = `${host}:${port}`
-  const fp = fingerprint(keyData)
+  const fp = fingerprintKey(keyData)
 
   const row = db
     .prepare('SELECT fingerprint, algorithm FROM known_hosts WHERE host_key = ?')
@@ -70,7 +66,7 @@ export function updateHostKey(
 ): void {
   const db = getDatabase()
   const hostKey = `${host}:${port}`
-  const fp = fingerprint(keyData)
+  const fp = fingerprintKey(keyData)
 
   db.prepare(
     `INSERT INTO known_hosts (host_key, algorithm, fingerprint, first_seen)
