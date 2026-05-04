@@ -1,5 +1,8 @@
-import {safeStorage} from 'electron'
-import {getDatabase} from './database'
+import { app } from 'electron'
+import { randomBytes, createCipheriv, createDecipheriv } from 'crypto'
+import { existsSync, readFileSync, writeFileSync } from 'fs'
+import { join } from 'path'
+import { getDatabase } from './database'
 import log from '../lib/logger'
 
 // The credentials table is created by migration 004_known_hosts_and_credentials.
@@ -18,15 +21,65 @@ function ensureTable(): void {
   tableEnsured = true
 }
 
+let encryptionKey: Buffer | null = null
+
+function getEncryptionKey(): Buffer {
+  if (encryptionKey) return encryptionKey
+
+  const keyPath = join(app.getPath('userData'), '.storage_key')
+  
+  if (existsSync(keyPath)) {
+    encryptionKey = readFileSync(keyPath)
+  } else {
+    encryptionKey = randomBytes(32)
+    writeFileSync(keyPath, encryptionKey)
+  }
+  return encryptionKey
+}
+
+/**
+ * AES-256-GCM Implementation
+ * GCM provides Authenticated Encryption, ensuring both confidentiality and integrity.
+ */
+const ALGORITHM = 'aes-256-gcm'
+const IV_LENGTH = 12
+const TAG_LENGTH = 16
+
+function encrypt(text: string): Buffer {
+  const iv = randomBytes(IV_LENGTH)
+  const cipher = createCipheriv(ALGORITHM, getEncryptionKey(), iv)
+  
+  const encrypted = Buffer.concat([
+    cipher.update(text, 'utf8'),
+    cipher.final()
+  ])
+  
+  const tag = cipher.getAuthTag()
+  
+  // Store as [IV (12 bytes)][Tag (16 bytes)][Encrypted Data]
+  return Buffer.concat([iv, tag, encrypted])
+}
+
+function decrypt(data: Buffer): string {
+  const iv = data.subarray(0, IV_LENGTH)
+  const tag = data.subarray(IV_LENGTH, IV_LENGTH + TAG_LENGTH)
+  const ciphertext = data.subarray(IV_LENGTH + TAG_LENGTH)
+  
+  const decipher = createDecipheriv(ALGORITHM, getEncryptionKey(), iv)
+  decipher.setAuthTag(tag)
+  
+  const decrypted = Buffer.concat([
+    decipher.update(ciphertext),
+    decipher.final()
+  ])
+  
+  return decrypted.toString('utf8')
+}
+
 export function storeCredential(connectionId: string, secret: string): void {
   ensureTable()
   const db = getDatabase()
-
-  if (!safeStorage.isEncryptionAvailable()) {
-    throw new Error('Encryption is not available on this system')
-  }
-
-  const encrypted = safeStorage.encryptString(secret)
+  const encrypted = encrypt(secret)
 
   db.prepare(
     'INSERT OR REPLACE INTO credentials (connection_id, encrypted_data) VALUES (?, ?)'
@@ -43,17 +96,11 @@ export function retrieveCredential(connectionId: string): string | null {
 
   if (!row) return null
 
-  if (!safeStorage.isEncryptionAvailable()) {
-    throw new Error('Encryption is not available on this system')
-  }
-
   try {
-    return safeStorage.decryptString(Buffer.from(row.encrypted_data))
+    return decrypt(Buffer.from(row.encrypted_data))
   } catch (err) {
-    // The OS keychain entry that wrapped this blob is gone (reinstall, OS
-    // upgrade, profile move). Drop the unusable row so the user is prompted
-    // to re-enter the secret on the next attempt instead of hitting this on
-    // every reconnect.
+    // Decryption can fail if the data is corrupt, tampered with (GCM tag mismatch),
+    // or if it was encrypted with a different key/algorithm (e.g. previous CBC/safeStorage).
     log.warn(
       `[Credentials] Failed to decrypt credential for ${connectionId}; deleting stale entry: ${
         err instanceof Error ? err.message : String(err)

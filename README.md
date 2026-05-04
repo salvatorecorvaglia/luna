@@ -30,7 +30,7 @@ Lunar is a high-performance, cross-platform desktop application designed to stre
 
 ### 🔒 Security
 
-- **Credential Protection**: Passwords and passphrases are encrypted with the system's secure keychain via Electron `safeStorage` — never stored in plain text.
+- **Credential Protection**: Passwords and passphrases are encrypted with a local AES-256-GCM key — never stored in plain text.
 - **Host Key Verification**: Trust-on-first-use (TOFU) with an explicit dialog for new hosts and a clear warning when host keys change, protecting against man-in-the-middle attacks.
 - **Sandboxed Renderer**: The renderer process communicates with the main process exclusively through a typed IPC bridge; no direct filesystem or network access.
 - **Input Validation**: All IPC arguments are validated — path traversal guards, startup command sanitization, settings key whitelisting, and bounded integer checks.

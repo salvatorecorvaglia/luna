@@ -73,7 +73,7 @@ Lunar is an Electron application built with `electron-vite`:
 ### Key Principles
 
 - **Process Isolation**: All sensitive operations (SSH, SFTP, credentials, database) run in the main process. The renderer communicates exclusively through typed IPC via the preload bridge.
-- **Credential Security**: Passwords and passphrases are encrypted with the OS keychain via Electron `safeStorage`, never stored in plain text.
+- **Credential Security**: Passwords and passphrases are encrypted with a local AES-256-GCM key, never stored in plain text.
 - **Host Key Verification**: Trust-on-first-use (TOFU) with explicit user confirmation — new host keys trigger a dialog; changed keys show a clear warning.
 
 ## 📜 Code of Conduct
