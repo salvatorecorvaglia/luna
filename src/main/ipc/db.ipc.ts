@@ -20,7 +20,7 @@ const VALID_AUTH_TYPES = ['password', 'key', 'key+passphrase'] as const;
 /** Per-key value type guards. Values arrive from the renderer as JSON-encoded
  * strings (`'14'`, `'"dracula"'`, `'true'`); after parsing we enforce shape so
  * a misbehaving renderer can't poison the settings table with a type the rest
- * of the app doesn't expect (S7). */
+ * of the app doesn't expect. */
 type SettingTypeName = 'string' | 'number' | 'boolean';
 const SETTING_TYPES: Record<keyof AppSettings, SettingTypeName> = {
   'terminal.fontFamily': 'string',
@@ -194,7 +194,7 @@ export function registerDbHandlers(): void {
   /**
    * Confine a privateKeyPath from an imported file to the user's home subtree.
    * Imports may originate from another machine — accept ~ expansion but reject
-   * anything that resolves outside home (S5). Returns null when the path can be
+   * anything that resolves outside home. Returns null when the path can be
    * stored as-is (after canonicalization), or throws to signal "skip this row".
    */
   function sanitizeImportedKeyPath(input: string | undefined | null): string | null {

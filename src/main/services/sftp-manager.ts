@@ -51,7 +51,7 @@ class SftpManager {
   private leases = new Map<string, number>();
   /**
    * Sessions in the middle of being torn down. New lease acquisitions throw
-   * so a concurrent op can't grab a session that's about to close (B2).
+   * so a concurrent op can't grab a session that's about to close.
    */
   private closing = new Set<string>();
   /** Timer handle so the interval can be cleared on dispose. */
@@ -66,6 +66,10 @@ class SftpManager {
     });
 
     this.idleCheckTimer = setInterval(() => this.cleanupIdle(), IDLE_CHECK_INTERVAL_MS);
+    // R1: unref so an unexpected uncaughtException-then-quit path can't be
+    // held open by this timer alone if `before-quit` doesn't fire (e.g. a
+    // crash during init). Production cleanup still goes through dispose().
+    this.idleCheckTimer.unref?.();
   }
 
   /** Stop the idle-sweep timer. Call from `before-quit`. */
@@ -223,7 +227,7 @@ class SftpManager {
 
   /** Hard cap on recursive removeDir depth — defends against symlink/mountpoint cycles. */
   private static readonly REMOVE_DIR_MAX_DEPTH = 64;
-  /** Hard cap on entries visited across the whole tree — defends against fan-out (B5). */
+  /** Hard cap on entries visited across the whole tree — defends against fan-out. */
   private static readonly REMOVE_DIR_MAX_ENTRIES = 100_000;
   private static readonly REMOVE_DIR_BATCH_SIZE = 5;
 
@@ -292,9 +296,21 @@ class SftpManager {
     return this.runOp(sessionId, 'readFile', (sftp) => {
       return new Promise<string>((resolve, reject) => {
         let settled = false;
+        // Destroy() the stream on every settle path (including 'end' and
+        // pre-stream stat errors). ssh2's read streams don't always self-clean
+        // promptly after 'end' — leaving the channel half-open ties up an
+        // SFTP slot until the idle sweep runs.
+        let activeStream: ReturnType<SFTPWrapper['createReadStream']> | null = null;
         const settle = (fn: () => void): void => {
           if (settled) return;
           settled = true;
+          if (activeStream && !activeStream.destroyed) {
+            try {
+              activeStream.destroy();
+            } catch {
+              // ignore double-destroy races
+            }
+          }
           fn();
         };
 
@@ -312,12 +328,12 @@ class SftpManager {
 
           const chunks: Buffer[] = [];
           const stream = sftp.createReadStream(remotePath);
+          activeStream = stream;
           stream.on('data', (chunk: Buffer) => chunks.push(chunk));
           stream.on('end', () => settle(() => resolve(Buffer.concat(chunks).toString('utf-8'))));
           // Both 'error' and 'close' must reject — ssh2 can emit close without
           // error if the channel goes down between stat and the first read.
           stream.on('error', (err: Error) => {
-            stream.destroy();
             settle(() => reject(err));
           });
           stream.on('close', () => {

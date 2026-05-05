@@ -5,7 +5,7 @@ import { redact } from '../lib/redact';
  * Channels that stream raw shell output. Redaction would corrupt the bytestream
  * (passwords are commonly typed at prompts and the renderer needs the exact
  * characters back). Everything else — status, errors, dialogs — is structured
- * metadata where redaction is safe and required (S7).
+ * metadata where redaction is safe and required.
  */
 const RAW_CHANNELS = new Set<string>(['ssh:on-data']);
 

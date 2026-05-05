@@ -10,6 +10,12 @@ vi.mock('ssh2', () => {
       on = vi.fn((event, cb) => {
         if (event === 'ready') setTimeout(cb, 10);
       });
+      // testConnection now uses once() + a 'close' handler so the promise
+      // can settle on socket teardown without 'error'/'ready'.
+      once = vi.fn((event, cb) => {
+        if (event === 'ready') setTimeout(cb, 10);
+      });
+      off = vi.fn();
       end = vi.fn();
       destroy = vi.fn();
       removeAllListeners = vi.fn();
@@ -39,6 +45,10 @@ vi.mock('../credential-store', () => ({
 vi.mock('../host-key-store', () => ({
   verifyHostKey: vi.fn().mockReturnValue({ trusted: true, isFirst: false }),
   parseHostKeyAlgorithm: vi.fn().mockReturnValue('ssh-rsa'),
+  fingerprintKey: vi.fn().mockReturnValue('SHA256:test-fingerprint'),
+  formatHostKey: vi.fn((host: string, port: number) => `${host}:${port}`),
+  getStoredHostKey: vi.fn().mockReturnValue(null),
+  updateHostKey: vi.fn(),
 }));
 
 vi.mock('../emit', () => ({

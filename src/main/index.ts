@@ -1,10 +1,10 @@
-import { app, BrowserWindow, session, shell } from 'electron';
+import { app, BrowserWindow, dialog, session, shell } from 'electron';
 import { join } from 'path';
 import { is } from '@electron-toolkit/utils';
 import icon from '../../resources/lunar.png?asset';
 import { registerAllHandlers } from './ipc';
 import { setMainWindow } from './ipc/app.ipc';
-import { closeDatabase } from './services/database';
+import { closeDatabase, getDatabase, MigrationError } from './services/database';
 import { sshManager } from './services/ssh-manager';
 import { sftpManager } from './services/sftp-manager';
 import { transferQueue } from './services/transfer-queue';
@@ -99,6 +99,25 @@ app.whenReady().then(() => {
         },
       });
     });
+  }
+
+  // Force-initialize the DB up front so a migration failure produces a
+  // friendly dialog instead of a hard crash inside the first IPC call.
+  try {
+    getDatabase();
+  } catch (err) {
+    log.error('[Main] Database initialization failed:', err);
+    const detail =
+      err instanceof MigrationError
+        ? `${err.message}\n\nYou can recover by either:\n` +
+          ` • restoring a backup of your data folder, or\n` +
+          ` • renaming "lunar.db" in the app data folder to start fresh (existing connections will be lost).`
+        : err instanceof Error
+          ? err.message
+          : String(err);
+    dialog.showErrorBox('Lunar — database error', detail);
+    app.exit(1);
+    return;
   }
 
   registerAllHandlers();

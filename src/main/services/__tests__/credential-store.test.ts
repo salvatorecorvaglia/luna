@@ -10,7 +10,7 @@ const userData = mkdtempSync(join(tmpdir(), 'lunar-cred-'));
 // Simulate a working OS keyring (macOS Keychain / Linux libsecret) so the
 // credential store has an encrypted key path to exercise. The credential-store
 // now refuses to persist a plaintext master key when safeStorage is missing
-// (S1), so a `false` mock here would be testing the refusal, not the crypto.
+// , so a `false` mock here would be testing the refusal, not the crypto.
 vi.mock('electron', () => ({
   app: { getPath: () => userData },
   safeStorage: {

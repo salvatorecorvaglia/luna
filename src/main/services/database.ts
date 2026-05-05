@@ -52,6 +52,23 @@ export function getDatabase(): Database.Database {
   return db;
 }
 
+/**
+ * Thrown when a migration fails. The main process catches this at startup so
+ * the user sees a recoverable error dialog instead of a hard crash.
+ */
+export class MigrationError extends Error {
+  constructor(
+    public readonly migrationName: string,
+    cause: unknown,
+  ) {
+    super(
+      `Database migration "${migrationName}" failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+      { cause },
+    );
+    this.name = 'MigrationError';
+  }
+}
+
 function runMigrations(db: Database.Database): void {
   // Create migrations tracking table
   db.exec(`
@@ -75,12 +92,20 @@ function runMigrations(db: Database.Database): void {
   for (const migration of migrations) {
     if (applied.has(migration.name)) continue;
 
-    const transaction = db.transaction(() => {
-      db!.exec(migration.sql);
-      insertMigration.run(migration.name);
-    });
-    transaction();
-    log.info(`[DB] Applied migration: ${migration.name}`);
+    // A malformed migration would otherwise propagate out of getDatabase()
+    // and crash the main process before any UI is shown. Wrap each migration
+    // in its own try so we can surface the offending name to the user.
+    try {
+      const transaction = db.transaction(() => {
+        db!.exec(migration.sql);
+        insertMigration.run(migration.name);
+      });
+      transaction();
+      log.info(`[DB] Applied migration: ${migration.name}`);
+    } catch (err) {
+      log.error(`[DB] Migration "${migration.name}" failed:`, err);
+      throw new MigrationError(migration.name, err);
+    }
   }
 }
 

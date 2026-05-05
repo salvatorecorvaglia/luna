@@ -31,7 +31,7 @@ export function assertValidPath(value: unknown, name: string): asserts value is 
  * Validate a local filesystem path supplied by the renderer.
  * Requires absolute, canonical (no `..` segments after resolve), no null bytes,
  * and confined to the user's home subtree so a compromised renderer can't
- * download to (or upload from) /etc, /var, or sibling user directories (S5).
+ * download to (or upload from) /etc, /var, or sibling user directories.
  */
 export function assertSafeAbsolutePath(value: unknown, name: string): asserts value is string {
   assertNonEmptyString(value, name);
@@ -51,10 +51,10 @@ export function assertSafeAbsolutePath(value: unknown, name: string): asserts va
 /**
  * Expand a leading `~` to the user's real home directory and confine the
  * resolved path to that subtree. Falls back to lstat-based realpath only when
- * the file already exists, so callers can validate intent before opening (S3).
+ * the file already exists, so callers can validate intent before opening.
  *
  * Pass `requireExists: true` to also require the resolved path's real (symlink-
- * resolved) target stays inside home — used by SFTP transfer paths (S4).
+ * resolved) target stays inside home — used by SFTP transfer paths.
  */
 export async function expandAndConfineToHome(
   rawPath: string,
@@ -86,7 +86,7 @@ export async function expandAndConfineToHome(
  * Async variant of assertSafeAbsolutePath that also follows symlinks.
  * For paths that already exist (uploads) we realpath the file. For paths that
  * do not yet exist (downloads), we realpath the *parent* directory so a symlink
- * inside the home dir pointing at /etc cannot be used to escape (S4).
+ * inside the home dir pointing at /etc cannot be used to escape.
  */
 export async function assertSafeRealAbsolutePath(value: unknown, name: string): Promise<string> {
   assertSafeAbsolutePath(value, name);

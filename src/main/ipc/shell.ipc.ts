@@ -26,7 +26,7 @@ export function registerShellHandlers(): void {
       const fullPath = join(normalized, entry.name);
       try {
         // Use lstat for symlinks so we don't disclose metadata of files outside
-        // the home jail via symlink targets (S4). For symlinks we also stat()
+        // the home jail via symlink targets. For symlinks we also stat()
         // to determine whether the target is a directory (used for navigation),
         // but only when the target resolves *within* the home subtree.
         const ls = await lstat(fullPath);

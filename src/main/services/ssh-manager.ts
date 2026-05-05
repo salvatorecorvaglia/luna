@@ -49,7 +49,7 @@ interface SshSession {
   /**
    * Monotonically increasing token. Bumped by connect(), disconnect() and
    * every reconnect attempt. Pending timers capture the value at scheduling
-   * time and bail out if the session generation has moved on (B1).
+   * time and bail out if the session generation has moved on.
    */
   reconnectGen: number;
   _streamListeners?: StreamListeners;
@@ -96,9 +96,21 @@ class SshManager {
     return fingerprintKey(pending.key);
   }
 
-  /** Register a callback invoked when a session disconnects or begins reconnecting. */
-  onSessionDisconnect(cb: (sessionId: string) => void): void {
-    this.onDisconnectCallbacks.push(cb);
+  /**
+   * Register a callback invoked when a session disconnects or begins reconnecting.
+   * Returns an unsubscribe function so callers can clean up explicitly. The
+   * registry de-duplicates the same callback reference — the previous
+   * push-only design grew unboundedly across hot-reloads in dev and would
+   * fire a single disconnect into the same listener N times.
+   */
+  onSessionDisconnect(cb: (sessionId: string) => void): () => void {
+    if (!this.onDisconnectCallbacks.includes(cb)) {
+      this.onDisconnectCallbacks.push(cb);
+    }
+    return () => {
+      const idx = this.onDisconnectCallbacks.indexOf(cb);
+      if (idx !== -1) this.onDisconnectCallbacks.splice(idx, 1);
+    };
   }
 
   private setStatus(session: SshSession, status: SessionStatus): void {
@@ -183,7 +195,7 @@ class SshManager {
       try {
         // Expand ~ via os.homedir() (not $HOME, which can be unset/empty and
         // collapse "~/.." into "/.."), and confine the real (symlink-resolved)
-        // target to the home directory (S3).
+        // target to the home directory.
         const keyPath = await expandAndConfineToHome(params.privateKeyPath, 'privateKeyPath', {
           requireExists: true,
         });
@@ -194,7 +206,7 @@ class SshManager {
       } catch (err: unknown) {
         // Log the underlying details for debugging, but only surface a generic
         // message to the renderer — fs error strings include the absolute key
-        // path which we never want to leak through IPC (S1).
+        // path which we never want to leak through IPC.
         const code = (err as NodeJS.ErrnoException | undefined)?.code;
         log.warn(`[SSH] Failed to read private key (${code ?? 'unknown'})`);
         const message = err instanceof Error ? err.message : '';
@@ -265,8 +277,30 @@ class SshManager {
       return { success: false, error: configError };
     }
 
+    // Track handshake-phase listeners so they can be unwired before we
+    // either resolve (and hand off to the post-handshake listeners) or
+    // destroy the client. Without this, every failed/timed-out connect leaks
+    // 'ready'/'error'/'close' listeners on a Client that's about to be GC'd
+    // but may still emit before its sockets close.
+    let handshakeSettled = false;
+    let onReady: () => void = () => {};
+    let onError: (err: Error) => void = () => {};
+    let onClose: () => void = () => {};
+    const removeHandshakeListeners = (): void => {
+      client.off('ready', onReady);
+      client.off('error', onError);
+      client.off('close', onClose);
+    };
+
     const connectPromise = new Promise<{ success: boolean; error?: string }>((resolve) => {
-      client.on('ready', () => {
+      const settle = (result: { success: boolean; error?: string }): void => {
+        if (handshakeSettled) return;
+        handshakeSettled = true;
+        removeHandshakeListeners();
+        resolve(result);
+      };
+
+      onReady = (): void => {
         session.reconnectAttempts = 0;
         this.setStatus(session, 'connected');
 
@@ -292,24 +326,24 @@ class SshManager {
           if (err) {
             // Clean up session on shell creation failure
             this.sessions.delete(sessionId);
-            resolve({ success: false, error: err.message });
+            settle({ success: false, error: err.message });
             return;
           }
 
           session.shell = stream;
 
-          const onData = (data: Buffer) => {
+          const onData = (data: Buffer): void => {
             emitToRenderer(IPC.SSH_ON_DATA, {
               sessionId,
               data: data.toString('utf-8'),
             });
           };
 
-          const onClose = () => {
+          const onShellClose = (): void => {
             this.handleDisconnect(sessionId);
           };
 
-          const onStderrData = (data: Buffer) => {
+          const onStderrData = (data: Buffer): void => {
             emitToRenderer(IPC.SSH_ON_DATA, {
               sessionId,
               data: data.toString('utf-8'),
@@ -317,40 +351,42 @@ class SshManager {
           };
 
           stream.on('data', onData);
-          stream.on('close', onClose);
+          stream.on('close', onShellClose);
           stream.stderr.on('data', onStderrData);
 
           // Store listener refs for cleanup
-          session._streamListeners = { onData, onClose, onStderrData };
+          session._streamListeners = { onData, onClose: onShellClose, onStderrData };
 
-          resolve({ success: true });
+          // Hand off lifecycle responsibilities from the handshake-only listeners
+          // to the long-lived ones below. These survive until disconnect().
+          settle({ success: true });
+          client.on('error', (err) => {
+            const friendly = describeSshError(err);
+            emitToRenderer(IPC.SSH_ON_ERROR, { sessionId, error: friendly });
+            this.handleDisconnect(sessionId);
+          });
+          client.on('close', () => {
+            if (session.status === 'connected') this.handleDisconnect(sessionId);
+          });
         });
-      });
+      };
 
-      client.on('error', (err) => {
+      onError = (err: Error): void => {
         const friendly = describeSshError(err);
-        emitToRenderer(IPC.SSH_ON_ERROR, {
-          sessionId,
-          error: friendly,
-        });
+        emitToRenderer(IPC.SSH_ON_ERROR, { sessionId, error: friendly });
+        this.sessions.delete(sessionId);
+        settle({ success: false, error: friendly });
+      };
 
-        if (session.status === 'connecting') {
-          this.sessions.delete(sessionId);
-          resolve({ success: false, error: friendly });
-        } else {
-          this.handleDisconnect(sessionId);
-        }
-      });
+      onClose = (): void => {
+        // Handshake aborted or socket closed before ready
+        this.sessions.delete(sessionId);
+        settle({ success: false, error: 'Connection closed during handshake' });
+      };
 
-      client.on('close', () => {
-        if (session.status === 'connected') {
-          this.handleDisconnect(sessionId);
-        } else if (session.status === 'connecting') {
-          // Handshake aborted or socket closed before ready
-          this.sessions.delete(sessionId);
-          resolve({ success: false, error: 'Connection closed during handshake' });
-        }
-      });
+      client.once('ready', onReady);
+      client.once('error', onError);
+      client.once('close', onClose);
 
       client.connect(connectConfig);
     });
@@ -359,6 +395,13 @@ class SshManager {
     try {
       return await withTimeout(connectPromise, timeoutMs, `ssh.connect(${sessionId})`);
     } catch (err: unknown) {
+      // Make sure the handshake-phase listeners are gone before we destroy(),
+      // otherwise the synthetic 'close' from destroy() can fire 'error'/'close'
+      // again into the (already-rejected) promise pathway.
+      if (!handshakeSettled) {
+        handshakeSettled = true;
+        removeHandshakeListeners();
+      }
       try {
         client.destroy();
       } catch {
@@ -455,7 +498,16 @@ class SshManager {
       // connect() re-adds the session (and bumps reconnectGen).
       this.sessions.delete(sessionId);
 
-      const result = await this.connect(sessionId, connectionId, cols, rows);
+      // Connect() should always resolve with {success}, but treat a thrown
+      // error the same as a failed reconnect so a bug here can't escape as an
+      // unhandled rejection inside a setTimeout callback.
+      let result: { success: boolean; error?: string };
+      try {
+        result = await this.connect(sessionId, connectionId, cols, rows);
+      } catch (err) {
+        log.error(`[SSH] Reconnect threw for ${sessionId}:`, err);
+        result = { success: false, error: err instanceof Error ? err.message : String(err) };
+      }
 
       if (!result.success) {
         const newSess = this.sessions.get(sessionId);
@@ -611,13 +663,20 @@ class SshManager {
           }),
         LIMITS.SSH_CONNECT_TIMEOUT_MS,
       );
-      client.on('ready', () => {
+      client.once('ready', () => {
         clearTimeout(timer);
         finish({ ok: true });
       });
-      client.on('error', (err) => {
+      client.once('error', (err) => {
         clearTimeout(timer);
         finish({ ok: false, error: describeSshError(err) });
+      });
+      // A socket closing without 'ready' or 'error' (e.g. server drops the
+      // connection mid-handshake) would otherwise leave the promise pending
+      // until the 'connection test timed out' timer fires.
+      client.once('close', () => {
+        clearTimeout(timer);
+        finish({ ok: false, error: 'Connection closed before handshake completed' });
       });
       try {
         client.connect(config);

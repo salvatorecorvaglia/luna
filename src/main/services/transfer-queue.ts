@@ -205,6 +205,11 @@ class TransferQueue {
   }
 
   cancelAll(): void {
+    // Abort every controller, then drop both queues so the AbortController
+    // references (and their attached signal listeners) are eligible for GC
+    // immediately rather than waiting for the per-transfer finally branch
+    // to clean them up — which won't run if the SFTP channel is already
+    // dead and the abort handler never settles (R3).
     for (const transfer of this.active.values()) {
       transfer.controller.abort();
     }
@@ -212,6 +217,7 @@ class TransferQueue {
       transfer.controller.abort();
       emitToRenderer(IPC.TRANSFER_CANCELLED, { transferId: transfer.id });
     }
+    this.active.clear();
     this.queue = [];
   }
 }
