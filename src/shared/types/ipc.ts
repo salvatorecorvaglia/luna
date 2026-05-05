@@ -1,10 +1,17 @@
-import type { Connection, CreateConnectionInput, UpdateConnectionInput } from './connection';
+import type {
+  AuthType,
+  Connection,
+  CreateConnectionInput,
+  ExportedConnection,
+  UpdateConnectionInput,
+} from './connection';
 import type {
   SshCloseEvent,
   SshConnectParams,
   SshConnectResult,
   SshDataEvent,
   SshErrorEvent,
+  SshHostKeyChangeEvent,
   SshResizeParams,
   SshSendDataParams,
   SshStatusEvent,
@@ -17,12 +24,21 @@ import type {
   SftpMkdirParams,
   SftpReadFileParams,
   SftpRenameParams,
+  SftpStatParams,
+  SftpStatResult,
   SftpTransferParams,
 } from './sftp';
 import type { TransferCompleteEvent, TransferErrorEvent, TransferProgressEvent } from './transfer';
 import type { AppSettings } from './settings';
 
-// Request-response IPC (invoke/handle)
+/**
+ * Authoritative request/response shape for every invoke-style IPC channel.
+ *
+ * Keeping this map exhaustive (including handlers that previously lived as
+ * `as Promise<T>` casts in preload/index.ts) lets the preload bridge derive
+ * its types directly via the `invoke<K>(channel, req)` helper — drift between
+ * handler and consumer becomes a compile error, not a runtime surprise.
+ */
 export interface IpcHandlerMap {
   // Connections
   'connection:list': { request: void; response: Connection[] };
@@ -30,15 +46,44 @@ export interface IpcHandlerMap {
   'connection:create': { request: CreateConnectionInput; response: Connection };
   'connection:update': { request: UpdateConnectionInput; response: Connection };
   'connection:delete': { request: string; response: void };
+  'connection:export': { request: void; response: ExportedConnection[] };
+  'connection:import': {
+    request: ExportedConnection[];
+    response: { imported: number; skipped: { name: string; reason: string }[] };
+  };
+  'connection:import-from-file': {
+    request: void;
+    response: { imported: number; skipped: { name: string; reason: string }[] };
+  };
 
   // SSH
   'ssh:connect': { request: SshConnectParams; response: SshConnectResult };
   'ssh:disconnect': { request: string; response: void };
   'ssh:send-data': { request: SshSendDataParams; response: void };
   'ssh:resize': { request: SshResizeParams; response: void };
+  'ssh:test-connection': {
+    request: {
+      connectionId?: string;
+      config?: {
+        host: string;
+        port: number;
+        username: string;
+        authType: AuthType;
+        privateKeyPath?: string;
+        password?: string;
+        passphrase?: string;
+      };
+    };
+    response: { ok: boolean; error?: string };
+  };
+  'ssh:trust-host-key': {
+    request: { host: string; port: number };
+    response: { trusted: boolean; fingerprint?: string };
+  };
 
   // SFTP
   'sftp:list': { request: SftpListParams; response: SftpEntry[] };
+  'sftp:stat': { request: SftpStatParams; response: SftpStatResult };
   'sftp:mkdir': { request: SftpMkdirParams; response: void };
   'sftp:rename': { request: SftpRenameParams; response: void };
   'sftp:delete': { request: SftpDeleteParams; response: void };
@@ -50,9 +95,27 @@ export interface IpcHandlerMap {
   'shell:readdir': { request: string; response: LocalFileEntry[] };
   'shell:home-dir': { request: void; response: string };
   'shell:open-file-dialog': {
-    request: { filters?: { name: string; extensions: string[] }[] };
+    request: { filters?: { name: string; extensions: string[] }[] } | undefined;
     response: string | null;
   };
+  'shell:save-file-dialog': {
+    request: {
+      defaultPath?: string;
+      filters?: { name: string; extensions: string[] }[];
+      content: string;
+    };
+    response: string | null;
+  };
+  'shell:join-path': { request: { base: string; fileName: string }; response: string };
+  'shell:check-file': {
+    request: string;
+    response:
+      | { ok: true }
+      | { ok: false; reason: 'empty' | 'missing' | 'permission' | 'not-a-file' | 'unknown' };
+  };
+
+  // Transfers
+  'transfer:cancel': { request: string; response: void };
 
   // Credentials
   'credential:store': { request: { connectionId: string; secret: string }; response: void };
@@ -74,6 +137,8 @@ export interface IpcHandlerMap {
   'app:get-version': { request: void; response: string };
   'app:check-update': { request: void; response: { available: boolean; version?: string } };
   'app:install-update': { request: void; response: void };
+  'app:get-log-path': { request: void; response: string };
+  'app:open-log-file': { request: void; response: void };
 }
 
 // Streaming events (main -> renderer, via webContents.send)
@@ -82,10 +147,24 @@ export interface IpcEventMap {
   'ssh:on-close': SshCloseEvent;
   'ssh:on-error': SshErrorEvent;
   'ssh:on-status': SshStatusEvent;
+  'ssh:on-host-key-change': SshHostKeyChangeEvent;
   'transfer:progress': TransferProgressEvent;
   'transfer:complete': TransferCompleteEvent;
   'transfer:error': TransferErrorEvent;
+  'transfer:cancelled': TransferCompleteEvent;
+  'app:update-available': { version: string };
+  'app:update-download-progress': { percent: number; bytesPerSecond: number };
+  'app:update-downloaded': Record<string, never>;
+  'app:update-error': { error: string };
 }
+
+/** Convenience aliases for invoke<channel, req, res> helpers. */
+export type IpcChannel = keyof IpcHandlerMap;
+export type IpcRequest<K extends IpcChannel> = IpcHandlerMap[K]['request'];
+export type IpcResponse<K extends IpcChannel> = IpcHandlerMap[K]['response'];
+
+export type IpcEventChannel = keyof IpcEventMap;
+export type IpcEventPayload<K extends IpcEventChannel> = IpcEventMap[K];
 
 // Re-export all types for convenience
 export type * from './connection';

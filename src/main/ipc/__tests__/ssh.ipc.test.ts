@@ -83,10 +83,7 @@ describe('ssh.ipc validation', () => {
     it('rejects unsupported authType', async () => {
       const handler = handlers.get(IPC.SSH_TEST_CONNECTION)!;
       await expect(
-        handler(
-          {},
-          { config: { host: 'h', port: 22, username: 'u', authType: 'magic' as never } },
-        ),
+        handler({}, { config: { host: 'h', port: 22, username: 'u', authType: 'magic' as never } }),
       ).rejects.toThrow(/authType/);
     });
 
