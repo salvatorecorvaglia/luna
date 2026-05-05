@@ -105,6 +105,11 @@ export default function App() {
       <Toaster
         theme="dark"
         position="bottom-right"
+        // Cap the visible queue. A bulk-transfer failure (10 files) would
+        // otherwise stack 10 toasts in the corner and block UI underneath.
+        // Sonner queues the rest internally — they show as the visible ones
+        // are dismissed.
+        visibleToasts={4}
         // Sonner forwards `aria-live` onto the live region; "polite" so toasts
         // don't interrupt screen-reader users mid-utterance.
         toastOptions={{

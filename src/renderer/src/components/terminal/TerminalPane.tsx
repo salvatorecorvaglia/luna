@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
@@ -115,15 +116,24 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
 
     terminal.open(containerRef.current);
 
-    // Try WebGL, fall back to canvas
+    // Try WebGL, fall back to canvas. On context loss, dispose the addon
+    // and let xterm fall back to its DOM/canvas renderer instead of going
+    // black silently. Notify the user once so a sudden loss isn't mysterious.
     try {
       const webglAddon = new WebglAddon();
+      let webglNoticeShown = false;
       webglAddon.onContextLoss(() => {
         webglAddon.dispose();
+        if (!webglNoticeShown) {
+          webglNoticeShown = true;
+          toast.warning('Terminal GPU acceleration was lost — switched to software rendering.', {
+            id: `webgl-loss-${sessionId}`,
+          });
+        }
       });
       terminal.loadAddon(webglAddon);
     } catch {
-      // Canvas renderer is the default fallback
+      // Canvas renderer is the default fallback when WebGL itself can't initialize.
     }
 
     fitAddon.fit();
@@ -208,11 +218,19 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
     };
   }, [sessionId, handleResize]);
 
-  // Update theme in place without remounting (preserves scroll history)
+  // Update theme in place without remounting (preserves scroll history).
+  // Mutating `options.theme` doesn't trigger xterm's redraw — colors
+  // stay stale until the next keystroke writes to the buffer. Force a
+  // refresh of the visible viewport so the swap is immediate.
   useEffect(() => {
     const terminal = terminalRef.current;
     if (terminal) {
       terminal.options.theme = terminalThemes[terminalTheme];
+      try {
+        terminal.refresh(0, terminal.rows - 1);
+      } catch {
+        // refresh can throw if the terminal isn't attached yet — harmless.
+      }
     }
   }, [terminalTheme]);
 
@@ -301,6 +319,7 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
               if (e.key === 'Escape') closeSearch();
             }}
             placeholder="Search..."
+            aria-label="Search terminal output"
             className="w-40 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground/50"
           />
           <button

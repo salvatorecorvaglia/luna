@@ -6,6 +6,7 @@ import {
   EyeOff,
   FolderPlus,
   Home,
+  Loader2,
   RefreshCw,
   Search,
   X,
@@ -172,6 +173,15 @@ export function FilePane({
           <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             {title}
           </span>
+          {/* Surface in-flight loads in the header so an empty list isn't
+              ambiguous between "no entries" and "still fetching". */}
+          {isLoading && (
+            <Loader2
+              className="h-3 w-3 animate-spin text-muted-foreground/70"
+              aria-label="Loading directory"
+              role="status"
+            />
+          )}
         </div>
         <div className="flex items-center gap-0.5">
           {onMkdir && (
@@ -224,7 +234,7 @@ export function FilePane({
         </div>
       </div>
 
-      {/* Breadcrumbs — U6: gradient fades indicate scrollable overflow */}
+      {/* Breadcrumbs — gradient fades indicate scrollable overflow */}
       <div className="relative border-b border-border/60">
         {/* Left fade indicator */}
         <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-card/80 to-transparent z-10" />

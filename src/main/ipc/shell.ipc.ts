@@ -122,7 +122,7 @@ export function registerShellHandlers(): void {
 
   ipcMain.handle(IPC.SHELL_CHECK_FILE, async (_event, filePath: string) => {
     // Best-effort readability probe used by the connection form to validate a
-    // private-key path before submission (U1). Returns a structured result
+    // private-key path before submission. Returns a structured result
     // rather than throwing so the renderer can surface a precise error.
     if (typeof filePath !== 'string' || filePath.length === 0) {
       return { ok: false, reason: 'empty' as const };
