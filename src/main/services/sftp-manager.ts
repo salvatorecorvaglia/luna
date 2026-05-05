@@ -66,7 +66,7 @@ class SftpManager {
     });
 
     this.idleCheckTimer = setInterval(() => this.cleanupIdle(), IDLE_CHECK_INTERVAL_MS);
-    // R1: unref so an unexpected uncaughtException-then-quit path can't be
+    // Unref so an unexpected uncaughtException-then-quit path can't be
     // held open by this timer alone if `before-quit` doesn't fire (e.g. a
     // crash during init). Production cleanup still goes through dispose().
     this.idleCheckTimer.unref?.();

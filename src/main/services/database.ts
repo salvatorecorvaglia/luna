@@ -224,3 +224,11 @@ export function closeDatabase(): void {
     db = null;
   }
 }
+
+/**
+ * Test-only handle. `runMigrations` is internal so the singleton can stay
+ * the only public init path, but we expose it (and the migration list) for
+ * unit tests that need to drive a synthetic Database without touching the
+ * native better-sqlite3 module.
+ */
+export const __test__ = { runMigrations, getMigrations };

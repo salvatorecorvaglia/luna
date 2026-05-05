@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { updateHostKey, verifyHostKey } from '../host-key-store';
+import { formatHostKey, updateHostKey, verifyHostKey } from '../host-key-store';
 
 // In-memory shim of the subset of better-sqlite3 used by host-key-store.
 // We avoid loading the native module here because its ABI is compiled for
@@ -82,5 +82,40 @@ describe('host-key-store TOFU', () => {
     const result = verifyHostKey('host', 22, Buffer.from('key-1'), 'ssh-dss');
     expect(result.trusted).toBe(false);
     expect(result.weakAlgorithm).toBe(true);
+  });
+});
+
+describe('formatHostKey (IPv6 disambiguation)', () => {
+  it('passes IPv4 hostnames through unchanged', () => {
+    expect(formatHostKey('192.168.1.1', 22)).toBe('192.168.1.1:22');
+    expect(formatHostKey('example.com', 2222)).toBe('example.com:2222');
+  });
+
+  it('brackets IPv6 addresses so the port separator is unambiguous', () => {
+    expect(formatHostKey('::1', 22)).toBe('[::1]:22');
+    expect(formatHostKey('2001:db8::1', 22)).toBe('[2001:db8::1]:22');
+  });
+
+  it('does not double-bracket already-bracketed input', () => {
+    expect(formatHostKey('[::1]', 22)).toBe('[::1]:22');
+  });
+});
+
+describe('host-key-store IPv6', () => {
+  it('stores and retrieves an IPv6 host without colliding with another IPv6 on a different port', () => {
+    updateHostKey('::1', 22, Buffer.from('a'), 'ssh-ed25519');
+    updateHostKey('::1', 2222, Buffer.from('b'), 'ssh-ed25519');
+    expect(verifyHostKey('::1', 22, Buffer.from('a'), 'ssh-ed25519').trusted).toBe(true);
+    expect(verifyHostKey('::1', 2222, Buffer.from('b'), 'ssh-ed25519').trusted).toBe(true);
+    // Cross-check: key for 22 must NOT trust on 2222.
+    expect(verifyHostKey('::1', 2222, Buffer.from('a'), 'ssh-ed25519').changed).toBe(true);
+  });
+
+  it("does not confuse IPv6 host '::' port 1 with host '::1' port (none) — separator is unambiguous", () => {
+    updateHostKey('::', 1, Buffer.from('host-colon'), 'ssh-ed25519');
+    // The ambiguous legacy format `::1` could be either; the new format is
+    // `[::]:1` vs `[::1]:22` — distinct primary keys.
+    const v = verifyHostKey('::1', 22, Buffer.from('host-colon'), 'ssh-ed25519');
+    expect(v.isFirst).toBe(true);
   });
 });

@@ -1,10 +1,14 @@
-import { describe, expect, it } from 'vitest';
-import { homedir } from 'os';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { homedir, tmpdir } from 'os';
+import { join } from 'path';
+import { mkdtempSync, rmSync, symlinkSync, mkdirSync, writeFileSync } from 'fs';
 import {
   assertBoundedInt,
   assertNonEmptyString,
   assertSafeAbsolutePath,
+  assertSafeRealAbsolutePath,
   assertValidPath,
+  expandAndConfineToHome,
 } from '../validate';
 
 const HOME = homedir();
@@ -94,5 +98,94 @@ describe('assertSafeAbsolutePath', () => {
   it('rejects paths outside the home directory', () => {
     expect(() => assertSafeAbsolutePath('/etc/passwd', 'p')).toThrow(/home directory/);
     expect(() => assertSafeAbsolutePath('/var/log', 'p')).toThrow(/home directory/);
+  });
+});
+
+describe('expandAndConfineToHome', () => {
+  it('expands a leading ~ to the home directory', async () => {
+    await expect(expandAndConfineToHome('~/keys/id_rsa', 'p')).resolves.toBe(`${HOME}/keys/id_rsa`);
+  });
+
+  it('expands a bare ~ to the home directory', async () => {
+    await expect(expandAndConfineToHome('~', 'p')).resolves.toBe(HOME);
+  });
+
+  it('rejects non-absolute, non-tilde paths', async () => {
+    await expect(expandAndConfineToHome('relative/path', 'p')).rejects.toThrow(/absolute or start with ~/);
+  });
+
+  it('rejects paths that escape via .. after expansion', async () => {
+    await expect(expandAndConfineToHome('~/../etc/passwd', 'p')).rejects.toThrow(/home directory/);
+  });
+
+  it('rejects absolute paths outside home', async () => {
+    await expect(expandAndConfineToHome('/etc/passwd', 'p')).rejects.toThrow(/home directory/);
+  });
+
+  it('does not mistake ~user for the current user (treats it as a literal absolute requirement)', async () => {
+    // The helper only special-cases bare `~` and `~/...`; `~root/foo` must be
+    // rejected as non-absolute rather than silently rewritten.
+    await expect(expandAndConfineToHome('~root/foo', 'p')).rejects.toThrow(/absolute/);
+  });
+});
+
+describe('assertSafeRealAbsolutePath (symlink-following)', () => {
+  // Symlinks rooted at a tmp dir we link from inside HOME, so the symlink
+  // itself lives in home but its target resolves outside.
+  let homeTmp: string;
+  let outsideTmp: string;
+  let escapeLink: string; // <home>/escape -> /tmp/<outside>
+  let safeFile: string;
+
+  beforeAll(() => {
+    homeTmp = mkdtempSync(join(HOME, '.lunar-test-'));
+    outsideTmp = mkdtempSync(join(tmpdir(), 'lunar-outside-'));
+    escapeLink = join(homeTmp, 'escape');
+    symlinkSync(outsideTmp, escapeLink);
+    safeFile = join(homeTmp, 'safe.txt');
+    writeFileSync(safeFile, 'ok');
+    mkdirSync(join(homeTmp, 'sub'));
+  });
+
+  afterAll(() => {
+    try {
+      rmSync(homeTmp, { recursive: true, force: true });
+    } catch {
+      /* best-effort */
+    }
+    try {
+      rmSync(outsideTmp, { recursive: true, force: true });
+    } catch {
+      /* best-effort */
+    }
+  });
+
+  it('returns the realpath when target is inside home', async () => {
+    await expect(assertSafeRealAbsolutePath(safeFile, 'p')).resolves.toBe(safeFile);
+  });
+
+  it('rejects an existing symlink whose target escapes home', async () => {
+    // Pretend the renderer is asking us to write into a file that already
+    // exists via a planted symlink. realpath() resolves it to /tmp/...
+    // which is outside home, so we must refuse.
+    const linkedFile = join(escapeLink, 'pwned');
+    writeFileSync(linkedFile, 'attack');
+    await expect(assertSafeRealAbsolutePath(linkedFile, 'p')).rejects.toThrow(
+      /resolves outside the home directory/,
+    );
+  });
+
+  it('uses parent realpath for non-existent targets', async () => {
+    // For downloads, the destination file may not exist yet. The validator
+    // should walk back to the parent and verify *its* real target is in home.
+    const newFile = join(homeTmp, 'sub', 'new-download.bin');
+    await expect(assertSafeRealAbsolutePath(newFile, 'p')).resolves.toBe(newFile);
+  });
+
+  it('rejects writing into a non-existent file under an escaping symlink parent', async () => {
+    const newFile = join(escapeLink, 'new.bin');
+    await expect(assertSafeRealAbsolutePath(newFile, 'p')).rejects.toThrow(
+      /resolves outside the home directory/,
+    );
   });
 });

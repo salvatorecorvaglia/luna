@@ -209,7 +209,7 @@ class TransferQueue {
     // references (and their attached signal listeners) are eligible for GC
     // immediately rather than waiting for the per-transfer finally branch
     // to clean them up — which won't run if the SFTP channel is already
-    // dead and the abort handler never settles (R3).
+    // dead and the abort handler never settles.
     for (const transfer of this.active.values()) {
       transfer.controller.abort();
     }

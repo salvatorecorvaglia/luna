@@ -20,14 +20,16 @@ export default defineConfig({
         'src/test/**',
         'src/renderer/src/themes/terminal/**'
       ],
-      // Floor — tests cover validation, host-key TOFU, transfer-queue, credential
-      // round-trip, and parts of ssh-manager. Raise as new tests are added rather
+      // Floor — tests cover validation (incl. symlink jail), host-key TOFU
+      // and IPv6 disambiguation, transfer-queue, credential round-trip,
+      // emit redaction, ssh.ipc validation, db.ipc import sanitization
+      // and database migrations. Raise as new tests are added rather
       // than treating these as final goals.
       thresholds: {
-        lines: 10,
-        functions: 8,
-        branches: 7,
-        statements: 10
+        lines: 14,
+        functions: 11,
+        branches: 11,
+        statements: 14
       }
     }
   },
