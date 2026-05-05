@@ -55,29 +55,44 @@ function getEncryptionKey(): Buffer {
 
   if (!encryptionKey) {
     if (existsSync(keyPath)) {
+      // Existing install with a plaintext key file: keep reading it so we don't
+      // strand stored credentials, but migrate into safeStorage if available
+      // and warn loudly otherwise so the operator knows to fix their keyring.
       encryptionKey = readFileSync(keyPath);
-      // Migrate the plaintext key file into safeStorage when available.
       if (canWrap) {
         try {
           writeFileSync(wrappedPath, safeStorage.encryptString(encryptionKey.toString('latin1')));
-          // Best-effort: leave the plaintext file in place to avoid breaking older
-          // builds that still read keyPath. A future migration can delete it.
         } catch (err) {
           log.warn('[Credentials] Could not wrap existing key with safeStorage', err);
         }
+      } else {
+        log.warn(
+          '[Credentials] Using plaintext key file because safeStorage is unavailable. ' +
+            'Install gnome-keyring or libsecret-1-0 and restart to migrate to OS-protected storage.',
+        );
+      }
+    } else if (canWrap) {
+      encryptionKey = randomBytes(32);
+      try {
+        writeFileSync(wrappedPath, safeStorage.encryptString(encryptionKey.toString('latin1')));
+      } catch (err) {
+        // safeStorage said it was available but encryption still failed. Don't
+        // silently fall back to plaintext on disk (S1): credentials would be
+        // recoverable by anyone with read access to the user's data dir.
+        encryptionKey = null;
+        throw new Error(
+          `Failed to write OS-protected encryption key: ${err instanceof Error ? err.message : String(err)}`,
+          { cause: err },
+        );
       }
     } else {
-      encryptionKey = randomBytes(32);
-      if (canWrap) {
-        try {
-          writeFileSync(wrappedPath, safeStorage.encryptString(encryptionKey.toString('latin1')));
-        } catch (err) {
-          log.warn('[Credentials] safeStorage write failed, falling back to plaintext key', err);
-          writeFileSync(keyPath, encryptionKey);
-        }
-      } else {
-        writeFileSync(keyPath, encryptionKey);
-      }
+      // Fresh install on a platform without safeStorage (e.g. Linux without
+      // libsecret). Refuse to persist a plaintext master key (S1) — credential
+      // storage is opt-in and the user must install a keyring backend first.
+      throw new Error(
+        'Cannot initialize credential storage: OS-level secret storage (safeStorage) is ' +
+          'unavailable. On Linux, install gnome-keyring or libsecret-1-0 and restart.',
+      );
     }
   }
   return encryptionKey;

@@ -2,6 +2,18 @@ import { createHash } from 'crypto';
 import { getDatabase } from './database';
 
 /**
+ * Build the composite key used as the known_hosts primary key. IPv6 addresses
+ * contain `:` characters, so a naive `${host}:${port}` format is ambiguous —
+ * `::1:22` could be host `::1` port `22` or host `::` port `1:22`. We wrap any
+ * host that contains a `:` (and isn't already bracketed) in `[...]` so the
+ * separator before `port` is always unambiguous (S6).
+ */
+export function formatHostKey(host: string, port: number): string {
+  const needsBrackets = host.includes(':') && !host.startsWith('[');
+  return needsBrackets ? `[${host}]:${port}` : `${host}:${port}`;
+}
+
+/**
  * Allowlist of acceptable host-key algorithms. Reject weak or deprecated
  * algorithms (ssh-dss, plain ssh-rsa with SHA-1, anything else unknown) so
  * a downgrade-attack can't trick TOFU into trusting a weaker key (S3).
@@ -30,7 +42,7 @@ export function getStoredHostKey(
   const db = getDatabase();
   const row = db
     .prepare('SELECT fingerprint, algorithm FROM known_hosts WHERE host_key = ?')
-    .get(`${host}:${port}`) as { fingerprint: string; algorithm: string } | undefined;
+    .get(formatHostKey(host, port)) as { fingerprint: string; algorithm: string } | undefined;
   return row ?? null;
 }
 
@@ -60,7 +72,7 @@ export function verifyHostKey(
   }
 
   const db = getDatabase();
-  const hostKey = `${host}:${port}`;
+  const hostKey = formatHostKey(host, port);
   const fp = fingerprintKey(keyData);
 
   const row = db
@@ -89,7 +101,7 @@ export function updateHostKey(
   algorithm: string,
 ): void {
   const db = getDatabase();
-  const hostKey = `${host}:${port}`;
+  const hostKey = formatHostKey(host, port);
   const fp = fingerprintKey(keyData);
 
   db.prepare(
