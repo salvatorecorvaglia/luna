@@ -1,12 +1,25 @@
 import { create } from 'zustand';
 import type { TransferItem } from '@shared/types/transfer';
 
+/** Single progress sample passed to applyProgressBatch. */
+export interface ProgressSample {
+  transferId: string;
+  transferred: number;
+  bytesPerSec: number;
+}
+
 interface TransferState {
   transfers: Map<string, TransferItem>;
   queueExpanded: boolean;
 
   addTransfer: (transfer: TransferItem) => void;
   updateProgress: (transferId: string, transferred: number, bytesPerSec: number) => void;
+  /**
+   * Apply many progress samples in one set() — preferred over calling
+   * updateProgress per event so we allocate one new Map per render frame
+   * instead of one per byte chunk.
+   */
+  applyProgressBatch: (samples: Iterable<ProgressSample>) => void;
   completeTransfer: (transferId: string) => void;
   cancelTransfer: (transferId: string) => void;
   errorTransfer: (transferId: string, error: string) => void;
@@ -35,6 +48,29 @@ export const useTransferStore = create<TransferState>((set) => ({
         transfers.set(transferId, { ...item, transferred, bytesPerSec, status: 'active' });
       }
       return { transfers };
+    }),
+
+  applyProgressBatch: (samples) =>
+    set((s) => {
+      let mutated = false;
+      let transfers = s.transfers;
+      for (const sample of samples) {
+        const item = transfers.get(sample.transferId);
+        if (!item) continue;
+        if (!mutated) {
+          // Only allocate a new Map once we know there's at least one matching
+          // transfer — empty/no-op batches don't trigger a re-render.
+          transfers = new Map(s.transfers);
+          mutated = true;
+        }
+        transfers.set(sample.transferId, {
+          ...item,
+          transferred: sample.transferred,
+          bytesPerSec: sample.bytesPerSec,
+          status: 'active',
+        });
+      }
+      return mutated ? { transfers } : s;
     }),
 
   completeTransfer: (transferId) =>

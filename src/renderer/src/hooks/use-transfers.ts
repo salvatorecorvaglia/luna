@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { useTransferStore } from '@/stores/transfer-store';
+import { useEffect, useRef } from 'react';
+import { useTransferStore, type ProgressSample } from '@/stores/transfer-store';
 import { useInvalidateLocalDir, useInvalidateSftp } from '@/hooks/use-sftp';
 
 /**
@@ -10,16 +10,36 @@ import { useInvalidateLocalDir, useInvalidateSftp } from '@/hooks/use-sftp';
  * Mount this once at the app level so events are always captured.
  */
 export function useTransferEventListener(): void {
-  const updateProgress = useTransferStore((s) => s.updateProgress);
+  const applyProgressBatch = useTransferStore((s) => s.applyProgressBatch);
   const completeTransfer = useTransferStore((s) => s.completeTransfer);
   const errorTransfer = useTransferStore((s) => s.errorTransfer);
   const cancelTransfer = useTransferStore((s) => s.cancelTransfer);
   const invalidateSftp = useInvalidateSftp();
   const invalidateLocal = useInvalidateLocalDir();
+  // Progress events arrive ~5/s per transfer from the main process. With
+  // multiple concurrent transfers each event would otherwise allocate a fresh
+  // Map and trigger a render. Coalesce into a single rAF flush so the store
+  // sees one batched update per frame, regardless of how many transfers fire.
+  const pending = useRef<Map<string, ProgressSample>>(new Map());
+  const rafHandle = useRef<number | null>(null);
 
   useEffect(() => {
+    const flush = (): void => {
+      rafHandle.current = null;
+      if (pending.current.size === 0) return;
+      const batch = pending.current;
+      pending.current = new Map();
+      applyProgressBatch(batch.values());
+    };
     const cleanupProgress = window.api.transfers.onProgress((event) => {
-      updateProgress(event.transferId, event.transferred, event.bytesPerSec);
+      pending.current.set(event.transferId, {
+        transferId: event.transferId,
+        transferred: event.transferred,
+        bytesPerSec: event.bytesPerSec,
+      });
+      if (rafHandle.current === null) {
+        rafHandle.current = requestAnimationFrame(flush);
+      }
     });
 
     const cleanupComplete = window.api.transfers.onComplete((event) => {
@@ -54,9 +74,14 @@ export function useTransferEventListener(): void {
       cleanupComplete();
       cleanupError();
       cleanupCancelled();
+      if (rafHandle.current !== null) {
+        cancelAnimationFrame(rafHandle.current);
+        rafHandle.current = null;
+      }
+      pending.current.clear();
     };
   }, [
-    updateProgress,
+    applyProgressBatch,
     completeTransfer,
     errorTransfer,
     cancelTransfer,

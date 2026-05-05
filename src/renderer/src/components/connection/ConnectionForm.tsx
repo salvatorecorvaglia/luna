@@ -157,30 +157,42 @@ export function ConnectionForm() {
     setTouched((prev) => ({ ...prev, [field]: true }));
   }, []);
 
-  const errors: Record<string, string> = {};
-  if (!name.trim()) {
-    errors.name = 'Connection name is required';
-  } else if (
-    existingConnections?.some(
-      (c) =>
-        c.name.trim().toLowerCase() === name.trim().toLowerCase() && c.id !== editingConnectionId,
-    )
-  ) {
-    errors.name = 'A connection with this name already exists';
-  }
-  if (!host.trim()) {
-    errors.host = 'Host is required';
-  }
-  const portNum = parseInt(port, 10);
-  if (port.trim() === '' || Number.isNaN(portNum) || portNum < 1 || portNum > 65535) {
-    errors.port = 'Port must be between 1 and 65535';
-  }
-  if (!username.trim()) {
-    errors.username = 'Username is required';
-  }
-  if ((authType === 'key' || authType === 'key+passphrase') && !privateKeyPath.trim()) {
-    errors.privateKeyPath = 'Private key path is required';
-  }
+  // Validation runs on every keystroke and the duplicate-name check
+  // walks the entire connections list. Memoize on the inputs we actually
+  // depend on so unrelated re-renders (focus, hover, parent updates) don't
+  // re-walk N existingConnections per character typed.
+  const errors = useMemo<Record<string, string>>(() => {
+    const out: Record<string, string> = {};
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      out.name = 'Connection name is required';
+    } else {
+      const lower = trimmedName.toLowerCase();
+      const collides = existingConnections?.some(
+        (c) => c.name.trim().toLowerCase() === lower && c.id !== editingConnectionId,
+      );
+      if (collides) out.name = 'A connection with this name already exists';
+    }
+    if (!host.trim()) out.host = 'Host is required';
+    const portNum = parseInt(port, 10);
+    if (port.trim() === '' || Number.isNaN(portNum) || portNum < 1 || portNum > 65535) {
+      out.port = 'Port must be between 1 and 65535';
+    }
+    if (!username.trim()) out.username = 'Username is required';
+    if ((authType === 'key' || authType === 'key+passphrase') && !privateKeyPath.trim()) {
+      out.privateKeyPath = 'Private key path is required';
+    }
+    return out;
+  }, [
+    name,
+    host,
+    port,
+    username,
+    authType,
+    privateKeyPath,
+    existingConnections,
+    editingConnectionId,
+  ]);
 
   const visibleError = (field: string): string | undefined =>
     touched[field] ? errors[field] : undefined;
