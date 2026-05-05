@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import { homedir } from 'os';
 import {
   assertBoundedInt,
   assertNonEmptyString,
   assertSafeAbsolutePath,
   assertValidPath,
 } from '../validate';
+
+const HOME = homedir();
 
 describe('assertNonEmptyString', () => {
   it('accepts a non-empty string', () => {
@@ -62,13 +65,13 @@ describe('assertValidPath', () => {
   });
 });
 describe('assertSafeAbsolutePath', () => {
-  it('accepts an absolute, canonical path', () => {
-    expect(() => assertSafeAbsolutePath('/home/user/file.txt', 'p')).not.toThrow();
-    expect(() => assertSafeAbsolutePath('/home/user', 'p')).not.toThrow();
+  it('accepts an absolute, canonical path inside home', () => {
+    expect(() => assertSafeAbsolutePath(`${HOME}/file.txt`, 'p')).not.toThrow();
+    expect(() => assertSafeAbsolutePath(HOME, 'p')).not.toThrow();
   });
 
   it('accepts an absolute path with trailing slash', () => {
-    expect(() => assertSafeAbsolutePath('/home/user/', 'p')).not.toThrow();
+    expect(() => assertSafeAbsolutePath(`${HOME}/sub/`, 'p')).not.toThrow();
   });
 
   it('rejects relative paths', () => {
@@ -77,14 +80,19 @@ describe('assertSafeAbsolutePath', () => {
   });
 
   it('rejects paths with traversal segments', () => {
-    expect(() => assertSafeAbsolutePath('/home/user/../etc/passwd', 'p')).toThrow(/canonical/);
+    expect(() => assertSafeAbsolutePath(`${HOME}/../etc/passwd`, 'p')).toThrow(/canonical/);
   });
 
   it('rejects paths with redundant separators', () => {
-    expect(() => assertSafeAbsolutePath('/home//user', 'p')).toThrow(/canonical/);
+    expect(() => assertSafeAbsolutePath(`${HOME}//user`, 'p')).toThrow(/canonical/);
   });
 
   it('rejects paths with null bytes', () => {
-    expect(() => assertSafeAbsolutePath('/home/\0/x', 'p')).toThrow(/null bytes/);
+    expect(() => assertSafeAbsolutePath(`${HOME}/\0/x`, 'p')).toThrow(/null bytes/);
+  });
+
+  it('rejects paths outside the home directory', () => {
+    expect(() => assertSafeAbsolutePath('/etc/passwd', 'p')).toThrow(/home directory/);
+    expect(() => assertSafeAbsolutePath('/var/log', 'p')).toThrow(/home directory/);
   });
 });

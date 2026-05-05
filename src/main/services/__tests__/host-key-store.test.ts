@@ -36,34 +36,51 @@ beforeEach(() => {
 
 describe('host-key-store TOFU', () => {
   it('signals first-use (untrusted) for a never-seen host', () => {
-    const result = verifyHostKey('host', 22, Buffer.from('key-1'), 'ssh-rsa');
+    const result = verifyHostKey('host', 22, Buffer.from('key-1'), 'ssh-ed25519');
     expect(result).toEqual({ trusted: false, changed: false, isFirst: true });
     // Should NOT auto-store — explicit trust via updateHostKey is required.
     expect(table.has('host:22')).toBe(false);
   });
 
   it('trusts the same key on subsequent encounters once stored', () => {
-    updateHostKey('host', 22, Buffer.from('key-1'), 'ssh-rsa');
-    const result = verifyHostKey('host', 22, Buffer.from('key-1'), 'ssh-rsa');
+    updateHostKey('host', 22, Buffer.from('key-1'), 'ssh-ed25519');
+    const result = verifyHostKey('host', 22, Buffer.from('key-1'), 'ssh-ed25519');
     expect(result).toEqual({ trusted: true, changed: false, isFirst: false });
   });
 
   it('rejects when the key changes (possible MITM)', () => {
-    updateHostKey('host', 22, Buffer.from('original'), 'ssh-rsa');
-    const result = verifyHostKey('host', 22, Buffer.from('different'), 'ssh-rsa');
+    updateHostKey('host', 22, Buffer.from('original'), 'ssh-ed25519');
+    const result = verifyHostKey('host', 22, Buffer.from('different'), 'ssh-ed25519');
     expect(result).toEqual({ trusted: false, changed: true, isFirst: false });
   });
 
   it('updateHostKey overwrites the stored fingerprint', () => {
-    updateHostKey('host', 22, Buffer.from('original'), 'ssh-rsa');
-    updateHostKey('host', 22, Buffer.from('new-key'), 'ssh-rsa');
-    const result = verifyHostKey('host', 22, Buffer.from('new-key'), 'ssh-rsa');
+    updateHostKey('host', 22, Buffer.from('original'), 'ssh-ed25519');
+    updateHostKey('host', 22, Buffer.from('new-key'), 'ssh-ed25519');
+    const result = verifyHostKey('host', 22, Buffer.from('new-key'), 'ssh-ed25519');
     expect(result.trusted).toBe(true);
   });
 
   it('treats different ports as different hosts', () => {
-    updateHostKey('host', 22, Buffer.from('k22'), 'ssh-rsa');
-    const onPort2222 = verifyHostKey('host', 2222, Buffer.from('k2222'), 'ssh-rsa');
+    updateHostKey('host', 22, Buffer.from('k22'), 'ssh-ed25519');
+    const onPort2222 = verifyHostKey('host', 2222, Buffer.from('k2222'), 'ssh-ed25519');
     expect(onPort2222).toEqual({ trusted: false, changed: false, isFirst: true });
+  });
+
+  it('rejects weak/deprecated algorithms even if the key matches', () => {
+    updateHostKey('host', 22, Buffer.from('key-1'), 'ssh-rsa');
+    const result = verifyHostKey('host', 22, Buffer.from('key-1'), 'ssh-rsa');
+    expect(result).toEqual({
+      trusted: false,
+      changed: false,
+      isFirst: false,
+      weakAlgorithm: true,
+    });
+  });
+
+  it('rejects ssh-dss as weak', () => {
+    const result = verifyHostKey('host', 22, Buffer.from('key-1'), 'ssh-dss');
+    expect(result.trusted).toBe(false);
+    expect(result.weakAlgorithm).toBe(true);
   });
 });

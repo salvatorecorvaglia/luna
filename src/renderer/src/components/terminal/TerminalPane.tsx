@@ -45,8 +45,10 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
             cols: terminal.cols,
             rows: terminal.rows,
           });
-        } catch {
-          // Resize may fail if terminal is not yet attached
+        } catch (err) {
+          // Most often the terminal isn't attached yet (initial paint).
+          // Log via warn so persistent failures are visible (CQ5).
+          console.warn('[TerminalPane] resize failed', err);
         }
       }
     }, 100);

@@ -1,6 +1,24 @@
 import { createHash } from 'crypto';
 import { getDatabase } from './database';
 
+/**
+ * Allowlist of acceptable host-key algorithms. Reject weak or deprecated
+ * algorithms (ssh-dss, plain ssh-rsa with SHA-1, anything else unknown) so
+ * a downgrade-attack can't trick TOFU into trusting a weaker key (S3).
+ */
+const ALLOWED_HOST_KEY_ALGORITHMS = new Set([
+  'ssh-ed25519',
+  'ecdsa-sha2-nistp256',
+  'ecdsa-sha2-nistp384',
+  'ecdsa-sha2-nistp521',
+  'rsa-sha2-256',
+  'rsa-sha2-512',
+]);
+
+export function isAllowedHostKeyAlgorithm(algorithm: string): boolean {
+  return ALLOWED_HOST_KEY_ALGORITHMS.has(algorithm);
+}
+
 export function fingerprintKey(key: Buffer): string {
   return createHash('sha256').update(key).digest('base64');
 }
@@ -33,8 +51,14 @@ export function verifyHostKey(
   host: string,
   port: number,
   keyData: Buffer,
-  _algorithm: string,
-): { trusted: boolean; changed: boolean; isFirst: boolean } {
+  algorithm: string,
+): { trusted: boolean; changed: boolean; isFirst: boolean; weakAlgorithm?: boolean } {
+  // Reject deprecated/weak algorithms outright so neither first-use nor a
+  // matching stored fingerprint can wave them through.
+  if (!isAllowedHostKeyAlgorithm(algorithm)) {
+    return { trusted: false, changed: false, isFirst: false, weakAlgorithm: true };
+  }
+
   const db = getDatabase();
   const hostKey = `${host}:${port}`;
   const fp = fingerprintKey(keyData);

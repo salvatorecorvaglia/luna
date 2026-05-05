@@ -26,7 +26,17 @@ export interface TransferCompleteEvent {
   transferId: string;
 }
 
+export type TransferErrorClass =
+  | 'timeout'
+  | 'permission'
+  | 'disk-full'
+  | 'connection'
+  | 'cancelled'
+  | 'unknown';
+
 export interface TransferErrorEvent {
   transferId: string;
   error: string;
+  /** Coarse classification so the UI can pick an icon/hint. */
+  errorClass?: TransferErrorClass;
 }

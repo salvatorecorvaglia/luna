@@ -8,24 +8,25 @@ import {
 import { assertNonEmptyString } from '../lib/validate';
 
 /**
- * Rate-limit credential retrievals so a compromised renderer can't enumerate
- * connectionIds. A legitimate flow only retrieves on connect (handful per minute).
+ * Sliding-window rate limit on credential retrievals so a compromised renderer
+ * can't enumerate connectionIds. A legitimate flow only retrieves on connect
+ * (a handful per minute). The fixed-window variant of this check let bursts at
+ * the window boundary slip through; the sliding window keeps the cap honest.
  */
 const RETRIEVE_WINDOW_MS = 60_000;
 const RETRIEVE_MAX_PER_WINDOW = 60;
-let retrieveWindowStart = Date.now();
-let retrieveCount = 0;
+const retrieveTimestamps: number[] = [];
 
 function checkRetrieveRate(): void {
   const now = Date.now();
-  if (now - retrieveWindowStart > RETRIEVE_WINDOW_MS) {
-    retrieveWindowStart = now;
-    retrieveCount = 0;
+  const cutoff = now - RETRIEVE_WINDOW_MS;
+  while (retrieveTimestamps.length > 0 && retrieveTimestamps[0] < cutoff) {
+    retrieveTimestamps.shift();
   }
-  retrieveCount++;
-  if (retrieveCount > RETRIEVE_MAX_PER_WINDOW) {
+  if (retrieveTimestamps.length >= RETRIEVE_MAX_PER_WINDOW) {
     throw new Error('Credential retrieval rate limit exceeded');
   }
+  retrieveTimestamps.push(now);
 }
 
 export function registerCredentialHandlers(): void {

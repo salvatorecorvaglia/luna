@@ -1,5 +1,6 @@
 import { dialog, ipcMain } from 'electron';
-import { readdir, stat, writeFile } from 'fs/promises';
+import { access, lstat, readdir, stat, writeFile } from 'fs/promises';
+import { constants as fsConstants } from 'fs';
 import { basename, isAbsolute, join, resolve } from 'path';
 import { homedir } from 'os';
 import { IPC } from '@shared/constants';
@@ -24,14 +25,37 @@ export function registerShellHandlers(): void {
     for (const entry of entries) {
       const fullPath = join(normalized, entry.name);
       try {
-        // Always use stat() to follow symlinks consistently (resolves target type/size).
-        const stats = await stat(fullPath);
+        // Use lstat for symlinks so we don't disclose metadata of files outside
+        // the home jail via symlink targets (S4). For symlinks we also stat()
+        // to determine whether the target is a directory (used for navigation),
+        // but only when the target resolves *within* the home subtree.
+        const ls = await lstat(fullPath);
+        let targetIsDirectory = ls.isDirectory();
+        let size = ls.size;
+        let mtimeMs = ls.mtimeMs;
+        if (ls.isSymbolicLink()) {
+          try {
+            const target = await stat(fullPath);
+            const targetPath = resolve(fullPath);
+            const stillUnderHome = targetPath.startsWith(home + '/') || targetPath === home;
+            if (stillUnderHome) {
+              targetIsDirectory = target.isDirectory();
+              size = target.size;
+              mtimeMs = target.mtimeMs;
+            } else {
+              targetIsDirectory = false;
+            }
+          } catch {
+            // Broken symlink: keep lstat values, treat as non-directory.
+            targetIsDirectory = false;
+          }
+        }
         results.push({
           name: entry.name,
           path: fullPath,
-          size: stats.size,
-          modifiedAt: Math.floor(stats.mtimeMs / 1000),
-          isDirectory: stats.isDirectory(),
+          size,
+          modifiedAt: Math.floor(mtimeMs / 1000),
+          isDirectory: targetIsDirectory,
           isSymlink: entry.isSymbolicLink(),
         });
       } catch {
@@ -95,6 +119,29 @@ export function registerShellHandlers(): void {
       return result.filePath;
     },
   );
+
+  ipcMain.handle(IPC.SHELL_CHECK_FILE, async (_event, filePath: string) => {
+    // Best-effort readability probe used by the connection form to validate a
+    // private-key path before submission (U1). Returns a structured result
+    // rather than throwing so the renderer can surface a precise error.
+    if (typeof filePath !== 'string' || filePath.length === 0) {
+      return { ok: false, reason: 'empty' as const };
+    }
+    const expanded = filePath.replace(/^~/, homedir());
+    try {
+      const ls = await lstat(expanded);
+      if (!ls.isFile() && !ls.isSymbolicLink()) {
+        return { ok: false, reason: 'not-a-file' as const };
+      }
+      await access(expanded, fsConstants.R_OK);
+      return { ok: true as const };
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === 'ENOENT') return { ok: false, reason: 'missing' as const };
+      if (code === 'EACCES') return { ok: false, reason: 'permission' as const };
+      return { ok: false, reason: 'unknown' as const };
+    }
+  });
 
   ipcMain.handle(
     IPC.SHELL_JOIN_PATH,

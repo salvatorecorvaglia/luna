@@ -1,4 +1,5 @@
 import { isAbsolute, resolve as resolvePath } from 'path';
+import { homedir } from 'os';
 
 export function assertNonEmptyString(value: unknown, name: string): asserts value is string {
   if (typeof value !== 'string' || value.trim().length === 0) {
@@ -27,8 +28,9 @@ export function assertValidPath(value: unknown, name: string): asserts value is 
 
 /**
  * Validate a local filesystem path supplied by the renderer.
- * Requires absolute, canonical (no `..` segments after resolve), no null bytes.
- * Use for upload/download local paths so a compromised renderer can't craft traversal.
+ * Requires absolute, canonical (no `..` segments after resolve), no null bytes,
+ * and confined to the user's home subtree so a compromised renderer can't
+ * download to (or upload from) /etc, /var, or sibling user directories (S5).
  */
 export function assertSafeAbsolutePath(value: unknown, name: string): asserts value is string {
   assertNonEmptyString(value, name);
@@ -38,5 +40,9 @@ export function assertSafeAbsolutePath(value: unknown, name: string): asserts va
   const resolved = resolvePath(value);
   if (resolved !== value && resolved !== value.replace(/\/+$/, '')) {
     throw new Error(`${name} must be canonical (no '..' or redundant separators)`);
+  }
+  const home = homedir();
+  if (resolved !== home && !resolved.startsWith(home + '/')) {
+    throw new Error(`${name} must be inside the home directory`);
   }
 }

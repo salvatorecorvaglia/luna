@@ -15,19 +15,31 @@ import type { AppSettings } from '@shared/types/settings';
 
 const VALID_AUTH_TYPES = ['password', 'key', 'key+passphrase'] as const;
 
-/** Whitelist of allowed settings keys (S3). */
-const VALID_SETTINGS_KEYS: Set<string> = new Set<string>([
-  'terminal.fontFamily',
-  'terminal.fontSize',
-  'terminal.theme',
-  'terminal.scrollback',
-  'transfer.concurrency',
-  'ssh.autoReconnect',
-  'ssh.keepAliveInterval',
-  'ssh.maxReconnectAttempts',
-  'ssh.readyTimeout',
-  'ui.applyTerminalTheme',
-] satisfies (keyof AppSettings)[]);
+/** Per-key value type guards. Values arrive from the renderer as JSON-encoded
+ * strings (`'14'`, `'"dracula"'`, `'true'`); after parsing we enforce shape so
+ * a misbehaving renderer can't poison the settings table with a type the rest
+ * of the app doesn't expect (S7). */
+type SettingTypeName = 'string' | 'number' | 'boolean';
+const SETTING_TYPES: Record<keyof AppSettings, SettingTypeName> = {
+  'terminal.fontFamily': 'string',
+  'terminal.fontSize': 'number',
+  'terminal.theme': 'string',
+  'terminal.scrollback': 'number',
+  'transfer.concurrency': 'number',
+  'ssh.autoReconnect': 'boolean',
+  'ssh.keepAliveInterval': 'number',
+  'ssh.maxReconnectAttempts': 'number',
+  'ssh.readyTimeout': 'number',
+  'ui.applyTerminalTheme': 'boolean',
+};
+const VALID_SETTINGS_KEYS = new Set(Object.keys(SETTING_TYPES));
+
+function checkSettingType(key: string, parsed: unknown): boolean {
+  const expected = SETTING_TYPES[key as keyof AppSettings];
+  if (!expected) return false;
+  if (expected === 'number') return typeof parsed === 'number' && Number.isFinite(parsed);
+  return typeof parsed === expected;
+}
 
 function rowToConnection(row: ConnectionRow): Connection {
   return {
@@ -264,6 +276,9 @@ export function registerDbHandlers(): void {
 
   // Settings
   ipcMain.handle(IPC.SETTINGS_GET, (_event, key: string) => {
+    if (!VALID_SETTINGS_KEYS.has(key)) {
+      throw new Error(`Unknown setting key: ${key}`);
+    }
     const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
       | { value: string }
       | undefined;
@@ -271,17 +286,25 @@ export function registerDbHandlers(): void {
   });
 
   ipcMain.handle(IPC.SETTINGS_SET, (_event, { key, value }: { key: string; value: string }) => {
-    // Only allow known settings keys
     if (!VALID_SETTINGS_KEYS.has(key)) {
       throw new Error(`Unknown setting key: ${key}`);
     }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      throw new Error(`Setting ${key} must be JSON-encoded`);
+    }
+    if (!checkSettingType(key, parsed)) {
+      throw new Error(`Setting ${key} has wrong type`);
+    }
     let v = value;
     if (key === 'terminal.scrollback') {
-      const n = Math.max(1000, Math.min(LIMITS.MAX_SCROLLBACK, Number(value) || 10000));
-      v = String(n);
+      const n = Math.max(1000, Math.min(LIMITS.MAX_SCROLLBACK, (parsed as number) || 10000));
+      v = JSON.stringify(n);
     } else if (key === 'transfer.concurrency') {
-      const n = Math.max(1, Math.min(LIMITS.MAX_CONCURRENT_TRANSFERS, Number(value) || 3));
-      v = String(n);
+      const n = Math.max(1, Math.min(LIMITS.MAX_CONCURRENT_TRANSFERS, (parsed as number) || 3));
+      v = JSON.stringify(n);
       transferQueue.setMaxConcurrent(n);
     }
     db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, v);
@@ -294,10 +317,15 @@ export function registerDbHandlers(): void {
     }[];
     const settings: Record<string, unknown> = {};
     for (const row of rows) {
+      // Skip stored rows that don't match the expected schema — a stale row
+      // from a previous install must not break the renderer.
       try {
-        settings[row.key] = JSON.parse(row.value);
+        const parsed = JSON.parse(row.value);
+        if (checkSettingType(row.key, parsed)) {
+          settings[row.key] = parsed;
+        }
       } catch {
-        settings[row.key] = row.value;
+        // Drop unparseable rows silently.
       }
     }
     return settings;

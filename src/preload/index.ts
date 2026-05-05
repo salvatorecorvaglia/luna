@@ -134,6 +134,11 @@ const api = {
     }) => ipcRenderer.invoke(IPC.SHELL_SAVE_FILE_DIALOG, options) as Promise<string | null>,
     joinPath: (base: string, fileName: string) =>
       ipcRenderer.invoke(IPC.SHELL_JOIN_PATH, { base, fileName }) as Promise<string>,
+    checkFile: (filePath: string) =>
+      ipcRenderer.invoke(IPC.SHELL_CHECK_FILE, filePath) as Promise<
+        | { ok: true }
+        | { ok: false; reason: 'empty' | 'missing' | 'permission' | 'not-a-file' | 'unknown' }
+      >,
   },
 
   // Transfer events

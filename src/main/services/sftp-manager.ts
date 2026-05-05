@@ -13,6 +13,9 @@ type StepCallback = (transferred: number, chunk: number, total: number) => void;
 
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 const IDLE_CHECK_INTERVAL_MS = 60 * 1000;
+/** Delay before unlinking a partial local file after destroy() — gives the
+ * write stream time to flush its destroy ack so unlink doesn't race with it. */
+const ABORT_CLEANUP_DELAY_MS = 50;
 
 /** Node/ssh2 error codes that imply the SFTP channel/socket is gone. */
 const FATAL_ERR_CODES = new Set([
@@ -46,6 +49,11 @@ class SftpManager {
   private lastAccess = new Map<string, number>();
   /** Number of in-flight ops per session — idle sweep skips sessions with leases > 0. */
   private leases = new Map<string, number>();
+  /**
+   * Sessions in the middle of being torn down. New lease acquisitions throw
+   * so a concurrent op can't grab a session that's about to close (B2).
+   */
+  private closing = new Set<string>();
   /** Timer handle so the interval can be cleared on dispose. */
   private idleCheckTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -54,6 +62,7 @@ class SftpManager {
       this.sftpSessions.delete(sessionId);
       this.lastAccess.delete(sessionId);
       this.leases.delete(sessionId);
+      this.closing.delete(sessionId);
     });
 
     this.idleCheckTimer = setInterval(() => this.cleanupIdle(), IDLE_CHECK_INTERVAL_MS);
@@ -70,14 +79,28 @@ class SftpManager {
   private cleanupIdle(): void {
     const now = Date.now();
     for (const [sessionId, lastTime] of this.lastAccess) {
-      if (now - lastTime > IDLE_TIMEOUT_MS && (this.leases.get(sessionId) ?? 0) === 0) {
+      if (
+        now - lastTime > IDLE_TIMEOUT_MS &&
+        (this.leases.get(sessionId) ?? 0) === 0 &&
+        !this.closing.has(sessionId)
+      ) {
+        // Mark closing *before* the synchronous close so a concurrent acquireLease
+        // (which checks the flag) can't sneak in between the check and the close.
+        this.closing.add(sessionId);
         log.info(`[SFTP] Closing idle session: ${sessionId}`);
-        this.closeSftp(sessionId);
+        try {
+          this.closeSftp(sessionId);
+        } finally {
+          this.closing.delete(sessionId);
+        }
       }
     }
   }
 
   private acquireLease(sessionId: string): void {
+    if (this.closing.has(sessionId)) {
+      throw new SshConnectionError('SFTP session is closing');
+    }
     this.leases.set(sessionId, (this.leases.get(sessionId) ?? 0) + 1);
     this.lastAccess.set(sessionId, Date.now());
   }
@@ -200,11 +223,24 @@ class SftpManager {
 
   /** Hard cap on recursive removeDir depth — defends against symlink/mountpoint cycles. */
   private static readonly REMOVE_DIR_MAX_DEPTH = 64;
+  /** Hard cap on entries visited across the whole tree — defends against fan-out (B5). */
+  private static readonly REMOVE_DIR_MAX_ENTRIES = 100_000;
+  private static readonly REMOVE_DIR_BATCH_SIZE = 5;
 
-  private async removeDir(sftp: SFTPWrapper, dirPath: string, depth = 0): Promise<void> {
+  private async removeDir(
+    sftp: SFTPWrapper,
+    dirPath: string,
+    depth = 0,
+    visited = { count: 0 },
+  ): Promise<void> {
     if (depth > SftpManager.REMOVE_DIR_MAX_DEPTH) {
       throw new SftpTransferError(
         `Refusing to recurse into ${dirPath}: max depth ${SftpManager.REMOVE_DIR_MAX_DEPTH} exceeded (possible symlink loop)`,
+      );
+    }
+    if (visited.count > SftpManager.REMOVE_DIR_MAX_ENTRIES) {
+      throw new SftpTransferError(
+        `Refusing to continue: visited entries exceed ${SftpManager.REMOVE_DIR_MAX_ENTRIES} (suspected mount/loop)`,
       );
     }
 
@@ -219,11 +255,16 @@ class SftpManager {
       },
     );
 
-    const BATCH_SIZE = 5;
-    for (let i = 0; i < entries.length; i += BATCH_SIZE) {
-      const batch = entries.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < entries.length; i += SftpManager.REMOVE_DIR_BATCH_SIZE) {
+      const batch = entries.slice(i, i + SftpManager.REMOVE_DIR_BATCH_SIZE);
       await Promise.all(
         batch.map(async (entry) => {
+          visited.count++;
+          if (visited.count > SftpManager.REMOVE_DIR_MAX_ENTRIES) {
+            throw new SftpTransferError(
+              `Refusing to continue: visited entries exceed ${SftpManager.REMOVE_DIR_MAX_ENTRIES} (suspected mount/loop)`,
+            );
+          }
           const fullPath = dirPath === '/' ? `/${entry.filename}` : `${dirPath}/${entry.filename}`;
           // readdir on most servers returns lstat-style modes (no symlink follow), so
           // entry.attrs.mode reflects the link itself. Symlinks are unlinked, never recursed.
@@ -231,7 +272,7 @@ class SftpManager {
           const isSymlink = fileType === 0o120000;
           const isDir = fileType === 0o40000;
           if (isDir && !isSymlink) {
-            await this.removeDir(sftp, fullPath, depth + 1);
+            await this.removeDir(sftp, fullPath, depth + 1, visited);
           } else {
             await new Promise<void>((resolve, reject) => {
               sftp.unlink(fullPath, (err) => (err ? reject(err) : resolve()));
@@ -250,12 +291,21 @@ class SftpManager {
     const limit = Math.min(maxSize || LIMITS.MAX_PREVIEW_BYTES, LIMITS.MAX_PREVIEW_BYTES);
     return this.runOp(sessionId, 'readFile', (sftp) => {
       return new Promise<string>((resolve, reject) => {
+        let settled = false;
+        const settle = (fn: () => void): void => {
+          if (settled) return;
+          settled = true;
+          fn();
+        };
+
         sftp.stat(remotePath, (err, stats) => {
-          if (err) return reject(err);
+          if (err) return settle(() => reject(err));
           if (stats.size > limit) {
-            return reject(
-              new SftpTransferError(
-                `File too large to preview: ${stats.size} bytes (max ${limit}). Download it instead.`,
+            return settle(() =>
+              reject(
+                new SftpTransferError(
+                  `File too large to preview: ${stats.size} bytes (max ${limit}). Download it instead.`,
+                ),
               ),
             );
           }
@@ -263,10 +313,15 @@ class SftpManager {
           const chunks: Buffer[] = [];
           const stream = sftp.createReadStream(remotePath);
           stream.on('data', (chunk: Buffer) => chunks.push(chunk));
-          stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
+          stream.on('end', () => settle(() => resolve(Buffer.concat(chunks).toString('utf-8'))));
+          // Both 'error' and 'close' must reject — ssh2 can emit close without
+          // error if the channel goes down between stat and the first read.
           stream.on('error', (err: Error) => {
             stream.destroy();
-            reject(err);
+            settle(() => reject(err));
+          });
+          stream.on('close', () => {
+            settle(() => reject(new SshConnectionError('SFTP stream closed before completion')));
           });
         });
       });
@@ -355,7 +410,7 @@ class SftpManager {
       await new Promise<void>((resolve) => {
         readStream.destroy();
         writeStream.destroy();
-        setTimeout(resolve, 50);
+        setTimeout(resolve, ABORT_CLEANUP_DELAY_MS);
       });
       await unlink(localPath).catch((err: NodeJS.ErrnoException) => {
         if (err.code !== 'ENOENT') {
@@ -443,7 +498,7 @@ class SftpManager {
       await new Promise<void>((resolve) => {
         readStream.destroy();
         writeStream.destroy();
-        setTimeout(resolve, 50);
+        setTimeout(resolve, ABORT_CLEANUP_DELAY_MS);
       });
       await new Promise<void>((resolve) => {
         sftp.unlink(remotePath, () => resolve());

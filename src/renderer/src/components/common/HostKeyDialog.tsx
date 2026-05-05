@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, Copy, Fingerprint, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { attachFocusTrap } from '@/lib/focus-trap';
 import { toast } from 'sonner';
 import type { SshHostKeyChangeEvent } from '@shared/types/terminal';
 import { connectToHost } from '@/lib/ssh';
@@ -86,29 +87,7 @@ export function HostKeyDialog() {
       rejectBtn?.focus();
     });
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        handleReject();
-        return;
-      }
-      if (e.key === 'Tab') {
-        const focusable = dialog.querySelectorAll<HTMLElement>(
-          'button, [tabindex]:not([tabindex="-1"])',
-        );
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last?.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first?.focus();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return attachFocusTrap(dialog, { onEscape: handleReject });
   }, [event, handleReject]);
 
   return (
@@ -179,7 +158,9 @@ export function HostKeyDialog() {
                   <Fingerprint className="h-3.5 w-3.5 text-muted-foreground/60 flex-shrink-0 mt-0.5" />
                   <div className="min-w-0 flex-1">
                     <span className="text-muted-foreground/70">
-                      {event.isFirst ? 'Fingerprint:' : 'New fingerprint:'}
+                      {event.isFirst
+                        ? 'Server fingerprint:'
+                        : 'New (server-presented) fingerprint:'}
                     </span>
                     <div className="mt-1 flex items-center gap-1.5">
                       <code className="block break-all rounded bg-muted/50 px-1.5 py-0.5 font-mono text-[11px] text-foreground/80 flex-1">
@@ -204,7 +185,9 @@ export function HostKeyDialog() {
                   <div className="flex items-start gap-2 text-xs">
                     <Fingerprint className="h-3.5 w-3.5 text-destructive/60 flex-shrink-0 mt-0.5" />
                     <div className="min-w-0 flex-1">
-                      <span className="text-muted-foreground/70">Previous fingerprint:</span>
+                      <span className="text-muted-foreground/70">
+                        Previously trusted fingerprint:
+                      </span>
                       <code className="mt-1 block break-all rounded bg-destructive/5 px-1.5 py-0.5 font-mono text-[11px] text-destructive/80">
                         SHA256:{event.storedFingerprint}
                       </code>

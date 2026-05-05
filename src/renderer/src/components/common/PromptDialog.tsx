@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { attachFocusTrap } from '@/lib/focus-trap';
 
 interface PromptDialogProps {
   open: boolean;
@@ -65,31 +66,7 @@ export function PromptDialog({
     if (!open) return;
     const dialog = dialogRef.current;
     if (!dialog) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onCancel();
-        return;
-      }
-      if (e.key === 'Tab') {
-        const focusable = dialog.querySelectorAll<HTMLElement>(
-          'input, button, [tabindex]:not([tabindex="-1"])',
-        );
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last?.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first?.focus();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return attachFocusTrap(dialog, { onEscape: onCancel });
   }, [open, onCancel]);
 
   const handleSubmit = (e: React.FormEvent) => {

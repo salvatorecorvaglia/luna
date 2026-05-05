@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/set-state-in-effect */
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -19,6 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { attachFocusTrap } from '@/lib/focus-trap';
 import { useConnectionStore } from '@/stores/connection-store';
 import {
   useConnection,
@@ -112,30 +112,7 @@ export function ConnectionForm() {
     if (!connectionFormOpen) return;
     const dialog = dialogRef.current;
     if (!dialog) return;
-
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        closeForm();
-        return;
-      }
-      if (e.key === 'Tab') {
-        const focusable = dialog.querySelectorAll<HTMLElement>(
-          'input:not([disabled]), button:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-        );
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last?.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first?.focus();
-        }
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    return attachFocusTrap(dialog, { onEscape: closeForm });
   }, [connectionFormOpen, closeForm]);
 
   const resetForm = useCallback(() => {
@@ -153,9 +130,12 @@ export function ConnectionForm() {
     setTouched({});
   }, []);
 
+  // Sync form fields when the form opens or the source connection changes.
+  // setState-in-effect is intentional: the source is a remote-loaded record.
   useEffect(() => {
     const source = editingConnection || duplicatingConnection;
     if (source) {
+      /* eslint-disable react-hooks/set-state-in-effect */
       setName(duplicatingConnection ? `${source.name} (copy)` : source.name);
       setHost(source.host);
       setPort(String(source.port));
@@ -166,6 +146,7 @@ export function ConnectionForm() {
       setColorTag(source.colorTag || COLOR_OPTIONS[0].hex);
       setPassword('');
       setPassphrase('');
+      /* eslint-enable react-hooks/set-state-in-effect */
     } else {
       resetForm();
     }
@@ -217,6 +198,22 @@ export function ConnectionForm() {
     if (Object.keys(errors).length > 0) {
       toast.error('Please fix the highlighted fields');
       return;
+    }
+
+    if ((authType === 'key' || authType === 'key+passphrase') && privateKeyPath.trim().length > 0) {
+      const probe = await window.api.shell.checkFile(privateKeyPath.trim());
+      if (!probe.ok) {
+        const reason =
+          probe.reason === 'missing'
+            ? 'Private key file not found'
+            : probe.reason === 'permission'
+              ? 'Cannot read private key (permission denied)'
+              : probe.reason === 'not-a-file'
+                ? 'Private key path is not a file'
+                : 'Could not access private key file';
+        toast.error(reason);
+        return;
+      }
     }
 
     const data = {

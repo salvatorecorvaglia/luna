@@ -9,6 +9,7 @@ import { type ConnectionRow, getDatabase, getSetting } from './database';
 import { retrieveCredential } from './credential-store';
 import { fingerprintKey, getStoredHostKey, updateHostKey, verifyHostKey } from './host-key-store';
 import { TimeoutError, withTimeout } from '../lib/with-timeout';
+import { describeSshError } from '../lib/error-map';
 import log from '../lib/logger';
 
 /**
@@ -38,17 +39,26 @@ interface SshSession {
   reconnectAttempts: number;
   reconnectTimer: ReturnType<typeof setTimeout> | null;
   reconnecting: boolean;
+  /**
+   * Monotonically increasing token. Bumped by connect(), disconnect() and
+   * every reconnect attempt. Pending timers capture the value at scheduling
+   * time and bail out if the session generation has moved on (B1).
+   */
+  reconnectGen: number;
   _streamListeners?: StreamListeners;
   historyId?: string;
   cols?: number;
   rows?: number;
 }
 
+/** Maximum delay between reconnect attempts (ms). The backoff doubles up to this cap. */
+const MAX_RECONNECT_DELAY_MS = 30_000;
+/** Base delay for the first reconnect attempt (ms). */
+const RECONNECT_BASE_DELAY_MS = 1_000;
+
 class SshManager {
   private sessions = new Map<string, SshSession>();
   private onDisconnectCallbacks: ((sessionId: string) => void)[] = [];
-  /** Guards per-session to prevent concurrent reconnect chains (B1 fix). */
-  private reconnectLocks = new Set<string>();
   /** Candidate host keys captured during a rejected verification, awaiting user trust. */
   private pendingHostKeys = new Map<string, { key: Buffer; algorithm: string }>();
   /** Cap on pending host-key candidates (LRU) — prevents unbounded growth on repeated mismatches. */
@@ -119,6 +129,14 @@ class SshManager {
       hostVerifier: (key: Buffer) => {
         const algorithm = parseHostKeyAlgorithm(key);
         const result = verifyHostKey(params.host, params.port, key, algorithm);
+        if (result.weakAlgorithm) {
+          // Don't prompt the user — refusing weak algorithms is a hard policy.
+          emitToRenderer(IPC.SSH_ON_ERROR, {
+            sessionId: sessionId ?? '',
+            error: `Refusing weak host-key algorithm "${algorithm}". The server should be reconfigured to advertise ed25519, ecdsa, or rsa-sha2-* host keys.`,
+          });
+          return false;
+        }
         if (!result.trusted) {
           const stored = getStoredHostKey(params.host, params.port);
           this.rememberPendingHostKey(params.host, params.port, key, algorithm);
@@ -162,10 +180,18 @@ class SshManager {
           config.passphrase = passphrase;
         }
       } catch (err: unknown) {
-        return {
-          config,
-          error: `Failed to read key: ${err instanceof Error ? err.message : String(err)}`,
-        };
+        // Log the underlying details for debugging, but only surface a generic
+        // message to the renderer — fs error strings include the absolute key
+        // path which we never want to leak through IPC (S1).
+        const code = (err as NodeJS.ErrnoException | undefined)?.code;
+        log.warn(`[SSH] Failed to read private key (${code ?? 'unknown'})`);
+        const reason =
+          code === 'ENOENT'
+            ? 'Private key file not found'
+            : code === 'EACCES'
+              ? 'Permission denied reading private key'
+              : 'Failed to read private key';
+        return { config, error: reason };
       }
     }
 
@@ -188,6 +214,9 @@ class SshManager {
 
     const client = new Client();
 
+    // Preserve any in-flight reconnect generation so stale timers from a prior
+    // session-with-the-same-id don't fire against this fresh client.
+    const prevGen = this.sessions.get(sessionId)?.reconnectGen ?? 0;
     const session: SshSession = {
       id: sessionId,
       connectionId,
@@ -197,6 +226,7 @@ class SshManager {
       reconnectAttempts: 0,
       reconnectTimer: null,
       reconnecting: false,
+      reconnectGen: prevGen + 1,
       cols,
       rows,
     };
@@ -283,14 +313,15 @@ class SshManager {
       });
 
       client.on('error', (err) => {
+        const friendly = describeSshError(err);
         emitToRenderer(IPC.SSH_ON_ERROR, {
           sessionId,
-          error: err.message,
+          error: friendly,
         });
 
         if (session.status === 'connecting') {
           this.sessions.delete(sessionId);
-          resolve({ success: false, error: err.message });
+          resolve({ success: false, error: friendly });
         } else {
           this.handleDisconnect(sessionId);
         }
@@ -361,33 +392,40 @@ class SshManager {
     const session = this.sessions.get(sessionId);
     if (!session) return;
 
-    // Per-session lock prevents concurrent reconnect chains
-    if (this.reconnectLocks.has(sessionId)) return;
+    // A pending timer means a reconnect is already scheduled — don't stack them.
+    if (session.reconnectTimer) return;
 
     const maxAttempts = getSetting('ssh.maxReconnectAttempts', 5);
     if (session.reconnectAttempts >= maxAttempts) {
       session.reconnecting = false;
-      this.reconnectLocks.delete(sessionId);
       this.setStatus(session, 'error');
       return;
     }
 
-    this.reconnectLocks.add(sessionId);
     session.reconnecting = true;
     session.reconnectAttempts++;
-    const delay = Math.min(1000 * Math.pow(2, session.reconnectAttempts - 1), 30000);
+    const delay = Math.min(
+      RECONNECT_BASE_DELAY_MS * Math.pow(2, session.reconnectAttempts - 1),
+      MAX_RECONNECT_DELAY_MS,
+    );
 
     this.setStatus(session, 'reconnecting');
 
+    // Capture the generation so the timer body can detect "I'm stale".
+    const gen = session.reconnectGen;
     session.reconnectTimer = setTimeout(async () => {
       const sess = this.sessions.get(sessionId);
-      if (!sess || sess.status === 'connected') {
-        if (sess) sess.reconnecting = false;
-        this.reconnectLocks.delete(sessionId);
+      if (!sess || sess.reconnectGen !== gen) {
+        // Either the session is gone or someone (manual disconnect/reconnect) bumped
+        // the generation while we were waiting. Don't act on stale state.
+        return;
+      }
+      sess.reconnectTimer = null;
+      if (sess.status === 'connected') {
+        sess.reconnecting = false;
         return;
       }
 
-      // Clean up old client and stream listeners
       this.cleanupStreamListeners(sess);
       try {
         sess.client.end();
@@ -395,29 +433,25 @@ class SshManager {
         log.error(`[SSH] Error ending client for reconnect ${sessionId}:`, err);
       }
 
-      // Remove session, then reconnect (atomic: connect re-adds it)
       const connectionId = sess.connectionId;
       const reconnectAttempts = sess.reconnectAttempts;
       const cols = sess.cols;
       const rows = sess.rows;
+      // connect() re-adds the session (and bumps reconnectGen).
       this.sessions.delete(sessionId);
 
       const result = await this.connect(sessionId, connectionId, cols, rows);
 
-      // Restore reconnect attempt count if connect failed so we don't loop forever
       if (!result.success) {
         const newSess = this.sessions.get(sessionId);
         if (newSess) {
           newSess.reconnectAttempts = reconnectAttempts;
           newSess.reconnecting = false;
         }
-        // Release lock before next attempt
-        this.reconnectLocks.delete(sessionId);
         this.attemptReconnect(sessionId);
       } else {
         const newSess = this.sessions.get(sessionId);
         if (newSess) newSess.reconnecting = false;
-        this.reconnectLocks.delete(sessionId);
       }
     }, delay);
   }
@@ -446,9 +480,11 @@ class SshManager {
 
     if (session.reconnectTimer) {
       clearTimeout(session.reconnectTimer);
+      session.reconnectTimer = null;
     }
-    // Clear reconnect lock so no pending timer re-enters
-    this.reconnectLocks.delete(sessionId);
+    // Bump the generation so any timer that escaped the clear (already in the
+    // task queue) sees stale state and bails.
+    session.reconnectGen++;
 
     this.cleanupStreamListeners(session);
 
@@ -566,7 +602,7 @@ class SshManager {
       });
       client.on('error', (err) => {
         clearTimeout(timer);
-        finish({ ok: false, error: err.message });
+        finish({ ok: false, error: describeSshError(err) });
       });
       try {
         client.connect(config);

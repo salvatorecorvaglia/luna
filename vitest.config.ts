@@ -20,13 +20,14 @@ export default defineConfig({
         'src/test/**',
         'src/renderer/src/themes/terminal/**'
       ],
-      // Locks in the current floor (at least 5%) so a regression fails CI; raise these
-      // as new tests are added rather than treating them as project goals.
+      // Floor — tests cover validation, host-key TOFU, transfer-queue, credential
+      // round-trip, and parts of ssh-manager. Raise as new tests are added rather
+      // than treating these as final goals.
       thresholds: {
-        lines: 5,
-        functions: 5,
-        branches: 5,
-        statements: 5
+        lines: 10,
+        functions: 8,
+        branches: 7,
+        statements: 10
       }
     }
   },

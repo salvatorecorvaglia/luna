@@ -1,6 +1,6 @@
-import { app } from 'electron';
+import { app, safeStorage } from 'electron';
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { getDatabase } from './database';
 import log from '../lib/logger';
@@ -23,18 +23,73 @@ function ensureTable(): void {
 
 let encryptionKey: Buffer | null = null;
 
+/**
+ * Load the per-user encryption key. When Electron's safeStorage is available
+ * (macOS Keychain, Windows DPAPI, libsecret on Linux), the on-disk key file
+ * is wrapped in OS-protected encryption. On platforms where safeStorage is
+ * unavailable we fall back to the raw random key on disk. (S6)
+ */
 function getEncryptionKey(): Buffer {
   if (encryptionKey) return encryptionKey;
 
   const keyPath = join(app.getPath('userData'), '.storage_key');
+  const wrappedPath = `${keyPath}.enc`;
+  const canWrap = (() => {
+    try {
+      return safeStorage.isEncryptionAvailable();
+    } catch {
+      return false;
+    }
+  })();
 
-  if (existsSync(keyPath)) {
-    encryptionKey = readFileSync(keyPath);
-  } else {
-    encryptionKey = randomBytes(32);
-    writeFileSync(keyPath, encryptionKey);
+  if (canWrap && existsSync(wrappedPath)) {
+    try {
+      const decoded = safeStorage.decryptString(readFileSync(wrappedPath));
+      // safeStorage.decryptString returns a string; convert to Buffer of raw bytes.
+      encryptionKey = Buffer.from(decoded, 'latin1');
+    } catch (err) {
+      log.error('[Credentials] Failed to unwrap stored key — regenerating', err);
+      encryptionKey = null;
+    }
+  }
+
+  if (!encryptionKey) {
+    if (existsSync(keyPath)) {
+      encryptionKey = readFileSync(keyPath);
+      // Migrate the plaintext key file into safeStorage when available.
+      if (canWrap) {
+        try {
+          writeFileSync(wrappedPath, safeStorage.encryptString(encryptionKey.toString('latin1')));
+          // Best-effort: leave the plaintext file in place to avoid breaking older
+          // builds that still read keyPath. A future migration can delete it.
+        } catch (err) {
+          log.warn('[Credentials] Could not wrap existing key with safeStorage', err);
+        }
+      }
+    } else {
+      encryptionKey = randomBytes(32);
+      if (canWrap) {
+        try {
+          writeFileSync(wrappedPath, safeStorage.encryptString(encryptionKey.toString('latin1')));
+        } catch (err) {
+          log.warn('[Credentials] safeStorage write failed, falling back to plaintext key', err);
+          writeFileSync(keyPath, encryptionKey);
+        }
+      } else {
+        writeFileSync(keyPath, encryptionKey);
+      }
+    }
   }
   return encryptionKey;
+}
+
+function appendTamperLog(message: string): void {
+  try {
+    const path = join(app.getPath('userData'), 'credential-tamper.log');
+    appendFileSync(path, `${new Date().toISOString()} ${message}\n`);
+  } catch {
+    // Best-effort: if we can't even write the audit log, don't crash the caller.
+  }
 }
 
 /**
@@ -94,12 +149,15 @@ export function retrieveCredential(connectionId: string): string | null {
     return decrypt(Buffer.from(row.encrypted_data));
   } catch (err) {
     // Decryption can fail if the data is corrupt, tampered with (GCM tag mismatch),
-    // or if it was encrypted with a different key/algorithm (e.g. previous CBC/safeStorage).
-    log.warn(
-      `[Credentials] Failed to decrypt credential for ${connectionId}; deleting stale entry: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
+    // or if it was encrypted with a different key/algorithm (e.g. previous CBC).
+    // Log loudly to a dedicated audit file so the operator can detect tampering
+    // (S2). We still drop the row so the user is prompted to re-enter the
+    // credential rather than seeing a permanently broken connection.
+    const message = err instanceof Error ? err.message : String(err);
+    log.error(
+      `[Credentials] Failed to decrypt credential for ${connectionId}; dropping entry: ${message}`,
     );
+    appendTamperLog(`decrypt-failure connectionId=${connectionId} reason="${message}"`);
     try {
       db.prepare('DELETE FROM credentials WHERE connection_id = ?').run(connectionId);
     } catch (deleteErr) {
@@ -114,3 +172,10 @@ export function deleteCredential(connectionId: string): void {
   const db = getDatabase();
   db.prepare('DELETE FROM credentials WHERE connection_id = ?').run(connectionId);
 }
+
+/**
+ * Test-only: exposes the AES-GCM helpers so the round-trip and tamper-detection
+ * paths can be exercised without a database. Production callers should always
+ * go through store/retrieve so the SQLite layer stays authoritative.
+ */
+export const __test__ = { encrypt, decrypt };

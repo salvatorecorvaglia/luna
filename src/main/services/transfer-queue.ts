@@ -6,6 +6,7 @@ import type { TransferType } from '@shared/types/transfer';
 import { sftpManager } from './sftp-manager';
 import { emitToRenderer } from './emit';
 import { AbortError } from '../lib/errors';
+import { classifyTransferError } from '../lib/error-map';
 
 interface QueuedTransfer {
   id: string;
@@ -171,7 +172,11 @@ class TransferQueue {
       if (controller.signal.aborted || err instanceof AbortError) {
         emitToRenderer(IPC.TRANSFER_CANCELLED, { transferId: id });
       } else {
-        emitToRenderer(IPC.TRANSFER_ERROR, { transferId: id, error: msg });
+        emitToRenderer(IPC.TRANSFER_ERROR, {
+          transferId: id,
+          error: msg,
+          errorClass: classifyTransferError(err),
+        });
       }
     } finally {
       this.active.delete(id);
@@ -185,6 +190,18 @@ class TransferQueue {
 
   getQueuedCount(): number {
     return this.queue.length;
+  }
+
+  getTotalCount(): number {
+    return this.active.size + this.queue.length;
+  }
+
+  getState(): { active: number; queued: number; maxConcurrent: number } {
+    return {
+      active: this.active.size,
+      queued: this.queue.length,
+      maxConcurrent: this.maxConcurrent,
+    };
   }
 
   cancelAll(): void {
