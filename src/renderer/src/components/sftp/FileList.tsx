@@ -148,6 +148,48 @@ export function FileList({
     overscan: 10,
   });
 
+  // Build a per-entry ContextMenuItem array once per (entry, callback)
+  // tuple. Without this, every render of a 1000-entry list allocated 1000
+  // fresh arrays even when nothing changed. The callbacks are stable refs
+  // from the parent, so the memo only invalidates when the parent rebinds.
+  const buildContextItems = useCallback(
+    (entry: FileEntry): ContextMenuItem[] => {
+      const items: ContextMenuItem[] = [];
+      if (!entry.isDirectory && onPreview) {
+        items.push({
+          label: 'Preview',
+          icon: <Eye className="h-3.5 w-3.5" />,
+          onClick: () => onPreview(entry),
+        });
+      }
+      if (onCopyPath) {
+        items.push({
+          label: 'Copy Path',
+          icon: <Copy className="h-3.5 w-3.5" />,
+          onClick: () => onCopyPath(entry),
+        });
+      }
+      if (onRename) {
+        items.push({
+          label: 'Rename',
+          icon: <Pencil className="h-3.5 w-3.5" />,
+          onClick: () => onRename(entry),
+          separator: true,
+        });
+      }
+      if (onDelete) {
+        items.push({
+          label: 'Delete',
+          icon: <Trash2 className="h-3.5 w-3.5" />,
+          onClick: () => onDelete(entry),
+          destructive: true,
+        });
+      }
+      return items;
+    },
+    [onPreview, onCopyPath, onRename, onDelete],
+  );
+
   const handleListKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (sorted.length === 0) return;
@@ -246,46 +288,7 @@ export function FileList({
         >
           {virtualizer.getVirtualItems().map((virtualRow) => {
             const entry = sorted[virtualRow.index];
-            const contextItems: ContextMenuItem[] = [
-              ...(!entry.isDirectory && onPreview
-                ? [
-                    {
-                      label: 'Preview',
-                      icon: <Eye className="h-3.5 w-3.5" />,
-                      onClick: () => onPreview(entry),
-                    },
-                  ]
-                : []),
-              ...(onCopyPath
-                ? [
-                    {
-                      label: 'Copy Path',
-                      icon: <Copy className="h-3.5 w-3.5" />,
-                      onClick: () => onCopyPath(entry),
-                    },
-                  ]
-                : []),
-              ...(onRename
-                ? [
-                    {
-                      label: 'Rename',
-                      icon: <Pencil className="h-3.5 w-3.5" />,
-                      onClick: () => onRename(entry),
-                      separator: true,
-                    },
-                  ]
-                : []),
-              ...(onDelete
-                ? [
-                    {
-                      label: 'Delete',
-                      icon: <Trash2 className="h-3.5 w-3.5" />,
-                      onClick: () => onDelete(entry),
-                      destructive: true,
-                    },
-                  ]
-                : []),
-            ];
+            const contextItems = buildContextItems(entry);
             const row = (
               <div
                 key={entry.path}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { toast } from 'sonner';
 import { Plus, Unplug, WifiOff } from 'lucide-react';
 import { useSftpStore } from '@/stores/sftp-store';
@@ -18,20 +19,44 @@ import { PromptDialog } from '@/components/common/PromptDialog';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 
 export function SftpManager() {
-  const localPath = useSftpStore((s) => s.localPath);
-  const remotePath = useSftpStore((s) => s.remotePath);
-  const localSelection = useSftpStore((s) => s.localSelection);
-  const remoteSelection = useSftpStore((s) => s.remoteSelection);
-  const sftpSessionId = useSftpStore((s) => s.sftpSessionId);
-  const setLocalPath = useSftpStore((s) => s.setLocalPath);
-  const setRemotePath = useSftpStore((s) => s.setRemotePath);
-  const toggleLocalSelection = useSftpStore((s) => s.toggleLocalSelection);
-  const toggleRemoteSelection = useSftpStore((s) => s.toggleRemoteSelection);
-  const setSftpSessionId = useSftpStore((s) => s.setSftpSessionId);
-  const setLocalSelection = useSftpStore((s) => s.setLocalSelection);
-  const setRemoteSelection = useSftpStore((s) => s.setRemoteSelection);
-  const showHiddenFiles = useSftpStore((s) => s.showHiddenFiles);
-  const toggleHiddenFiles = useSftpStore((s) => s.toggleHiddenFiles);
+  // Collapse 13 separate selectors into a single shallow-equality
+  // subscription. Each `useSftpStore(s => s.X)` call previously installed
+  // its own subscription and ran a separate Object.is check on every store
+  // change. With useShallow, we have one subscription and one shallow
+  // comparison over the slice we actually consume.
+  const {
+    localPath,
+    remotePath,
+    localSelection,
+    remoteSelection,
+    sftpSessionId,
+    setLocalPath,
+    setRemotePath,
+    toggleLocalSelection,
+    toggleRemoteSelection,
+    setSftpSessionId,
+    setLocalSelection,
+    setRemoteSelection,
+    showHiddenFiles,
+    toggleHiddenFiles,
+  } = useSftpStore(
+    useShallow((s) => ({
+      localPath: s.localPath,
+      remotePath: s.remotePath,
+      localSelection: s.localSelection,
+      remoteSelection: s.remoteSelection,
+      sftpSessionId: s.sftpSessionId,
+      setLocalPath: s.setLocalPath,
+      setRemotePath: s.setRemotePath,
+      toggleLocalSelection: s.toggleLocalSelection,
+      toggleRemoteSelection: s.toggleRemoteSelection,
+      setSftpSessionId: s.setSftpSessionId,
+      setLocalSelection: s.setLocalSelection,
+      setRemoteSelection: s.setRemoteSelection,
+      showHiddenFiles: s.showHiddenFiles,
+      toggleHiddenFiles: s.toggleHiddenFiles,
+    })),
+  );
 
   const sessions = useTerminalStore((s) => s.sessions);
   const invalidateSftp = useInvalidateSftp();
