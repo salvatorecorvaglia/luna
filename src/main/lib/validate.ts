@@ -1,5 +1,6 @@
-import { isAbsolute, resolve as resolvePath } from 'path';
+import { dirname, isAbsolute, resolve as resolvePath } from 'path';
 import { homedir } from 'os';
+import { realpath } from 'fs/promises';
 
 export function assertNonEmptyString(value: unknown, name: string): asserts value is string {
   if (typeof value !== 'string' || value.trim().length === 0) {
@@ -44,5 +45,66 @@ export function assertSafeAbsolutePath(value: unknown, name: string): asserts va
   const home = homedir();
   if (resolved !== home && !resolved.startsWith(home + '/')) {
     throw new Error(`${name} must be inside the home directory`);
+  }
+}
+
+/**
+ * Expand a leading `~` to the user's real home directory and confine the
+ * resolved path to that subtree. Falls back to lstat-based realpath only when
+ * the file already exists, so callers can validate intent before opening (S3).
+ *
+ * Pass `requireExists: true` to also require the resolved path's real (symlink-
+ * resolved) target stays inside home — used by SFTP transfer paths (S4).
+ */
+export async function expandAndConfineToHome(
+  rawPath: string,
+  name: string,
+  options: { requireExists?: boolean } = {},
+): Promise<string> {
+  assertNonEmptyString(rawPath, name);
+  const home = homedir();
+  const expanded =
+    rawPath === '~' ? home : rawPath.startsWith('~/') ? `${home}/${rawPath.slice(2)}` : rawPath;
+  if (!isAbsolute(expanded)) {
+    throw new Error(`${name} must be absolute or start with ~`);
+  }
+  const resolved = resolvePath(expanded);
+  if (resolved !== home && !resolved.startsWith(home + '/')) {
+    throw new Error(`${name} must be inside the home directory`);
+  }
+  if (options.requireExists) {
+    const real = await realpath(resolved);
+    if (real !== home && !real.startsWith(home + '/')) {
+      throw new Error(`${name} resolves outside the home directory via symlink`);
+    }
+    return real;
+  }
+  return resolved;
+}
+
+/**
+ * Async variant of assertSafeAbsolutePath that also follows symlinks.
+ * For paths that already exist (uploads) we realpath the file. For paths that
+ * do not yet exist (downloads), we realpath the *parent* directory so a symlink
+ * inside the home dir pointing at /etc cannot be used to escape (S4).
+ */
+export async function assertSafeRealAbsolutePath(value: unknown, name: string): Promise<string> {
+  assertSafeAbsolutePath(value, name);
+  const home = homedir();
+  try {
+    const real = await realpath(value);
+    if (real !== home && !real.startsWith(home + '/')) {
+      throw new Error(`${name} resolves outside the home directory via symlink`);
+    }
+    return real;
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException | undefined)?.code !== 'ENOENT') throw err;
+    // Path does not exist yet — validate the parent directory's real target.
+    const parent = dirname(value);
+    const realParent = await realpath(parent);
+    if (realParent !== home && !realParent.startsWith(home + '/')) {
+      throw new Error(`${name} resolves outside the home directory via symlink`, { cause: err });
+    }
+    return value;
   }
 }

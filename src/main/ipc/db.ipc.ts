@@ -1,5 +1,7 @@
 import { dialog, ipcMain } from 'electron';
 import { readFile } from 'fs/promises';
+import { homedir } from 'os';
+import { isAbsolute, resolve as resolvePath } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { IPC, LIMITS } from '@shared/constants';
 import { type ConnectionRow, getDatabase } from '../services/database';
@@ -189,6 +191,30 @@ export function registerDbHandlers(): void {
     }));
   });
 
+  /**
+   * Confine a privateKeyPath from an imported file to the user's home subtree.
+   * Imports may originate from another machine — accept ~ expansion but reject
+   * anything that resolves outside home (S5). Returns null when the path can be
+   * stored as-is (after canonicalization), or throws to signal "skip this row".
+   */
+  function sanitizeImportedKeyPath(input: string | undefined | null): string | null {
+    if (!input) return null;
+    if (typeof input !== 'string' || input.includes('\0')) {
+      throw new Error('privateKeyPath must be a string without null bytes');
+    }
+    const home = homedir();
+    const expanded =
+      input === '~' ? home : input.startsWith('~/') ? `${home}/${input.slice(2)}` : input;
+    if (!isAbsolute(expanded)) {
+      throw new Error('privateKeyPath must be absolute or start with ~');
+    }
+    const resolved = resolvePath(expanded);
+    if (resolved !== home && !resolved.startsWith(home + '/')) {
+      throw new Error('privateKeyPath must be inside the home directory');
+    }
+    return resolved;
+  }
+
   function importConnections(connections: ExportedConnection[]): {
     imported: number;
     skipped: { name: string; reason: string }[];
@@ -223,6 +249,16 @@ export function registerDbHandlers(): void {
           skipped.push({ name: label, reason: `unsupported authType "${authType}"` });
           continue;
         }
+        let safeKeyPath: string | null;
+        try {
+          safeKeyPath = sanitizeImportedKeyPath(conn.privateKeyPath);
+        } catch (err) {
+          skipped.push({
+            name: label,
+            reason: err instanceof Error ? err.message : 'invalid privateKeyPath',
+          });
+          continue;
+        }
         insert.run(
           id,
           conn.name,
@@ -230,7 +266,7 @@ export function registerDbHandlers(): void {
           conn.port || 22,
           conn.username,
           authType,
-          conn.privateKeyPath || null,
+          safeKeyPath,
           conn.folder || 'default',
           conn.colorTag || null,
           now,

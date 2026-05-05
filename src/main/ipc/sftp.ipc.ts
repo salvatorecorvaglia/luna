@@ -5,7 +5,7 @@ import { transferQueue } from '../services/transfer-queue';
 import {
   assertBoundedInt,
   assertNonEmptyString,
-  assertSafeAbsolutePath,
+  assertSafeRealAbsolutePath,
   assertValidPath,
 } from '../lib/validate';
 import type {
@@ -62,15 +62,19 @@ export function registerSftpHandlers(): void {
   ipcMain.handle(IPC.SFTP_DOWNLOAD, async (_event, params: SftpTransferParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
     assertValidPath(params.remotePath, 'remotePath');
-    assertSafeAbsolutePath(params.localPath, 'localPath');
-    return sftpManager.download(params.sessionId, params.remotePath, params.localPath);
+    // S4: follow symlinks in the destination's parent so a planted symlink
+    // inside home can't redirect the write outside home.
+    const safeLocal = await assertSafeRealAbsolutePath(params.localPath, 'localPath');
+    return sftpManager.download(params.sessionId, params.remotePath, safeLocal);
   });
 
   ipcMain.handle(IPC.SFTP_UPLOAD, async (_event, params: SftpTransferParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
-    assertSafeAbsolutePath(params.localPath, 'localPath');
+    // S4: realpath the source so we read the actual file, not a symlink that
+    // points outside the home jail.
+    const safeLocal = await assertSafeRealAbsolutePath(params.localPath, 'localPath');
     assertValidPath(params.remotePath, 'remotePath');
-    return sftpManager.upload(params.sessionId, params.localPath, params.remotePath);
+    return sftpManager.upload(params.sessionId, safeLocal, params.remotePath);
   });
 
   ipcMain.handle(IPC.TRANSFER_CANCEL, (_event, transferId: string) => {

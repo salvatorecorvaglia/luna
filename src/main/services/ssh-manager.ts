@@ -7,9 +7,16 @@ import type { SessionStatus } from '@shared/types/terminal';
 import type { AuthType } from '@shared/types/connection';
 import { type ConnectionRow, getDatabase, getSetting } from './database';
 import { retrieveCredential } from './credential-store';
-import { fingerprintKey, getStoredHostKey, updateHostKey, verifyHostKey } from './host-key-store';
+import {
+  fingerprintKey,
+  formatHostKey,
+  getStoredHostKey,
+  updateHostKey,
+  verifyHostKey,
+} from './host-key-store';
 import { TimeoutError, withTimeout } from '../lib/with-timeout';
 import { describeSshError } from '../lib/error-map';
+import { expandAndConfineToHome } from '../lib/validate';
 import log from '../lib/logger';
 
 /**
@@ -65,7 +72,7 @@ class SshManager {
   private static readonly PENDING_HOST_KEYS_MAX = 64;
 
   private rememberPendingHostKey(host: string, port: number, key: Buffer, algorithm: string): void {
-    const k = `${host}:${port}`;
+    const k = formatHostKey(host, port);
     // Refresh LRU order
     if (this.pendingHostKeys.has(k)) this.pendingHostKeys.delete(k);
     this.pendingHostKeys.set(k, { key: Buffer.from(key), algorithm });
@@ -81,7 +88,7 @@ class SshManager {
    * Returns the fingerprint that was stored, or null if no candidate is pending.
    */
   trustPendingHostKey(host: string, port: number): string | null {
-    const key = `${host}:${port}`;
+    const key = formatHostKey(host, port);
     const pending = this.pendingHostKeys.get(key);
     if (!pending) return null;
     updateHostKey(host, port, pending.key, pending.algorithm);
@@ -174,7 +181,12 @@ class SshManager {
         return { config, error: 'Private key path not configured' };
       }
       try {
-        const keyPath = params.privateKeyPath.replace(/^~/, process.env.HOME || '');
+        // Expand ~ via os.homedir() (not $HOME, which can be unset/empty and
+        // collapse "~/.." into "/.."), and confine the real (symlink-resolved)
+        // target to the home directory (S3).
+        const keyPath = await expandAndConfineToHome(params.privateKeyPath, 'privateKeyPath', {
+          requireExists: true,
+        });
         config.privateKey = await readFile(keyPath);
         if (params.authType === 'key+passphrase' && passphrase) {
           config.passphrase = passphrase;
@@ -185,12 +197,15 @@ class SshManager {
         // path which we never want to leak through IPC (S1).
         const code = (err as NodeJS.ErrnoException | undefined)?.code;
         log.warn(`[SSH] Failed to read private key (${code ?? 'unknown'})`);
+        const message = err instanceof Error ? err.message : '';
         const reason =
           code === 'ENOENT'
             ? 'Private key file not found'
             : code === 'EACCES'
               ? 'Permission denied reading private key'
-              : 'Failed to read private key';
+              : message.includes('home directory')
+                ? 'Private key path must be inside the home directory'
+                : 'Failed to read private key';
         return { config, error: reason };
       }
     }
@@ -516,7 +531,7 @@ class SshManager {
       const row = db
         .prepare('SELECT host, port FROM connections WHERE id = ?')
         .get(session.connectionId) as { host: string; port: number } | undefined;
-      if (row) this.pendingHostKeys.delete(`${row.host}:${row.port}`);
+      if (row) this.pendingHostKeys.delete(formatHostKey(row.host, row.port));
     } catch {
       // best-effort cleanup
     }
