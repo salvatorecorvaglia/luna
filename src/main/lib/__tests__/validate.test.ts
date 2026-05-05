@@ -111,7 +111,9 @@ describe('expandAndConfineToHome', () => {
   });
 
   it('rejects non-absolute, non-tilde paths', async () => {
-    await expect(expandAndConfineToHome('relative/path', 'p')).rejects.toThrow(/absolute or start with ~/);
+    await expect(expandAndConfineToHome('relative/path', 'p')).rejects.toThrow(
+      /absolute or start with ~/,
+    );
   });
 
   it('rejects paths that escape via .. after expansion', async () => {

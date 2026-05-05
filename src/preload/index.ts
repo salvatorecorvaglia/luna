@@ -1,20 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { IPC } from '@shared/constants';
 import type {
-  SshCloseEvent,
-  SshConnectParams,
-  SshDataEvent,
-  SshErrorEvent,
-  SshHostKeyChangeEvent,
-  SshResizeParams,
-  SshSendDataParams,
-  SshStatusEvent,
-} from '@shared/types/terminal';
-import type {
-  TransferCompleteEvent,
-  TransferErrorEvent,
-  TransferProgressEvent,
-} from '@shared/types/transfer';
+  IpcChannel,
+  IpcEventChannel,
+  IpcEventPayload,
+  IpcRequest,
+  IpcResponse,
+} from '@shared/types/ipc';
+import type { SshConnectParams, SshResizeParams, SshSendDataParams } from '@shared/types/terminal';
 import type {
   AuthType,
   CreateConnectionInput,
@@ -28,15 +21,35 @@ import type {
   SftpReadFileParams,
   SftpRenameParams,
   SftpStatParams,
-  SftpStatResult,
   SftpTransferParams,
 } from '@shared/types/sftp';
 
 type CleanupFn = () => void;
 
-function createEventListener<T>(channel: string) {
-  return (callback: (payload: T) => void): CleanupFn => {
-    const listener = (_event: Electron.IpcRendererEvent, payload: T): void => {
+/**
+ * Typed wrapper around `ipcRenderer.invoke`. Channel + request + response are
+ * all derived from `IpcHandlerMap` so a renaming or shape change in main
+ * surfaces as a compile error in the renderer instead of a runtime cast that
+ * happened to "look right". Replaces the ~30 manual `as Promise<T>` casts.
+ *
+ * Overload split so `void`-request channels don't need to pass `undefined`.
+ */
+function invoke<K extends IpcChannel>(
+  channel: K,
+  ...args: IpcRequest<K> extends void ? [] : [IpcRequest<K>]
+): Promise<IpcResponse<K>>;
+function invoke<K extends IpcChannel>(
+  channel: K,
+  request?: IpcRequest<K>,
+): Promise<IpcResponse<K>> {
+  return arguments.length > 1
+    ? (ipcRenderer.invoke(channel, request) as Promise<IpcResponse<K>>)
+    : (ipcRenderer.invoke(channel) as Promise<IpcResponse<K>>);
+}
+
+function createEventListener<K extends IpcEventChannel>(channel: K) {
+  return (callback: (payload: IpcEventPayload<K>) => void): CleanupFn => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: IpcEventPayload<K>): void => {
       callback(payload);
     };
     ipcRenderer.on(channel, listener);
@@ -49,35 +62,27 @@ function createEventListener<T>(channel: string) {
 const api = {
   // Window controls
   window: {
-    minimize: () => ipcRenderer.invoke(IPC.WINDOW_MINIMIZE),
-    maximize: () => ipcRenderer.invoke(IPC.WINDOW_MAXIMIZE),
-    close: () => ipcRenderer.invoke(IPC.WINDOW_CLOSE),
-    isMaximized: () => ipcRenderer.invoke(IPC.WINDOW_IS_MAXIMIZED) as Promise<boolean>,
+    minimize: () => invoke(IPC.WINDOW_MINIMIZE),
+    maximize: () => invoke(IPC.WINDOW_MAXIMIZE),
+    close: () => invoke(IPC.WINDOW_CLOSE),
+    isMaximized: () => invoke(IPC.WINDOW_IS_MAXIMIZED),
   },
 
   // Connection CRUD
   connections: {
-    list: () => ipcRenderer.invoke(IPC.CONNECTION_LIST),
-    get: (id: string) => ipcRenderer.invoke(IPC.CONNECTION_GET, id),
-    create: (input: CreateConnectionInput) => ipcRenderer.invoke(IPC.CONNECTION_CREATE, input),
-    update: (input: UpdateConnectionInput) => ipcRenderer.invoke(IPC.CONNECTION_UPDATE, input),
-    delete: (id: string) => ipcRenderer.invoke(IPC.CONNECTION_DELETE, id),
-    export: () => ipcRenderer.invoke(IPC.CONNECTION_EXPORT) as Promise<ExportedConnection[]>,
-    import: (connections: ExportedConnection[]) =>
-      ipcRenderer.invoke(IPC.CONNECTION_IMPORT, connections) as Promise<{
-        imported: number;
-        skipped: { name: string; reason: string }[];
-      }>,
-    importFromFile: () =>
-      ipcRenderer.invoke(IPC.CONNECTION_IMPORT_FROM_FILE) as Promise<{
-        imported: number;
-        skipped: { name: string; reason: string }[];
-      }>,
+    list: () => invoke(IPC.CONNECTION_LIST),
+    get: (id: string) => invoke(IPC.CONNECTION_GET, id),
+    create: (input: CreateConnectionInput) => invoke(IPC.CONNECTION_CREATE, input),
+    update: (input: UpdateConnectionInput) => invoke(IPC.CONNECTION_UPDATE, input),
+    delete: (id: string) => invoke(IPC.CONNECTION_DELETE, id),
+    export: () => invoke(IPC.CONNECTION_EXPORT),
+    import: (connections: ExportedConnection[]) => invoke(IPC.CONNECTION_IMPORT, connections),
+    importFromFile: () => invoke(IPC.CONNECTION_IMPORT_FROM_FILE),
   },
 
   // SSH sessions
   ssh: {
-    connect: (params: SshConnectParams) => ipcRenderer.invoke(IPC.SSH_CONNECT, params),
+    connect: (params: SshConnectParams) => invoke(IPC.SSH_CONNECT, params),
     testConnection: (params: {
       connectionId?: string;
       config?: {
@@ -89,95 +94,81 @@ const api = {
         password?: string;
         passphrase?: string;
       };
-    }) =>
-      ipcRenderer.invoke(IPC.SSH_TEST_CONNECTION, params) as Promise<{
-        ok: boolean;
-        error?: string;
-      }>,
-    disconnect: (sessionId: string) => ipcRenderer.invoke(IPC.SSH_DISCONNECT, sessionId),
-    sendData: (params: SshSendDataParams) => ipcRenderer.invoke(IPC.SSH_SEND_DATA, params),
-    resize: (params: SshResizeParams) => ipcRenderer.invoke(IPC.SSH_RESIZE, params),
-    onData: createEventListener<SshDataEvent>(IPC.SSH_ON_DATA),
-    onClose: createEventListener<SshCloseEvent>(IPC.SSH_ON_CLOSE),
-    onError: createEventListener<SshErrorEvent>(IPC.SSH_ON_ERROR),
-    onStatus: createEventListener<SshStatusEvent>(IPC.SSH_ON_STATUS),
-    onHostKeyChange: createEventListener<SshHostKeyChangeEvent>(IPC.SSH_ON_HOST_KEY_CHANGE),
+    }) => invoke(IPC.SSH_TEST_CONNECTION, params),
+    disconnect: (sessionId: string) => invoke(IPC.SSH_DISCONNECT, sessionId),
+    sendData: (params: SshSendDataParams) => invoke(IPC.SSH_SEND_DATA, params),
+    resize: (params: SshResizeParams) => invoke(IPC.SSH_RESIZE, params),
+    onData: createEventListener(IPC.SSH_ON_DATA),
+    onClose: createEventListener(IPC.SSH_ON_CLOSE),
+    onError: createEventListener(IPC.SSH_ON_ERROR),
+    onStatus: createEventListener(IPC.SSH_ON_STATUS),
+    onHostKeyChange: createEventListener(IPC.SSH_ON_HOST_KEY_CHANGE),
     trustHostKey: (params: { host: string; port: number }) =>
-      ipcRenderer.invoke(IPC.SSH_TRUST_HOST_KEY, params) as Promise<{
-        trusted: boolean;
-        fingerprint?: string;
-      }>,
+      invoke(IPC.SSH_TRUST_HOST_KEY, params),
   },
 
   // SFTP operations
   sftp: {
-    list: (params: SftpListParams) => ipcRenderer.invoke(IPC.SFTP_LIST, params),
-    stat: (params: SftpStatParams) =>
-      ipcRenderer.invoke(IPC.SFTP_STAT, params) as Promise<SftpStatResult>,
-    mkdir: (params: SftpMkdirParams) => ipcRenderer.invoke(IPC.SFTP_MKDIR, params),
-    rename: (params: SftpRenameParams) => ipcRenderer.invoke(IPC.SFTP_RENAME, params),
-    delete: (params: SftpDeleteParams) => ipcRenderer.invoke(IPC.SFTP_DELETE, params),
-    readFile: (params: SftpReadFileParams) => ipcRenderer.invoke(IPC.SFTP_READ_FILE, params),
-    download: (params: SftpTransferParams) => ipcRenderer.invoke(IPC.SFTP_DOWNLOAD, params),
-    upload: (params: SftpTransferParams) => ipcRenderer.invoke(IPC.SFTP_UPLOAD, params),
+    list: (params: SftpListParams) => invoke(IPC.SFTP_LIST, params),
+    stat: (params: SftpStatParams) => invoke(IPC.SFTP_STAT, params),
+    mkdir: (params: SftpMkdirParams) => invoke(IPC.SFTP_MKDIR, params),
+    rename: (params: SftpRenameParams) => invoke(IPC.SFTP_RENAME, params),
+    delete: (params: SftpDeleteParams) => invoke(IPC.SFTP_DELETE, params),
+    readFile: (params: SftpReadFileParams) => invoke(IPC.SFTP_READ_FILE, params),
+    download: (params: SftpTransferParams) => invoke(IPC.SFTP_DOWNLOAD, params),
+    upload: (params: SftpTransferParams) => invoke(IPC.SFTP_UPLOAD, params),
   },
 
   // Local filesystem
   shell: {
-    readdir: (path: string) => ipcRenderer.invoke(IPC.SHELL_READDIR, path),
-    homeDir: () => ipcRenderer.invoke(IPC.SHELL_HOME_DIR),
-    openFileDialog: (options?: unknown) => ipcRenderer.invoke(IPC.SHELL_OPEN_FILE_DIALOG, options),
+    readdir: (path: string) => invoke(IPC.SHELL_READDIR, path),
+    homeDir: () => invoke(IPC.SHELL_HOME_DIR),
+    openFileDialog: (options?: { filters?: { name: string; extensions: string[] }[] }) =>
+      invoke(IPC.SHELL_OPEN_FILE_DIALOG, options),
     saveFileDialog: (options: {
       defaultPath?: string;
       filters?: { name: string; extensions: string[] }[];
       content: string;
-    }) => ipcRenderer.invoke(IPC.SHELL_SAVE_FILE_DIALOG, options) as Promise<string | null>,
-    joinPath: (base: string, fileName: string) =>
-      ipcRenderer.invoke(IPC.SHELL_JOIN_PATH, { base, fileName }) as Promise<string>,
-    checkFile: (filePath: string) =>
-      ipcRenderer.invoke(IPC.SHELL_CHECK_FILE, filePath) as Promise<
-        | { ok: true }
-        | { ok: false; reason: 'empty' | 'missing' | 'permission' | 'not-a-file' | 'unknown' }
-      >,
+    }) => invoke(IPC.SHELL_SAVE_FILE_DIALOG, options),
+    joinPath: (base: string, fileName: string) => invoke(IPC.SHELL_JOIN_PATH, { base, fileName }),
+    checkFile: (filePath: string) => invoke(IPC.SHELL_CHECK_FILE, filePath),
   },
 
   // Transfer events
   transfers: {
-    cancel: (transferId: string) => ipcRenderer.invoke(IPC.TRANSFER_CANCEL, transferId),
-    onProgress: createEventListener<TransferProgressEvent>(IPC.TRANSFER_PROGRESS),
-    onComplete: createEventListener<TransferCompleteEvent>(IPC.TRANSFER_COMPLETE),
-    onError: createEventListener<TransferErrorEvent>(IPC.TRANSFER_ERROR),
-    onCancelled: createEventListener<TransferCompleteEvent>(IPC.TRANSFER_CANCELLED),
+    cancel: (transferId: string) => invoke(IPC.TRANSFER_CANCEL, transferId),
+    onProgress: createEventListener(IPC.TRANSFER_PROGRESS),
+    onComplete: createEventListener(IPC.TRANSFER_COMPLETE),
+    onError: createEventListener(IPC.TRANSFER_ERROR),
+    onCancelled: createEventListener(IPC.TRANSFER_CANCELLED),
   },
 
   // Credentials
   credentials: {
     store: (connectionId: string, secret: string) =>
-      ipcRenderer.invoke(IPC.CREDENTIAL_STORE, { connectionId, secret }),
-    retrieve: (connectionId: string) => ipcRenderer.invoke(IPC.CREDENTIAL_RETRIEVE, connectionId),
-    delete: (connectionId: string) => ipcRenderer.invoke(IPC.CREDENTIAL_DELETE, connectionId),
+      invoke(IPC.CREDENTIAL_STORE, { connectionId, secret }),
+    retrieve: (connectionId: string) => invoke(IPC.CREDENTIAL_RETRIEVE, connectionId),
+    delete: (connectionId: string) => invoke(IPC.CREDENTIAL_DELETE, connectionId),
   },
 
   // Settings
   settings: {
-    get: (key: string) => ipcRenderer.invoke(IPC.SETTINGS_GET, key),
-    set: (key: string, value: string) => ipcRenderer.invoke(IPC.SETTINGS_SET, { key, value }),
-    getAll: () => ipcRenderer.invoke(IPC.SETTINGS_GET_ALL),
+    get: (key: string) => invoke(IPC.SETTINGS_GET, key as never),
+    set: (key: string, value: string) => invoke(IPC.SETTINGS_SET, { key: key as never, value }),
+    getAll: () => invoke(IPC.SETTINGS_GET_ALL),
   },
 
   // App info & updates
   app: {
-    getVersion: () => ipcRenderer.invoke(IPC.APP_GET_VERSION) as Promise<string>,
-    checkUpdate: () => ipcRenderer.invoke(IPC.APP_CHECK_UPDATE),
-    installUpdate: () => ipcRenderer.invoke(IPC.APP_INSTALL_UPDATE),
-    getLogPath: () => ipcRenderer.invoke(IPC.APP_GET_LOG_PATH) as Promise<string>,
-    openLogFile: () => ipcRenderer.invoke(IPC.APP_OPEN_LOG_FILE),
-    onUpdateAvailable: createEventListener<{ version: string }>(IPC.APP_UPDATE_AVAILABLE),
-    onUpdateDownloadProgress: createEventListener<{ percent: number; bytesPerSecond: number }>(
-      IPC.APP_UPDATE_DOWNLOAD_PROGRESS,
-    ),
-    onUpdateDownloaded: createEventListener<Record<string, never>>(IPC.APP_UPDATE_DOWNLOADED),
-    onUpdateError: createEventListener<{ error: string }>(IPC.APP_UPDATE_ERROR),
+    getVersion: () => invoke(IPC.APP_GET_VERSION),
+    checkUpdate: () => invoke(IPC.APP_CHECK_UPDATE),
+    installUpdate: () => invoke(IPC.APP_INSTALL_UPDATE),
+    getLogPath: () => invoke(IPC.APP_GET_LOG_PATH),
+    openLogFile: () => invoke(IPC.APP_OPEN_LOG_FILE),
+    onUpdateAvailable: createEventListener(IPC.APP_UPDATE_AVAILABLE),
+    onUpdateDownloadProgress: createEventListener(IPC.APP_UPDATE_DOWNLOAD_PROGRESS),
+    onUpdateDownloaded: createEventListener(IPC.APP_UPDATE_DOWNLOADED),
+    onUpdateError: createEventListener(IPC.APP_UPDATE_ERROR),
   },
 };
 

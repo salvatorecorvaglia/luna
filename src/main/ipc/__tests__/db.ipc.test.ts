@@ -72,9 +72,10 @@ describe('db.ipc CONNECTION_IMPORT (privateKeyPath sanitization)', () => {
   };
 
   it('expands ~ to the home directory and stores the absolute path', () => {
-    const result = importHandler()([
-      { ...baseConn, privateKeyPath: '~/.ssh/id_ed25519' },
-    ]) as { imported: number; skipped: { reason: string }[] };
+    const result = importHandler()([{ ...baseConn, privateKeyPath: '~/.ssh/id_ed25519' }]) as {
+      imported: number;
+      skipped: { reason: string }[];
+    };
     expect(result.imported).toBe(1);
     expect(result.skipped).toHaveLength(0);
     // Args to INSERT: id, name, host, port, username, auth_type, private_key_path, ...
@@ -82,33 +83,37 @@ describe('db.ipc CONNECTION_IMPORT (privateKeyPath sanitization)', () => {
   });
 
   it('skips imports whose privateKeyPath escapes via ..', () => {
-    const result = importHandler()([
-      { ...baseConn, privateKeyPath: '~/../etc/passwd' },
-    ]) as { imported: number; skipped: { reason: string }[] };
+    const result = importHandler()([{ ...baseConn, privateKeyPath: '~/../etc/passwd' }]) as {
+      imported: number;
+      skipped: { reason: string }[];
+    };
     expect(result.imported).toBe(0);
     expect(result.skipped[0].reason).toMatch(/home directory/);
   });
 
   it('skips imports whose privateKeyPath is an absolute system path', () => {
-    const result = importHandler()([
-      { ...baseConn, privateKeyPath: '/etc/shadow' },
-    ]) as { imported: number; skipped: { reason: string }[] };
+    const result = importHandler()([{ ...baseConn, privateKeyPath: '/etc/shadow' }]) as {
+      imported: number;
+      skipped: { reason: string }[];
+    };
     expect(result.imported).toBe(0);
     expect(result.skipped[0].reason).toMatch(/home directory/);
   });
 
   it('skips imports whose privateKeyPath contains null bytes', () => {
-    const result = importHandler()([
-      { ...baseConn, privateKeyPath: '~/keys\0/evil' },
-    ]) as { imported: number; skipped: { reason: string }[] };
+    const result = importHandler()([{ ...baseConn, privateKeyPath: '~/keys\0/evil' }]) as {
+      imported: number;
+      skipped: { reason: string }[];
+    };
     expect(result.imported).toBe(0);
     expect(result.skipped[0].reason).toMatch(/null bytes/);
   });
 
   it('accepts a missing privateKeyPath (password auth)', () => {
-    const result = importHandler()([
-      { ...baseConn, authType: 'password' },
-    ]) as { imported: number; skipped: { reason: string }[] };
+    const result = importHandler()([{ ...baseConn, authType: 'password' }]) as {
+      imported: number;
+      skipped: { reason: string }[];
+    };
     expect(result.imported).toBe(1);
     expect(inserts[0][6]).toBeNull();
   });
@@ -122,8 +127,6 @@ describe('db.ipc CONNECTION_IMPORT (privateKeyPath sanitization)', () => {
   });
 
   it('rejects invalid input shapes early', () => {
-    expect(() =>
-      importHandler()(undefined as unknown as ExportedConnection[]),
-    ).toThrow(/array/);
+    expect(() => importHandler()(undefined as unknown as ExportedConnection[])).toThrow(/array/);
   });
 });

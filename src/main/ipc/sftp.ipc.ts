@@ -65,7 +65,9 @@ export function registerSftpHandlers(): void {
     // Follow symlinks in the destination's parent so a planted symlink
     // inside home can't redirect the write outside home.
     const safeLocal = await assertSafeRealAbsolutePath(params.localPath, 'localPath');
-    return sftpManager.download(params.sessionId, params.remotePath, safeLocal);
+    // Enqueue directly so sftp-manager doesn't have to import
+    // transfer-queue (and break the import cycle).
+    return transferQueue.enqueue('download', params.sessionId, safeLocal, params.remotePath);
   });
 
   ipcMain.handle(IPC.SFTP_UPLOAD, async (_event, params: SftpTransferParams) => {
@@ -74,7 +76,7 @@ export function registerSftpHandlers(): void {
     // points outside the home jail.
     const safeLocal = await assertSafeRealAbsolutePath(params.localPath, 'localPath');
     assertValidPath(params.remotePath, 'remotePath');
-    return sftpManager.upload(params.sessionId, safeLocal, params.remotePath);
+    return transferQueue.enqueue('upload', params.sessionId, safeLocal, params.remotePath);
   });
 
   ipcMain.handle(IPC.TRANSFER_CANCEL, (_event, transferId: string) => {

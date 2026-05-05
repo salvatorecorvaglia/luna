@@ -3,11 +3,14 @@ import { createReadStream, createWriteStream } from 'fs';
 import { stat as fsStat, unlink } from 'fs/promises';
 import { sshManager } from './ssh-manager';
 import type { SftpEntry } from '@shared/types/sftp';
-import { transferQueue } from './transfer-queue';
 import { LIMITS } from '@shared/constants';
 import { TimeoutError, withTimeout } from '../lib/with-timeout';
 import log from '../lib/logger';
 import { AbortError, SftpTransferError, SshConnectionError } from '../lib/errors';
+
+// Deliberately do NOT import transferQueue here — that created a cycle
+// (sftp-manager ↔ transfer-queue). Transfer enqueueing is the IPC layer's
+// responsibility now; sftp-manager only owns the streaming primitives.
 
 type StepCallback = (transferred: number, chunk: number, total: number) => void;
 
@@ -557,13 +560,10 @@ class SftpManager {
     });
   }
 
-  async download(sessionId: string, remotePath: string, localPath: string): Promise<string> {
-    return transferQueue.enqueue('download', sessionId, localPath, remotePath);
-  }
-
-  async upload(sessionId: string, localPath: string, remotePath: string): Promise<string> {
-    return transferQueue.enqueue('upload', sessionId, localPath, remotePath);
-  }
+  // Download()/upload() removed from this class. They were one-line
+  // delegations to transferQueue.enqueue(...) and forced sftp-manager to
+  // import transferQueue, which in turn imports sftp-manager — a cycle.
+  // The IPC layer now calls transferQueue.enqueue directly.
 
   closeSftp(sessionId: string): void {
     const sftp = this.sftpSessions.get(sessionId);
