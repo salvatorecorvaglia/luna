@@ -43,7 +43,7 @@ export function registerSshHandlers(): void {
         };
       },
     ) => {
-      // S2: never accept transient secrets alongside a saved connectionId —
+      // Never accept transient secrets alongside a saved connectionId —
       // forces the renderer to choose one path explicitly so password material
       // can't be silently injected into a flow that should use stored creds.
       if (params.connectionId && params.config) {

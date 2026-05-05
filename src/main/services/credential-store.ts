@@ -27,7 +27,7 @@ let encryptionKey: Buffer | null = null;
  * Load the per-user encryption key. When Electron's safeStorage is available
  * (macOS Keychain, Windows DPAPI, libsecret on Linux), the on-disk key file
  * is wrapped in OS-protected encryption. On platforms where safeStorage is
- * unavailable we fall back to the raw random key on disk. (S6)
+ * unavailable we fall back to the raw random key on disk.
  */
 function getEncryptionKey(): Buffer {
   if (encryptionKey) return encryptionKey;
@@ -77,7 +77,7 @@ function getEncryptionKey(): Buffer {
         writeFileSync(wrappedPath, safeStorage.encryptString(encryptionKey.toString('latin1')));
       } catch (err) {
         // safeStorage said it was available but encryption still failed. Don't
-        // silently fall back to plaintext on disk (S1): credentials would be
+        // silently fall back to plaintext on disk: credentials would be
         // recoverable by anyone with read access to the user's data dir.
         encryptionKey = null;
         throw new Error(
@@ -87,7 +87,7 @@ function getEncryptionKey(): Buffer {
       }
     } else {
       // Fresh install on a platform without safeStorage (e.g. Linux without
-      // libsecret). Refuse to persist a plaintext master key (S1) — credential
+      // libsecret). Refuse to persist a plaintext master key — credential
       // storage is opt-in and the user must install a keyring backend first.
       throw new Error(
         'Cannot initialize credential storage: OS-level secret storage (safeStorage) is ' +
@@ -165,8 +165,8 @@ export function retrieveCredential(connectionId: string): string | null {
   } catch (err) {
     // Decryption can fail if the data is corrupt, tampered with (GCM tag mismatch),
     // or if it was encrypted with a different key/algorithm (e.g. previous CBC).
-    // Log loudly to a dedicated audit file so the operator can detect tampering
-    // (S2). We still drop the row so the user is prompted to re-enter the
+    // Log loudly to a dedicated audit file so the operator can detect tampering.
+    // We still drop the row so the user is prompted to re-enter the
     // credential rather than seeing a permanently broken connection.
     const message = err instanceof Error ? err.message : String(err);
     log.error(

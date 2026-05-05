@@ -6,7 +6,7 @@ import { getDatabase } from './database';
  * contain `:` characters, so a naive `${host}:${port}` format is ambiguous —
  * `::1:22` could be host `::1` port `22` or host `::` port `1:22`. We wrap any
  * host that contains a `:` (and isn't already bracketed) in `[...]` so the
- * separator before `port` is always unambiguous (S6).
+ * separator before `port` is always unambiguous.
  */
 export function formatHostKey(host: string, port: number): string {
   const needsBrackets = host.includes(':') && !host.startsWith('[');
@@ -16,7 +16,7 @@ export function formatHostKey(host: string, port: number): string {
 /**
  * Allowlist of acceptable host-key algorithms. Reject weak or deprecated
  * algorithms (ssh-dss, plain ssh-rsa with SHA-1, anything else unknown) so
- * a downgrade-attack can't trick TOFU into trusting a weaker key (S3).
+ * a downgrade-attack can't trick TOFU into trusting a weaker key.
  */
 const ALLOWED_HOST_KEY_ALGORITHMS = new Set([
   'ssh-ed25519',
