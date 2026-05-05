@@ -21,11 +21,16 @@ export function getFocusable(container: HTMLElement): HTMLElement[] {
 /**
  * Wire a Tab/Shift-Tab focus trap onto `container`. Call from inside a useEffect
  * and return the cleanup. The handler also fires on Escape via `onEscape` if given.
+ *
+ * On attach, the previously-focused element is captured. On cleanup, focus is
+ * restored to it if it's still in the document — this keeps keyboard users
+ * from being dropped onto `<body>` when a modal closes.
  */
 export function attachFocusTrap(
   container: HTMLElement,
   options: { onEscape?: () => void } = {},
 ): () => void {
+  const previouslyFocused = document.activeElement as HTMLElement | null;
   const handler = (e: KeyboardEvent): void => {
     if (e.key === 'Escape' && options.onEscape) {
       options.onEscape();
@@ -52,5 +57,16 @@ export function attachFocusTrap(
     }
   };
   window.addEventListener('keydown', handler);
-  return () => window.removeEventListener('keydown', handler);
+  return () => {
+    window.removeEventListener('keydown', handler);
+    // Restore focus only if the trigger is still in the DOM and focusable.
+    // `preventScroll: true` so a re-focused button doesn't yank the page.
+    if (previouslyFocused && document.contains(previouslyFocused)) {
+      try {
+        previouslyFocused.focus({ preventScroll: true });
+      } catch {
+        // Some elements throw on focus (detached, no tabindex, etc.) — best-effort.
+      }
+    }
+  };
 }
