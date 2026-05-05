@@ -104,3 +104,16 @@ coverage/
 
 # SBOM artifacts
 sbom.cyclonedx.json
+
+# AI Tools
+.openai/
+.chatgpt/
+gpt-config.json
+openai.config.json
+.anthropic/
+.claude/
+claude.config.json
+claude-settings.json
+.prompts/
+.prompt-cache/
+.ai/
