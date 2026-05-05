@@ -1,21 +1,72 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"/><title>Motion</title>
-<link rel="stylesheet" href="_card.css"/></head>
-<body><div class="card">
-  <div class="eyebrow">Motion tokens</div>
-  <div class="row" style="gap:10px;">
-    <div class="col" style="align-items:center;flex:1;background:var(--color-card);border:1px solid var(--color-border);padding:12px;border-radius:8px;">
-      <div style="font-family:var(--font-mono);font-size:18px;color:var(--color-foreground);">120ms</div>
-      <div class="label">fast · hover, micro</div>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Motion</title>
+    <link rel="stylesheet" href="_card.css" />
+  </head>
+  <body>
+    <div class="card">
+      <div class="eyebrow">Motion tokens</div>
+      <div class="row" style="gap: 10px">
+        <div
+          class="col"
+          style="
+            align-items: center;
+            flex: 1;
+            background: var(--color-card);
+            border: 1px solid var(--color-border);
+            padding: 12px;
+            border-radius: 8px;
+          "
+        >
+          <div
+            style="font-family: var(--font-mono); font-size: 18px; color: var(--color-foreground)"
+          >
+            120ms
+          </div>
+          <div class="label">fast · hover, micro</div>
+        </div>
+        <div
+          class="col"
+          style="
+            align-items: center;
+            flex: 1;
+            background: var(--color-card);
+            border: 1px solid var(--color-border);
+            padding: 12px;
+            border-radius: 8px;
+          "
+        >
+          <div
+            style="font-family: var(--font-mono); font-size: 18px; color: var(--color-foreground)"
+          >
+            200ms
+          </div>
+          <div class="label">normal · default</div>
+        </div>
+        <div
+          class="col"
+          style="
+            align-items: center;
+            flex: 1;
+            background: var(--color-card);
+            border: 1px solid var(--color-border);
+            padding: 12px;
+            border-radius: 8px;
+          "
+        >
+          <div
+            style="font-family: var(--font-mono); font-size: 18px; color: var(--color-foreground)"
+          >
+            350ms
+          </div>
+          <div class="label">slow · theme switch</div>
+        </div>
+      </div>
+      <div class="label" style="margin-top: auto">
+        easing · cubic-bezier(0.4, 0, 0.2, 1) · framer entry [0.25, 0.46, 0.45, 0.94]
+      </div>
     </div>
-    <div class="col" style="align-items:center;flex:1;background:var(--color-card);border:1px solid var(--color-border);padding:12px;border-radius:8px;">
-      <div style="font-family:var(--font-mono);font-size:18px;color:var(--color-foreground);">200ms</div>
-      <div class="label">normal · default</div>
-    </div>
-    <div class="col" style="align-items:center;flex:1;background:var(--color-card);border:1px solid var(--color-border);padding:12px;border-radius:8px;">
-      <div style="font-family:var(--font-mono);font-size:18px;color:var(--color-foreground);">350ms</div>
-      <div class="label">slow · theme switch</div>
-    </div>
-  </div>
-  <div class="label" style="margin-top:auto;">easing · cubic-bezier(0.4, 0, 0.2, 1) · framer entry [0.25, 0.46, 0.45, 0.94]</div>
-</div></body></html>
+  </body>
+</html>
