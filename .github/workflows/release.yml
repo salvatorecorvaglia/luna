@@ -199,13 +199,14 @@ jobs:
       - name: Update Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_NOTES: ${{ steps.extract_notes.outputs.notes }}
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           VERSION="${TAG#v}"
           gh release edit "$TAG" \
             --draft=false \
             --title "Lunar $VERSION" \
-            --notes "${{ steps.extract_notes.outputs.notes }}" \
+            --notes "$RELEASE_NOTES" \
             --repo "$GITHUB_REPOSITORY"
 
       - name: Update Landing Page Version
@@ -213,18 +214,22 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           VERSION="${TAG#v}"
           
-          # Replace vX.Y.Z and lunar-X.Y.Z references in the JSX file
-          sed -i "s/v[0-9]\+\.[0-9]\+\.[0-9]\+/v$VERSION/g" docs/Download.jsx
-          sed -i "s/lunar-[0-9]\+\.[0-9]\+\.[0-9]\+/lunar-$VERSION/g" docs/Download.jsx
-          
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Checkout main to ensure we can push
+          # Checkout main branch to apply and push changes
           git fetch origin main
           git checkout main
           
-          git add docs/Download.jsx
+          # Replace vX.Y.Z and lunar-X.Y.Z and Version X.Y.Z references in the docs files
+          # Hero.jsx has v0.0.0
+          # Download.jsx has v0.0.0 and lunar-0.0.0
+          # Footer.jsx has Version 0.0.0
+          sed -i "s/v[0-9]\+\.[0-9]\+\.[0-9]\+/v$VERSION/g" docs/Download.jsx docs/Hero.jsx
+          sed -i "s/lunar-[0-9]\+\.[0-9]\+\.[0-9]\+/lunar-$VERSION/g" docs/Download.jsx
+          sed -i "s/Version [0-9]\+\.[0-9]\+\.[0-9]\+/Version $VERSION/g" docs/Footer.jsx
+          
+          git add docs/Download.jsx docs/Hero.jsx docs/Footer.jsx
           
           # Only commit and push if there are actual changes
           if ! git diff-index --quiet HEAD; then
