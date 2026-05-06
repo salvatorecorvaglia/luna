@@ -205,15 +205,16 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
+          # Checkout main branch to apply and push changes
           git fetch origin main
           git checkout main
           
-          sed -i "s/v[0-9]\+\.[0-9]\+\.[0-9]\+/v$VERSION/g" docs/Download.jsx docs/Hero.jsx
-          sed -i "s/lunar-[0-9]\+\.[0-9]\+\.[0-9]\+/lunar-$VERSION/g" docs/Download.jsx
-          sed -i "s/Version [0-9]\+\.[0-9]\+\.[0-9]\+/Version $VERSION/g" docs/Footer.jsx
+          # Update the version in the central config file
+          sed -i "s/version: '[0-9]\+\.[0-9]\+\.[0-9]\+'/version: '$VERSION'/g" docs/config.js
           
-          git add docs/Download.jsx docs/Hero.jsx docs/Footer.jsx
+          git add docs/config.js
           
+          # Only commit and push if there are actual changes
           if ! git diff-index --quiet HEAD; then
             git commit -m "chore: update landing page to $TAG [skip ci]"
             git push origin main

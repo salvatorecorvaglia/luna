@@ -64,7 +64,7 @@ function Footer() {
       </div>
       <div className="lunar-footer__bottom">
         <span>© 2026 Salvatore Corvaglia</span>
-        <span>Version 0.2.2</span>
+        <span>Version {window.LUNAR_CONFIG.version}</span>
       </div>
     </footer>
   );
