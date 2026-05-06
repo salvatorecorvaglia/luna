@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Plus, Trash2, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { ChevronDown, ChevronUp, Plus, Trash2, X } from 'lucide-react';
 import type { CommandSet, CreateCommandSetInput } from '@shared/types/command-set';
 import type { Connection } from '@shared/types/connection';
 
@@ -64,6 +63,16 @@ export function CommandSetForm({
 
   const updateItem = (idx: number, patch: Partial<DraftItem>) =>
     setItems((prev) => prev.map((item, i) => (i === idx ? { ...item, ...patch } : item)));
+
+  const moveItem = (idx: number, direction: 'up' | 'down') => {
+    setItems((prev) => {
+      const next = [...prev];
+      const target = direction === 'up' ? idx - 1 : idx + 1;
+      if (target < 0 || target >= next.length) return prev;
+      [next[idx], next[target]] = [next[target], next[idx]];
+      return next;
+    });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -187,38 +196,63 @@ export function CommandSetForm({
                       key={idx}
                       className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-2"
                     >
+                      {/* Row header: index + label input + reorder + delete */}
                       <div className="flex items-center gap-2">
-                        <span className="flex-shrink-0 text-[10px] font-mono text-muted-foreground/40 w-4 text-right">
+                        <span className="flex-shrink-0 w-4 text-right text-[10px] font-mono text-muted-foreground/40">
                           {idx + 1}
                         </span>
                         <input
-                          className={cn('form-input flex-1 !text-xs')}
+                          className="form-input min-w-0 flex-1 !text-xs"
                           placeholder="Label (e.g. Restart Nginx)"
                           value={item.label}
                           onChange={(e) => updateItem(idx, { label: e.target.value })}
                         />
+                        {/* Move up / down */}
+                        <div className="flex flex-shrink-0 flex-col">
+                          <button
+                            type="button"
+                            onClick={() => moveItem(idx, 'up')}
+                            disabled={idx === 0}
+                            className="btn-icon !p-0.5 disabled:opacity-20"
+                            aria-label="Move up"
+                          >
+                            <ChevronUp className="h-3 w-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveItem(idx, 'down')}
+                            disabled={idx === items.length - 1}
+                            className="btn-icon !p-0.5 disabled:opacity-20"
+                            aria-label="Move down"
+                          >
+                            <ChevronDown className="h-3 w-3" />
+                          </button>
+                        </div>
                         <button
                           type="button"
                           onClick={() => removeItem(idx)}
                           disabled={items.length === 1}
-                          className="btn-icon !p-1 text-destructive/50 hover:text-destructive disabled:opacity-30"
+                          className="btn-icon !p-1 flex-shrink-0 text-destructive/50 hover:text-destructive disabled:opacity-30"
                           aria-label="Remove command"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
-                      <input
-                        className="form-input !text-xs font-mono ml-6"
-                        placeholder="Command (e.g. sudo systemctl restart nginx)"
-                        value={item.command}
-                        onChange={(e) => updateItem(idx, { command: e.target.value })}
-                      />
-                      <input
-                        className="form-input !text-xs ml-6"
-                        placeholder="Expected output — regex/text (optional, used for Run All)"
-                        value={item.expectedOutput}
-                        onChange={(e) => updateItem(idx, { expectedOutput: e.target.value })}
-                      />
+                      {/* Command + expected output: use pl-6 on a wrapper, not ml-6 on inputs */}
+                      <div className="space-y-2 pl-6">
+                        <input
+                          className="form-input !text-xs font-mono"
+                          placeholder="Command (e.g. sudo systemctl restart nginx)"
+                          value={item.command}
+                          onChange={(e) => updateItem(idx, { command: e.target.value })}
+                        />
+                        <input
+                          className="form-input !text-xs"
+                          placeholder="Expected output — regex/text (optional, used for Run All)"
+                          value={item.expectedOutput}
+                          onChange={(e) => updateItem(idx, { expectedOutput: e.target.value })}
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>
