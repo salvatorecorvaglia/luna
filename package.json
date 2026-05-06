@@ -1,6 +1,6 @@
 {
   "name": "lunar",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A modern SSH terminal and intuitive SFTP file manager built for modern developers",
   "main": "./out/main/index.js",
   "author": "Salvatore Corvaglia",
