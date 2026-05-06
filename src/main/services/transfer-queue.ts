@@ -122,7 +122,28 @@ class TransferQueue {
         // executeTransfer is async — fire and forget. The finally branch re-enters
         // processQueue() after each completion, but the dispatching flag means
         // re-entrant calls during the loop are absorbed.
-        this.executeTransfer(transfer);
+        // Wrap in try/catch so a sync throw before the first await can't poison
+        // the dispatch loop and leave the slot permanently occupied.
+        try {
+          this.executeTransfer(transfer).catch((err) => {
+            // executeTransfer's own try/catch should swallow everything; this
+            // is a last-resort guard against a future change leaking a reject.
+            this.active.delete(transfer.id);
+            emitToRenderer(IPC.TRANSFER_ERROR, {
+              transferId: transfer.id,
+              error: err instanceof Error ? err.message : String(err),
+              errorClass: classifyTransferError(err),
+            });
+            this.processQueue();
+          });
+        } catch (err) {
+          this.active.delete(transfer.id);
+          emitToRenderer(IPC.TRANSFER_ERROR, {
+            transferId: transfer.id,
+            error: err instanceof Error ? err.message : String(err),
+            errorClass: classifyTransferError(err),
+          });
+        }
       }
     } finally {
       this.dispatching = false;

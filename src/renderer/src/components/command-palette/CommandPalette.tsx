@@ -70,15 +70,34 @@ export function CommandPalette() {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
+  // Capture the element that owned focus before the palette opened so we
+  // can return focus there on close (important for keyboard-only users).
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
-  const [prevCommandPaletteOpen, setPrevCommandPaletteOpen] = useState(commandPaletteOpen);
-  if (prevCommandPaletteOpen !== commandPaletteOpen) {
-    setPrevCommandPaletteOpen(commandPaletteOpen);
+  // Reset the search box and selection whenever the palette opens. Run this
+  // as an effect rather than a render-phase setState (the prevState pattern)
+  // so React 18's concurrent mode doesn't double-fire it under strict-mode
+  // remount.
+  useEffect(() => {
     if (commandPaletteOpen) {
+      previouslyFocusedRef.current =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      // Resetting query/selection when the palette toggles open is exactly
+      // the "synchronize React state with an external trigger" case that
+      // useEffect is for; the lint rule's general guidance doesn't fit.
+      /* eslint-disable react-hooks/set-state-in-effect */
       setQuery('');
       setSelectedIndex(0);
+      /* eslint-enable react-hooks/set-state-in-effect */
+    } else if (previouslyFocusedRef.current) {
+      const el = previouslyFocusedRef.current;
+      previouslyFocusedRef.current = null;
+      // Defer to next tick so the palette's unmount has finished before we
+      // try to restore focus — restoring synchronously can lose to focus
+      // changes triggered by the close itself.
+      queueMicrotask(() => el.focus?.());
     }
-  }
+  }, [commandPaletteOpen]);
 
   const commands: Command[] = useMemo(() => {
     const cmds: Command[] = [
@@ -280,11 +299,12 @@ export function CommandPalette() {
     return map;
   }, [grouped]);
 
-  const [prevQuery, setPrevQuery] = useState(query);
-  if (prevQuery !== query) {
-    setPrevQuery(query);
+  // Reset selection to the top whenever the search query changes so the
+  // first result is always the active one.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedIndex(0);
-  }
+  }, [query]);
 
   // Scroll selected item into view
   useEffect(() => {

@@ -711,8 +711,11 @@ class SshManager {
   }
 
   disconnectAll(): void {
-    for (const sessionId of this.sessions.keys()) {
-      this.disconnect(sessionId);
+    // Snapshot keys before iterating: disconnect() mutates this.sessions
+    // (delete on success path), which would otherwise skip entries.
+    const ids = Array.from(this.sessions.keys());
+    for (const id of ids) {
+      this.disconnect(id);
     }
   }
 }

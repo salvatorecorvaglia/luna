@@ -57,6 +57,17 @@ export const useTransferStore = create<TransferState>((set) => ({
       for (const sample of samples) {
         const item = transfers.get(sample.transferId);
         if (!item) continue;
+        // Skip late progress samples that arrive after a terminal status
+        // (completed/error/cancelled) — without this guard a stray sample
+        // would regress the status back to 'active' and the UI would show
+        // the transfer as still in flight.
+        if (
+          item.status === 'completed' ||
+          item.status === 'error' ||
+          item.status === 'cancelled'
+        ) {
+          continue;
+        }
         if (!mutated) {
           // Only allocate a new Map once we know there's at least one matching
           // transfer — empty/no-op batches don't trigger a re-render.
