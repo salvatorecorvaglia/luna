@@ -30,6 +30,10 @@ jobs:
         uses: actions/checkout@v6
       - name: Setup Pages
         uses: actions/configure-pages@v5
+      - name: Inject Version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          sed -i "s/__LUNAR_VERSION__/$VERSION/g" docs/config.js
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:
