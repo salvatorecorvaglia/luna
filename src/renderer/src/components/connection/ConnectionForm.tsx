@@ -89,7 +89,7 @@ export function ConnectionForm() {
   const [passphrase, setPassphrase] = useState('');
   // S3 fields
   const [endpoint, setEndpoint] = useState('');
-  const [region, setRegion] = useState('us-east-1');
+  const [region, setRegion] = useState('');
   const [defaultBucket, setDefaultBucket] = useState('');
   const [forcePathStyle, setForcePathStyle] = useState(false);
   const [accessKeyId, setAccessKeyId] = useState('');
@@ -138,7 +138,7 @@ export function ConnectionForm() {
     setPrivateKeyPath('');
     setPassphrase('');
     setEndpoint('');
-    setRegion('us-east-1');
+    setRegion('');
     setDefaultBucket('');
     setForcePathStyle(false);
     setAccessKeyId('');
@@ -165,7 +165,7 @@ export function ConnectionForm() {
       setAuthType(source.authType);
       setPrivateKeyPath(source.privateKeyPath || '');
       setEndpoint(source.endpoint || '');
-      setRegion(source.region || 'us-east-1');
+      setRegion(source.region || '');
       setDefaultBucket(source.defaultBucket || '');
       setForcePathStyle(source.forcePathStyle ?? false);
       setAccessKeyId('');
@@ -767,7 +767,7 @@ export function ConnectionForm() {
                           type="text"
                           value={region}
                           onChange={(e) => setRegion(e.target.value)}
-                          placeholder="us-east-1"
+                          placeholder="Region (e.g. us-east-1)"
                           className="form-input"
                         />
                       </FormField>
@@ -847,30 +847,41 @@ export function ConnectionForm() {
                       />
                     </FormField>
 
-                    <div className="grid grid-cols-2 gap-3 items-end">
-                      <FormField
-                        label="Default Bucket"
-                        icon={<FolderClosed className="h-3.5 w-3.5" />}
-                        optional
-                        id={`${fieldId}-bucket`}
-                      >
-                        <input
+                    <div className="flex items-end gap-3">
+                      <div className="flex-1">
+                        <FormField
+                          label="Default Bucket"
+                          icon={<FolderClosed className="h-3.5 w-3.5" />}
+                          optional
                           id={`${fieldId}-bucket`}
-                          type="text"
-                          value={defaultBucket}
-                          onChange={(e) => setDefaultBucket(e.target.value)}
-                          placeholder="my-bucket"
-                          className="form-input"
-                        />
-                      </FormField>
-                      <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground select-none cursor-pointer pb-2">
-                        <input
-                          type="checkbox"
-                          checked={forcePathStyle}
-                          onChange={(e) => setForcePathStyle(e.target.checked)}
-                          className="h-3.5 w-3.5 cursor-pointer"
-                        />
-                        Use path-style URLs (MinIO, older R2)
+                        >
+                          <input
+                            id={`${fieldId}-bucket`}
+                            type="text"
+                            value={defaultBucket}
+                            onChange={(e) => setDefaultBucket(e.target.value)}
+                            placeholder="my-bucket"
+                            className="form-input"
+                          />
+                        </FormField>
+                      </div>
+                      <label className="group flex h-[38.5px] flex-1 cursor-pointer items-center gap-2.5 rounded-lg px-2 transition-all hover:bg-accent/40 active:scale-[0.98] select-none">
+                        <div className="relative flex h-4 w-4 shrink-0 items-center justify-center rounded border border-border bg-card transition-all group-hover:border-primary/50">
+                          <input
+                            type="checkbox"
+                            checked={forcePathStyle}
+                            onChange={(e) => setForcePathStyle(e.target.checked)}
+                            className="peer sr-only"
+                          />
+                          <div className="absolute inset-0 rounded bg-primary opacity-0 transition-opacity peer-checked:opacity-100" />
+                          <Check
+                            className="relative h-3 w-3 text-white scale-0 transition-transform peer-checked:scale-100"
+                            strokeWidth={3}
+                          />
+                        </div>
+                        <span className="truncate text-[11px] font-medium text-muted-foreground transition-colors group-hover:text-foreground">
+                          Path-style URLs (MinIO, R2)
+                        </span>
                       </label>
                     </div>
                   </div>
