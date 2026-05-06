@@ -171,6 +171,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PACKAGES_TOKEN }}
+          fetch-depth: 0
 
       - name: Extract Release Notes
         id: extract_notes
@@ -216,20 +219,8 @@ jobs:
           
           # Only commit and push if there are actual changes
           if ! git diff-index --quiet HEAD; then
-            git commit -m "chore: update landing page to $TAG [skip ci]"
+            git commit -m "chore: update landing page to $TAG"
             git push origin main
           else
             echo "No changes detected for the landing page. Skipping commit."
           fi
-
-  # ──────────────────────────────────────────────
-  # Deploy – trigger landing page update
-  # ──────────────────────────────────────────────
-  deploy:
-    name: Deploy
-    needs: finalize
-    uses: ./.github/workflows/deploy-pages.yml
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
