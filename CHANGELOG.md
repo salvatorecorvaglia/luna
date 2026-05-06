@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-05-06
+
+### Added
+
+- Disconnect functionality for active SFTP sessions.
+- Categorized sidebar connections into SSH and S3 sections.
+
+### Changed
+
+- Optimized SFTP connection management and file selection logic.
+- Streamlined connection form by removing the "Startup Command" field.
+- Refined UI styling for Command Palette and Connection Form.
+
+### Fixed
+
+- Resolved Electron auto-updater signature verification failures on Windows.
+- Fixed clipped focus rings and window minimize handler duplication issues.
+- Restored test suite integrity after codebase refactoring.
+
 ## [0.2.0] - 2026-05-06
 
 ### Added
