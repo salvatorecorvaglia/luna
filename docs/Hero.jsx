@@ -4,7 +4,7 @@ function Hero() {
       <div className="lunar-hero__glow" aria-hidden="true" />
       <div className="lunar-hero__inner">
         <div className="lunar-pill">
-          <span className="lunar-pill__dot" /> v0.2.0 <span className="lunar-pill__sep" /> macOS ·
+          <span className="lunar-pill__dot" /> v{window.LUNAR_CONFIG.version} <span className="lunar-pill__sep" /> macOS ·
           Windows · Linux
         </div>
         <h1 className="lunar-hero__title">

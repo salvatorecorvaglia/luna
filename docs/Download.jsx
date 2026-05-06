@@ -17,11 +17,13 @@ function Download() {
   const getMacUrl = (detectedArch) => {
     // For Mac, if we couldn't detect properly, arm64 is a safe default for modern users
     const macArch = detectedArch === 'x64' ? 'x64' : 'arm64';
-    return `https://github.com/salvatorecorvaglia/lunar/releases/download/v0.2.0/lunar-0.2.0-mac-${macArch}.dmg`;
+    const v = window.LUNAR_CONFIG.version;
+    return `https://github.com/salvatorecorvaglia/lunar/releases/download/v${v}/lunar-${v}-mac-${macArch}.dmg`;
   };
 
   const getLinuxUrl = (detectedArch) => {
-    return `https://github.com/salvatorecorvaglia/lunar/releases/download/v0.2.0/lunar-0.2.0-linux-${detectedArch}.AppImage`;
+    const v = window.LUNAR_CONFIG.version;
+    return `https://github.com/salvatorecorvaglia/lunar/releases/download/v${v}/lunar-${v}-linux-${detectedArch}.AppImage`;
   };
 
   const platforms = [
@@ -36,7 +38,7 @@ function Download() {
       name: 'Windows',
       icon: 'windows',
       arch: 'x64 installer · .exe',
-      url: 'https://github.com/salvatorecorvaglia/lunar/releases/download/v0.2.0/lunar-0.2.0-win-x64-setup.exe',
+      url: `https://github.com/salvatorecorvaglia/lunar/releases/download/v${window.LUNAR_CONFIG.version}/lunar-${window.LUNAR_CONFIG.version}-win-x64-setup.exe`,
       isDetected: navigator.platform.toUpperCase().indexOf('WIN') >= 0,
     },
     {
