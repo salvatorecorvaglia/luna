@@ -100,7 +100,6 @@ export function HostKeyDialog() {
             animate="animate"
             exit="exit"
             className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm"
-            onClick={handleReject}
           />
           <motion.div
             variants={dialogVariants}

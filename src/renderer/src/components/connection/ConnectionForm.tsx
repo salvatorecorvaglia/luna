@@ -402,7 +402,6 @@ export function ConnectionForm() {
             animate="animate"
             exit="exit"
             className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
-            onClick={closeForm}
           />
 
           {/* Dialog */}
@@ -412,7 +411,6 @@ export function ConnectionForm() {
             animate="animate"
             exit="exit"
             className="no-drag fixed inset-0 z-50 flex items-center justify-center p-4"
-            onClick={closeForm}
           >
             <div
               ref={dialogRef}
