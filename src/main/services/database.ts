@@ -6,6 +6,24 @@ import type { AuthType } from '@shared/types/connection';
 import log from '../lib/logger';
 
 /** Shape of a row in the `connections` table (snake_case DB columns). */
+export interface CommandSetRow {
+  id: string;
+  name: string;
+  connection_id: string | null;
+  sort_order: number;
+  created_at: number;
+}
+
+export interface CommandSetItemRow {
+  id: string;
+  command_set_id: string;
+  label: string;
+  command: string;
+  expected_output: string | null;
+  timeout_ms: number;
+  sort_order: number;
+}
+
 export interface ConnectionRow {
   id: string;
   name: string;
@@ -199,6 +217,33 @@ function getMigrations(): { name: string; sql: string }[] {
         CREATE INDEX IF NOT EXISTS idx_connections_name ON connections(name);
         CREATE INDEX IF NOT EXISTS idx_connections_host ON connections(host);
         CREATE INDEX IF NOT EXISTS idx_connections_folder ON connections(folder);
+      `,
+    },
+    {
+      name: '008_command_sets',
+      sql: `
+        CREATE TABLE IF NOT EXISTS command_sets (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          connection_id TEXT,
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          FOREIGN KEY (connection_id) REFERENCES connections(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS command_set_items (
+          id TEXT PRIMARY KEY,
+          command_set_id TEXT NOT NULL,
+          label TEXT NOT NULL,
+          command TEXT NOT NULL,
+          expected_output TEXT,
+          timeout_ms INTEGER NOT NULL DEFAULT 10000,
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          FOREIGN KEY (command_set_id) REFERENCES command_sets(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_command_sets_connection ON command_sets(connection_id);
+        CREATE INDEX IF NOT EXISTS idx_command_set_items_set ON command_set_items(command_set_id);
       `,
     },
   ];
