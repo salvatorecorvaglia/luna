@@ -148,6 +148,16 @@ app.on('before-quit', (event) => {
   // file descriptor can be left half-flushed.
   isQuitting = true;
   event.preventDefault();
+
+  // Watchdog: if any cleanup step hangs (a stuck SFTP/S3 abort that never
+  // settles, a renderer process refusing to exit, etc.) force the process
+  // down rather than letting "Quit" appear to do nothing.
+  const watchdog = setTimeout(() => {
+    log.warn('[Main] before-quit watchdog fired — forcing exit');
+    app.exit(0);
+  }, 3000);
+  watchdog.unref?.();
+
   (async () => {
     try {
       transferQueue.cancelAll();
@@ -163,6 +173,7 @@ app.on('before-quit', (event) => {
       } catch (err) {
         log.error('[Main] closeDatabase error:', err);
       }
+      clearTimeout(watchdog);
       app.quit();
     }
   })();

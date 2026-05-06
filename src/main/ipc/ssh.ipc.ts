@@ -8,6 +8,13 @@ import { assertBoundedInt, assertNonEmptyString } from '../lib/validate';
 const VALID_AUTH_TYPES = new Set(['password', 'key', 'key+passphrase']);
 /** Cap on the size of a single transient secret accepted from the renderer. */
 const MAX_SECRET_LEN = 4096;
+/**
+ * Cap on a single SSH_SEND_DATA payload. xterm typically emits a few bytes
+ * per keystroke and chunks pasted blobs; 64 KiB is comfortably above any
+ * realistic interactive write while preventing a buggy/compromised renderer
+ * from streaming hundreds of MB into the shell write buffer.
+ */
+const MAX_SSH_SEND_BYTES = 65536;
 import type { SshConnectParams, SshResizeParams, SshSendDataParams } from '@shared/types/terminal';
 import type { AuthType } from '@shared/types/connection';
 
@@ -35,6 +42,17 @@ export function registerSshHandlers(): void {
 
   ipcMain.handle(IPC.SSH_SEND_DATA, (_event, params: SshSendDataParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
+    if (typeof params.data !== 'string') {
+      throw new Error('data must be a string');
+    }
+    // Bound by UTF-8 byte length, not character count: a 2-byte char would
+    // otherwise let a renderer ship 2× the intended payload.
+    const byteLength = Buffer.byteLength(params.data, 'utf8');
+    if (byteLength > MAX_SSH_SEND_BYTES) {
+      throw new Error(
+        `SSH input exceeds ${MAX_SSH_SEND_BYTES}-byte cap (got ${byteLength})`,
+      );
+    }
     sshManager.sendData(params.sessionId, params.data);
   });
 

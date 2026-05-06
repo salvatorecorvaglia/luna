@@ -93,28 +93,41 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
     } = useTerminalStore.getState();
     const theme = terminalThemes[initialThemeName];
 
-    const terminal = new Terminal({
-      cursorBlink: true,
-      cursorStyle: 'bar',
-      fontSize: initialFontSize,
-      fontFamily: 'JetBrains Mono, Menlo, Consolas, monospace',
-      lineHeight: 1.2,
-      letterSpacing: 0,
-      scrollback: initialScrollback,
-      allowProposedApi: true,
-      screenReaderMode: true,
-      theme,
-    });
+    // Construct xterm + addons inside a try/catch so a thrower (typically
+    // happens when running headless or when a node addon fails to load)
+    // doesn't leave half-initialized state behind. On failure, dispose
+    // anything that did get created and bail out of the effect.
+    let terminal: Terminal;
+    let fitAddon: FitAddon;
+    let searchAddon: SearchAddon;
+    try {
+      terminal = new Terminal({
+        cursorBlink: true,
+        cursorStyle: 'bar',
+        fontSize: initialFontSize,
+        fontFamily: 'JetBrains Mono, Menlo, Consolas, monospace',
+        lineHeight: 1.2,
+        letterSpacing: 0,
+        scrollback: initialScrollback,
+        allowProposedApi: true,
+        screenReaderMode: true,
+        theme,
+      });
 
-    const fitAddon = new FitAddon();
-    const webLinksAddon = new WebLinksAddon();
-    const searchAddon = new SearchAddon();
+      fitAddon = new FitAddon();
+      const webLinksAddon = new WebLinksAddon();
+      searchAddon = new SearchAddon();
 
-    terminal.loadAddon(fitAddon);
-    terminal.loadAddon(webLinksAddon);
-    terminal.loadAddon(searchAddon);
+      terminal.loadAddon(fitAddon);
+      terminal.loadAddon(webLinksAddon);
+      terminal.loadAddon(searchAddon);
 
-    terminal.open(containerRef.current);
+      terminal.open(containerRef.current);
+    } catch (err) {
+      console.error('[TerminalPane] xterm initialization failed', err);
+      toast.error('Failed to initialize terminal — try reopening the tab.');
+      return;
+    }
 
     // Try WebGL, fall back to canvas. On context loss, dispose the addon
     // and let xterm fall back to its DOM/canvas renderer instead of going

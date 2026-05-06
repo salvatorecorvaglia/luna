@@ -150,21 +150,47 @@ export function SftpManager() {
 
   const addTransfer = useTransferStore((s) => s.addTransfer);
 
+  // Reject filenames that would traverse out of the destination directory or
+  // contain shell-hostile characters. Returns the cleaned basename, or null
+  // if the input can't be safely used as a final path component.
+  const sanitizeFilename = useCallback((raw: string): string | null => {
+    if (typeof raw !== 'string' || raw.length === 0) return null;
+    // Strip any path components from either separator style.
+    const base = raw.split('/').pop()?.split('\\').pop() ?? '';
+    const trimmed = base.trim();
+    // Reject NUL / control chars (U+0000–U+001F, U+007F): no legitimate
+    // filename uses them and many file systems mishandle them.
+    // eslint-disable-next-line no-control-regex
+    const CONTROL_CHARS = /[\x00-\x1f\x7f]/;
+    if (!trimmed || trimmed === '.' || trimmed === '..' || CONTROL_CHARS.test(trimmed)) {
+      return null;
+    }
+    return trimmed;
+  }, []);
+
   // Drag-and-drop: remote -> local (download)
   const handleLocalDrop = useCallback(
     async (e: React.DragEvent) => {
       e.preventDefault();
       const remoteSrc = e.dataTransfer.getData('remote-path');
-      const fileName = e.dataTransfer.getData('file-name');
+      const rawFileName = e.dataTransfer.getData('file-name');
       const fileSize = parseInt(e.dataTransfer.getData('file-size') || '0', 10);
       const isDirectory = e.dataTransfer.getData('is-directory') === 'true';
       if (!remoteSrc || !sftpSessionId) return;
 
-      // Warn and skip directory transfers (not yet supported)
+      // Reject directories before any IPC: directory transfers aren't
+      // implemented yet and the previous "warn and continue" path would
+      // still enqueue a doomed transfer.
       if (isDirectory) {
         toast.warning(
           'Directory transfers are not yet supported. Please transfer individual files.',
         );
+        return;
+      }
+
+      const fileName = sanitizeFilename(rawFileName);
+      if (!fileName) {
+        toast.error('Refused to transfer a file with an unsafe name.');
         return;
       }
 
@@ -191,7 +217,7 @@ export function SftpManager() {
         toast.error(`Download failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     },
-    [sftpSessionId, localPath, addTransfer],
+    [sftpSessionId, localPath, addTransfer, sanitizeFilename],
   );
 
   // Drag-and-drop: local -> remote (upload)
@@ -204,7 +230,6 @@ export function SftpManager() {
       const isDirectory = e.dataTransfer.getData('is-directory') === 'true';
       if (!localSrc || !sftpSessionId) return;
 
-      // Warn and skip directory transfers (not yet supported)
       if (isDirectory) {
         toast.warning(
           'Directory transfers are not yet supported. Please transfer individual files.',
@@ -212,8 +237,11 @@ export function SftpManager() {
         return;
       }
 
-      // Sanitize filename to prevent path traversal
-      const fileName = rawFileName.split('/').pop()?.split('\\').pop() || rawFileName;
+      const fileName = sanitizeFilename(rawFileName);
+      if (!fileName) {
+        toast.error('Refused to transfer a file with an unsafe name.');
+        return;
+      }
       const remoteDest = remotePath === '/' ? `/${fileName}` : `${remotePath}/${fileName}`;
       try {
         const transferId = await window.api.storage.upload({
@@ -237,7 +265,7 @@ export function SftpManager() {
         toast.error(`Upload failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     },
-    [sftpSessionId, remotePath, addTransfer],
+    [sftpSessionId, remotePath, addTransfer, sanitizeFilename],
   );
 
   // Context menu download: remote -> local

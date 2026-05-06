@@ -317,12 +317,27 @@ class S3StorageProvider implements StorageProvider {
           .map((o) => o.Key)
           .filter((k): k is string => Boolean(k));
         if (objects.length > 0) {
-          await client.send(
+          // Quiet:false so the response always includes Errors[] when present;
+          // a partial success would otherwise be invisible and the caller
+          // would believe the prefix was fully wiped.
+          const result = await client.send(
             new DeleteObjectsCommand({
               Bucket: bucket,
-              Delete: { Objects: objects.map((Key) => ({ Key })), Quiet: true },
+              Delete: { Objects: objects.map((Key) => ({ Key })), Quiet: false },
             }),
           );
+          const errors = result.Errors ?? [];
+          if (errors.length > 0) {
+            const sample = errors
+              .slice(0, 3)
+              .map((e) => `${e.Key ?? '<unknown>'}: ${e.Code ?? ''} ${e.Message ?? ''}`.trim())
+              .join('; ');
+            throw new S3StorageError(
+              `Bulk delete partially failed (${errors.length} of ${objects.length} objects): ${sample}${
+                errors.length > 3 ? ' …' : ''
+              }`,
+            );
+          }
         }
         ContinuationToken = listed.IsTruncated ? listed.NextContinuationToken : undefined;
       } while (ContinuationToken);

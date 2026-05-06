@@ -31,6 +31,19 @@ export function useTransferEventListener(): void {
       pending.current = new Map();
       applyProgressBatch(batch.values());
     };
+    /**
+     * Drop any pending progress sample for `transferId` and cancel a
+     * scheduled flush if it would have been the only sample. Called before
+     * applying a terminal event (complete/error/cancel) so a queued progress
+     * frame can't land *after* the terminal status and revive the row.
+     */
+    const dropPending = (transferId: string): void => {
+      pending.current.delete(transferId);
+      if (pending.current.size === 0 && rafHandle.current !== null) {
+        cancelAnimationFrame(rafHandle.current);
+        rafHandle.current = null;
+      }
+    };
     const cleanupProgress = window.api.transfers.onProgress((event) => {
       pending.current.set(event.transferId, {
         transferId: event.transferId,
@@ -46,6 +59,7 @@ export function useTransferEventListener(): void {
       // Look up sessionId from the transfer before marking complete
       const transfer = useTransferStore.getState().transfers.get(event.transferId);
       const sessionId = transfer?.sessionId;
+      dropPending(event.transferId);
       completeTransfer(event.transferId);
       // Invalidate both directory caches so the UI refreshes
       if (sessionId) {
@@ -55,12 +69,14 @@ export function useTransferEventListener(): void {
     });
 
     const cleanupError = window.api.transfers.onError((event) => {
+      dropPending(event.transferId);
       errorTransfer(event.transferId, event.error);
     });
 
     const cleanupCancelled = window.api.transfers.onCancelled((event) => {
       const transfer = useTransferStore.getState().transfers.get(event.transferId);
       const sessionId = transfer?.sessionId;
+      dropPending(event.transferId);
       cancelTransfer(event.transferId);
       if (sessionId) invalidateSftp(sessionId, undefined);
       invalidateLocal(undefined);

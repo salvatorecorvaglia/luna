@@ -22,6 +22,12 @@ function ensureTable(): void {
 }
 
 let encryptionKey: Buffer | null = null;
+/**
+ * Tracks whether the credential store is currently using a plaintext on-disk
+ * key (Linux without libsecret, with a pre-existing key file). The renderer
+ * reads this via getCredentialBackendStatus() to surface a security banner.
+ */
+let usingPlaintextKey = false;
 
 /**
  * Load the per-user encryption key. When Electron's safeStorage is available
@@ -58,6 +64,16 @@ function getEncryptionKey(): Buffer {
       // Existing install with a plaintext key file: keep reading it so we don't
       // strand stored credentials, but migrate into safeStorage if available
       // and warn loudly otherwise so the operator knows to fix their keyring.
+      // Operators can opt out of plaintext-key fallback entirely by setting
+      // LUNAR_REQUIRE_OS_KEYRING=1 — credentials become unreadable until
+      // libsecret is installed, which is the safer default for shared hosts.
+      if (!canWrap && process.env.LUNAR_REQUIRE_OS_KEYRING === '1') {
+        throw new Error(
+          'LUNAR_REQUIRE_OS_KEYRING=1 is set and OS-level secret storage is unavailable. ' +
+            'Install gnome-keyring or libsecret-1-0 and restart, or unset the variable to ' +
+            'allow the existing plaintext key file.',
+        );
+      }
       encryptionKey = readFileSync(keyPath);
       if (canWrap) {
         try {
@@ -66,6 +82,7 @@ function getEncryptionKey(): Buffer {
           log.warn('[Credentials] Could not wrap existing key with safeStorage', err);
         }
       } else {
+        usingPlaintextKey = true;
         log.warn(
           '[Credentials] Using plaintext key file because safeStorage is unavailable. ' +
             'Install gnome-keyring or libsecret-1-0 and restart to migrate to OS-protected storage.',
@@ -98,7 +115,26 @@ function getEncryptionKey(): Buffer {
   return encryptionKey;
 }
 
+/**
+ * Dedup window for tamper-log entries. Repeated decrypt failures for the
+ * same connection (e.g. UI retrying retrieval in a loop) would otherwise
+ * append identical lines forever.
+ */
+const TAMPER_LOG_DEDUP_MS = 60_000;
+const tamperLogSeen = new Map<string, number>();
+
 function appendTamperLog(message: string): void {
+  const now = Date.now();
+  const last = tamperLogSeen.get(message);
+  if (last !== undefined && now - last < TAMPER_LOG_DEDUP_MS) return;
+  tamperLogSeen.set(message, now);
+  // Opportunistic GC of the dedup map so it doesn't grow unbounded across
+  // long sessions with many distinct failures.
+  if (tamperLogSeen.size > 256) {
+    for (const [key, ts] of tamperLogSeen) {
+      if (now - ts >= TAMPER_LOG_DEDUP_MS) tamperLogSeen.delete(key);
+    }
+  }
   try {
     const path = join(app.getPath('userData'), 'credential-tamper.log');
     appendFileSync(path, `${new Date().toISOString()} ${message}\n`);
@@ -224,6 +260,18 @@ export function retrieveS3Credential(connectionId: string): S3CredentialBlob | n
   } catch {
     return null;
   }
+}
+
+/**
+ * Reports the credential-store backend in use. The renderer surfaces a
+ * security banner when `backend === 'plaintext'` so operators know their
+ * stored credentials are not OS-protected.
+ */
+export function getCredentialBackendStatus(): {
+  backend: 'safeStorage' | 'plaintext' | 'uninitialized';
+} {
+  if (!encryptionKey) return { backend: 'uninitialized' };
+  return { backend: usingPlaintextKey ? 'plaintext' : 'safeStorage' };
 }
 
 /**

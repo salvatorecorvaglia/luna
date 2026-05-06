@@ -313,6 +313,15 @@ export function ConnectionForm() {
         await createMutation.mutateAsync(data);
         toast.success('Connection created');
       }
+      // Wipe transient secrets from React state immediately rather than
+      // relying on unmount: between submit and unmount the dialog can
+      // animate out for a few hundred ms, during which heap snapshots /
+      // devtools would still expose the cleartext.
+      setPassword('');
+      setPassphrase('');
+      setSecretAccessKey('');
+      setSessionToken('');
+      setAccessKeyId('');
       closeForm();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to save connection');
