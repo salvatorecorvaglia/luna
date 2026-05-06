@@ -233,7 +233,7 @@ jobs:
           
           # Only commit and push if there are actual changes
           if ! git diff-index --quiet HEAD; then
-            git commit -m "chore: update landing page to $TAG [skip ci]"
+            git commit -m "chore: update landing page to $TAG"
             git push origin main
           else
             echo "No changes detected for the landing page. Skipping commit."
