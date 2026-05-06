@@ -55,10 +55,10 @@ win:
       arch:
         - x64
   artifactName: '${name}-${version}-win-${arch}-setup.${ext}'
-  signtoolOptions:
-    publisherName: Salvatore Corvaglia
-    signingHashAlgorithms:
-      - sha256
+  # signtoolOptions:
+  #   publisherName: Salvatore Corvaglia
+  #   signingHashAlgorithms:
+  #     - sha256
 
 nsis:
   oneClick: false

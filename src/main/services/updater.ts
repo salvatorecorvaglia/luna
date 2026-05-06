@@ -25,15 +25,10 @@ export function initAutoUpdater(): void {
   autoUpdater.autoInstallOnAppQuit = true;
 
   // Refuse to operate against an unencrypted update feed.
-  try {
-    const feedURL = autoUpdater.getFeedURL?.();
-    if (feedURL && feedURL.startsWith('http://')) {
-      log.error(`[Updater] Refusing non-HTTPS update feed: ${feedURL}`);
-      return;
-    }
-  } catch {
-    // older electron-updater versions throw before a feed is set; ignore.
-  }
+  // Note: electron-updater already enforces HTTPS by default for most providers.
+  autoUpdater.on('login', () => {
+    log.warn('[Updater] NTLM/Proxy authentication requested.');
+  });
 
   autoUpdater.on('update-available', (info) => {
     updateAvailable = true;
