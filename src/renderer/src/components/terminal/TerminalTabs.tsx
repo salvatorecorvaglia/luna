@@ -53,7 +53,11 @@ export function TerminalTabs({ onNewTab }: TerminalTabsProps) {
   );
 
   return (
-    <div className="flex h-9 items-center border-b border-border/60 bg-card/60 no-select">
+    <div
+      className="flex h-9 items-center border-b border-border/60 bg-card/60 no-select"
+      role="tablist"
+      aria-label="Terminal tabs (drag to reorder)"
+    >
       <Reorder.Group
         axis="x"
         values={tabOrder}
@@ -200,6 +204,9 @@ const Tab = memo(function Tab({
     <Reorder.Item
       value={sessionId}
       as="div"
+      role="tab"
+      aria-selected={isActive}
+      aria-label={session.title || session.connectionName}
       className={cn(
         'group relative flex h-9 min-w-[120px] max-w-[200px] items-center gap-2 border-r border-border/40 px-3 text-xs cursor-grab active:cursor-grabbing',
         isActive

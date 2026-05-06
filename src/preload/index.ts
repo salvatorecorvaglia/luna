@@ -201,6 +201,7 @@ const api = {
     getLogPath: () => invoke(IPC.APP_GET_LOG_PATH),
     openLogFile: () => invoke(IPC.APP_OPEN_LOG_FILE),
     getActiveSessions: () => invoke(IPC.APP_GET_ACTIVE_SESSIONS),
+    getCredentialBackend: () => invoke(IPC.APP_GET_CREDENTIAL_BACKEND),
     onUpdateAvailable: createEventListener(IPC.APP_UPDATE_AVAILABLE),
     onUpdateDownloadProgress: createEventListener(IPC.APP_UPDATE_DOWNLOAD_PROGRESS),
     onUpdateDownloaded: createEventListener(IPC.APP_UPDATE_DOWNLOADED),

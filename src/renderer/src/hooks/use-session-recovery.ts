@@ -14,7 +14,7 @@ export function useSessionRecovery() {
 
         // Recover SSH sessions (Terminal)
         const sshSessionIds = new Set(ssh.map((s) => s.id));
-        
+
         for (const sess of ssh) {
           const existing = useTerminalStore.getState().sessions.get(sess.id);
           if (!existing) {
@@ -55,7 +55,11 @@ export function useSessionRecovery() {
 
         // Cleanup: Clear sftpSessionId if it's no longer valid
         const currentSftpSessionId = useSftpStore.getState().sftpSessionId;
-        if (currentSftpSessionId && !sshSessionIds.has(currentSftpSessionId) && !s3SessionIds.has(currentSftpSessionId)) {
+        if (
+          currentSftpSessionId &&
+          !sshSessionIds.has(currentSftpSessionId) &&
+          !s3SessionIds.has(currentSftpSessionId)
+        ) {
           useSftpStore.getState().setSftpSessionId(null);
         }
       } catch (err) {

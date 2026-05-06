@@ -66,6 +66,28 @@ describe('sshManager', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('disconnectAll() snapshots keys so it does not skip sessions', () => {
+    // Drive disconnectAll directly on a synthetic sessions Map. The bug it
+    // guards against is "iterate this.sessions.keys() while disconnect()
+    // mutates this.sessions", which would skip every other entry.
+    const ids = ['a', 'b', 'c', 'd', 'e'];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const m = sshManager as any as {
+      sessions: Map<string, unknown>;
+      disconnect: (id: string) => void;
+    };
+    const seen: string[] = [];
+    m.sessions = new Map(ids.map((id) => [id, { id }]));
+    const origDisconnect = m.disconnect.bind(m);
+    m.disconnect = (id: string) => {
+      seen.push(id);
+      m.sessions.delete(id); // mimic the real mutation
+    };
+    sshManager.disconnectAll();
+    m.disconnect = origDisconnect;
+    expect(seen.sort()).toEqual(ids);
+  });
+
   it('testConnection should return error if connection not found', async () => {
     vi.mocked(getDatabase).mockReturnValueOnce({
       prepare: vi.fn().mockReturnValue({

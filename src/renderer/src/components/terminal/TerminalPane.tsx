@@ -32,6 +32,8 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
   const [searchQuery, setSearchQuery] = useState('');
 
   const handleResize = useCallback(() => {
+    // Debounce so a stream of ResizeObserver events during a window drag
+    // doesn't fan out into a fit()/SSH-resize per frame.
     if (resizeTimeoutRef.current) {
       clearTimeout(resizeTimeoutRef.current);
     }
@@ -61,7 +63,8 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
         e.preventDefault();
         setSearchOpen(true);
-        setTimeout(() => searchInputRef.current?.focus(), 50);
+        // Focus on the next microtask so the input has been mounted by then.
+        queueMicrotask(() => searchInputRef.current?.focus());
       }
     };
     window.addEventListener('keydown', handler);
@@ -201,19 +204,11 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
       },
     );
 
-    // ResizeObserver for container size changes
+    // ResizeObserver delivers an initial entry on .observe() once layout
+    // is ready, which is what we want for the first fit — rely on that
+    // instead of a setTimeout race against the paint cycle.
     const observer = new ResizeObserver(handleResize);
     observer.observe(containerRef.current);
-
-    // Initial resize
-    setTimeout(() => {
-      fitAddon.fit();
-      window.api.ssh.resize({
-        sessionId,
-        cols: terminal.cols,
-        rows: terminal.rows,
-      });
-    }, 50);
 
     return () => {
       cleanupData();
@@ -266,13 +261,13 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
     }
   }, [scrollback]);
 
-  // Re-fit and focus when tab becomes active
+  // Re-fit and focus when tab becomes active. handleResize already debounces
+  // through resizeTimeoutRef, so calling it directly is safe — the previous
+  // setTimeout(50) wrapper was masking timing rather than fixing it.
   useEffect(() => {
     if (isActive) {
-      setTimeout(() => {
-        handleResize();
-        terminalRef.current?.focus();
-      }, 50);
+      handleResize();
+      terminalRef.current?.focus();
     }
   }, [isActive, handleResize]);
 
@@ -308,7 +303,11 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
 
       {/* Search bar */}
       {searchOpen && (
-        <div className="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-lg border border-border/80 bg-card px-2 py-1 shadow-lg">
+        <div
+          role="region"
+          aria-label="Terminal search"
+          className="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-lg border border-border/80 bg-card px-2 py-1 shadow-lg"
+        >
           <input
             ref={searchInputRef}
             type="text"

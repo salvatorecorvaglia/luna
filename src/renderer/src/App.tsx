@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
-import { Toaster } from 'sonner';
+import { useEffect, useState } from 'react';
+import { Toaster, toast } from 'sonner';
+import { ShieldAlert } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { useUIStore } from '@/stores/ui-store';
 import { useTerminalStore } from '@/stores/terminal-store';
@@ -36,6 +37,29 @@ export default function App() {
   // Sync state with active sessions in main process (handles Cmd+R recovery)
   useSessionRecovery();
 
+  // Surface a one-time toast if the credential store is using a plaintext
+  // master key on disk (Linux without libsecret). Stored credentials are
+  // recoverable by anyone with read access to the userData dir; the toast
+  // makes this visible instead of leaving it buried in logs.
+  const [warnedAboutBackend, setWarnedAboutBackend] = useState(false);
+  useEffect(() => {
+    if (warnedAboutBackend) return;
+    let cancelled = false;
+    void window.api.app.getCredentialBackend().then((status) => {
+      if (cancelled) return;
+      if (status.backend === 'plaintext') {
+        toast.warning(
+          'Credentials are stored with a plaintext master key on this machine. Install gnome-keyring or libsecret-1-0 and restart to migrate to OS-protected storage.',
+          { duration: 12000, icon: <ShieldAlert className="h-4 w-4" aria-hidden="true" /> },
+        );
+      }
+      setWarnedAboutBackend(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [warnedAboutBackend]);
+
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -65,14 +89,16 @@ export default function App() {
         useConnectionStore.getState().openCreateForm();
       }
 
-      // Cmd+Shift+1 — Switch to Terminal view
-      if (mod && e.shiftKey && e.key === '!') {
+      // Cmd+Shift+1 — Switch to Terminal view. Match on event.code so the
+      // shortcut works on AZERTY/QWERTZ/etc. where Shift+1 doesn't produce
+      // '!'. Fall back to e.key for layouts where event.code is unreliable.
+      if (mod && e.shiftKey && (e.code === 'Digit1' || e.key === '!')) {
         e.preventDefault();
         useUIStore.getState().setActiveView('terminal');
       }
 
       // Cmd+Shift+2 — Switch to SFTP view
-      if (mod && e.shiftKey && e.key === '@') {
+      if (mod && e.shiftKey && (e.code === 'Digit2' || e.key === '@')) {
         e.preventDefault();
         useUIStore.getState().setActiveView('sftp');
       }

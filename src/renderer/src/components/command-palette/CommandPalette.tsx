@@ -99,7 +99,11 @@ export function CommandPalette() {
     }
   }, [commandPaletteOpen]);
 
-  const commands: Command[] = useMemo(() => {
+  // Static commands that depend only on store actions/flags. Splitting these
+  // out of the connection-derived list means the (potentially long) per-
+  // connection commands aren't rebuilt on every keystroke into the search
+  // box — only when the relevant slice actually changes.
+  const staticCommands: Command[] = useMemo(() => {
     const cmds: Command[] = [
       {
         id: 'new-connection',
@@ -233,24 +237,8 @@ export function CommandPalette() {
       );
     }
 
-    for (const conn of connections) {
-      cmds.push({
-        id: `connect-${conn.id}`,
-        label: `Connect: ${conn.name}`,
-        description: `${conn.username}@${conn.host}:${conn.port}`,
-        icon: <Server className="h-4 w-4" aria-hidden="true" />,
-        category: 'Connections',
-        action: () => {
-          setActiveView('terminal');
-          connectToHost(conn.id);
-        },
-        keywords: ['ssh', conn.host, conn.username],
-      });
-    }
-
     return cmds;
   }, [
-    connections,
     openCreateForm,
     setActiveView,
     toggleSidebar,
@@ -263,6 +251,28 @@ export function CommandPalette() {
     setActiveTab,
     closeTab,
   ]);
+
+  const connectionCommands: Command[] = useMemo(
+    () =>
+      connections.map((conn) => ({
+        id: `connect-${conn.id}`,
+        label: `Connect: ${conn.name}`,
+        description: `${conn.username}@${conn.host}:${conn.port}`,
+        icon: <Server className="h-4 w-4" aria-hidden="true" />,
+        category: 'Connections',
+        action: () => {
+          setActiveView('terminal');
+          connectToHost(conn.id);
+        },
+        keywords: ['ssh', conn.host, conn.username],
+      })),
+    [connections, setActiveView],
+  );
+
+  const commands = useMemo(
+    () => [...staticCommands, ...connectionCommands],
+    [staticCommands, connectionCommands],
+  );
 
   const filtered = useMemo(() => {
     if (!query.trim()) return commands;

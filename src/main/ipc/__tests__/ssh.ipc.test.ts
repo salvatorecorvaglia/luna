@@ -50,6 +50,36 @@ describe('ssh.ipc validation', () => {
     expect(sshManagerMock.connect).not.toHaveBeenCalled();
   });
 
+  describe('SSH_SEND_DATA size cap', () => {
+    it('rejects payloads over 64 KiB', () => {
+      const handler = handlers.get(IPC.SSH_SEND_DATA)!;
+      const huge = 'x'.repeat(65537); // 65537 ASCII bytes
+      expect(() => handler({}, { sessionId: 's', data: huge })).toThrow(/exceeds/);
+      expect(sshManagerMock.sendData).not.toHaveBeenCalled();
+    });
+
+    it('accepts payloads at exactly 64 KiB', () => {
+      const handler = handlers.get(IPC.SSH_SEND_DATA)!;
+      const ok = 'x'.repeat(65536);
+      expect(() => handler({}, { sessionId: 's', data: ok })).not.toThrow();
+      expect(sshManagerMock.sendData).toHaveBeenCalledWith('s', ok);
+    });
+
+    it('rejects non-string data', () => {
+      const handler = handlers.get(IPC.SSH_SEND_DATA)!;
+      expect(() => handler({}, { sessionId: 's', data: 123 as unknown as string })).toThrow(
+        /string/,
+      );
+    });
+
+    it('counts UTF-8 byte length, not character count', () => {
+      const handler = handlers.get(IPC.SSH_SEND_DATA)!;
+      // Each '✓' is 3 UTF-8 bytes. 22000 × 3 = 66000 bytes > 65536.
+      const tricky = '✓'.repeat(22000);
+      expect(() => handler({}, { sessionId: 's', data: tricky })).toThrow(/exceeds/);
+    });
+  });
+
   it('SSH_RESIZE rejects out-of-range cols/rows', () => {
     const handler = handlers.get(IPC.SSH_RESIZE)!;
     expect(() => handler({}, { sessionId: 's', cols: 0, rows: 24 })).toThrow(/cols/);

@@ -49,9 +49,7 @@ export function registerSshHandlers(): void {
     // otherwise let a renderer ship 2× the intended payload.
     const byteLength = Buffer.byteLength(params.data, 'utf8');
     if (byteLength > MAX_SSH_SEND_BYTES) {
-      throw new Error(
-        `SSH input exceeds ${MAX_SSH_SEND_BYTES}-byte cap (got ${byteLength})`,
-      );
+      throw new Error(`SSH input exceeds ${MAX_SSH_SEND_BYTES}-byte cap (got ${byteLength})`);
     }
     sshManager.sendData(params.sessionId, params.data);
   });

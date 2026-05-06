@@ -85,7 +85,9 @@ class SftpManager {
 
   private cleanupIdle(): void {
     const now = Date.now();
-    for (const [sessionId, lastTime] of this.lastAccess) {
+    // Snapshot the entries first: closeSftp() mutates lastAccess, which
+    // would otherwise risk skipping or revisiting entries during iteration.
+    for (const [sessionId, lastTime] of Array.from(this.lastAccess)) {
       if (
         now - lastTime > IDLE_TIMEOUT_MS &&
         (this.leases.get(sessionId) ?? 0) === 0 &&
@@ -94,6 +96,14 @@ class SftpManager {
         // Mark closing *before* the synchronous close so a concurrent acquireLease
         // (which checks the flag) can't sneak in between the check and the close.
         this.closing.add(sessionId);
+        // Recheck after marking: if the lease counter ticked up between the
+        // earlier read and this point (single-threaded JS makes this only
+        // possible if a microtask executed mid-loop, but defending against
+        // future restructuring is cheap), bail out and leave the session.
+        if ((this.leases.get(sessionId) ?? 0) > 0) {
+          this.closing.delete(sessionId);
+          continue;
+        }
         log.info(`[SFTP] Closing idle session: ${sessionId}`);
         try {
           this.closeSftp(sessionId);
