@@ -3,6 +3,7 @@ import { IPC } from '@shared/constants';
 import { checkForUpdate, installUpdate } from '../services/updater';
 import { sshManager } from '../services/ssh-manager';
 import { s3StorageProvider } from '../services/s3/s3-provider';
+import { getCredentialBackendStatus } from '../services/credential-store';
 import log from '../lib/logger';
 
 let mainWindowRef: BrowserWindow | null = null;
@@ -37,6 +38,8 @@ export function registerAppHandlers(): void {
   });
 
   ipcMain.handle(IPC.APP_GET_VERSION, () => app.getVersion());
+
+  ipcMain.handle(IPC.APP_GET_CREDENTIAL_BACKEND, () => getCredentialBackendStatus());
 
   ipcMain.handle(IPC.APP_GET_LOG_PATH, () => log.transports.file.getFile().path);
 

@@ -61,11 +61,7 @@ export const useTransferStore = create<TransferState>((set) => ({
         // (completed/error/cancelled) — without this guard a stray sample
         // would regress the status back to 'active' and the UI would show
         // the transfer as still in flight.
-        if (
-          item.status === 'completed' ||
-          item.status === 'error' ||
-          item.status === 'cancelled'
-        ) {
+        if (item.status === 'completed' || item.status === 'error' || item.status === 'cancelled') {
           continue;
         }
         if (!mutated) {

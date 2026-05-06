@@ -638,7 +638,26 @@ export function SftpManager() {
         </div>
 
         {/* Resize handle */}
-        <div className="relative w-px flex-shrink-0 cursor-col-resize">
+        <div
+          className="relative w-px flex-shrink-0 cursor-col-resize"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize panes"
+          aria-valuenow={Math.round(splitRatio * 100)}
+          aria-valuemin={20}
+          aria-valuemax={80}
+          tabIndex={0}
+          onKeyDown={(e) => {
+            // Keyboard-driven resize for non-mouse users.
+            if (e.key === 'ArrowLeft') {
+              e.preventDefault();
+              setSplitRatio((r) => Math.max(0.2, r - 0.02));
+            } else if (e.key === 'ArrowRight') {
+              e.preventDefault();
+              setSplitRatio((r) => Math.min(0.8, r + 0.02));
+            }
+          }}
+        >
           <div
             className={`absolute inset-0 bg-border ${resizing ? 'bg-primary/60' : 'hover:bg-primary/40'}`}
             style={{ transition: 'background-color 150ms' }}

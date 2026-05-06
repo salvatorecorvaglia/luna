@@ -191,6 +191,10 @@ export interface IpcHandlerMap {
       }[];
     };
   };
+  'app:get-credential-backend': {
+    request: void;
+    response: { backend: 'safeStorage' | 'plaintext' | 'uninitialized' };
+  };
 }
 
 // Streaming events (main -> renderer, via webContents.send)

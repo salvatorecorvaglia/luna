@@ -16,6 +16,7 @@ function makeFakeDb(opts: { failOn?: string } = {}): {
   exec: (sql: string) => void;
   prepare: (sql: string) => { all: () => unknown[]; run: () => void; get: () => unknown };
   transaction: <T extends (...a: unknown[]) => unknown>(fn: T) => (...a: Parameters<T>) => unknown;
+  pragma: (cmd: string) => unknown;
   applied: string[];
   log: string[];
 } {
@@ -41,6 +42,12 @@ function makeFakeDb(opts: { failOn?: string } = {}): {
     },
     transaction<T extends (...a: unknown[]) => unknown>(fn: T) {
       return (...a: Parameters<T>) => fn(...a);
+    },
+    pragma(cmd: string): unknown {
+      // Used by runMigrations' post-apply integrity_check; return the
+      // happy-path shape better-sqlite3 produces ([{ integrity_check: 'ok' }]).
+      if (cmd === 'integrity_check') return [{ integrity_check: 'ok' }];
+      return undefined;
     },
   };
 }
@@ -74,6 +81,16 @@ describe('database migrations', () => {
     // connections survive the schema change.
     expect(m?.sql).toMatch(/INSERT INTO connections_new/);
     expect(m?.sql).toMatch(/DROP TABLE connections/);
+  });
+
+  it('throws MigrationError if integrity_check fails after a migration', () => {
+    const db = makeFakeDb();
+    // Override pragma to report corruption so the post-apply check trips.
+    db.pragma = (cmd: string) =>
+      cmd === 'integrity_check' ? [{ integrity_check: '*** in database main ***' }] : undefined;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const run = (): void => __test__.runMigrations(db as any);
+    expect(run).toThrow(MigrationError);
   });
 
   it('throws MigrationError naming the offending migration on SQL failure', () => {

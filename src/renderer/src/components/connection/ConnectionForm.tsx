@@ -30,6 +30,7 @@ import {
 import type { AuthType } from '@shared/types/connection';
 import type { StorageProviderKind } from '@shared/types/storage-provider';
 import { toast } from 'sonner';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 
 const AUTH_TYPES: { value: AuthType; label: string; icon: React.ReactNode }[] = [
   { value: 'password', label: 'Password', icon: <Lock className="h-4 w-4" /> },
@@ -102,11 +103,20 @@ export function ConnectionForm() {
   const [showGroupsDropdown, setShowGroupsDropdown] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [testing, setTesting] = useState(false);
+  // Holds the test-connection AbortController so the user can cancel a hung
+  // test before the IPC reply (10 s+ for unreachable hosts).
+  const testRunRef = useRef<{ controller: AbortController; runId: number } | null>(null);
+  const testRunCounter = useRef(0);
 
   const dialogRef = useRef<HTMLDivElement>(null);
   const fieldId = useId();
   const isEditing = !!editingConnectionId;
   const isSaving = createMutation.isPending || updateMutation.isPending;
+  // Tracks whether the user has typed anything since the form opened — gates
+  // the "discard changes?" confirm dialog so a no-op close stays silent.
+  const [dirty, setDirty] = useState(false);
+  const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
+  const markDirty = useCallback(() => setDirty(true), []);
 
   const uniqueFolders = useMemo(() => {
     if (!existingConnections) return [];
@@ -119,13 +129,17 @@ export function ConnectionForm() {
     return uniqueFolders.filter((f) => f.toLowerCase().includes(search));
   }, [uniqueFolders, folder]);
 
-  // Focus trap + Escape
+  // requestClose is hoisted via useCallback below; the focus trap reads it
+  // through a ref so this effect doesn't have to rerun every time `dirty`
+  // toggles (which would tear down + reattach the trap on every keystroke).
+  const requestCloseRef = useRef<() => void>(() => closeForm());
+
   useEffect(() => {
     if (!connectionFormOpen) return;
     const dialog = dialogRef.current;
     if (!dialog) return;
-    return attachFocusTrap(dialog, { onEscape: closeForm });
-  }, [connectionFormOpen, closeForm]);
+    return attachFocusTrap(dialog, { onEscape: () => requestCloseRef.current() });
+  }, [connectionFormOpen]);
 
   const resetForm = useCallback(() => {
     setProvider('sftp');
@@ -180,28 +194,46 @@ export function ConnectionForm() {
       resetForm();
     }
     setTouched({});
+    // Resetting dirty when the form is reseeded keeps the confirm dialog
+    // from firing for changes that were programmatic (edit-mode prefill).
+    setDirty(false);
   }, [editingConnection, duplicatingConnection, connectionFormOpen, resetForm]);
+
+  // Guarded close: prompt to confirm discard if the user has typed anything.
+  const requestClose = useCallback(() => {
+    if (dirty && !isSaving) {
+      setConfirmDiscardOpen(true);
+    } else {
+      closeForm();
+    }
+  }, [dirty, isSaving, closeForm]);
+  // Keep the ref in sync so the focus trap's onEscape always runs the
+  // current closure (with the latest `dirty` snapshot) without forcing
+  // attachFocusTrap to be torn down and rebuilt on every change.
+  useEffect(() => {
+    requestCloseRef.current = requestClose;
+  }, [requestClose]);
 
   const markTouched = useCallback((field: string) => {
     setTouched((prev) => ({ ...prev, [field]: true }));
   }, []);
 
-  // Validation runs on every keystroke and the duplicate-name check
-  // walks the entire connections list. Memoize on the inputs we actually
-  // depend on so unrelated re-renders (focus, hover, parent updates) don't
-  // re-walk N existingConnections per character typed.
-  const errors = useMemo<Record<string, string>>(() => {
-    const out: Record<string, string> = {};
+  // Name uniqueness has to be live (it's a duplicate-detection signal as the
+  // user types), but the rest is cheap to validate on demand and shouldn't
+  // re-walk N existingConnections per keystroke.
+  const nameError = useMemo<string | undefined>(() => {
     const trimmedName = name.trim();
-    if (!trimmedName) {
-      out.name = 'Connection name is required';
-    } else {
-      const lower = trimmedName.toLowerCase();
-      const collides = existingConnections?.some(
-        (c) => c.name.trim().toLowerCase() === lower && c.id !== editingConnectionId,
-      );
-      if (collides) out.name = 'A connection with this name already exists';
-    }
+    if (!trimmedName) return 'Connection name is required';
+    const lower = trimmedName.toLowerCase();
+    const collides = existingConnections?.some(
+      (c) => c.name.trim().toLowerCase() === lower && c.id !== editingConnectionId,
+    );
+    return collides ? 'A connection with this name already exists' : undefined;
+  }, [name, existingConnections, editingConnectionId]);
+
+  // Per-field validation (no list walks) — recomputed on the cheap inputs.
+  const fieldErrors = useMemo<Record<string, string>>(() => {
+    const out: Record<string, string> = {};
     if (provider === 'sftp') {
       if (!host.trim()) out.host = 'Host is required';
       const portNum = parseInt(port, 10);
@@ -222,7 +254,6 @@ export function ConnectionForm() {
     }
     return out;
   }, [
-    name,
     provider,
     host,
     port,
@@ -232,9 +263,12 @@ export function ConnectionForm() {
     accessKeyId,
     secretAccessKey,
     isEditing,
-    existingConnections,
-    editingConnectionId,
   ]);
+
+  const errors = useMemo<Record<string, string>>(
+    () => (nameError ? { ...fieldErrors, name: nameError } : fieldErrors),
+    [fieldErrors, nameError],
+  );
 
   const visibleError = (field: string): string | undefined =>
     touched[field] ? errors[field] : undefined;
@@ -328,10 +362,36 @@ export function ConnectionForm() {
     }
   }
 
+  function cancelTest(): void {
+    const run = testRunRef.current;
+    if (!run) return;
+    run.controller.abort();
+    testRunRef.current = null;
+    setTesting(false);
+    toast.info('Connection test cancelled');
+  }
+
   async function handleTest() {
+    // If a test is already running, treat the click as a cancel.
+    if (testRunRef.current) {
+      cancelTest();
+      return;
+    }
+
+    const runId = ++testRunCounter.current;
+    const controller = new AbortController();
+    testRunRef.current = { controller, runId };
+
+    /** Apply a result only if no newer test has superseded this one and
+     *  the user hasn't aborted in the meantime. Prevents stale toasts when
+     *  the user starts a second test before the first replies. */
+    const isStillCurrent = (): boolean =>
+      testRunRef.current?.runId === runId && !controller.signal.aborted;
+
     if (provider === 'sftp') {
       if (!host.trim() || !username.trim()) {
         toast.error('Host and Username are required to test');
+        testRunRef.current = null;
         return;
       }
       setTesting(true);
@@ -347,20 +407,23 @@ export function ConnectionForm() {
             passphrase: passphrase || undefined,
           },
         });
+        if (!isStillCurrent()) return;
         if (result.ok) {
           toast.success('Connection successful');
         } else {
           toast.error(result.error || 'Connection failed');
         }
       } finally {
-        setTesting(false);
+        if (testRunRef.current?.runId === runId) {
+          testRunRef.current = null;
+          setTesting(false);
+        }
       }
     } else {
-      // S3 test — needs at minimum access key + secret. If editing and the
-      // user hasn't re-typed the secret, fall back to the saved credential.
       const useStored = isEditing && !accessKeyId.trim() && !secretAccessKey.trim();
       if (!useStored && (!accessKeyId.trim() || !secretAccessKey.trim())) {
         toast.error('Access Key ID and Secret Access Key are required to test');
+        testRunRef.current = null;
         return;
       }
       setTesting(true);
@@ -380,13 +443,17 @@ export function ConnectionForm() {
                 },
               },
         );
+        if (!isStillCurrent()) return;
         if (result.ok) {
           toast.success('S3 connection successful');
         } else {
           toast.error(result.error || 'S3 connection failed');
         }
       } finally {
-        setTesting(false);
+        if (testRunRef.current?.runId === runId) {
+          testRunRef.current = null;
+          setTesting(false);
+        }
       }
     }
   }
@@ -446,13 +513,19 @@ export function ConnectionForm() {
                         : 'New Connection'}
                   </h2>
                 </div>
-                <button onClick={closeForm} className="btn-icon" aria-label="Close">
+                <button onClick={requestClose} className="btn-icon" aria-label="Close">
                   <X className="h-4 w-4" />
                 </button>
               </div>
 
-              {/* Form */}
-              <form onSubmit={handleSubmit} className="p-5 space-y-4">
+              {/* Form — onChange bubbles from every input so we mark dirty
+                  once without sprinkling onChange wrappers across each field. */}
+              <form
+                onSubmit={handleSubmit}
+                onChange={markDirty}
+                onInput={markDirty}
+                className="p-5 space-y-4"
+              >
                 {/* Provider toggle */}
                 <div>
                   <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
@@ -1043,7 +1116,8 @@ export function ConnectionForm() {
                   <button
                     type="button"
                     onClick={handleTest}
-                    disabled={testing}
+                    aria-busy={testing}
+                    title={testing ? 'Click to cancel the running test' : undefined}
                     className="btn-ghost"
                   >
                     {testing ? (
@@ -1051,10 +1125,10 @@ export function ConnectionForm() {
                     ) : (
                       <Wifi className="h-3.5 w-3.5" />
                     )}
-                    {testing ? 'Testing...' : 'Test connection'}
+                    {testing ? 'Testing… (click to cancel)' : 'Test connection'}
                   </button>
                   <div className="flex gap-2">
-                    <button type="button" onClick={closeForm} className="btn-ghost">
+                    <button type="button" onClick={requestClose} className="btn-ghost">
                       Cancel
                     </button>
                     <button
@@ -1071,6 +1145,18 @@ export function ConnectionForm() {
               </form>
             </div>
           </motion.div>
+          <ConfirmDialog
+            open={confirmDiscardOpen}
+            title="Discard changes?"
+            message="You have unsaved changes to this connection. Closing now will discard them."
+            confirmLabel="Discard"
+            destructive
+            onConfirm={() => {
+              setConfirmDiscardOpen(false);
+              closeForm();
+            }}
+            onCancel={() => setConfirmDiscardOpen(false)}
+          />
         </>
       )}
     </AnimatePresence>

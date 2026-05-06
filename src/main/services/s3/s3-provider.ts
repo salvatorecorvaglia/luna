@@ -268,11 +268,16 @@ class S3StorageProvider implements StorageProvider {
     // loop; we surface that as unsupported in iteration 1 to keep semantics
     // tight (a half-moved prefix is hard to recover from).
     try {
+      // CopySource is `/{bucket}/{key}` with the key URL-encoded, but each
+      // segment between '/' separators must be encoded individually so a
+      // literal '%2F' inside a key doesn't get folded back into a path
+      // separator (which the previous .replace(/%2F/g, '/') did, lossily).
+      const encodedKey = a.key.split('/').map(encodeURIComponent).join('/');
       await client.send(
         new CopyObjectCommand({
           Bucket: b.bucket,
           Key: b.key,
-          CopySource: `/${a.bucket}/${encodeURIComponent(a.key)}`.replace(/%2F/g, '/'),
+          CopySource: `/${a.bucket}/${encodedKey}`,
         }),
       );
       await client.send(new DeleteObjectCommand({ Bucket: a.bucket, Key: a.key }));
@@ -519,6 +524,17 @@ class S3StorageProvider implements StorageProvider {
   private wrapError(op: string, err: unknown): Error {
     if (err instanceof S3StorageError || err instanceof AbortError) return err;
     const msg = err instanceof Error ? err.message : String(err);
+    // STS session tokens silently expire, after which every request fails
+    // with ExpiredToken / 403. Surface that explicitly so users don't chase
+    // network errors when the real issue is a stale temporary credential.
+    const code =
+      (err as { name?: string; Code?: string })?.name ?? (err as { Code?: string })?.Code;
+    if (code === 'ExpiredToken' || code === 'ExpiredTokenException' || /expired token/i.test(msg)) {
+      return new S3StorageError(
+        `S3 ${op} failed: AWS session token has expired. Re-enter credentials and reconnect.`,
+        err,
+      );
+    }
     return new S3StorageError(`S3 ${op} failed: ${msg}`, err);
   }
 

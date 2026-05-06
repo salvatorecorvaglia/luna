@@ -84,6 +84,46 @@ describe('transfer-store', () => {
     expect(state.transfers.has('c')).toBe(true);
   });
 
+  describe('applyProgressBatch terminal-status guard', () => {
+    it('ignores progress samples for completed transfers', () => {
+      useTransferStore.getState().addTransfer(makeTransfer({ id: 'a' }));
+      useTransferStore.getState().completeTransfer('a');
+
+      // A late progress event arrives after completion — must be ignored
+      // so the row doesn't revert to "active" and stay in the in-flight UI.
+      useTransferStore
+        .getState()
+        .applyProgressBatch([{ transferId: 'a', transferred: 256, bytesPerSec: 50 }]);
+
+      const item = useTransferStore.getState().transfers.get('a')!;
+      expect(item.status).toBe('completed');
+      // transferred stays at the completed value (size), not the stale sample.
+      expect(item.transferred).toBe(1024);
+    });
+
+    it('ignores progress for errored transfers', () => {
+      useTransferStore.getState().addTransfer(makeTransfer({ id: 'b' }));
+      useTransferStore.getState().errorTransfer('b', 'boom');
+
+      useTransferStore
+        .getState()
+        .applyProgressBatch([{ transferId: 'b', transferred: 999, bytesPerSec: 1 }]);
+
+      expect(useTransferStore.getState().transfers.get('b')!.status).toBe('error');
+    });
+
+    it('still applies progress to active transfers', () => {
+      useTransferStore.getState().addTransfer(makeTransfer({ id: 'c', status: 'active' }));
+      useTransferStore
+        .getState()
+        .applyProgressBatch([{ transferId: 'c', transferred: 512, bytesPerSec: 100 }]);
+
+      const item = useTransferStore.getState().transfers.get('c')!;
+      expect(item.transferred).toBe(512);
+      expect(item.bytesPerSec).toBe(100);
+    });
+  });
+
   it('toggles queue expanded', () => {
     expect(useTransferStore.getState().queueExpanded).toBe(false);
     useTransferStore.getState().toggleQueueExpanded();

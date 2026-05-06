@@ -108,6 +108,14 @@ function runMigrations(db: Database.Database): void {
         insertMigration.run(migration.name);
       });
       transaction();
+      // Run an integrity check after each migration: a migration that
+      // half-applied before throwing would have rolled back, but DDL bugs
+      // (corrupt indexes, FK violations once enforced) can leave the file
+      // structurally inconsistent without raising on the transaction itself.
+      const result = db.pragma('integrity_check') as { integrity_check: string }[];
+      if (result[0]?.integrity_check !== 'ok') {
+        throw new Error(`integrity_check after migration returned: ${JSON.stringify(result)}`);
+      }
       log.info(`[DB] Applied migration: ${migration.name}`);
     } catch (err) {
       log.error(`[DB] Migration "${migration.name}" failed:`, err);
