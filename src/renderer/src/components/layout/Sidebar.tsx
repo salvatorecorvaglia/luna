@@ -25,6 +25,7 @@ import { useConnections, useDeleteConnection } from '@/hooks/use-connections';
 import { connectToHost } from '@/lib/ssh';
 import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { CommandSetsPanel } from '@/components/command-sets/CommandSetsPanel';
 
 export function Sidebar() {
   const { sidebarOpen, sidebarWidth, setSidebarWidth, setSettingsOpen } = useUIStore();
@@ -232,6 +233,9 @@ export function Sidebar() {
               </>
             )}
           </div>
+
+          {/* Command Sets */}
+          <CommandSetsPanel />
 
           {/* Settings */}
           <div className="border-t border-border/60 p-1.5">
