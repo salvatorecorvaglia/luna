@@ -6,7 +6,7 @@ function Footer() {
           <img src="assets/lunar-logo.png" alt="" />
           <div>
             <div className="lunar-footer__name">Lunar</div>
-            <div className="lunar-footer__tag">SSH terminal · SFTP file manager</div>
+            <div className="lunar-footer__tag">SSH · SFTP · S3-compatible storage</div>
           </div>
         </div>
         <div className="lunar-footer__cols">

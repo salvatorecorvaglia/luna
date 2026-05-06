@@ -39,6 +39,7 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      plugins: true,
     },
   });
 
@@ -94,6 +95,7 @@ app.whenReady().then(() => {
               "frame-ancestors 'none'; " +
               "base-uri 'self'; " +
               "form-action 'none'; " +
+              "frame-src 'self' data:; " +
               "object-src 'none'",
           ],
         },

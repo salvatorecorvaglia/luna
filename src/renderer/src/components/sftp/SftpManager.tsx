@@ -30,6 +30,7 @@ export function SftpManager() {
     localSelection,
     remoteSelection,
     sftpSessionId,
+    storageSessions,
     setLocalPath,
     setRemotePath,
     toggleLocalSelection,
@@ -46,6 +47,7 @@ export function SftpManager() {
       localSelection: s.localSelection,
       remoteSelection: s.remoteSelection,
       sftpSessionId: s.sftpSessionId,
+      storageSessions: s.storageSessions,
       setLocalPath: s.setLocalPath,
       setRemotePath: s.setRemotePath,
       toggleLocalSelection: s.toggleLocalSelection,
@@ -59,21 +61,65 @@ export function SftpManager() {
   );
 
   const sessions = useTerminalStore((s) => s.sessions);
+  const activeConnectionId = useConnectionStore((s) => s.activeConnectionId);
   const invalidateSftp = useInvalidateSftp();
   const invalidateLocal = useInvalidateLocalDir();
   const [splitRatio, setSplitRatio] = useState(0.5);
   const [resizing, setResizing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Auto-select first connected session if none selected
+  // Sync sftpSessionId with the active connection if it changes.
   useEffect(() => {
-    if (!sftpSessionId) {
-      const connected = Array.from(sessions.values()).find((s) => s.status === 'connected');
-      if (connected) {
-        setSftpSessionId(connected.id);
+    let targetSessionId: string | null = null;
+
+    if (activeConnectionId) {
+      // Prioritize SSH sessions for the active connection
+      const sshSession = Array.from(sessions.values()).find(
+        (s) => s.connectionId === activeConnectionId && s.status === 'connected',
+      );
+      if (sshSession) {
+        targetSessionId = sshSession.id;
+      } else {
+        // Fallback to storage (S3) sessions for the active connection
+        const storageSession = Array.from(storageSessions.values()).find(
+          (s) => s.connectionId === activeConnectionId && s.status === 'connected',
+        );
+        if (storageSession) {
+          targetSessionId = storageSession.id;
+        }
       }
     }
-  }, [sessions, sftpSessionId, setSftpSessionId]);
+
+    // Auto-select first connected session if none found for active connection
+    if (!targetSessionId && !sftpSessionId) {
+      const connectedSsh = Array.from(sessions.values()).find((s) => s.status === 'connected');
+      if (connectedSsh) {
+        targetSessionId = connectedSsh.id;
+      } else {
+        const connectedS3 = Array.from(storageSessions.values()).find(
+          (s) => s.status === 'connected',
+        );
+        if (connectedS3) {
+          targetSessionId = connectedS3.id;
+        }
+      }
+    }
+
+    if (targetSessionId && targetSessionId !== sftpSessionId) {
+      setSftpSessionId(targetSessionId);
+      // Reset path when switching sessions to avoid "No such file" errors
+      // if the previous session's path doesn't exist on the new one.
+      const storageSess = storageSessions.get(targetSessionId);
+      setRemotePath(storageSess?.initialPath || '/');
+    }
+  }, [
+    activeConnectionId,
+    sessions,
+    storageSessions,
+    sftpSessionId,
+    setSftpSessionId,
+    setRemotePath,
+  ]);
 
   // Set local path to home directory on mount
   useEffect(() => {
@@ -121,7 +167,7 @@ export function SftpManager() {
 
       const localDest = await window.api.shell.joinPath(localPath, fileName);
       try {
-        const transferId = await window.api.sftp.download({
+        const transferId = await window.api.storage.download({
           sessionId: sftpSessionId,
           remotePath: remoteSrc,
           localPath: localDest,
@@ -167,7 +213,7 @@ export function SftpManager() {
       const fileName = rawFileName.split('/').pop()?.split('\\').pop() || rawFileName;
       const remoteDest = remotePath === '/' ? `/${fileName}` : `${remotePath}/${fileName}`;
       try {
-        const transferId = await window.api.sftp.upload({
+        const transferId = await window.api.storage.upload({
           sessionId: sftpSessionId,
           localPath: localSrc,
           remotePath: remoteDest,
@@ -184,6 +230,70 @@ export function SftpManager() {
           bytesPerSec: 0,
           sessionId: sftpSessionId,
         });
+      } catch (err: unknown) {
+        toast.error(`Upload failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    },
+    [sftpSessionId, remotePath, addTransfer],
+  );
+
+  // Context menu download: remote -> local
+  const handleRemoteDownload = useCallback(
+    async (entry: FileEntry) => {
+      if (!sftpSessionId || entry.isDirectory) return;
+
+      const localDest = await window.api.shell.joinPath(localPath, entry.name);
+      try {
+        const transferId = await window.api.storage.download({
+          sessionId: sftpSessionId,
+          remotePath: entry.path,
+          localPath: localDest,
+        });
+        addTransfer({
+          id: transferId,
+          type: 'download',
+          localPath: localDest,
+          remotePath: entry.path,
+          fileName: entry.name,
+          size: entry.size || 0,
+          transferred: 0,
+          status: 'queued',
+          bytesPerSec: 0,
+          sessionId: sftpSessionId,
+        });
+        toast.success(`Download started: ${entry.name}`);
+      } catch (err: unknown) {
+        toast.error(`Download failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    },
+    [sftpSessionId, localPath, addTransfer],
+  );
+
+  // Context menu upload: local -> remote
+  const handleLocalUpload = useCallback(
+    async (entry: FileEntry) => {
+      if (!sftpSessionId || entry.isDirectory) return;
+
+      const remoteDest = remotePath === '/' ? `/${entry.name}` : `${remotePath}/${entry.name}`;
+      try {
+        const transferId = await window.api.storage.upload({
+          sessionId: sftpSessionId,
+          localPath: entry.path,
+          remotePath: remoteDest,
+        });
+        addTransfer({
+          id: transferId,
+          type: 'upload',
+          localPath: entry.path,
+          remotePath: remoteDest,
+          fileName: entry.name,
+          size: entry.size || 0,
+          transferred: 0,
+          status: 'queued',
+          bytesPerSec: 0,
+          sessionId: sftpSessionId,
+        });
+        toast.success(`Upload started: ${entry.name}`);
       } catch (err: unknown) {
         toast.error(`Upload failed: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -217,15 +327,18 @@ export function SftpManager() {
     async (entry: FileEntry) => {
       if (!sftpSessionId) return;
       try {
-        const content = await window.api.sftp.readFile({
+        const { content } = await window.api.storage.readFile({
           sessionId: sftpSessionId,
           path: entry.path,
         });
         const ext = entry.name.split('.').pop()?.toLowerCase() || '';
         const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp'];
-        const type = imageExts.includes(ext)
-          ? `image/${ext === 'jpg' ? 'jpeg' : ext === 'svg' ? 'svg+xml' : ext}`
-          : 'text/plain';
+        let type = 'text/plain';
+        if (imageExts.includes(ext)) {
+          type = `image/${ext === 'jpg' ? 'jpeg' : ext === 'svg' ? 'svg+xml' : ext}`;
+        } else if (ext === 'pdf') {
+          type = 'application/pdf';
+        }
         setPreviewFile({ name: entry.name, content, type });
       } catch (err: unknown) {
         toast.error(`Preview failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -235,62 +348,73 @@ export function SftpManager() {
   );
 
   // Preview local file on double-click
-  const handleLocalFileOpen = useCallback(async (entry: FileEntry) => {
-    try {
-      // Read local file via the SFTP readFile only works for remote; use a simple approach:
-      // For text files, use the main process readdir/path utilities aren't designed for content.
-      // Instead, we download to a temp preview. For now, show a toast with the path.
-      const ext = entry.name.split('.').pop()?.toLowerCase() || '';
-      const textExts = [
-        'txt',
-        'md',
-        'json',
-        'yaml',
-        'yml',
-        'xml',
-        'csv',
-        'log',
-        'sh',
-        'bash',
-        'zsh',
-        'py',
-        'js',
-        'ts',
-        'tsx',
-        'jsx',
-        'html',
-        'css',
-        'scss',
-        'conf',
-        'cfg',
-        'ini',
-        'toml',
-        'env',
-        'gitignore',
-        'editorconfig',
-        'Makefile',
-        'Dockerfile',
-        'rs',
-        'go',
-        'rb',
-        'php',
-        'java',
-        'c',
-        'h',
-        'cpp',
-      ];
-      const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp'];
-      if (!textExts.includes(ext) && !imageExts.includes(ext)) {
-        toast.info(`Cannot preview .${ext} files. Use your system file manager to open.`);
-        return;
+  const handleLocalFileOpen = useCallback(
+    async (entry: FileEntry) => {
+      try {
+        const ext = entry.name.split('.').pop()?.toLowerCase() || '';
+        const textExts = [
+          'txt',
+          'md',
+          'json',
+          'yaml',
+          'yml',
+          'xml',
+          'csv',
+          'log',
+          'sh',
+          'bash',
+          'zsh',
+          'py',
+          'js',
+          'ts',
+          'tsx',
+          'jsx',
+          'html',
+          'css',
+          'scss',
+          'conf',
+          'cfg',
+          'ini',
+          'toml',
+          'env',
+          'gitignore',
+          'editorconfig',
+          'Makefile',
+          'Dockerfile',
+          'rs',
+          'go',
+          'rb',
+          'php',
+          'java',
+          'c',
+          'h',
+          'cpp',
+        ];
+        const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp'];
+        const isPdf = ext === 'pdf';
+
+        if (!textExts.includes(ext) && !imageExts.includes(ext) && !isPdf) {
+          toast.info(`Cannot preview .${ext} files. Use your system file manager to open.`);
+          return;
+        }
+
+        const { content } = (await window.api.shell.readFile(entry.path)) as {
+          content: string;
+        };
+        let type = 'text/plain';
+        if (imageExts.includes(ext)) {
+          type = `image/${ext === 'jpg' ? 'jpeg' : ext === 'svg' ? 'svg+xml' : ext}`;
+        } else if (isPdf) {
+          type = 'application/pdf';
+        }
+
+        setPreviewFile({ name: entry.name, content, type });
+      } catch (err: unknown) {
+        toast.error(`Preview failed: ${err instanceof Error ? err.message : String(err)}`);
       }
-      // For local preview, we can't use the SFTP readFile API — show a message
-      // pointing users to use the system file manager for non-remote files.
-      toast.info(`Local file: ${entry.path}\nOpen in your system file manager to preview.`);
-    } catch (err: unknown) {
-      toast.error(`Preview failed: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }, []);
+    },
+    [setPreviewFile],
+  );
 
   // Rename remote file/directory
   const handleRemoteRename = useCallback((entry: FileEntry) => {
@@ -306,7 +430,7 @@ export function SftpManager() {
       const parentPath = renameTarget.path.substring(0, renameTarget.path.lastIndexOf('/')) || '/';
       const newPath = parentPath === '/' ? `/${newName}` : `${parentPath}/${newName}`;
       try {
-        await window.api.sftp.rename({
+        await window.api.storage.rename({
           sessionId: sftpSessionId,
           oldPath: renameTarget.path,
           newPath,
@@ -331,7 +455,7 @@ export function SftpManager() {
     setDeleteTarget(null);
 
     try {
-      await window.api.sftp.delete({
+      await window.api.storage.delete({
         sessionId: sftpSessionId,
         path: entry.path,
         isDirectory: entry.isDirectory,
@@ -361,7 +485,7 @@ export function SftpManager() {
 
       const newPath = remotePath === '/' ? `/${name}` : `${remotePath}/${name}`;
       try {
-        await window.api.sftp.mkdir({ sessionId: sftpSessionId, path: newPath });
+        await window.api.storage.mkdir({ sessionId: sftpSessionId, path: newPath });
         toast.success(`Created folder "${name}"`);
         invalidateSftp(sftpSessionId, remotePath);
       } catch (err: unknown) {
@@ -408,7 +532,7 @@ export function SftpManager() {
     document.addEventListener('mouseup', onMouseUp);
   }, []);
 
-  if (!sftpSessionId || !sessions.get(sftpSessionId)) {
+  if (!sftpSessionId || (!sessions.get(sftpSessionId) && !storageSessions.get(sftpSessionId))) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 text-muted-foreground">
         <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/50">
@@ -431,7 +555,8 @@ export function SftpManager() {
     );
   }
 
-  // Show warning overlay when session disconnects mid-use
+  // Show warning overlay when session disconnects mid-use. S3 sessions don't
+  // disconnect mid-use the way SSH does, so we only check the SSH side.
   const activeSession = sessions.get(sftpSessionId);
   const isDisconnected = activeSession && activeSession.status !== 'connected';
 
@@ -461,11 +586,19 @@ export function SftpManager() {
             error={localError}
             selection={localSelection}
             onPathChange={setLocalPath}
-            onSelect={toggleLocalSelection}
+            onSelect={(name, multi) => {
+              if (multi) {
+                toggleLocalSelection(name);
+              } else {
+                setLocalSelection(new Set([name]));
+              }
+            }}
             onRefresh={() => invalidateLocal(localPath)}
             onDragStart={handleLocalDragStart}
             onDrop={handleLocalDrop}
             onFileOpen={handleLocalFileOpen}
+            onDownload={handleLocalUpload}
+            downloadLabel="Upload"
             showHidden={showHiddenFiles}
             onToggleHidden={toggleHiddenFiles}
             onSelectAll={() => setLocalSelection(new Set(localEntries.map((e) => e.name)))}
@@ -495,7 +628,13 @@ export function SftpManager() {
             error={remoteError}
             selection={remoteSelection}
             onPathChange={setRemotePath}
-            onSelect={toggleRemoteSelection}
+            onSelect={(name, multi) => {
+              if (multi) {
+                toggleRemoteSelection(name);
+              } else {
+                setRemoteSelection(new Set([name]));
+              }
+            }}
             onRefresh={() => invalidateSftp(sftpSessionId!, remotePath)}
             onDragStart={handleRemoteDragStart}
             onDrop={handleRemoteDrop}
@@ -504,6 +643,8 @@ export function SftpManager() {
             onDelete={handleRemoteDelete}
             onCopyPath={handleRemoteCopyPath}
             onPreview={handleRemoteFileOpen}
+            onDownload={handleRemoteDownload}
+            downloadLabel="Download"
             showHidden={showHiddenFiles}
             onToggleHidden={toggleHiddenFiles}
             onMkdir={handleRemoteMkdir}

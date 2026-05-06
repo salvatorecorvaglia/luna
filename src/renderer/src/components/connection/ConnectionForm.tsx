@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Check,
+  Cloud,
   Eye,
   EyeOff,
   FileKey,
@@ -27,6 +28,7 @@ import {
   useUpdateConnection,
 } from '@/hooks/use-connections';
 import type { AuthType } from '@shared/types/connection';
+import type { StorageProviderKind } from '@shared/types/storage-provider';
 import { toast } from 'sonner';
 
 const AUTH_TYPES: { value: AuthType; label: string; icon: React.ReactNode }[] = [
@@ -76,6 +78,7 @@ export function ConnectionForm() {
   const createMutation = useCreateConnection();
   const updateMutation = useUpdateConnection();
 
+  const [provider, setProvider] = useState<StorageProviderKind>('sftp');
   const [name, setName] = useState('');
   const [host, setHost] = useState('');
   const [port, setPort] = useState('22');
@@ -84,6 +87,15 @@ export function ConnectionForm() {
   const [password, setPassword] = useState('');
   const [privateKeyPath, setPrivateKeyPath] = useState('');
   const [passphrase, setPassphrase] = useState('');
+  // S3 fields
+  const [endpoint, setEndpoint] = useState('');
+  const [region, setRegion] = useState('us-east-1');
+  const [defaultBucket, setDefaultBucket] = useState('');
+  const [forcePathStyle, setForcePathStyle] = useState(false);
+  const [accessKeyId, setAccessKeyId] = useState('');
+  const [secretAccessKey, setSecretAccessKey] = useState('');
+  const [sessionToken, setSessionToken] = useState('');
+  const [showSecretKey, setShowSecretKey] = useState(false);
   const [folder, setFolder] = useState('default');
   const [colorTag, setColorTag] = useState<string>(COLOR_OPTIONS[0].hex);
   const [showPassword, setShowPassword] = useState(false);
@@ -116,6 +128,7 @@ export function ConnectionForm() {
   }, [connectionFormOpen, closeForm]);
 
   const resetForm = useCallback(() => {
+    setProvider('sftp');
     setName('');
     setHost('');
     setPort('22');
@@ -124,6 +137,14 @@ export function ConnectionForm() {
     setPassword('');
     setPrivateKeyPath('');
     setPassphrase('');
+    setEndpoint('');
+    setRegion('us-east-1');
+    setDefaultBucket('');
+    setForcePathStyle(false);
+    setAccessKeyId('');
+    setSecretAccessKey('');
+    setSessionToken('');
+    setShowSecretKey(false);
     setFolder('default');
     setColorTag(COLOR_OPTIONS[0].hex);
     setShowPassword(false);
@@ -136,12 +157,20 @@ export function ConnectionForm() {
     const source = editingConnection || duplicatingConnection;
     if (source) {
       /* eslint-disable react-hooks/set-state-in-effect */
+      setProvider(source.provider ?? 'sftp');
       setName(duplicatingConnection ? `${source.name} (copy)` : source.name);
       setHost(source.host);
       setPort(String(source.port));
       setUsername(source.username);
       setAuthType(source.authType);
       setPrivateKeyPath(source.privateKeyPath || '');
+      setEndpoint(source.endpoint || '');
+      setRegion(source.region || 'us-east-1');
+      setDefaultBucket(source.defaultBucket || '');
+      setForcePathStyle(source.forcePathStyle ?? false);
+      setAccessKeyId('');
+      setSecretAccessKey('');
+      setSessionToken('');
       setFolder(source.folder);
       setColorTag(source.colorTag || COLOR_OPTIONS[0].hex);
       setPassword('');
@@ -173,23 +202,36 @@ export function ConnectionForm() {
       );
       if (collides) out.name = 'A connection with this name already exists';
     }
-    if (!host.trim()) out.host = 'Host is required';
-    const portNum = parseInt(port, 10);
-    if (port.trim() === '' || Number.isNaN(portNum) || portNum < 1 || portNum > 65535) {
-      out.port = 'Port must be between 1 and 65535';
-    }
-    if (!username.trim()) out.username = 'Username is required';
-    if ((authType === 'key' || authType === 'key+passphrase') && !privateKeyPath.trim()) {
-      out.privateKeyPath = 'Private key path is required';
+    if (provider === 'sftp') {
+      if (!host.trim()) out.host = 'Host is required';
+      const portNum = parseInt(port, 10);
+      if (port.trim() === '' || Number.isNaN(portNum) || portNum < 1 || portNum > 65535) {
+        out.port = 'Port must be between 1 and 65535';
+      }
+      if (!username.trim()) out.username = 'Username is required';
+      if ((authType === 'key' || authType === 'key+passphrase') && !privateKeyPath.trim()) {
+        out.privateKeyPath = 'Private key path is required';
+      }
+    } else {
+      // S3 — credentials only required on create. On edit, leaving them
+      // blank means "keep existing" (mirrors the SSH password UX).
+      if (!isEditing && !accessKeyId.trim()) out.accessKeyId = 'Access Key ID is required';
+      if (!isEditing && !secretAccessKey.trim()) {
+        out.secretAccessKey = 'Secret Access Key is required';
+      }
     }
     return out;
   }, [
     name,
+    provider,
     host,
     port,
     username,
     authType,
     privateKeyPath,
+    accessKeyId,
+    secretAccessKey,
+    isEditing,
     existingConnections,
     editingConnectionId,
   ]);
@@ -205,6 +247,8 @@ export function ConnectionForm() {
       port: true,
       username: true,
       privateKeyPath: true,
+      accessKeyId: true,
+      secretAccessKey: true,
     });
 
     if (Object.keys(errors).length > 0) {
@@ -212,7 +256,11 @@ export function ConnectionForm() {
       return;
     }
 
-    if ((authType === 'key' || authType === 'key+passphrase') && privateKeyPath.trim().length > 0) {
+    if (
+      provider === 'sftp' &&
+      (authType === 'key' || authType === 'key+passphrase') &&
+      privateKeyPath.trim().length > 0
+    ) {
       const probe = await window.api.shell.checkFile(privateKeyPath.trim());
       if (!probe.ok) {
         const reason =
@@ -228,18 +276,34 @@ export function ConnectionForm() {
       }
     }
 
-    const data = {
-      name: name.trim(),
-      host: host.trim(),
-      port: parseInt(port) || 22,
-      username: username.trim(),
-      authType,
-      privateKeyPath: privateKeyPath || undefined,
-      password: password || undefined,
-      passphrase: passphrase || undefined,
-      folder: folder.trim() || 'default',
-      colorTag,
-    };
+    const data =
+      provider === 'sftp'
+        ? {
+            name: name.trim(),
+            provider: 'sftp' as const,
+            host: host.trim(),
+            port: parseInt(port) || 22,
+            username: username.trim(),
+            authType,
+            privateKeyPath: privateKeyPath || undefined,
+            password: password || undefined,
+            passphrase: passphrase || undefined,
+            folder: folder.trim() || 'default',
+            colorTag,
+          }
+        : {
+            name: name.trim(),
+            provider: 's3' as const,
+            endpoint: endpoint.trim() || undefined,
+            region: region.trim() || undefined,
+            defaultBucket: defaultBucket.trim() || undefined,
+            forcePathStyle,
+            accessKeyId: accessKeyId.trim() || undefined,
+            secretAccessKey: secretAccessKey || undefined,
+            sessionToken: sessionToken || undefined,
+            folder: folder.trim() || 'default',
+            colorTag,
+          };
 
     try {
       if (isEditing) {
@@ -256,31 +320,65 @@ export function ConnectionForm() {
   }
 
   async function handleTest() {
-    if (!host.trim() || !username.trim()) {
-      toast.error('Host and Username are required to test');
-      return;
-    }
-    setTesting(true);
-    try {
-      const result = await window.api.ssh.testConnection({
-        connectionId: editingConnectionId || undefined,
-        config: {
-          host: host.trim(),
-          port: parseInt(port) || 22,
-          username: username.trim(),
-          authType,
-          privateKeyPath: privateKeyPath || undefined,
-          password: password || undefined,
-          passphrase: passphrase || undefined,
-        },
-      });
-      if (result.ok) {
-        toast.success('Connection successful');
-      } else {
-        toast.error(result.error || 'Connection failed');
+    if (provider === 'sftp') {
+      if (!host.trim() || !username.trim()) {
+        toast.error('Host and Username are required to test');
+        return;
       }
-    } finally {
-      setTesting(false);
+      setTesting(true);
+      try {
+        const result = await window.api.ssh.testConnection({
+          config: {
+            host: host.trim(),
+            port: parseInt(port) || 22,
+            username: username.trim(),
+            authType,
+            privateKeyPath: privateKeyPath || undefined,
+            password: password || undefined,
+            passphrase: passphrase || undefined,
+          },
+        });
+        if (result.ok) {
+          toast.success('Connection successful');
+        } else {
+          toast.error(result.error || 'Connection failed');
+        }
+      } finally {
+        setTesting(false);
+      }
+    } else {
+      // S3 test — needs at minimum access key + secret. If editing and the
+      // user hasn't re-typed the secret, fall back to the saved credential.
+      const useStored = isEditing && !accessKeyId.trim() && !secretAccessKey.trim();
+      if (!useStored && (!accessKeyId.trim() || !secretAccessKey.trim())) {
+        toast.error('Access Key ID and Secret Access Key are required to test');
+        return;
+      }
+      setTesting(true);
+      try {
+        const result = await window.api.s3.testConnection(
+          useStored
+            ? { connectionId: editingConnectionId || undefined }
+            : {
+                config: {
+                  endpoint: endpoint.trim() || undefined,
+                  region: region.trim() || undefined,
+                  forcePathStyle,
+                  accessKeyId: accessKeyId.trim(),
+                  secretAccessKey,
+                  sessionToken: sessionToken || undefined,
+                  defaultBucket: defaultBucket.trim() || undefined,
+                },
+              },
+        );
+        if (result.ok) {
+          toast.success('S3 connection successful');
+        } else {
+          toast.error(result.error || 'S3 connection failed');
+        }
+      } finally {
+        setTesting(false);
+      }
     }
   }
 
@@ -348,6 +446,48 @@ export function ConnectionForm() {
 
               {/* Form */}
               <form onSubmit={handleSubmit} className="p-5 space-y-4">
+                {/* Provider toggle */}
+                <div>
+                  <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <Cloud className="h-3.5 w-3.5" />
+                    Provider
+                  </label>
+                  <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Provider">
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={provider === 'sftp'}
+                      onClick={() => setProvider('sftp')}
+                      disabled={isEditing}
+                      className={cn(
+                        'flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed',
+                        provider === 'sftp'
+                          ? 'border-ring bg-accent text-foreground shadow-xs'
+                          : 'border-border text-muted-foreground hover:border-ring/50 hover:bg-accent/50',
+                      )}
+                    >
+                      <Server className="h-4 w-4" />
+                      SSH / SFTP
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={provider === 's3'}
+                      onClick={() => setProvider('s3')}
+                      disabled={isEditing}
+                      className={cn(
+                        'flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed',
+                        provider === 's3'
+                          ? 'border-ring bg-accent text-foreground shadow-xs'
+                          : 'border-border text-muted-foreground hover:border-ring/50 hover:bg-accent/50',
+                      )}
+                    >
+                      <Cloud className="h-4 w-4" />
+                      S3-compatible
+                    </button>
+                  </div>
+                </div>
+
                 {/* Name */}
                 <FormField
                   label="Connection Name"
@@ -372,221 +512,369 @@ export function ConnectionForm() {
                   />
                 </FormField>
 
-                {/* Host + Port */}
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="col-span-2">
-                    <FormField
-                      label="Host"
-                      icon={<Globe className="h-3.5 w-3.5" aria-hidden="true" />}
-                      required
-                      id={`${fieldId}-host`}
-                      error={visibleError('host')}
-                    >
-                      <input
-                        id={`${fieldId}-host`}
-                        type="text"
-                        value={host}
-                        onChange={(e) => setHost(e.target.value)}
-                        onBlur={() => markTouched('host')}
-                        placeholder="192.168.1.100"
-                        aria-invalid={!!visibleError('host')}
-                        aria-describedby={
-                          visibleError('host') ? `${fieldId}-host-error` : undefined
-                        }
-                        className={cn(
-                          'form-input',
-                          visibleError('host') && 'border-destructive/60 focus:border-destructive',
-                        )}
-                      />
-                    </FormField>
-                  </div>
-                  <FormField
-                    label="Port"
-                    icon={<Hash className="h-3.5 w-3.5" aria-hidden="true" />}
-                    id={`${fieldId}-port`}
-                    error={visibleError('port')}
-                  >
-                    <input
-                      id={`${fieldId}-port`}
-                      type="number"
-                      min={1}
-                      max={65535}
-                      value={port}
-                      onChange={(e) => setPort(e.target.value)}
-                      onBlur={() => markTouched('port')}
-                      placeholder="22"
-                      aria-invalid={!!visibleError('port')}
-                      aria-describedby={visibleError('port') ? `${fieldId}-port-error` : undefined}
-                      className={cn(
-                        'form-input',
-                        visibleError('port') && 'border-destructive/60 focus:border-destructive',
-                      )}
-                    />
-                  </FormField>
-                </div>
-
-                {/* Username */}
-                <FormField
-                  label="Username"
-                  icon={<User className="h-3.5 w-3.5" aria-hidden="true" />}
-                  required
-                  id={`${fieldId}-user`}
-                  error={visibleError('username')}
-                >
-                  <input
-                    id={`${fieldId}-user`}
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    onBlur={() => markTouched('username')}
-                    placeholder="root"
-                    aria-invalid={!!visibleError('username')}
-                    aria-describedby={
-                      visibleError('username') ? `${fieldId}-user-error` : undefined
-                    }
-                    className={cn(
-                      'form-input',
-                      visibleError('username') && 'border-destructive/60 focus:border-destructive',
-                    )}
-                  />
-                </FormField>
-
-                {/* Auth Type */}
-                <div>
-                  <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                    <Key className="h-3.5 w-3.5" />
-                    Authentication
-                  </label>
-                  <div
-                    className="grid grid-cols-3 gap-2"
-                    role="radiogroup"
-                    aria-label="Authentication type"
-                  >
-                    {AUTH_TYPES.map((type) => (
-                      <button
-                        key={type.value}
-                        type="button"
-                        role="radio"
-                        aria-checked={authType === type.value}
-                        onClick={() => setAuthType(type.value)}
-                        className={cn(
-                          'flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium cursor-pointer',
-                          authType === type.value
-                            ? 'border-ring bg-accent text-foreground shadow-xs'
-                            : 'border-border text-muted-foreground hover:border-ring/50 hover:bg-accent/50',
-                        )}
-                      >
-                        {type.icon}
-                        {type.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Password / Key fields */}
-                <AnimatePresence mode="wait">
-                  {authType === 'password' && (
-                    <motion.div
-                      key="password"
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.15 }}
-                    >
-                      <FormField
-                        label="Password"
-                        icon={<Lock className="h-3.5 w-3.5" />}
-                        id={`${fieldId}-pass`}
-                      >
-                        <div className="relative">
+                {provider === 'sftp' && (
+                  <>
+                    {/* Host + Port */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="col-span-2">
+                        <FormField
+                          label="Host"
+                          icon={<Globe className="h-3.5 w-3.5" aria-hidden="true" />}
+                          required
+                          id={`${fieldId}-host`}
+                          error={visibleError('host')}
+                        >
                           <input
-                            id={`${fieldId}-pass`}
-                            type={showPassword ? 'text' : 'password'}
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder={isEditing ? '(unchanged)' : 'Enter password'}
-                            className="form-input pr-9"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground/60 hover:text-foreground cursor-pointer"
-                            tabIndex={-1}
-                          >
-                            {showPassword ? (
-                              <EyeOff className="h-3.5 w-3.5" />
-                            ) : (
-                              <Eye className="h-3.5 w-3.5" />
-                            )}
-                          </button>
-                        </div>
-                      </FormField>
-                    </motion.div>
-                  )}
-
-                  {(authType === 'key' || authType === 'key+passphrase') && (
-                    <motion.div
-                      key="key"
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.15 }}
-                      className="space-y-4"
-                    >
-                      <FormField
-                        label="Private Key Path"
-                        icon={<FileKey className="h-3.5 w-3.5" aria-hidden="true" />}
-                        required
-                        id={`${fieldId}-key`}
-                        error={visibleError('privateKeyPath')}
-                      >
-                        <div className="flex gap-2">
-                          <input
-                            id={`${fieldId}-key`}
+                            id={`${fieldId}-host`}
                             type="text"
-                            value={privateKeyPath}
-                            onChange={(e) => setPrivateKeyPath(e.target.value)}
-                            onBlur={() => markTouched('privateKeyPath')}
-                            placeholder="~/.ssh/id_rsa"
-                            aria-invalid={!!visibleError('privateKeyPath')}
+                            value={host}
+                            onChange={(e) => setHost(e.target.value)}
+                            onBlur={() => markTouched('host')}
+                            placeholder="192.168.1.100"
+                            aria-invalid={!!visibleError('host')}
                             aria-describedby={
-                              visibleError('privateKeyPath') ? `${fieldId}-key-error` : undefined
+                              visibleError('host') ? `${fieldId}-host-error` : undefined
                             }
                             className={cn(
-                              'form-input flex-1',
-                              visibleError('privateKeyPath') &&
+                              'form-input',
+                              visibleError('host') &&
                                 'border-destructive/60 focus:border-destructive',
                             )}
                           />
-                          <button
-                            type="button"
-                            onClick={handleBrowseKey}
-                            className="btn-outline shrink-0"
-                          >
-                            Browse
-                          </button>
-                        </div>
-                      </FormField>
-
-                      {authType === 'key+passphrase' && (
-                        <FormField
-                          label="Passphrase"
-                          icon={<Lock className="h-3.5 w-3.5" />}
-                          id={`${fieldId}-phrase`}
-                        >
-                          <input
-                            id={`${fieldId}-phrase`}
-                            type="password"
-                            value={passphrase}
-                            onChange={(e) => setPassphrase(e.target.value)}
-                            placeholder={isEditing ? '(unchanged)' : 'Key passphrase'}
-                            className="form-input"
-                          />
                         </FormField>
+                      </div>
+                      <FormField
+                        label="Port"
+                        icon={<Hash className="h-3.5 w-3.5" aria-hidden="true" />}
+                        id={`${fieldId}-port`}
+                        error={visibleError('port')}
+                      >
+                        <input
+                          id={`${fieldId}-port`}
+                          type="number"
+                          min={1}
+                          max={65535}
+                          value={port}
+                          onChange={(e) => setPort(e.target.value)}
+                          onBlur={() => markTouched('port')}
+                          placeholder="22"
+                          aria-invalid={!!visibleError('port')}
+                          aria-describedby={
+                            visibleError('port') ? `${fieldId}-port-error` : undefined
+                          }
+                          className={cn(
+                            'form-input',
+                            visibleError('port') &&
+                              'border-destructive/60 focus:border-destructive',
+                          )}
+                        />
+                      </FormField>
+                    </div>
+
+                    {/* Username */}
+                    <FormField
+                      label="Username"
+                      icon={<User className="h-3.5 w-3.5" aria-hidden="true" />}
+                      required
+                      id={`${fieldId}-user`}
+                      error={visibleError('username')}
+                    >
+                      <input
+                        id={`${fieldId}-user`}
+                        type="text"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        onBlur={() => markTouched('username')}
+                        placeholder="root"
+                        aria-invalid={!!visibleError('username')}
+                        aria-describedby={
+                          visibleError('username') ? `${fieldId}-user-error` : undefined
+                        }
+                        className={cn(
+                          'form-input',
+                          visibleError('username') &&
+                            'border-destructive/60 focus:border-destructive',
+                        )}
+                      />
+                    </FormField>
+
+                    {/* Auth Type */}
+                    <div>
+                      <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                        <Key className="h-3.5 w-3.5" />
+                        Authentication
+                      </label>
+                      <div
+                        className="grid grid-cols-3 gap-2"
+                        role="radiogroup"
+                        aria-label="Authentication type"
+                      >
+                        {AUTH_TYPES.map((type) => (
+                          <button
+                            key={type.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={authType === type.value}
+                            onClick={() => setAuthType(type.value)}
+                            className={cn(
+                              'flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium cursor-pointer',
+                              authType === type.value
+                                ? 'border-ring bg-accent text-foreground shadow-xs'
+                                : 'border-border text-muted-foreground hover:border-ring/50 hover:bg-accent/50',
+                            )}
+                          >
+                            {type.icon}
+                            {type.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Password / Key fields */}
+                    <AnimatePresence mode="wait">
+                      {authType === 'password' && (
+                        <motion.div
+                          key="password"
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.15 }}
+                        >
+                          <FormField
+                            label="Password"
+                            icon={<Lock className="h-3.5 w-3.5" />}
+                            id={`${fieldId}-pass`}
+                          >
+                            <div className="relative">
+                              <input
+                                id={`${fieldId}-pass`}
+                                type={showPassword ? 'text' : 'password'}
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                placeholder={isEditing ? '(unchanged)' : 'Enter password'}
+                                className="form-input pr-9"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground/60 hover:text-foreground cursor-pointer"
+                                tabIndex={-1}
+                              >
+                                {showPassword ? (
+                                  <EyeOff className="h-3.5 w-3.5" />
+                                ) : (
+                                  <Eye className="h-3.5 w-3.5" />
+                                )}
+                              </button>
+                            </div>
+                          </FormField>
+                        </motion.div>
                       )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+
+                      {(authType === 'key' || authType === 'key+passphrase') && (
+                        <motion.div
+                          key="key"
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.15 }}
+                          className="space-y-4"
+                        >
+                          <FormField
+                            label="Private Key Path"
+                            icon={<FileKey className="h-3.5 w-3.5" aria-hidden="true" />}
+                            required
+                            id={`${fieldId}-key`}
+                            error={visibleError('privateKeyPath')}
+                          >
+                            <div className="flex gap-2">
+                              <input
+                                id={`${fieldId}-key`}
+                                type="text"
+                                value={privateKeyPath}
+                                onChange={(e) => setPrivateKeyPath(e.target.value)}
+                                onBlur={() => markTouched('privateKeyPath')}
+                                placeholder="~/.ssh/id_rsa"
+                                aria-invalid={!!visibleError('privateKeyPath')}
+                                aria-describedby={
+                                  visibleError('privateKeyPath')
+                                    ? `${fieldId}-key-error`
+                                    : undefined
+                                }
+                                className={cn(
+                                  'form-input flex-1',
+                                  visibleError('privateKeyPath') &&
+                                    'border-destructive/60 focus:border-destructive',
+                                )}
+                              />
+                              <button
+                                type="button"
+                                onClick={handleBrowseKey}
+                                className="btn-outline shrink-0"
+                              >
+                                Browse
+                              </button>
+                            </div>
+                          </FormField>
+
+                          {authType === 'key+passphrase' && (
+                            <FormField
+                              label="Passphrase"
+                              icon={<Lock className="h-3.5 w-3.5" />}
+                              id={`${fieldId}-phrase`}
+                            >
+                              <input
+                                id={`${fieldId}-phrase`}
+                                type="password"
+                                value={passphrase}
+                                onChange={(e) => setPassphrase(e.target.value)}
+                                placeholder={isEditing ? '(unchanged)' : 'Key passphrase'}
+                                className="form-input"
+                              />
+                            </FormField>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </>
+                )}
+
+                {provider === 's3' && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      <FormField
+                        label="Endpoint"
+                        icon={<Globe className="h-3.5 w-3.5" />}
+                        optional
+                        id={`${fieldId}-endpoint`}
+                      >
+                        <input
+                          id={`${fieldId}-endpoint`}
+                          type="text"
+                          value={endpoint}
+                          onChange={(e) => setEndpoint(e.target.value)}
+                          placeholder="(blank for AWS)"
+                          className="form-input"
+                        />
+                      </FormField>
+                      <FormField
+                        label="Region"
+                        icon={<Hash className="h-3.5 w-3.5" />}
+                        id={`${fieldId}-region`}
+                      >
+                        <input
+                          id={`${fieldId}-region`}
+                          type="text"
+                          value={region}
+                          onChange={(e) => setRegion(e.target.value)}
+                          placeholder="us-east-1"
+                          className="form-input"
+                        />
+                      </FormField>
+                    </div>
+
+                    <FormField
+                      label="Access Key ID"
+                      icon={<Key className="h-3.5 w-3.5" />}
+                      required={!isEditing}
+                      id={`${fieldId}-akid`}
+                      error={visibleError('accessKeyId')}
+                    >
+                      <input
+                        id={`${fieldId}-akid`}
+                        type="text"
+                        value={accessKeyId}
+                        onChange={(e) => setAccessKeyId(e.target.value)}
+                        onBlur={() => markTouched('accessKeyId')}
+                        placeholder={isEditing ? '(unchanged)' : 'AKIA...'}
+                        className={cn(
+                          'form-input',
+                          visibleError('accessKeyId') &&
+                            'border-destructive/60 focus:border-destructive',
+                        )}
+                      />
+                    </FormField>
+
+                    <FormField
+                      label="Secret Access Key"
+                      icon={<Lock className="h-3.5 w-3.5" />}
+                      required={!isEditing}
+                      id={`${fieldId}-sak`}
+                      error={visibleError('secretAccessKey')}
+                    >
+                      <div className="relative">
+                        <input
+                          id={`${fieldId}-sak`}
+                          type={showSecretKey ? 'text' : 'password'}
+                          value={secretAccessKey}
+                          onChange={(e) => setSecretAccessKey(e.target.value)}
+                          onBlur={() => markTouched('secretAccessKey')}
+                          placeholder={isEditing ? '(unchanged)' : 'Secret access key'}
+                          className={cn(
+                            'form-input pr-9',
+                            visibleError('secretAccessKey') &&
+                              'border-destructive/60 focus:border-destructive',
+                          )}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowSecretKey(!showSecretKey)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground/60 hover:text-foreground cursor-pointer"
+                          tabIndex={-1}
+                        >
+                          {showSecretKey ? (
+                            <EyeOff className="h-3.5 w-3.5" />
+                          ) : (
+                            <Eye className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      </div>
+                    </FormField>
+
+                    <FormField
+                      label="Session Token"
+                      icon={<Lock className="h-3.5 w-3.5" />}
+                      optional
+                      id={`${fieldId}-stok`}
+                    >
+                      <input
+                        id={`${fieldId}-stok`}
+                        type="password"
+                        value={sessionToken}
+                        onChange={(e) => setSessionToken(e.target.value)}
+                        placeholder="(STS only)"
+                        className="form-input"
+                      />
+                    </FormField>
+
+                    <div className="grid grid-cols-2 gap-3 items-end">
+                      <FormField
+                        label="Default Bucket"
+                        icon={<FolderClosed className="h-3.5 w-3.5" />}
+                        optional
+                        id={`${fieldId}-bucket`}
+                      >
+                        <input
+                          id={`${fieldId}-bucket`}
+                          type="text"
+                          value={defaultBucket}
+                          onChange={(e) => setDefaultBucket(e.target.value)}
+                          placeholder="my-bucket"
+                          className="form-input"
+                        />
+                      </FormField>
+                      <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground select-none cursor-pointer pb-2">
+                        <input
+                          type="checkbox"
+                          checked={forcePathStyle}
+                          onChange={(e) => setForcePathStyle(e.target.checked)}
+                          className="h-3.5 w-3.5 cursor-pointer"
+                        />
+                        Use path-style URLs (MinIO, older R2)
+                      </label>
+                    </div>
+                  </div>
+                )}
 
                 {/* Color Tag */}
                 <div>

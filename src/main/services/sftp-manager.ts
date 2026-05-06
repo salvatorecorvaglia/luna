@@ -294,15 +294,15 @@ class SftpManager {
     });
   }
 
-  async readFile(sessionId: string, remotePath: string, maxSize?: number): Promise<string> {
+  async readFile(
+    sessionId: string,
+    remotePath: string,
+    maxSize?: number,
+  ): Promise<{ content: string; encoding: 'utf-8' | 'base64' }> {
     const limit = Math.min(maxSize || LIMITS.MAX_PREVIEW_BYTES, LIMITS.MAX_PREVIEW_BYTES);
     return this.runOp(sessionId, 'readFile', (sftp) => {
-      return new Promise<string>((resolve, reject) => {
+      return new Promise<{ content: string; encoding: 'utf-8' | 'base64' }>((resolve, reject) => {
         let settled = false;
-        // Destroy() the stream on every settle path (including 'end' and
-        // pre-stream stat errors). ssh2's read streams don't always self-clean
-        // promptly after 'end' — leaving the channel half-open ties up an
-        // SFTP slot until the idle sweep runs.
         let activeStream: ReturnType<SFTPWrapper['createReadStream']> | null = null;
         const settle = (fn: () => void): void => {
           if (settled) return;
@@ -311,7 +311,7 @@ class SftpManager {
             try {
               activeStream.destroy();
             } catch {
-              // ignore double-destroy races
+              // ignore
             }
           }
           fn();
@@ -333,12 +333,19 @@ class SftpManager {
           const stream = sftp.createReadStream(remotePath);
           activeStream = stream;
           stream.on('data', (chunk: Buffer) => chunks.push(chunk));
-          stream.on('end', () => settle(() => resolve(Buffer.concat(chunks).toString('utf-8'))));
-          // Both 'error' and 'close' must reject — ssh2 can emit close without
-          // error if the channel goes down between stat and the first read.
-          stream.on('error', (err: Error) => {
-            settle(() => reject(err));
-          });
+          stream.on('end', () =>
+            settle(() => {
+              const buffer = Buffer.concat(chunks);
+              const ext = remotePath.split('.').pop()?.toLowerCase() || '';
+              const binaryExts = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp', 'pdf'];
+              const isBinary = binaryExts.includes(ext);
+              resolve({
+                content: buffer.toString(isBinary ? 'base64' : 'utf-8'),
+                encoding: isBinary ? 'base64' : 'utf-8',
+              });
+            }),
+          );
+          stream.on('error', (err: Error) => settle(() => reject(err)));
           stream.on('close', () => {
             settle(() => reject(new SshConnectionError('SFTP stream closed before completion')));
           });

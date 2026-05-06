@@ -1,6 +1,8 @@
 import { ipcMain } from 'electron';
 import { IPC } from '@shared/constants';
 import { sshManager } from '../services/ssh-manager';
+import { storageRegistry } from '../services/storage/registry';
+import { sftpStorageProvider } from '../services/storage/sftp-storage-provider';
 import { assertBoundedInt, assertNonEmptyString } from '../lib/validate';
 
 const VALID_AUTH_TYPES = new Set(['password', 'key', 'key+passphrase']);
@@ -13,12 +15,22 @@ export function registerSshHandlers(): void {
   ipcMain.handle(IPC.SSH_CONNECT, async (_event, params: SshConnectParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
     assertNonEmptyString(params.connectionId, 'connectionId');
-    return sshManager.connect(params.sessionId, params.connectionId, params.cols, params.rows);
+    const result = await sshManager.connect(
+      params.sessionId,
+      params.connectionId,
+      params.cols,
+      params.rows,
+    );
+    // Register the SFTP backend so storage:* IPC handlers and the transfer
+    // queue can route by sessionId without branching on provider kind.
+    storageRegistry.register(params.sessionId, sftpStorageProvider);
+    return result;
   });
 
   ipcMain.handle(IPC.SSH_DISCONNECT, (_event, sessionId: string) => {
     assertNonEmptyString(sessionId, 'sessionId');
     sshManager.disconnect(sessionId);
+    storageRegistry.unregister(sessionId);
   });
 
   ipcMain.handle(IPC.SSH_SEND_DATA, (_event, params: SshSendDataParams) => {

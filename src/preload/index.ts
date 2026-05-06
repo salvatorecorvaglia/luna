@@ -23,6 +23,17 @@ import type {
   SftpStatParams,
   SftpTransferParams,
 } from '@shared/types/sftp';
+import type {
+  S3ConnectParams,
+  S3TestConnectionConfig,
+  StorageDeleteParams,
+  StorageListParams,
+  StorageMkdirParams,
+  StorageReadFileParams,
+  StorageRenameParams,
+  StorageStatParams,
+  StorageTransferParams,
+} from '@shared/types/storage-provider';
 
 type CleanupFn = () => void;
 
@@ -107,7 +118,8 @@ const api = {
       invoke(IPC.SSH_TRUST_HOST_KEY, params),
   },
 
-  // SFTP operations
+  // SFTP operations (legacy — prefer `api.storage.*` going forward; both routes
+  // hit the same SftpManager, so this stays safe to call.)
   sftp: {
     list: (params: SftpListParams) => invoke(IPC.SFTP_LIST, params),
     stat: (params: SftpStatParams) => invoke(IPC.SFTP_STAT, params),
@@ -117,6 +129,27 @@ const api = {
     readFile: (params: SftpReadFileParams) => invoke(IPC.SFTP_READ_FILE, params),
     download: (params: SftpTransferParams) => invoke(IPC.SFTP_DOWNLOAD, params),
     upload: (params: SftpTransferParams) => invoke(IPC.SFTP_UPLOAD, params),
+  },
+
+  // Provider-agnostic storage operations. The main process resolves the
+  // session id to the right backend (SFTP or S3) via the storage registry.
+  storage: {
+    list: (params: StorageListParams) => invoke(IPC.STORAGE_LIST, params),
+    stat: (params: StorageStatParams) => invoke(IPC.STORAGE_STAT, params),
+    mkdir: (params: StorageMkdirParams) => invoke(IPC.STORAGE_MKDIR, params),
+    rename: (params: StorageRenameParams) => invoke(IPC.STORAGE_RENAME, params),
+    delete: (params: StorageDeleteParams) => invoke(IPC.STORAGE_DELETE, params),
+    readFile: (params: StorageReadFileParams) => invoke(IPC.STORAGE_READ_FILE, params),
+    download: (params: StorageTransferParams) => invoke(IPC.STORAGE_DOWNLOAD, params),
+    upload: (params: StorageTransferParams) => invoke(IPC.STORAGE_UPLOAD, params),
+  },
+
+  // S3 sessions
+  s3: {
+    connect: (params: S3ConnectParams) => invoke(IPC.S3_CONNECT, params),
+    disconnect: (sessionId: string) => invoke(IPC.S3_DISCONNECT, sessionId),
+    testConnection: (params: { connectionId?: string; config?: S3TestConnectionConfig }) =>
+      invoke(IPC.S3_TEST_CONNECTION, params),
   },
 
   // Local filesystem
@@ -132,11 +165,13 @@ const api = {
     }) => invoke(IPC.SHELL_SAVE_FILE_DIALOG, options),
     joinPath: (base: string, fileName: string) => invoke(IPC.SHELL_JOIN_PATH, { base, fileName }),
     checkFile: (filePath: string) => invoke(IPC.SHELL_CHECK_FILE, filePath),
+    readFile: (filePath: string) => invoke(IPC.SHELL_READ_FILE, filePath),
   },
 
   // Transfer events
   transfers: {
     cancel: (transferId: string) => invoke(IPC.TRANSFER_CANCEL, transferId),
+    cancelBySession: (sessionId: string) => invoke(IPC.TRANSFER_CANCEL_BY_SESSION, sessionId),
     onProgress: createEventListener(IPC.TRANSFER_PROGRESS),
     onComplete: createEventListener(IPC.TRANSFER_COMPLETE),
     onError: createEventListener(IPC.TRANSFER_ERROR),
@@ -165,6 +200,7 @@ const api = {
     installUpdate: () => invoke(IPC.APP_INSTALL_UPDATE),
     getLogPath: () => invoke(IPC.APP_GET_LOG_PATH),
     openLogFile: () => invoke(IPC.APP_OPEN_LOG_FILE),
+    getActiveSessions: () => invoke(IPC.APP_GET_ACTIVE_SESSIONS),
     onUpdateAvailable: createEventListener(IPC.APP_UPDATE_AVAILABLE),
     onUpdateDownloadProgress: createEventListener(IPC.APP_UPDATE_DOWNLOAD_PROGRESS),
     onUpdateDownloaded: createEventListener(IPC.APP_UPDATE_DOWNLOADED),

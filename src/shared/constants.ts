@@ -33,6 +33,21 @@ export const IPC = {
   SFTP_UPLOAD: 'sftp:upload',
   SFTP_READ_FILE: 'sftp:read-file',
 
+  // Storage (provider-agnostic — works for both SFTP and S3 sessions via the registry)
+  STORAGE_LIST: 'storage:list',
+  STORAGE_STAT: 'storage:stat',
+  STORAGE_MKDIR: 'storage:mkdir',
+  STORAGE_RENAME: 'storage:rename',
+  STORAGE_DELETE: 'storage:delete',
+  STORAGE_READ_FILE: 'storage:read-file',
+  STORAGE_DOWNLOAD: 'storage:download',
+  STORAGE_UPLOAD: 'storage:upload',
+
+  // S3
+  S3_CONNECT: 's3:connect',
+  S3_DISCONNECT: 's3:disconnect',
+  S3_TEST_CONNECTION: 's3:test-connection',
+
   // Local filesystem
   SHELL_READDIR: 'shell:readdir',
   SHELL_HOME_DIR: 'shell:home-dir',
@@ -40,12 +55,14 @@ export const IPC = {
   SHELL_JOIN_PATH: 'shell:join-path',
   SHELL_SAVE_FILE_DIALOG: 'shell:save-file-dialog',
   SHELL_CHECK_FILE: 'shell:check-file',
+  SHELL_READ_FILE: 'shell:read-file',
 
   // Transfers (main -> renderer)
   TRANSFER_PROGRESS: 'transfer:progress',
   TRANSFER_COMPLETE: 'transfer:complete',
   TRANSFER_ERROR: 'transfer:error',
   TRANSFER_CANCEL: 'transfer:cancel',
+  TRANSFER_CANCEL_BY_SESSION: 'transfer:cancel-by-session',
 
   // Credentials
   CREDENTIAL_STORE: 'credential:store',
@@ -63,6 +80,7 @@ export const IPC = {
   APP_GET_VERSION: 'app:get-version',
   APP_GET_LOG_PATH: 'app:get-log-path',
   APP_OPEN_LOG_FILE: 'app:open-log-file',
+  APP_GET_ACTIVE_SESSIONS: 'app:get-active-sessions',
 
   // App update events (main -> renderer)
   APP_UPDATE_AVAILABLE: 'app:update-available',
@@ -83,8 +101,8 @@ export const IPC = {
 
 /** Resource limits — centralised so renderer + main agree. */
 export const LIMITS = {
-  /** Maximum file preview size (bytes). Larger files are refused at the SFTP layer. */
-  MAX_PREVIEW_BYTES: 2 * 1024 * 1024,
+  /** Maximum file preview size (bytes). Larger files are refused at the storage layer (SFTP/S3). */
+  MAX_PREVIEW_BYTES: 50 * 1024 * 1024,
   /** Hard cap on terminal scrollback lines (settings UI clamps to this). */
   MAX_SCROLLBACK: 100_000,
   /** Hard cap on concurrent SFTP transfers. */

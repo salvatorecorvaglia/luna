@@ -1,6 +1,7 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
-export type ActiveView = 'terminal' | 'sftp';
+export type ActiveView = 'terminal' | 'sftp' | 'welcome';
 
 // Enable smooth theme transitions after initial load
 if (typeof document !== 'undefined') {
@@ -23,18 +24,30 @@ interface UIState {
   setSettingsOpen: (open: boolean) => void;
 }
 
-export const useUIStore = create<UIState>((set) => ({
-  sidebarOpen: true,
-  sidebarWidth: 260,
-  commandPaletteOpen: false,
-  activeView: 'terminal',
-  settingsOpen: false,
+export const useUIStore = create<UIState>()(
+  persist(
+    (set) => ({
+      sidebarOpen: true,
+      sidebarWidth: 260,
+      commandPaletteOpen: false,
+      activeView: 'terminal',
+      settingsOpen: false,
 
-  toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
-  setSidebarOpen: (open) => set({ sidebarOpen: open }),
-  setSidebarWidth: (width) => set({ sidebarWidth: width }),
-  toggleCommandPalette: () => set((s) => ({ commandPaletteOpen: !s.commandPaletteOpen })),
-  setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
-  setActiveView: (view) => set({ activeView: view }),
-  setSettingsOpen: (open) => set({ settingsOpen: open }),
-}));
+      toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
+      setSidebarOpen: (open) => set({ sidebarOpen: open }),
+      setSidebarWidth: (width) => set({ sidebarWidth: width }),
+      toggleCommandPalette: () => set((s) => ({ commandPaletteOpen: !s.commandPaletteOpen })),
+      setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
+      setActiveView: (view) => set({ activeView: view }),
+      setSettingsOpen: (open) => set({ settingsOpen: open }),
+    }),
+    {
+      name: 'lunar-ui-storage',
+      partialize: (state) => ({
+        sidebarOpen: state.sidebarOpen,
+        sidebarWidth: state.sidebarWidth,
+        activeView: state.activeView,
+      }),
+    },
+  ),
+);

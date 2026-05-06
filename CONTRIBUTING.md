@@ -1,6 +1,6 @@
 # Contributing to Lunar 🌑
 
-Thank you for your interest in contributing to Lunar! We're excited to see what you'll bring to this modern SSH terminal and SFTP file manager.
+Thank you for your interest in contributing to Lunar! We're excited to see what you'll bring to this modern SSH terminal, SFTP file manager, and S3-compatible object storage browser.
 
 ## 🌈 Ways to Contribute
 
@@ -30,7 +30,7 @@ Have an idea for a new feature?
    - Check types: `npm run typecheck`
    - Format your code: `npm run format`
    - Lint your code: `npm run lint`
-5. **Commit**: Follow [Conventional Commits](https://www.conventionalcommits.org/) (e.g., `feat(terminal): add support for custom font ligatures` or `fix(sftp): resolve drag-and-drop ghosting issue`).
+5. **Commit**: Follow [Conventional Commits](https://www.conventionalcommits.org/) (e.g., `feat(terminal): add support for custom font ligatures`, `fix(sftp): resolve drag-and-drop ghosting issue`, or `feat(s3): paginate prefix deletion`).
 6. **Submit**: Push to your fork and open a Pull Request to the `main` branch.
 
 ## 🛠️ Local Development
@@ -65,16 +65,48 @@ npm install
 
 Lunar is an Electron application built with `electron-vite`:
 
-- **Main Process**: Located in `src/main/`, handles system-level operations, SSH/SFTP logic, and database management.
-- **Renderer Process**: Located in `src/renderer/`, a React application that provides the user interface.
-- **Preload Scripts**: Located in `src/preload/`, exposes secure APIs from the main process to the renderer.
-- **Shared Modules**: Located in `src/shared/`, contains shared types and constants between the main and renderer processes.
+- **Main Process** (`src/main/`): system-level operations, SSH/SFTP logic, S3 client lifecycle, database management.
+- **Renderer Process** (`src/renderer/`): React application providing the user interface.
+- **Preload Scripts** (`src/preload/`): exposes the typed `window.api` bridge to the renderer.
+- **Shared Modules** (`src/shared/`): types and constants shared between processes.
+
+### Storage Providers
+
+Remote backends live behind a single `StorageProvider` interface (`src/main/services/storage/types.ts`). Each session id is registered with the `storageRegistry`, and the transfer queue + `storage:*` IPC handlers dispatch through that registry — so the SFTP and S3 code paths share the same queue, progress events, and renderer UI.
+
+- **SFTP** (`src/main/services/sftp-manager.ts`) — wrapped by `sftpStorageProvider` and registered on `ssh:connect`.
+- **S3** (`src/main/services/s3/s3-provider.ts`) — uses `@aws-sdk/client-s3` + `@aws-sdk/lib-storage`. Registered on `s3:connect`. Path convention: `/` lists buckets, `/bucket/key/...` for objects/prefixes.
+
+When adding a new provider, implement `StorageProvider`, add a `*-connect` IPC handler that calls `storageRegistry.register`, and surface it in `ConnectionForm` via the provider toggle. The renderer stays untouched.
+
+#### Tests around the abstraction
+
+- `src/main/services/storage/__tests__/registry.test.ts` — round-trip register/get, `require()` failure mode, kind discrimination across sessions.
+- `src/main/services/__tests__/transfer-queue.test.ts` — mocks `storage/registry` with a stub provider; covers dedupe, saturation, cancel, abort drain, re-entrancy, `cancelAll`, and live concurrency adjustment.
+- `src/main/services/s3/__tests__/s3-paths.test.ts` — round-trips for the `/`, `/bucket`, `/bucket/key/...` path convention.
+- `src/main/services/__tests__/database.test.ts` — asserts migration `008_provider_columns` rebuilds the table and preserves existing SFTP rows.
 
 ### Key Principles
 
-- **Process Isolation**: All sensitive operations (SSH, SFTP, credentials, database) run in the main process. The renderer communicates exclusively through typed IPC via the preload bridge.
-- **Credential Security**: Passwords and passphrases are encrypted with a local AES-256-GCM key, never stored in plain text.
+- **Process Isolation**: All sensitive operations (SSH, SFTP, S3, credentials, database) run in the main process. The renderer communicates exclusively through typed IPC via the preload bridge.
+- **Credential Security**: SSH passwords/passphrases and S3 access keys are encrypted with a local AES-256-GCM key, never stored in plain text. S3 secrets are persisted as a JSON blob (`{accessKeyId, secretAccessKey, sessionToken?}`) inside the same encrypted column.
 - **Host Key Verification**: Trust-on-first-use (TOFU) with explicit user confirmation — new host keys trigger a dialog; changed keys show a clear warning.
+
+### Testing S3 Locally
+
+The fastest way to exercise the S3 provider end-to-end is with a local MinIO container:
+
+```bash
+docker run -p 9000:9000 -p 9001:9001 minio/minio server /data --console-address ":9001"
+```
+
+In Lunar, create an S3 connection with:
+
+- Endpoint: `http://localhost:9000`
+- Region: `us-east-1`
+- Force path-style URLs: **on** (required for MinIO)
+- Access Key / Secret: the MinIO defaults (`minioadmin` / `minioadmin`)
+- Default bucket: optional
 
 ## 📜 Code of Conduct
 

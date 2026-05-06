@@ -21,6 +21,10 @@ vi.mock('../../services/ssh-manager', () => ({
     testConnection: vi.fn().mockResolvedValue({ ok: true }),
     resize: vi.fn(),
     trustPendingHostKey: vi.fn().mockReturnValue('SHA256:fp'),
+    // sftp-manager is loaded transitively via the storage provider adapter;
+    // its constructor wires up a disconnect listener.
+    onSessionDisconnect: vi.fn(() => () => {}),
+    getSession: vi.fn(),
   },
 }));
 

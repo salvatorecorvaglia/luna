@@ -69,7 +69,8 @@ export function WelcomeView() {
           Welcome to Lunar
         </motion.h1>
         <motion.p variants={fadeUp} className="mt-2 text-sm text-muted-foreground">
-          A modern SSH terminal and SFTP file manager
+          A modern SSH terminal, SFTP file manager, and S3-compatible object storage browser — all
+          in one.
         </motion.p>
 
         {/* Quick Actions */}

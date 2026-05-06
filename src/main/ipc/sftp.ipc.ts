@@ -83,4 +83,8 @@ export function registerSftpHandlers(): void {
     assertNonEmptyString(transferId, 'transferId');
     transferQueue.cancel(transferId);
   });
+  ipcMain.handle(IPC.TRANSFER_CANCEL_BY_SESSION, (_event, sessionId: string) => {
+    assertNonEmptyString(sessionId, 'sessionId');
+    transferQueue.cancelBySession(sessionId);
+  });
 }

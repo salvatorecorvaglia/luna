@@ -27,7 +27,7 @@ interface FilePaneProps {
   error: Error | null;
   selection: Set<string>;
   onPathChange: (path: string) => void;
-  onSelect: (name: string) => void;
+  onSelect: (name: string, multi?: boolean, range?: boolean) => void;
   onRefresh: () => void;
   onDragStart?: (entry: FileEntry, e: React.DragEvent) => void;
   onDrop?: (e: React.DragEvent) => void;
@@ -36,6 +36,8 @@ interface FilePaneProps {
   onDelete?: (entry: FileEntry) => void;
   onCopyPath?: (entry: FileEntry) => void;
   onPreview?: (entry: FileEntry) => void;
+  onDownload?: (entry: FileEntry) => void;
+  downloadLabel?: string;
   showHidden?: boolean;
   onToggleHidden?: () => void;
   onMkdir?: () => void;
@@ -73,6 +75,8 @@ export function FilePane({
   onDelete,
   onCopyPath,
   onPreview,
+  onDownload,
+  downloadLabel,
   showHidden = true,
   onToggleHidden,
   onMkdir,
@@ -316,6 +320,12 @@ export function FilePane({
             >
               Try again
             </button>
+            <button
+              onClick={() => onPathChange('/')}
+              className="text-xs text-muted-foreground hover:text-foreground cursor-pointer underline"
+            >
+              Go to root
+            </button>
           </div>
         ) : isLoading && entries.length === 0 ? (
           <FilePaneSkeleton showPermissions={side === 'remote'} />
@@ -330,6 +340,8 @@ export function FilePane({
             onDelete={onDelete}
             onCopyPath={onCopyPath}
             onPreview={onPreview}
+            onDownload={onDownload}
+            downloadLabel={downloadLabel}
             showPermissions={side === 'remote'}
             onSelectAll={onSelectAll}
             emptyMessage={filterQuery ? `No files match "${filterQuery}"` : 'Empty directory'}

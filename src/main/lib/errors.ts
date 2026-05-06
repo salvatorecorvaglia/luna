@@ -19,3 +19,13 @@ export class AbortError extends Error {
     this.name = 'AbortError';
   }
 }
+
+export class S3StorageError extends Error {
+  constructor(
+    message: string,
+    public readonly cause?: unknown,
+  ) {
+    super(message);
+    this.name = 'S3StorageError';
+  }
+}

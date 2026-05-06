@@ -4,6 +4,7 @@ import {
   ChevronDown,
   ChevronUp,
   Copy,
+  Download,
   Eye,
   File,
   FileArchive,
@@ -27,13 +28,15 @@ type SortDir = 'asc' | 'desc';
 interface FileListProps {
   entries: FileEntry[];
   selection: Set<string>;
-  onSelect: (name: string) => void;
+  onSelect: (name: string, multi?: boolean, range?: boolean) => void;
   onOpen: (entry: FileEntry) => void;
   onDragStart?: (entry: FileEntry, e: React.DragEvent) => void;
   onRename?: (entry: FileEntry) => void;
   onDelete?: (entry: FileEntry) => void;
   onCopyPath?: (entry: FileEntry) => void;
   onPreview?: (entry: FileEntry) => void;
+  onDownload?: (entry: FileEntry) => void;
+  downloadLabel?: string;
   showPermissions?: boolean;
   onSelectAll?: () => void;
   emptyMessage?: string;
@@ -99,6 +102,8 @@ export function FileList({
   onDelete,
   onCopyPath,
   onPreview,
+  onDownload,
+  downloadLabel,
   showPermissions = false,
   onSelectAll,
   emptyMessage = 'No files',
@@ -162,6 +167,13 @@ export function FileList({
           onClick: () => onPreview(entry),
         });
       }
+      if (!entry.isDirectory && onDownload) {
+        items.push({
+          label: downloadLabel || 'Download',
+          icon: <Download className="h-3.5 w-3.5" />,
+          onClick: () => onDownload(entry),
+        });
+      }
       if (onCopyPath) {
         items.push({
           label: 'Copy Path',
@@ -199,7 +211,7 @@ export function FileList({
           e.preventDefault();
           const next = Math.min(focusedIndex + 1, sorted.length - 1);
           setFocusedIndex(next);
-          onSelect(sorted[next].name);
+          onSelect(sorted[next].name, e.metaKey || e.ctrlKey, e.shiftKey);
           virtualizer.scrollToIndex(next, { align: 'auto' });
           break;
         }
@@ -207,7 +219,7 @@ export function FileList({
           e.preventDefault();
           const prev = Math.max(focusedIndex - 1, 0);
           setFocusedIndex(prev);
-          onSelect(sorted[prev].name);
+          onSelect(sorted[prev].name, e.metaKey || e.ctrlKey, e.shiftKey);
           virtualizer.scrollToIndex(prev, { align: 'auto' });
           break;
         }
@@ -310,16 +322,16 @@ export function FileList({
                     : 'hover:bg-accent/30',
                   focusedIndex === virtualRow.index && 'ring-1 ring-inset ring-ring/50',
                 )}
-                onClick={() => {
+                onClick={(e) => {
                   setFocusedIndex(virtualRow.index);
-                  onSelect(entry.name);
+                  onSelect(entry.name, e.metaKey || e.ctrlKey, e.shiftKey);
                 }}
                 onDoubleClick={() => onOpen(entry)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') onOpen(entry);
                   if (e.key === ' ') {
                     e.preventDefault();
-                    onSelect(entry.name);
+                    onSelect(entry.name, e.metaKey || e.ctrlKey, e.shiftKey);
                   }
                 }}
                 draggable={!!onDragStart}

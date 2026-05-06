@@ -1,6 +1,8 @@
 import { app, BrowserWindow, ipcMain, shell, type WebContents } from 'electron';
 import { IPC } from '@shared/constants';
 import { checkForUpdate, installUpdate } from '../services/updater';
+import { sshManager } from '../services/ssh-manager';
+import { s3StorageProvider } from '../services/s3/s3-provider';
 import log from '../lib/logger';
 
 let mainWindowRef: BrowserWindow | null = null;
@@ -25,6 +27,13 @@ export function registerAppHandlers(): void {
 
   ipcMain.handle(IPC.APP_INSTALL_UPDATE, () => {
     installUpdate();
+  });
+
+  ipcMain.handle(IPC.APP_GET_ACTIVE_SESSIONS, () => {
+    return {
+      ssh: sshManager.listSessions(),
+      s3: s3StorageProvider.listSessions(),
+    };
   });
 
   ipcMain.handle(IPC.APP_GET_VERSION, () => app.getVersion());
