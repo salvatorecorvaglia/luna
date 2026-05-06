@@ -5,7 +5,10 @@ A huge thank you to everyone who has contributed to **Lunar**!
 ## ✨ Lead Maintainer
 
 - **Salvatore Corvaglia** ([@salvatorecorvaglia](https://github.com/salvatorecorvaglia))
-- **Carmine Romano** ([@carminero](https://github.com/carminero)
+
+## 🧑‍💻 Developers
+
+- **Carmine Romano** ([@carminero](https://github.com/carminero))
 
 ## 🌟 Contributors
 
