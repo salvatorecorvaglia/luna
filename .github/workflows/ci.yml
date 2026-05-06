@@ -120,13 +120,12 @@ jobs:
     needs: [quality, test, build]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GH_PACKAGES_TOKEN }}
 
       - name: Get version from package.json
         id: pkg_version
