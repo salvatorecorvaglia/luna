@@ -48,7 +48,11 @@ class SftpStorageProvider implements StorageProvider {
     return sftpManager.remove(sessionId, path, isDirectory);
   }
 
-  readFile(sessionId: string, path: string, maxSize?: number): Promise<string> {
+  readFile(
+    sessionId: string,
+    path: string,
+    maxSize?: number,
+  ): Promise<{ content: string; encoding: 'utf-8' | 'base64' }> {
     return sftpManager.readFile(sessionId, path, maxSize);
   }
 

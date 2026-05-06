@@ -199,7 +199,7 @@ export function FileList({
       }
       return items;
     },
-    [onPreview, onCopyPath, onRename, onDelete],
+    [onPreview, onCopyPath, onRename, onDelete, onDownload, downloadLabel],
   );
 
   const handleListKeyDown = useCallback(
