@@ -4,6 +4,7 @@ import { registerShellHandlers } from './shell.ipc';
 import { registerSshHandlers } from './ssh.ipc';
 import { registerSftpHandlers } from './sftp.ipc';
 import { registerAppHandlers } from './app.ipc';
+import { registerCommandSetHandlers } from './command-set.ipc';
 
 export function registerAllHandlers(): void {
   registerDbHandlers();
@@ -12,4 +13,5 @@ export function registerAllHandlers(): void {
   registerSshHandlers();
   registerSftpHandlers();
   registerAppHandlers();
+  registerCommandSetHandlers();
 }
