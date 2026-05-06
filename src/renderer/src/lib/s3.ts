@@ -19,7 +19,7 @@ export async function connectToS3(connectionId: string): Promise<string | null> 
   } = useSftpStore.getState();
 
   // 1. Check local store
-  let existing = Array.from(storageSessions.values()).find(
+  const existing = Array.from(storageSessions.values()).find(
     (s) => s.connectionId === connectionId && s.status === 'connected',
   );
 

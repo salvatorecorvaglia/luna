@@ -11,7 +11,7 @@ export async function connectToHost(connectionId: string): Promise<void> {
   const { sessions, addSession, updateSessionStatus, setActiveTab } = useTerminalStore.getState();
 
   // 1. Check local store
-  let existing = Array.from(sessions.values()).find(
+  const existing = Array.from(sessions.values()).find(
     (s) => s.connectionId === connectionId && s.status === 'connected',
   );
 

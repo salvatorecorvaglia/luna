@@ -244,6 +244,9 @@ const ConnectionItem = memo(function ConnectionItem({
     port: number;
     colorTag?: string;
     provider?: 'sftp' | 's3';
+    endpoint?: string;
+    region?: string;
+    defaultBucket?: string;
   };
   compact?: boolean;
 }) {
@@ -457,8 +460,8 @@ const ConnectionItem = memo(function ConnectionItem({
               <div className="truncate text-[11px] text-muted-foreground/70">
                 {isS3 ? (
                   <>
-                    {(connection as any).endpoint || (connection as any).region || 'S3 Storage'}
-                    {(connection as any).defaultBucket && ` / ${(connection as any).defaultBucket}`}
+                    {connection.endpoint || connection.region || 'S3 Storage'}
+                    {connection.defaultBucket && ` / ${connection.defaultBucket}`}
                   </>
                 ) : (
                   <>
