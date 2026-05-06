@@ -69,12 +69,6 @@ jobs:
       - name: Package & Publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Uncomment when you have code-signing set up:
-          # CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
-          # CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
-          # APPLE_ID: ${{ secrets.APPLE_ID }}
-          # APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npx electron-builder --mac --publish always
 
       - name: Upload artifacts
@@ -115,9 +109,6 @@ jobs:
       - name: Package & Publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Uncomment when you have code-signing set up:
-          # CSC_LINK: ${{ secrets.WIN_CERT_P12 }}
-          # CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
         run: npx electron-builder --win --publish always
 
       - name: Upload artifacts
@@ -171,7 +162,7 @@ jobs:
           if-no-files-found: error
 
   # ──────────────────────────────────────────────
-  # Finalize – update release description if needed
+  # Finalize – update release description and docs
   # ──────────────────────────────────────────────
   finalize:
     name: Finalize Release
@@ -186,10 +177,7 @@ jobs:
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           VERSION="${TAG#v}"
-          # Extract the section between the current version and the next one (or end of file)
           NOTES=$(sed -e "1,/## \[$VERSION\]/d" -e '/## \[/,$d' CHANGELOG.md)
-          
-          # Handle special characters for GitHub Actions output
           {
             echo 'notes<<EOF'
             echo "$NOTES"
@@ -217,24 +205,30 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Checkout main branch to apply and push changes
           git fetch origin main
           git checkout main
           
-          # Replace vX.Y.Z and lunar-X.Y.Z and Version X.Y.Z references in the docs files
-          # Hero.jsx has v0.0.0
-          # Download.jsx has v0.0.0 and lunar-0.0.0
-          # Footer.jsx has Version 0.0.0
           sed -i "s/v[0-9]\+\.[0-9]\+\.[0-9]\+/v$VERSION/g" docs/Download.jsx docs/Hero.jsx
           sed -i "s/lunar-[0-9]\+\.[0-9]\+\.[0-9]\+/lunar-$VERSION/g" docs/Download.jsx
           sed -i "s/Version [0-9]\+\.[0-9]\+\.[0-9]\+/Version $VERSION/g" docs/Footer.jsx
           
           git add docs/Download.jsx docs/Hero.jsx docs/Footer.jsx
           
-          # Only commit and push if there are actual changes
           if ! git diff-index --quiet HEAD; then
-            git commit -m "chore: update landing page to $TAG"
+            git commit -m "chore: update landing page to $TAG [skip ci]"
             git push origin main
           else
             echo "No changes detected for the landing page. Skipping commit."
           fi
+
+  # ──────────────────────────────────────────────
+  # Deploy – trigger landing page update
+  # ──────────────────────────────────────────────
+  deploy:
+    name: Deploy
+    needs: finalize
+    uses: ./.github/workflows/deploy-pages.yml
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
