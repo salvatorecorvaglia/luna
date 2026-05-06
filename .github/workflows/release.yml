@@ -69,12 +69,6 @@ jobs:
       - name: Package & Publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Uncomment when you have code-signing set up:
-          # CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
-          # CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
-          # APPLE_ID: ${{ secrets.APPLE_ID }}
-          # APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npx electron-builder --mac --publish always
 
       - name: Upload artifacts
@@ -115,9 +109,6 @@ jobs:
       - name: Package & Publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Uncomment when you have code-signing set up:
-          # CSC_LINK: ${{ secrets.WIN_CERT_P12 }}
-          # CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
         run: npx electron-builder --win --publish always
 
       - name: Upload artifacts
@@ -171,7 +162,7 @@ jobs:
           if-no-files-found: error
 
   # ──────────────────────────────────────────────
-  # Finalize – update release description if needed
+  # Finalize – update release description and docs
   # ──────────────────────────────────────────────
   finalize:
     name: Finalize Release
@@ -180,16 +171,16 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PACKAGES_TOKEN }}
+          fetch-depth: 0
 
       - name: Extract Release Notes
         id: extract_notes
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           VERSION="${TAG#v}"
-          # Extract the section between the current version and the next one (or end of file)
           NOTES=$(sed -e "1,/## \[$VERSION\]/d" -e '/## \[/,$d' CHANGELOG.md)
-          
-          # Handle special characters for GitHub Actions output
           {
             echo 'notes<<EOF'
             echo "$NOTES"
@@ -199,13 +190,14 @@ jobs:
       - name: Update Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_NOTES: ${{ steps.extract_notes.outputs.notes }}
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           VERSION="${TAG#v}"
           gh release edit "$TAG" \
             --draft=false \
             --title "Lunar $VERSION" \
-            --notes "${{ steps.extract_notes.outputs.notes }}" \
+            --notes "$RELEASE_NOTES" \
             --repo "$GITHUB_REPOSITORY"
 
       - name: Update Landing Page Version
@@ -213,22 +205,21 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           VERSION="${TAG#v}"
           
-          # Replace vX.Y.Z and lunar-X.Y.Z references in the JSX file
-          sed -i "s/v[0-9]\+\.[0-9]\+\.[0-9]\+/v$VERSION/g" docs/Download.jsx
-          sed -i "s/lunar-[0-9]\+\.[0-9]\+\.[0-9]\+/lunar-$VERSION/g" docs/Download.jsx
-          
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Checkout main to ensure we can push
+          # Checkout main branch to apply and push changes
           git fetch origin main
           git checkout main
           
-          git add docs/Download.jsx
+          # Update the version in the central config file
+          sed -i "s/version: '[0-9]\+\.[0-9]\+\.[0-9]\+'/version: '$VERSION'/g" docs/config.js
+          
+          git add docs/config.js
           
           # Only commit and push if there are actual changes
           if ! git diff-index --quiet HEAD; then
-            git commit -m "chore: update landing page to $TAG [skip ci]"
+            git commit -m "chore: update landing page to $TAG"
             git push origin main
           else
             echo "No changes detected for the landing page. Skipping commit."
