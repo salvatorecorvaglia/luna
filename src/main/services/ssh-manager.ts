@@ -238,6 +238,12 @@ class SshManager {
     if (!row) {
       return { success: false, error: 'Connection not found' };
     }
+    if (row.provider !== 'sftp') {
+      return { success: false, error: `Connection ${connectionId} is not an SSH connection` };
+    }
+    if (!row.host || !row.username || !row.auth_type || row.port == null) {
+      return { success: false, error: 'SSH connection is missing required fields' };
+    }
 
     const client = new Client();
 
@@ -624,6 +630,12 @@ class SshManager {
         | ConnectionRow
         | undefined;
       if (!row) return { ok: false, error: 'Connection not found' };
+      if (row.provider !== 'sftp') {
+        return { ok: false, error: 'Not an SSH connection' };
+      }
+      if (!row.host || !row.username || !row.auth_type || row.port == null) {
+        return { ok: false, error: 'SSH connection is missing required fields' };
+      }
 
       host = row.host;
       port = row.port;
@@ -684,6 +696,14 @@ class SshManager {
         finish({ ok: false, error: err instanceof Error ? err.message : String(err) });
       }
     });
+  }
+
+  listSessions(): { id: string; connectionId: string; status: SessionStatus }[] {
+    return Array.from(this.sessions.values()).map((s) => ({
+      id: s.id,
+      connectionId: s.connectionId,
+      status: s.status,
+    }));
   }
 
   getSession(sessionId: string): SshSession | undefined {

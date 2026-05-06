@@ -27,6 +27,7 @@ vi.mock('../database', () => ({
   getDatabase: vi.fn().mockReturnValue({
     prepare: vi.fn().mockReturnValue({
       get: vi.fn().mockReturnValue({
+        provider: 'sftp',
         host: 'example.com',
         port: 22,
         username: 'user',

@@ -123,11 +123,36 @@ describe('expandAndConfineToHome', () => {
   it('rejects absolute paths outside home', async () => {
     await expect(expandAndConfineToHome('/etc/passwd', 'p')).rejects.toThrow(/home directory/);
   });
-
   it('does not mistake ~user for the current user (treats it as a literal absolute requirement)', async () => {
-    // The helper only special-cases bare `~` and `~/...`; `~root/foo` must be
-    // rejected as non-absolute rather than silently rewritten.
     await expect(expandAndConfineToHome('~root/foo', 'p')).rejects.toThrow(/absolute/);
+  });
+
+  it('requireExists: true returns realpath inside home', async () => {
+    const homeTmp = mkdtempSync(join(HOME, '.lunar-test-expand-'));
+    const safeFile = join(homeTmp, 'safe.txt');
+    writeFileSync(safeFile, 'ok');
+    try {
+      await expect(expandAndConfineToHome(safeFile, 'p', { requireExists: true })).resolves.toBe(
+        safeFile,
+      );
+    } finally {
+      rmSync(homeTmp, { recursive: true, force: true });
+    }
+  });
+
+  it('requireExists: true rejects if target escapes home', async () => {
+    const homeTmp = mkdtempSync(join(HOME, '.lunar-test-expand-escape-'));
+    const outsideTmp = mkdtempSync(join(tmpdir(), 'lunar-outside-expand-'));
+    const escapeLink = join(homeTmp, 'escape');
+    symlinkSync(outsideTmp, escapeLink);
+    try {
+      await expect(
+        expandAndConfineToHome(escapeLink, 'p', { requireExists: true }),
+      ).rejects.toThrow(/resolves outside the home directory/);
+    } finally {
+      rmSync(homeTmp, { recursive: true, force: true });
+      rmSync(outsideTmp, { recursive: true, force: true });
+    }
   });
 });
 

@@ -15,6 +15,7 @@ import type {
   SshResizeParams,
   SshSendDataParams,
   SshStatusEvent,
+  SessionStatus,
 } from './terminal';
 import type {
   LocalFileEntry,
@@ -28,6 +29,19 @@ import type {
   SftpStatResult,
   SftpTransferParams,
 } from './sftp';
+import type {
+  S3ConnectParams,
+  S3TestConnectionConfig,
+  StorageDeleteParams,
+  StorageEntry,
+  StorageListParams,
+  StorageMkdirParams,
+  StorageReadFileParams,
+  StorageRenameParams,
+  StorageStatParams,
+  StorageStatResult,
+  StorageTransferParams,
+} from './storage-provider';
 import type { TransferCompleteEvent, TransferErrorEvent, TransferProgressEvent } from './transfer';
 import type { AppSettings } from './settings';
 
@@ -87,9 +101,33 @@ export interface IpcHandlerMap {
   'sftp:mkdir': { request: SftpMkdirParams; response: void };
   'sftp:rename': { request: SftpRenameParams; response: void };
   'sftp:delete': { request: SftpDeleteParams; response: void };
-  'sftp:read-file': { request: SftpReadFileParams; response: string };
+  'sftp:read-file': {
+    request: SftpReadFileParams;
+    response: { content: string; encoding: 'utf-8' | 'base64' };
+  };
   'sftp:download': { request: SftpTransferParams; response: string };
   'sftp:upload': { request: SftpTransferParams; response: string };
+
+  // Storage (provider-agnostic)
+  'storage:list': { request: StorageListParams; response: StorageEntry[] };
+  'storage:stat': { request: StorageStatParams; response: StorageStatResult };
+  'storage:mkdir': { request: StorageMkdirParams; response: void };
+  'storage:rename': { request: StorageRenameParams; response: void };
+  'storage:delete': { request: StorageDeleteParams; response: void };
+  'storage:read-file': {
+    request: StorageReadFileParams;
+    response: { content: string; encoding: 'utf-8' | 'base64' };
+  };
+  'storage:download': { request: StorageTransferParams; response: string };
+  'storage:upload': { request: StorageTransferParams; response: string };
+
+  // S3
+  's3:connect': { request: S3ConnectParams; response: { sessionId: string } };
+  's3:disconnect': { request: string; response: void };
+  's3:test-connection': {
+    request: { connectionId?: string; config?: S3TestConnectionConfig };
+    response: { ok: boolean; error?: string };
+  };
 
   // Local filesystem
   'shell:readdir': { request: string; response: LocalFileEntry[] };
@@ -113,9 +151,11 @@ export interface IpcHandlerMap {
       | { ok: true }
       | { ok: false; reason: 'empty' | 'missing' | 'permission' | 'not-a-file' | 'unknown' };
   };
+  'shell:read-file': { request: string; response: { content: string; size: number } };
 
   // Transfers
   'transfer:cancel': { request: string; response: void };
+  'transfer:cancel-by-session': { request: string; response: void };
 
   // Credentials
   'credential:store': { request: { connectionId: string; secret: string }; response: void };
@@ -139,6 +179,18 @@ export interface IpcHandlerMap {
   'app:install-update': { request: void; response: void };
   'app:get-log-path': { request: void; response: string };
   'app:open-log-file': { request: void; response: void };
+  'app:get-active-sessions': {
+    request: void;
+    response: {
+      ssh: { id: string; connectionId: string; status: SessionStatus }[];
+      s3: {
+        id: string;
+        connectionId: string;
+        connectionName: string;
+        initialPath: string;
+      }[];
+    };
+  };
 }
 
 // Streaming events (main -> renderer, via webContents.send)
@@ -170,5 +222,6 @@ export type IpcEventPayload<K extends IpcEventChannel> = IpcEventMap[K];
 export type * from './connection';
 export type * from './terminal';
 export type * from './sftp';
+export type * from './storage-provider';
 export type * from './transfer';
 export type * from './settings';

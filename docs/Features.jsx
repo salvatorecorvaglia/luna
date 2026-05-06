@@ -19,6 +19,12 @@ function Features() {
       desc: 'Drag and drop files between local and remote. Concurrent transfer queue with real-time progress.',
     },
     {
+      icon: 'cloud',
+      tint: '#0ea5e9',
+      title: 'S3-Compatible Storage',
+      desc: 'AWS S3, MinIO, Cloudflare R2, Backblaze B2, Wasabi — first-class providers in the same browser and queue. Multipart uploads with abort.',
+    },
+    {
       icon: 'command',
       tint: '#a855f7',
       title: 'Command Palette',

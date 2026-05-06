@@ -64,6 +64,18 @@ describe('database migrations', () => {
     expect(db.applied).toHaveLength(__test__.getMigrations().length);
   });
 
+  it('includes the provider-columns migration', () => {
+    const names = __test__.getMigrations().map((m) => m.name);
+    expect(names).toContain('008_provider_columns');
+    const m = __test__.getMigrations().find((x) => x.name === '008_provider_columns');
+    expect(m?.sql).toMatch(/provider TEXT NOT NULL DEFAULT 'sftp'/);
+    expect(m?.sql).toMatch(/default_bucket/);
+    // The migration must rebuild the table and copy existing rows so SFTP
+    // connections survive the schema change.
+    expect(m?.sql).toMatch(/INSERT INTO connections_new/);
+    expect(m?.sql).toMatch(/DROP TABLE connections/);
+  });
+
   it('throws MigrationError naming the offending migration on SQL failure', () => {
     // Force exec() to throw on a fingerprint that only appears in 002_settings.
     const db = makeFakeDb({ failOn: 'CREATE TABLE IF NOT EXISTS settings' });

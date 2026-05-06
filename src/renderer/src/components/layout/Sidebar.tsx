@@ -1,14 +1,14 @@
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  ChevronDown,
   ChevronRight,
-  Clock,
   Copy,
   FolderClosed,
   Loader2,
+  LogOut,
   Pencil,
   Plus,
+  RefreshCw,
   Search,
   Server,
   Settings,
@@ -23,6 +23,8 @@ import { useConnectionStore } from '@/stores/connection-store';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { useConnections, useDeleteConnection } from '@/hooks/use-connections';
 import { connectToHost } from '@/lib/ssh';
+import { connectToS3 } from '@/lib/s3';
+import { useSftpStore } from '@/stores/sftp-store';
 import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 
@@ -44,35 +46,13 @@ export function Sidebar() {
     );
   }, [connectionList, searchQuery]);
 
-  const recentConnections = useMemo(
-    () =>
-      searchQuery
-        ? []
-        : [...connectionList]
-            .filter((c) => c.lastConnectedAt)
-            .sort((a, b) => (b.lastConnectedAt || 0) - (a.lastConnectedAt || 0))
-            .slice(0, 5),
-    [connectionList, searchQuery],
-  );
-
-  const groupedConnections = useMemo(() => {
-    const groups = new Map<string, typeof filteredConnections>();
-    for (const conn of filteredConnections) {
-      const folder = conn.folder || 'default';
-      const list = groups.get(folder) ?? [];
-      list.push(conn);
-      groups.set(folder, list);
-    }
-    return groups;
+  const groupedByProvider = useMemo(() => {
+    const sftp = filteredConnections.filter((c) => !c.provider || c.provider === 'sftp');
+    const s3 = filteredConnections.filter((c) => c.provider === 's3');
+    return { sftp, s3 };
   }, [filteredConnections]);
 
-  const hasNonDefaultFolders = useMemo(
-    () => Array.from(groupedConnections.keys()).some((k) => k !== 'default'),
-    [groupedConnections],
-  );
-
   const [resizing, setResizing] = useState(false);
-  const [recentOpen, setRecentOpen] = useState(true);
   // Guard against double mousedown without an intervening mouseup (e.g. dev-tools
   // stealing focus mid-drag) attaching duplicate listeners.
   const resizingRef = useRef(false);
@@ -188,48 +168,36 @@ export function Sidebar() {
                   </button>
                 )}
               </div>
-            ) : !hasNonDefaultFolders ? (
-              <div className="space-y-0.5">
-                {filteredConnections.map((conn) => (
-                  <ConnectionItem key={conn.id} connection={conn} />
-                ))}
-              </div>
             ) : (
-              <div className="space-y-1">
-                {Array.from(groupedConnections.entries()).map(([folder, conns]) => (
-                  <FolderGroup key={folder} name={folder} connections={conns} />
-                ))}
-              </div>
-            )}
-
-            {/* Recent Connections */}
-            {recentConnections.length > 0 && (
-              <>
-                <div className="mx-2 my-3 h-px bg-border/50" />
-                <button
-                  onClick={() => setRecentOpen((o) => !o)}
-                  className="flex w-full items-center gap-1.5 px-2.5 pb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 hover:text-muted-foreground transition-colors cursor-pointer"
-                >
-                  <ChevronDown
-                    className={cn(
-                      'h-3 w-3 transition-transform duration-150',
-                      !recentOpen && '-rotate-90',
-                    )}
-                  />
-                  <Clock className="h-3 w-3" />
-                  <span>Recent</span>
-                  <span className="ml-auto text-[9px] font-medium opacity-50">
-                    {recentConnections.length}
-                  </span>
-                </button>
-                {recentOpen && (
-                  <div className="space-y-0.5">
-                    {recentConnections.map((conn) => (
-                      <ConnectionItem key={`recent-${conn.id}`} connection={conn} compact />
-                    ))}
+              <div className="space-y-4">
+                {groupedByProvider.sftp.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5 px-2.5 pb-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
+                      <Terminal className="h-3 w-3" />
+                      <span>SSH Sessions</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      {groupedByProvider.sftp.map((conn) => (
+                        <ConnectionItem key={conn.id} connection={conn} />
+                      ))}
+                    </div>
                   </div>
                 )}
-              </>
+
+                {groupedByProvider.s3.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5 px-2.5 pb-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
+                      <FolderClosed className="h-3 w-3" />
+                      <span>S3 Storage</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      {groupedByProvider.s3.map((conn) => (
+                        <ConnectionItem key={conn.id} connection={conn} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
@@ -264,90 +232,71 @@ export function Sidebar() {
   );
 }
 
-function FolderGroup({
-  name,
-  connections,
-}: {
-  name: string;
-  connections: {
-    id: string;
-    name: string;
-    host: string;
-    username: string;
-    colorTag?: string;
-    folder: string;
-  }[];
-}) {
-  const [open, setOpen] = useState(true);
-  const isDefault = name === 'default';
-  const groupId = `folder-group-${name}`;
-
-  if (isDefault) {
-    return (
-      <div className="space-y-0.5">
-        {connections.map((conn) => (
-          <ConnectionItem key={conn.id} connection={conn} />
-        ))}
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        aria-controls={groupId}
-        className="flex w-full items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground/70 hover:text-muted-foreground hover:bg-sidebar-accent/40 cursor-pointer"
-      >
-        <ChevronDown
-          aria-hidden="true"
-          className={cn('h-3 w-3 transition-transform duration-150', !open && '-rotate-90')}
-        />
-        <FolderClosed className="h-3 w-3" aria-hidden="true" />
-        <span className="truncate">{name}</span>
-        <span className="ml-auto text-[10px] text-muted-foreground/50">{connections.length}</span>
-      </button>
-      {open && (
-        <div id={groupId} className="ml-2 space-y-0.5 border-l border-border/40 pl-1">
-          {connections.map((conn) => (
-            <ConnectionItem key={conn.id} connection={conn} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 const ConnectionItem = memo(function ConnectionItem({
   connection,
   compact = false,
 }: {
-  connection: { id: string; name: string; host: string; username: string; colorTag?: string };
+  connection: {
+    id: string;
+    name: string;
+    host: string;
+    username: string;
+    port: number;
+    colorTag?: string;
+    provider?: 'sftp' | 's3';
+  };
   compact?: boolean;
 }) {
   const { activeConnectionId, setActiveConnectionId, openEditForm, openDuplicateForm } =
     useConnectionStore();
   const { setActiveView } = useUIStore();
   const { sessions } = useTerminalStore();
+  const storageSessions = useSftpStore((s) => s.storageSessions);
+  const setSftpSessionId = useSftpStore((s) => s.setSftpSessionId);
   const deleteMutation = useDeleteConnection();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const isActive = activeConnectionId === connection.id;
-  const isConnected = Array.from(sessions.values()).some(
-    (s) => s.connectionId === connection.id && s.status === 'connected',
-  );
-  const isConnecting = Array.from(sessions.values()).some(
-    (s) =>
-      s.connectionId === connection.id &&
-      (s.status === 'connecting' || s.status === 'reconnecting'),
-  );
+  const isS3 = connection.provider === 's3';
+  const isConnected = isS3
+    ? Array.from(storageSessions.values()).some(
+        (s) => s.connectionId === connection.id && s.status === 'connected',
+      )
+    : Array.from(sessions.values()).some(
+        (s) => s.connectionId === connection.id && s.status === 'connected',
+      );
+  const isConnecting = isS3
+    ? Array.from(storageSessions.values()).some(
+        (s) => s.connectionId === connection.id && s.status === 'connecting',
+      )
+    : Array.from(sessions.values()).some(
+        (s) =>
+          s.connectionId === connection.id &&
+          (s.status === 'connecting' || s.status === 'reconnecting'),
+      );
 
   const handleConnect = () => {
     setActiveConnectionId(connection.id);
+
+    if (isS3) {
+      // S3 connections have no terminal — open the file browser directly.
+      setActiveView('sftp');
+      const latestStorageSessions = useSftpStore.getState().storageSessions;
+      const existing = Array.from(latestStorageSessions.values()).find(
+        (s) => s.connectionId === connection.id && s.status !== 'error',
+      );
+      if (existing) {
+        setSftpSessionId(existing.id);
+        return;
+      }
+      connectToS3(connection.id);
+      return;
+    }
+
     setActiveView('terminal');
 
     // If already connected, switch to the existing tab instead of opening a new one
-    const existingSession = Array.from(sessions.values()).find(
+    const latestSessions = useTerminalStore.getState().sessions;
+    const existingSession = Array.from(latestSessions.values()).find(
       (s) =>
         s.connectionId === connection.id &&
         (s.status === 'connected' || s.status === 'connecting' || s.status === 'reconnecting'),
@@ -360,12 +309,94 @@ const ConnectionItem = memo(function ConnectionItem({
     connectToHost(connection.id);
   };
 
+  const handleDisconnect = async () => {
+    try {
+      if (isS3) {
+        const existing = Array.from(useSftpStore.getState().storageSessions.values()).find(
+          (s) => s.connectionId === connection.id,
+        );
+        if (existing) {
+          window.api.transfers?.cancelBySession?.(existing.id).catch(() => {});
+          await window.api.s3.disconnect(existing.id);
+          useSftpStore.getState().removeStorageSession(existing.id);
+          if (useSftpStore.getState().sftpSessionId === existing.id) {
+            useSftpStore.getState().setSftpSessionId(null);
+            useUIStore.getState().setActiveView('welcome');
+          }
+          toast.success('S3 session closed');
+        }
+      } else {
+        const activeSshSessions = Array.from(useTerminalStore.getState().sessions.values()).filter(
+          (s) => s.connectionId === connection.id,
+        );
+        for (const s of activeSshSessions) {
+          window.api.transfers?.cancelBySession?.(s.id).catch(() => {});
+          useTerminalStore.getState().closeTab(s.id);
+        }
+        if (useTerminalStore.getState().sessions.size === 0) {
+          useUIStore.getState().setActiveView('welcome');
+        }
+        if (activeSshSessions.length > 0) {
+          toast.success('SSH session disconnected');
+        }
+      }
+    } catch (err) {
+      console.error('Disconnect failed:', err);
+      toast.error('Failed to disconnect cleanly');
+    }
+  };
+
+  const handleReconnect = async () => {
+    try {
+      const sessionId = isS3
+        ? Array.from(useSftpStore.getState().storageSessions.values()).find(
+            (s) => s.connectionId === connection.id,
+          )?.id
+        : Array.from(useTerminalStore.getState().sessions.values()).find(
+            (s) => s.connectionId === connection.id,
+          )?.id;
+
+      if (sessionId) {
+        window.api.transfers?.cancelBySession?.(sessionId).catch(() => {});
+        if (isS3) {
+          await window.api.s3.disconnect(sessionId);
+          useSftpStore.getState().removeStorageSession(sessionId);
+        } else {
+          window.api.ssh.disconnect(sessionId);
+          useTerminalStore.getState().removeSession(sessionId);
+        }
+      }
+
+      // Re-connect after cleanup
+      setTimeout(() => {
+        handleConnect();
+      }, 150);
+    } catch (err) {
+      console.error('Reconnect failed:', err);
+      toast.error('Failed to reconnect');
+    }
+  };
+
   const contextMenuItems: ContextMenuItem[] = [
     {
-      label: 'Connect',
+      label: isConnected ? 'Show Session' : 'Connect',
       icon: <Terminal className="h-3.5 w-3.5" />,
       onClick: handleConnect,
     },
+    ...(isConnected || isConnecting
+      ? [
+          {
+            label: 'Reconnect',
+            icon: <RefreshCw className="h-3.5 w-3.5" />,
+            onClick: handleReconnect,
+          },
+          {
+            label: 'Disconnect',
+            icon: <LogOut className="h-3.5 w-3.5" />,
+            onClick: handleDisconnect,
+          },
+        ]
+      : []),
     {
       label: 'Edit',
       icon: <Pencil className="h-3.5 w-3.5" />,
@@ -424,7 +455,17 @@ const ConnectionItem = memo(function ConnectionItem({
             </div>
             {!compact && (
               <div className="truncate text-[11px] text-muted-foreground/70">
-                {connection.username}@{connection.host}
+                {isS3 ? (
+                  <>
+                    {(connection as any).endpoint || (connection as any).region || 'S3 Storage'}
+                    {(connection as any).defaultBucket && ` / ${(connection as any).defaultBucket}`}
+                  </>
+                ) : (
+                  <>
+                    {connection.username}@{connection.host}
+                    {connection.port !== 22 && `:${connection.port}`}
+                  </>
+                )}
               </div>
             )}
           </div>

@@ -97,6 +97,12 @@ function Icon({ name, size = 16 }) {
           <path d="M8 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3M16 3h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-3M12 3v18" />
         </svg>
       );
+    case 'cloud':
+      return (
+        <svg {...props}>
+          <path d="M17.5 19a4.5 4.5 0 1 0-1.42-8.78A6 6 0 0 0 4 12a4 4 0 0 0 1 7h12.5z" />
+        </svg>
+      );
     case 'lock':
       return (
         <svg {...props}>

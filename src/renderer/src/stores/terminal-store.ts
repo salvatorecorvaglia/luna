@@ -63,6 +63,9 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
 
   addSession: (session) =>
     set((s) => {
+      if (s.sessions.has(session.id)) {
+        return { activeTabId: session.id };
+      }
       const sessions = new Map(s.sessions);
       sessions.set(session.id, session);
       const tabOrder = [...s.tabOrder, session.id];

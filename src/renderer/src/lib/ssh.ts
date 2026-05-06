@@ -1,14 +1,53 @@
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'sonner';
 import { useTerminalStore } from '@/stores/terminal-store';
+import { useUIStore } from '@/stores/ui-store';
 
 /**
  * Connect to a host by connectionId — creates a new terminal session,
  * adds it to the store, and initiates the SSH connection via IPC.
  */
 export async function connectToHost(connectionId: string): Promise<void> {
+  const { sessions, addSession, updateSessionStatus, setActiveTab } = useTerminalStore.getState();
+
+  // 1. Check local store
+  let existing = Array.from(sessions.values()).find(
+    (s) => s.connectionId === connectionId && s.status === 'connected',
+  );
+
+  // 2. If not in store, check main process (prevents race after Cmd+R)
+  if (!existing) {
+    try {
+      const { ssh } = await window.api.app.getActiveSessions();
+      const sess = ssh.find((s) => s.connectionId === connectionId);
+      if (sess) {
+        let connectionName = 'SSH';
+        const conn = await window.api.connections.get(sess.connectionId);
+        if (conn) connectionName = conn.name;
+
+        addSession({
+          id: sess.id,
+          connectionId: sess.connectionId,
+          connectionName,
+          status: sess.status,
+          title: connectionName,
+        });
+        setActiveTab(sess.id);
+        useUIStore.getState().setActiveView('terminal');
+        return;
+      }
+    } catch (err) {
+      console.error('Failed to check active sessions:', err);
+    }
+  }
+
+  if (existing) {
+    setActiveTab(existing.id);
+    useUIStore.getState().setActiveView('terminal');
+    return;
+  }
+
   const sessionId = uuidv4();
-  const { addSession, updateSessionStatus } = useTerminalStore.getState();
 
   let connectionName = 'Unknown';
   try {

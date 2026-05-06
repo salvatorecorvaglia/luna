@@ -188,6 +188,44 @@ export function deleteCredential(connectionId: string): void {
   db.prepare('DELETE FROM credentials WHERE connection_id = ?').run(connectionId);
 }
 
+/** Shape of an S3 credential blob serialised through `storeCredential`. */
+export interface S3CredentialBlob {
+  accessKeyId: string;
+  secretAccessKey: string;
+  sessionToken?: string;
+}
+
+/**
+ * Retrieve an S3 credential. Returns null if no credential is stored or the
+ * blob isn't valid JSON / is missing required fields. Consumers should treat
+ * a null return as "credential missing or corrupt — re-enter".
+ */
+export function retrieveS3Credential(connectionId: string): S3CredentialBlob | null {
+  const raw = retrieveCredential(connectionId);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<S3CredentialBlob>;
+    if (
+      typeof parsed.accessKeyId !== 'string' ||
+      typeof parsed.secretAccessKey !== 'string' ||
+      !parsed.accessKeyId ||
+      !parsed.secretAccessKey
+    ) {
+      return null;
+    }
+    const out: S3CredentialBlob = {
+      accessKeyId: parsed.accessKeyId,
+      secretAccessKey: parsed.secretAccessKey,
+    };
+    if (typeof parsed.sessionToken === 'string' && parsed.sessionToken) {
+      out.sessionToken = parsed.sessionToken;
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Test-only: exposes the AES-GCM helpers so the round-trip and tamper-detection
  * paths can be exercised without a database. Production callers should always

@@ -3,7 +3,7 @@ import { basename } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { IPC, LIMITS } from '@shared/constants';
 import type { TransferType } from '@shared/types/transfer';
-import { sftpManager } from './sftp-manager';
+import { storageRegistry } from './storage/registry';
 import { emitToRenderer } from './emit';
 import { AbortError } from '../lib/errors';
 import { classifyTransferError } from '../lib/error-map';
@@ -64,7 +64,8 @@ class TransferQueue {
         const stats = await stat(localPath);
         size = stats.size;
       } else {
-        size = await sftpManager.statSize(sessionId, remotePath);
+        const provider = storageRegistry.require(sessionId);
+        size = await provider.statSize(sessionId, remotePath);
       }
     } catch {
       // size will be reported by progress callback
@@ -154,16 +155,11 @@ class TransferQueue {
         }
       };
 
+      const provider = storageRegistry.require(sessionId);
       if (type === 'download') {
-        await sftpManager.streamDownload(
-          sessionId,
-          remotePath,
-          localPath,
-          onStep,
-          controller.signal,
-        );
+        await provider.streamDownload(sessionId, remotePath, localPath, onStep, controller.signal);
       } else {
-        await sftpManager.streamUpload(sessionId, localPath, remotePath, onStep, controller.signal);
+        await provider.streamUpload(sessionId, localPath, remotePath, onStep, controller.signal);
       }
 
       emitToRenderer(IPC.TRANSFER_COMPLETE, { transferId: id });
@@ -219,6 +215,17 @@ class TransferQueue {
     }
     this.active.clear();
     this.queue = [];
+  }
+
+  cancelBySession(sessionId: string): void {
+    const toCancel: string[] = [];
+    for (const t of this.queue) {
+      if (t.sessionId === sessionId) toCancel.push(t.id);
+    }
+    for (const t of this.active.values()) {
+      if (t.sessionId === sessionId) toCancel.push(t.id);
+    }
+    for (const id of toCancel) this.cancel(id);
   }
 }
 

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { FileCode, FileImage, X } from 'lucide-react';
+import { FileCode, FileImage, FileText, X } from 'lucide-react';
 import { useSftpStore } from '@/stores/sftp-store';
 
 function detectLanguage(name: string): string {
@@ -26,6 +26,7 @@ function detectLanguage(name: string): string {
     md: 'markdown',
     sql: 'sql',
     toml: 'toml',
+    pdf: 'pdf',
   };
   return map[ext || ''] || 'text';
 }
@@ -84,6 +85,8 @@ export function FilePreview() {
               <div className="flex items-center gap-2.5">
                 {isImageType(previewFile.type) ? (
                   <FileImage className="h-4 w-4 text-pink-400" />
+                ) : previewFile.type === 'application/pdf' ? (
+                  <FileText className="h-4 w-4 text-red-400" />
                 ) : (
                   <FileCode className="h-4 w-4 text-green-400" />
                 )}
@@ -102,7 +105,7 @@ export function FilePreview() {
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-auto p-4">
+            <div className="flex-1 overflow-hidden">
               {isImageType(previewFile.type) ? (
                 <div className="flex h-full items-center justify-center bg-[repeating-conic-gradient(#80808012_0%_25%,transparent_0%_50%)] bg-[length:16px_16px]">
                   <img
@@ -111,10 +114,18 @@ export function FilePreview() {
                     className="max-h-full max-w-full object-contain rounded"
                   />
                 </div>
+              ) : previewFile.type === 'application/pdf' ? (
+                <iframe
+                  src={`data:application/pdf;base64,${previewFile.content}#toolbar=0`}
+                  className="h-full w-full rounded border-none bg-white"
+                  title={previewFile.name}
+                />
               ) : (
-                <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-foreground/90">
-                  {previewFile.content}
-                </pre>
+                <div className="h-full overflow-auto p-4">
+                  <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-foreground/90">
+                    {previewFile.content}
+                  </pre>
+                </div>
               )}
             </div>
           </motion.div>

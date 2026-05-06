@@ -154,4 +154,27 @@ export function registerShellHandlers(): void {
       return resolve(join(base, safeName));
     },
   );
+  ipcMain.handle(IPC.SHELL_READ_FILE, async (_event, filePath: string) => {
+    assertValidPath(filePath, 'filePath');
+    const expanded = resolve(filePath.replace(/^~/, homedir()));
+
+    // Jail check
+    const home = homedir();
+    if (!expanded.startsWith(home + '/') && expanded !== home) {
+      throw new Error('Access denied: file reading is restricted to the home directory');
+    }
+
+    const s = await stat(expanded);
+    const MAX_BYTES = 50 * 1024 * 1024; // 50 MB
+    if (s.size > MAX_BYTES) {
+      throw new Error(`File is too large (${Math.round(s.size / 1024 / 1024)}MB). Max 50MB.`);
+    }
+
+    const { readFile } = await import('fs/promises');
+    const data = await readFile(expanded);
+    return {
+      content: data.toString('base64'),
+      size: s.size,
+    };
+  });
 }

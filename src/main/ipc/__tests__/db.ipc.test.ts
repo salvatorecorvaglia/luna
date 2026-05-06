@@ -78,8 +78,8 @@ describe('db.ipc CONNECTION_IMPORT (privateKeyPath sanitization)', () => {
     };
     expect(result.imported).toBe(1);
     expect(result.skipped).toHaveLength(0);
-    // Args to INSERT: id, name, host, port, username, auth_type, private_key_path, ...
-    expect(inserts[0][6]).toBe(`${HOME}/.ssh/id_ed25519`);
+    // Args to INSERT: id, name, provider, host, port, username, auth_type, private_key_path, ...
+    expect(inserts[0][7]).toBe(`${HOME}/.ssh/id_ed25519`);
   });
 
   it('skips imports whose privateKeyPath escapes via ..', () => {
@@ -115,7 +115,7 @@ describe('db.ipc CONNECTION_IMPORT (privateKeyPath sanitization)', () => {
       skipped: { reason: string }[];
     };
     expect(result.imported).toBe(1);
-    expect(inserts[0][6]).toBeNull();
+    expect(inserts[0][7]).toBeNull();
   });
 
   it('skips records with missing required fields rather than throwing', () => {
