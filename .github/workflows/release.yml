@@ -186,10 +186,10 @@ jobs:
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           VERSION="${TAG#v}"
-          # Estrae la sezione tra la versione attuale e la successiva (o la fine del file)
+          # Extract the section between the current version and the next one (or end of file)
           NOTES=$(sed -e "1,/## \[$VERSION\]/d" -e '/## \[/,$d' CHANGELOG.md)
           
-          # Gestisce caratteri speciali per GitHub Actions output
+          # Handle special characters for GitHub Actions output
           {
             echo 'notes<<EOF'
             echo "$NOTES"
@@ -211,17 +211,23 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           VERSION="${TAG#v}"
           
-          # Sostituisce i riferimenti vX.Y.Z e lunar-X.Y.Z nel file JSX
+          # Replace vX.Y.Z and lunar-X.Y.Z references in the JSX file
           sed -i "s/v[0-9]\+\.[0-9]\+\.[0-9]\+/v$VERSION/g" docs/Download.jsx
           sed -i "s/lunar-[0-9]\+\.[0-9]\+\.[0-9]\+/lunar-$VERSION/g" docs/Download.jsx
           
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Checkout main per essere sicuri di poter pushare
+          # Checkout main to ensure we can push
           git fetch origin main
           git checkout main
           
           git add docs/Download.jsx
-          git commit -m "chore: update landing page to $TAG [skip ci]"
-          git push origin main
+          
+          # Only commit and push if there are actual changes
+          if ! git diff-index --quiet HEAD; then
+            git commit -m "chore: update landing page to $TAG [skip ci]"
+            git push origin main
+          else
+            echo "No changes detected for the landing page. Skipping commit."
+          fi
