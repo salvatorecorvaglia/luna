@@ -331,7 +331,6 @@ export function CommandPalette() {
             animate="animate"
             exit="exit"
             className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
-            onClick={() => setCommandPaletteOpen(false)}
           />
           <motion.div
             variants={dialogVariants}

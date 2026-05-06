@@ -120,7 +120,6 @@ export function SettingsPanel() {
             animate="animate"
             exit="exit"
             className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
-            onClick={() => setSettingsOpen(false)}
           />
           <motion.div
             variants={panelVariants}
