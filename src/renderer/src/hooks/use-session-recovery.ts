@@ -13,6 +13,8 @@ export function useSessionRecovery() {
         const { ssh, s3 } = await window.api.app.getActiveSessions();
 
         // Recover SSH sessions (Terminal)
+        const sshSessionIds = new Set(ssh.map((s) => s.id));
+        
         for (const sess of ssh) {
           const existing = useTerminalStore.getState().sessions.get(sess.id);
           if (!existing) {
@@ -35,6 +37,8 @@ export function useSessionRecovery() {
         }
 
         // Recover S3 sessions
+        const s3SessionIds = new Set(s3.map((s) => s.id));
+
         for (const sess of s3) {
           const existing = useSftpStore.getState().storageSessions.get(sess.id);
           if (!existing) {
@@ -47,6 +51,12 @@ export function useSessionRecovery() {
               initialPath: sess.initialPath,
             });
           }
+        }
+
+        // Cleanup: Clear sftpSessionId if it's no longer valid
+        const currentSftpSessionId = useSftpStore.getState().sftpSessionId;
+        if (currentSftpSessionId && !sshSessionIds.has(currentSftpSessionId) && !s3SessionIds.has(currentSftpSessionId)) {
+          useSftpStore.getState().setSftpSessionId(null);
         }
       } catch (err) {
         console.error('Failed to recover sessions:', err);

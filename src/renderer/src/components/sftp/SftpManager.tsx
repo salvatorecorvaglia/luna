@@ -133,11 +133,14 @@ export function SftpManager() {
     }
   }, [localPath, setLocalPath]);
 
+  const isSessionActive =
+    !!sftpSessionId && (sessions.has(sftpSessionId) || storageSessions.has(sftpSessionId));
+
   const {
     data: remoteEntries = [],
     isLoading: remoteLoading,
     error: remoteError,
-  } = useSftpDirectory(sftpSessionId, remotePath);
+  } = useSftpDirectory(sftpSessionId, remotePath, { enabled: isSessionActive });
 
   const {
     data: localEntries = [],

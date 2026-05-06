@@ -10,11 +10,15 @@ import type { StorageEntry } from '@shared/types/storage-provider';
  * Kept under the `useSftpDirectory` name to minimise churn at call sites
  * that haven't been migrated yet.
  */
-export function useSftpDirectory(sessionId: string | null, path: string) {
+export function useSftpDirectory(
+  sessionId: string | null,
+  path: string,
+  options: { enabled?: boolean } = {},
+) {
   return useQuery<StorageEntry[]>({
     queryKey: ['storage', sessionId, path],
     queryFn: () => window.api.storage.list({ sessionId: sessionId!, path }),
-    enabled: !!sessionId && !!path,
+    enabled: (options.enabled ?? true) && !!sessionId && !!path,
     staleTime: 30_000,
     retry: 1,
   });
