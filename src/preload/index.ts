@@ -23,6 +23,7 @@ import type {
   SftpStatParams,
   SftpTransferParams,
 } from '@shared/types/sftp';
+import type { CreateCommandSetInput, UpdateCommandSetInput } from '@shared/types/command-set';
 
 type CleanupFn = () => void;
 
@@ -156,6 +157,14 @@ const api = {
     get: (key: string) => invoke(IPC.SETTINGS_GET, key as never),
     set: (key: string, value: string) => invoke(IPC.SETTINGS_SET, { key: key as never, value }),
     getAll: () => invoke(IPC.SETTINGS_GET_ALL),
+  },
+
+  // Command Sets
+  commandSets: {
+    list: () => invoke(IPC.COMMAND_SET_LIST),
+    create: (input: CreateCommandSetInput) => invoke(IPC.COMMAND_SET_CREATE, input),
+    update: (input: UpdateCommandSetInput) => invoke(IPC.COMMAND_SET_UPDATE, input),
+    delete: (id: string) => invoke(IPC.COMMAND_SET_DELETE, id),
   },
 
   // App info & updates
