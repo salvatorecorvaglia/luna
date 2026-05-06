@@ -6,7 +6,7 @@
   "author": "Salvatore Corvaglia",
   "license": "MIT",
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "electron-vite dev --noSandbox",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "postinstall": "electron-builder install-app-deps",
