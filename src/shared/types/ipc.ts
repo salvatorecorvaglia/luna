@@ -5,6 +5,7 @@ import type {
   ExportedConnection,
   UpdateConnectionInput,
 } from './connection';
+import type { CommandSet, CreateCommandSetInput, UpdateCommandSetInput } from './command-set';
 import type {
   SshCloseEvent,
   SshConnectParams,
@@ -139,6 +140,12 @@ export interface IpcHandlerMap {
   'app:install-update': { request: void; response: void };
   'app:get-log-path': { request: void; response: string };
   'app:open-log-file': { request: void; response: void };
+
+  // Command Sets
+  'command-set:list': { request: void; response: CommandSet[] };
+  'command-set:create': { request: CreateCommandSetInput; response: CommandSet };
+  'command-set:update': { request: UpdateCommandSetInput; response: CommandSet };
+  'command-set:delete': { request: string; response: void };
 }
 
 // Streaming events (main -> renderer, via webContents.send)
@@ -172,3 +179,4 @@ export type * from './terminal';
 export type * from './sftp';
 export type * from './transfer';
 export type * from './settings';
+export type * from './command-set';

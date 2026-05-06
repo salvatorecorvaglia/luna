@@ -64,6 +64,12 @@ export const IPC = {
   APP_GET_LOG_PATH: 'app:get-log-path',
   APP_OPEN_LOG_FILE: 'app:open-log-file',
 
+  // Command Sets
+  COMMAND_SET_LIST: 'command-set:list',
+  COMMAND_SET_CREATE: 'command-set:create',
+  COMMAND_SET_UPDATE: 'command-set:update',
+  COMMAND_SET_DELETE: 'command-set:delete',
+
   // App update events (main -> renderer)
   APP_UPDATE_AVAILABLE: 'app:update-available',
   APP_UPDATE_DOWNLOAD_PROGRESS: 'app:update-download-progress',
