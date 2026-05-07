@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-05-07
+
+### Added
+
+- **S3 Object Storage**: Full integration for AWS S3 and S3-compatible providers (Minio, R2, etc.).
+- **Bucket Management**: Support for listing, creating, and deleting buckets.
+- **File Operations**: Multipart upload, streaming downloads, and file previews for S3 objects.
+- **Security Monitoring**: Credential security warnings and plaintext key detection.
+- **Accessibility**: Keyboard-navigable UI across the entire application.
+
+### Changed
+
+- Optimized Command Palette performance and refined S3 connection form.
+- Enhanced SFTP filename sanitization and SSH session stability.
+- Updated CI/CD workflows to use Node 24 and automated GitHub Pages deployment.
+
+### Fixed
+
+- Resolved S3 session token expiration and key encoding issues.
+- Fixed recursive prefix deletion for S3 storage.
+
 ## [0.2.3] - 2026-05-06
 
 ### Changed
