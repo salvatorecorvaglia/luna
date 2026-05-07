@@ -9,6 +9,7 @@ import {
   assertSafeRealAbsolutePath,
   assertValidPath,
   expandAndConfineToHome,
+  expandAndConfineToHomeSync,
 } from '../validate';
 
 const HOME = homedir();
@@ -98,6 +99,39 @@ describe('assertSafeAbsolutePath', () => {
   it('rejects paths outside the home directory', () => {
     expect(() => assertSafeAbsolutePath('/etc/passwd', 'p')).toThrow(/home directory/);
     expect(() => assertSafeAbsolutePath('/var/log', 'p')).toThrow(/home directory/);
+  });
+
+  it('rejects sibling-prefix paths (e.g. /home/foo-attacker when home is /home/foo)', () => {
+    // Regression: the previous startsWith(home + '/') check was correct on
+    // POSIX, but a future maintainer switching to backslash without the
+    // trailing-separator guard would let `<home>-attacker/...` slip through.
+    // path.relative-based check is structural, not lexical, so it covers both.
+    expect(() => assertSafeAbsolutePath(`${HOME}-attacker/secret`, 'p')).toThrow(/home directory/);
+  });
+});
+
+describe('expandAndConfineToHomeSync', () => {
+  it('expands ~/x to <home>/x', () => {
+    const out = expandAndConfineToHomeSync('~/keys/id_rsa', 'p');
+    expect(out).toBe(join(HOME, 'keys/id_rsa'));
+  });
+
+  it('expands a bare ~ to home', () => {
+    expect(expandAndConfineToHomeSync('~', 'p')).toBe(HOME);
+  });
+
+  it('rejects relative paths', () => {
+    expect(() => expandAndConfineToHomeSync('relative/path', 'p')).toThrow(/absolute or start with ~/);
+  });
+
+  it('rejects ~/.. escapes', () => {
+    expect(() => expandAndConfineToHomeSync('~/../etc/passwd', 'p')).toThrow(/home directory/);
+  });
+
+  it('rejects sibling-prefix paths', () => {
+    expect(() => expandAndConfineToHomeSync(`${HOME}-attacker/secret`, 'p')).toThrow(
+      /home directory/,
+    );
   });
 });
 

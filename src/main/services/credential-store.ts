@@ -6,11 +6,11 @@ import { getDatabase } from './database';
 import log from '../lib/logger';
 
 // The credentials table is created by migration 004_known_hosts_and_credentials.
-// A fallback CREATE IF NOT EXISTS is kept for databases initialized before that migration.
-let tableEnsured = false;
-
+// A fallback CREATE IF NOT EXISTS is kept for databases initialized before that
+// migration. We don't cache the result by a simple boolean: a future code path
+// (tests, multi-profile) could swap the SQLite handle, and a stale cache would
+// skip the create and crash. The CREATE statement is cheap to re-run.
 function ensureTable(): void {
-  if (tableEnsured) return;
   const db = getDatabase();
   db.exec(`
     CREATE TABLE IF NOT EXISTS credentials (
@@ -18,7 +18,6 @@ function ensureTable(): void {
       encrypted_data BLOB NOT NULL
     )
   `);
-  tableEnsured = true;
 }
 
 let encryptionKey: Buffer | null = null;
@@ -51,8 +50,13 @@ function getEncryptionKey(): Buffer {
   if (canWrap && existsSync(wrappedPath)) {
     try {
       const decoded = safeStorage.decryptString(readFileSync(wrappedPath));
-      // safeStorage.decryptString returns a string; convert to Buffer of raw bytes.
-      encryptionKey = Buffer.from(decoded, 'latin1');
+      // safeStorage.decryptString returns a string. The wrapper round-trips
+      // 32 random bytes as base64 — UTF-8 safe, and immune to any future
+      // Electron tightening that rejects non-UTF-8 input. A latin1-encoded
+      // legacy file would not start with valid base64 chars; fall back to
+      // latin1 in that case so existing installs keep working.
+      const fromBase64 = Buffer.from(decoded, 'base64');
+      encryptionKey = fromBase64.length === 32 ? fromBase64 : Buffer.from(decoded, 'latin1');
     } catch (err) {
       log.error('[Credentials] Failed to unwrap stored key — regenerating', err);
       encryptionKey = null;
@@ -77,7 +81,7 @@ function getEncryptionKey(): Buffer {
       encryptionKey = readFileSync(keyPath);
       if (canWrap) {
         try {
-          writeFileSync(wrappedPath, safeStorage.encryptString(encryptionKey.toString('latin1')));
+          writeFileSync(wrappedPath, safeStorage.encryptString(encryptionKey.toString('base64')));
         } catch (err) {
           log.warn('[Credentials] Could not wrap existing key with safeStorage', err);
         }
@@ -91,7 +95,7 @@ function getEncryptionKey(): Buffer {
     } else if (canWrap) {
       encryptionKey = randomBytes(32);
       try {
-        writeFileSync(wrappedPath, safeStorage.encryptString(encryptionKey.toString('latin1')));
+        writeFileSync(wrappedPath, safeStorage.encryptString(encryptionKey.toString('base64')));
       } catch (err) {
         // safeStorage said it was available but encryption still failed. Don't
         // silently fall back to plaintext on disk: credentials would be
@@ -121,6 +125,7 @@ function getEncryptionKey(): Buffer {
  * append identical lines forever.
  */
 const TAMPER_LOG_DEDUP_MS = 60_000;
+const TAMPER_LOG_DEDUP_MAX = 1_024;
 const tamperLogSeen = new Map<string, number>();
 
 function appendTamperLog(message: string): void {
@@ -134,6 +139,14 @@ function appendTamperLog(message: string): void {
     for (const [key, ts] of tamperLogSeen) {
       if (now - ts >= TAMPER_LOG_DEDUP_MS) tamperLogSeen.delete(key);
     }
+  }
+  // Hard cap: even if every message is fresh (e.g. attacker-controlled
+  // distinct failure messages), the map cannot grow without bound. Drop the
+  // oldest insertion-order entries to keep memory predictable.
+  while (tamperLogSeen.size > TAMPER_LOG_DEDUP_MAX) {
+    const oldest = tamperLogSeen.keys().next();
+    if (oldest.done) break;
+    tamperLogSeen.delete(oldest.value);
   }
   try {
     const path = join(app.getPath('userData'), 'credential-tamper.log');

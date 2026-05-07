@@ -12,6 +12,7 @@ import {
   useLocalDirectory,
   useSftpDirectory,
 } from '@/hooks/use-sftp';
+import { useSftpDnd } from '@/hooks/use-sftp-dnd';
 import { type FileEntry, FilePane } from './FilePane';
 import { TransferQueue } from './TransferQueue';
 import { FilePreview } from './FilePreview';
@@ -150,123 +151,10 @@ export function SftpManager() {
 
   const addTransfer = useTransferStore((s) => s.addTransfer);
 
-  // Reject filenames that would traverse out of the destination directory or
-  // contain shell-hostile characters. Returns the cleaned basename, or null
-  // if the input can't be safely used as a final path component.
-  const sanitizeFilename = useCallback((raw: string): string | null => {
-    if (typeof raw !== 'string' || raw.length === 0) return null;
-    // Strip any path components from either separator style.
-    const base = raw.split('/').pop()?.split('\\').pop() ?? '';
-    const trimmed = base.trim();
-    // Reject NUL / control chars (U+0000–U+001F, U+007F): no legitimate
-    // filename uses them and many file systems mishandle them.
-    // eslint-disable-next-line no-control-regex
-    const CONTROL_CHARS = /[\x00-\x1f\x7f]/;
-    if (!trimmed || trimmed === '.' || trimmed === '..' || CONTROL_CHARS.test(trimmed)) {
-      return null;
-    }
-    return trimmed;
-  }, []);
-
-  // Drag-and-drop: remote -> local (download)
-  const handleLocalDrop = useCallback(
-    async (e: React.DragEvent) => {
-      e.preventDefault();
-      const remoteSrc = e.dataTransfer.getData('remote-path');
-      const rawFileName = e.dataTransfer.getData('file-name');
-      const fileSize = parseInt(e.dataTransfer.getData('file-size') || '0', 10);
-      const isDirectory = e.dataTransfer.getData('is-directory') === 'true';
-      if (!remoteSrc || !sftpSessionId) return;
-
-      // Reject directories before any IPC: directory transfers aren't
-      // implemented yet and the previous "warn and continue" path would
-      // still enqueue a doomed transfer.
-      if (isDirectory) {
-        toast.warning(
-          'Directory transfers are not yet supported. Please transfer individual files.',
-        );
-        return;
-      }
-
-      const fileName = sanitizeFilename(rawFileName);
-      if (!fileName) {
-        toast.error('Refused to transfer a file with an unsafe name.');
-        return;
-      }
-
-      const localDest = await window.api.shell.joinPath(localPath, fileName);
-      try {
-        const transferId = await window.api.storage.download({
-          sessionId: sftpSessionId,
-          remotePath: remoteSrc,
-          localPath: localDest,
-        });
-        addTransfer({
-          id: transferId,
-          type: 'download',
-          localPath: localDest,
-          remotePath: remoteSrc,
-          fileName,
-          size: fileSize,
-          transferred: 0,
-          status: 'queued',
-          bytesPerSec: 0,
-          sessionId: sftpSessionId,
-        });
-      } catch (err: unknown) {
-        toast.error(`Download failed: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    },
-    [sftpSessionId, localPath, addTransfer, sanitizeFilename],
-  );
-
-  // Drag-and-drop: local -> remote (upload)
-  const handleRemoteDrop = useCallback(
-    async (e: React.DragEvent) => {
-      e.preventDefault();
-      const localSrc = e.dataTransfer.getData('local-path');
-      const rawFileName = e.dataTransfer.getData('file-name');
-      const fileSize = parseInt(e.dataTransfer.getData('file-size') || '0', 10);
-      const isDirectory = e.dataTransfer.getData('is-directory') === 'true';
-      if (!localSrc || !sftpSessionId) return;
-
-      if (isDirectory) {
-        toast.warning(
-          'Directory transfers are not yet supported. Please transfer individual files.',
-        );
-        return;
-      }
-
-      const fileName = sanitizeFilename(rawFileName);
-      if (!fileName) {
-        toast.error('Refused to transfer a file with an unsafe name.');
-        return;
-      }
-      const remoteDest = remotePath === '/' ? `/${fileName}` : `${remotePath}/${fileName}`;
-      try {
-        const transferId = await window.api.storage.upload({
-          sessionId: sftpSessionId,
-          localPath: localSrc,
-          remotePath: remoteDest,
-        });
-        addTransfer({
-          id: transferId,
-          type: 'upload',
-          localPath: localSrc,
-          remotePath: remoteDest,
-          fileName,
-          size: fileSize,
-          transferred: 0,
-          status: 'queued',
-          bytesPerSec: 0,
-          sessionId: sftpSessionId,
-        });
-      } catch (err: unknown) {
-        toast.error(`Upload failed: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    },
-    [sftpSessionId, remotePath, addTransfer, sanitizeFilename],
-  );
+  // Drag-and-drop transfer handlers live in their own hook so this component
+  // can stay focused on layout, sessions, and dialog state.
+  const { handleLocalDragStart, handleRemoteDragStart, handleLocalDrop, handleRemoteDrop } =
+    useSftpDnd({ sftpSessionId, localPath, remotePath });
 
   // Context menu download: remote -> local
   const handleRemoteDownload = useCallback(
@@ -331,20 +219,6 @@ export function SftpManager() {
     },
     [sftpSessionId, remotePath, addTransfer],
   );
-
-  const handleLocalDragStart = useCallback((entry: FileEntry, e: React.DragEvent) => {
-    e.dataTransfer.setData('local-path', entry.path);
-    e.dataTransfer.setData('file-name', entry.name);
-    e.dataTransfer.setData('file-size', String(entry.size || 0));
-    e.dataTransfer.setData('is-directory', String(entry.isDirectory));
-  }, []);
-
-  const handleRemoteDragStart = useCallback((entry: FileEntry, e: React.DragEvent) => {
-    e.dataTransfer.setData('remote-path', entry.path);
-    e.dataTransfer.setData('file-name', entry.name);
-    e.dataTransfer.setData('file-size', String(entry.size || 0));
-    e.dataTransfer.setData('is-directory', String(entry.isDirectory));
-  }, []);
 
   // Dialog state for rename, delete, mkdir
   const [renameTarget, setRenameTarget] = useState<FileEntry | null>(null);

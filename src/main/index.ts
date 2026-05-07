@@ -11,9 +11,19 @@ import { transferQueue } from './services/transfer-queue';
 import { initAutoUpdater } from './services/updater';
 import log from './lib/logger';
 
-// Global error handlers
+// Global error handlers. After an uncaughtException the process state is
+// undefined per Node best practice — flush logs and exit so a supervisor /
+// auto-relaunch can restart cleanly rather than letting the app limp along
+// with corrupted internals.
 process.on('uncaughtException', (err) => {
   log.error('[Main] Uncaught exception:', err);
+  // Best-effort: shut the DB cleanly so the WAL is flushed before exit.
+  try {
+    closeDatabase();
+  } catch {
+    /* already in failure mode */
+  }
+  process.exit(1);
 });
 
 process.on('unhandledRejection', (reason) => {
@@ -56,10 +66,12 @@ function createWindow(): void {
   mainWindow.webContents.setWindowOpenHandler((details) => {
     try {
       const parsed = new URL(details.url);
-      if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+      // https only — for a credential-handling app we don't want to launch
+      // plaintext-http links, custom protocols, file://, data:, etc.
+      if (parsed.protocol === 'https:') {
         shell.openExternal(details.url);
       } else {
-        log.warn('[Main] Blocked openExternal for non-http(s) URL:', details.url);
+        log.warn('[Main] Blocked openExternal for non-https URL:', details.url);
       }
     } catch {
       log.warn('[Main] Blocked openExternal for invalid URL:', details.url);
@@ -95,7 +107,7 @@ app.whenReady().then(() => {
               "frame-ancestors 'none'; " +
               "base-uri 'self'; " +
               "form-action 'none'; " +
-              "frame-src 'self' data:; " +
+              "frame-src 'self'; " +
               "object-src 'none'",
           ],
         },
@@ -151,20 +163,30 @@ app.on('before-quit', (event) => {
 
   // Watchdog: if any cleanup step hangs (a stuck SFTP/S3 abort that never
   // settles, a renderer process refusing to exit, etc.) force the process
-  // down rather than letting "Quit" appear to do nothing.
+  // down rather than letting "Quit" appear to do nothing. Critically, we
+  // still flush the DB inside the watchdog — otherwise an SQLite WAL can
+  // be left dangling and the next launch may surface a half-applied write.
   const watchdog = setTimeout(() => {
     log.warn('[Main] before-quit watchdog fired — forcing exit');
+    try {
+      closeDatabase();
+    } catch (err) {
+      log.error('[Main] watchdog closeDatabase error:', err);
+    }
     app.exit(0);
   }, 3000);
-  watchdog.unref?.();
+  watchdog.unref();
 
   (async () => {
     try {
       transferQueue.cancelAll();
       sftpManager.dispose();
       sshManager.disconnectAll();
-      // Give in-flight aborts a short window to settle.
-      await new Promise<void>((resolve) => setTimeout(resolve, 250));
+      // Give in-flight aborts a window to settle. SFTP/S3 abort handlers
+      // run asynchronously after `controller.abort()`, so an immediate quit
+      // can leave a local file descriptor half-flushed. 500 ms is well under
+      // the watchdog (3 s) and is invisible to the user during normal quit.
+      await new Promise<void>((resolve) => setTimeout(resolve, 500));
     } catch (err) {
       log.error('[Main] before-quit cleanup error:', err);
     } finally {
