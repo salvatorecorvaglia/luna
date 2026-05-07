@@ -335,6 +335,28 @@ button:focus-visible,
   margin-left: 0.125rem;
 }
 
+/* Shared style for the "clear" affordance inside small inputs
+   (Sidebar search, FilePane filter). Keeps appearance and hit area
+   identical across surfaces. */
+.input-clear-btn {
+  position: absolute;
+  right: 0.375rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.25rem;
+  width: 1.25rem;
+  border-radius: var(--radius-sm);
+  color: var(--color-muted-foreground);
+  cursor: pointer;
+}
+.input-clear-btn:hover {
+  color: var(--color-foreground);
+  background-color: var(--color-accent);
+}
+
 /* ──────────────────────────────────────────────────
    Reduced motion
    ────────────────────────────────────────────────── */

@@ -128,7 +128,7 @@ export function Sidebar() {
                 {searchQuery && (
                   <button
                     onClick={() => setSearchQuery('')}
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground/50 hover:text-foreground"
+                    className="input-clear-btn"
                     aria-label="Clear search"
                   >
                     <X className="h-3 w-3" aria-hidden="true" />
