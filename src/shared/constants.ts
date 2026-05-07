@@ -106,6 +106,12 @@ export const LIMITS = {
   MAX_PREVIEW_BYTES: 50 * 1024 * 1024,
   /** Hard cap on terminal scrollback lines (settings UI clamps to this). */
   MAX_SCROLLBACK: 100_000,
+  /** Minimum terminal font size (px). */
+  MIN_FONT_SIZE: 8,
+  /** Maximum terminal font size (px). */
+  MAX_FONT_SIZE: 32,
+  /** Default terminal font size (px). */
+  DEFAULT_FONT_SIZE: 14,
   /** Hard cap on concurrent SFTP transfers. */
   MAX_CONCURRENT_TRANSFERS: 10,
   /** Per-op SFTP timeout (ms). list/stat/mkdir/rename/delete/read all use this. */

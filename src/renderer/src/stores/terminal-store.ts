@@ -1,5 +1,24 @@
 import { create } from 'zustand';
 import type { PaneNode, SessionStatus, TerminalThemeName } from '@shared/types/terminal';
+import { LIMITS } from '@shared/constants';
+
+function clampFontSize(size: number): number {
+  if (!Number.isFinite(size)) return LIMITS.DEFAULT_FONT_SIZE;
+  return Math.min(LIMITS.MAX_FONT_SIZE, Math.max(LIMITS.MIN_FONT_SIZE, Math.round(size)));
+}
+
+function getInitialFontSize(): number {
+  try {
+    const saved = localStorage.getItem('lunar-terminal-font-size');
+    if (saved) {
+      const parsed = Number(saved);
+      if (Number.isFinite(parsed)) return clampFontSize(parsed);
+    }
+  } catch {
+    // localStorage may be unavailable
+  }
+  return LIMITS.DEFAULT_FONT_SIZE;
+}
 
 const VALID_THEMES: TerminalThemeName[] = [
   'dracula',
@@ -58,7 +77,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   activeTabId: null,
   splitTree: null,
   terminalTheme: getInitialTerminalTheme(),
-  fontSize: 14,
+  fontSize: getInitialFontSize(),
   scrollback: 10000,
 
   addSession: (session) =>
@@ -116,7 +135,16 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     window.api.settings.set('terminal.theme', JSON.stringify(theme));
     set({ terminalTheme: theme });
   },
-  setFontSize: (size) => set({ fontSize: size }),
+  setFontSize: (size) => {
+    const clamped = clampFontSize(size);
+    try {
+      localStorage.setItem('lunar-terminal-font-size', String(clamped));
+    } catch {
+      // localStorage may be unavailable
+    }
+    void window.api.settings.set('terminal.fontSize', JSON.stringify(clamped));
+    set({ fontSize: clamped });
+  },
   setScrollback: (lines) => set({ scrollback: lines }),
 
   renameTab: (sessionId, title) =>
