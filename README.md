@@ -54,7 +54,7 @@ Lunar has undergone a rigorous architectural audit to ensure the highest standar
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (v18 or higher)
+- [Node.js](https://nodejs.org/) (v22 or higher)
 - [npm](https://www.npmjs.com/)
 
 ### Installation
