@@ -277,7 +277,9 @@ export function FileList({
       >
         <button
           role="columnheader"
-          aria-sort={sortField === 'name' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+          aria-sort={
+            sortField === 'name' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'
+          }
           onClick={() => handleSort('name')}
           className="flex flex-1 items-center gap-1 px-3 py-1.5 hover:text-foreground cursor-pointer"
         >
@@ -285,7 +287,9 @@ export function FileList({
         </button>
         <button
           role="columnheader"
-          aria-sort={sortField === 'size' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+          aria-sort={
+            sortField === 'size' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'
+          }
           onClick={() => handleSort('size')}
           className="flex w-20 items-center justify-end gap-1 px-2 py-1.5 hover:text-foreground cursor-pointer"
         >

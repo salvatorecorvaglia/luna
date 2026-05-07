@@ -1,6 +1,17 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { Database, Download, FileText, Info, Terminal, Upload, Wifi, X } from 'lucide-react';
+import {
+  Database,
+  Download,
+  FileText,
+  Info,
+  Minus,
+  Plus,
+  Terminal,
+  Upload,
+  Wifi,
+  X,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/ui-store';
@@ -412,10 +423,7 @@ function ToggleRow({
 
   return (
     <div className="flex items-center justify-between py-1">
-      <span
-        id={labelId}
-        className={cn('text-xs text-muted-foreground', disabled && 'opacity-60')}
-      >
+      <span id={labelId} className={cn('text-xs text-muted-foreground', disabled && 'opacity-60')}>
         {label}
       </span>
       <button
@@ -428,9 +436,7 @@ function ToggleRow({
         className={cn(
           'flex h-5 w-9 items-center rounded-full px-0.5 transition-colors',
           enabled ? 'bg-emerald-500' : 'bg-muted',
-          disabled
-            ? 'cursor-not-allowed opacity-50'
-            : 'cursor-pointer',
+          disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
         )}
       >
         <div
@@ -461,23 +467,49 @@ function EditableNumberRow({
   suffix?: string;
   onChange: (value: number) => void;
 }) {
+  // Custom stepper buttons replace the native browser spinners, which are
+  // tiny (~14px wide on macOS), inconsistent across platforms, and a pain
+  // to hit on a trackpad. The +/- buttons are 28px (≥ touch-friendly).
+  const clamp = (v: number) => Math.min(max, Math.max(min, v));
+  const inputId = useId();
   return (
     <div className="flex items-center justify-between py-1">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <div className="flex items-center gap-1.5">
+      <label htmlFor={inputId} className="text-xs text-muted-foreground">
+        {label}
+      </label>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => onChange(clamp(value - step))}
+          disabled={value <= min}
+          aria-label={`Decrease ${label}`}
+          className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <Minus className="h-3 w-3" />
+        </button>
         <input
-          type="number"
+          id={inputId}
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
           value={value}
-          min={min}
-          max={max}
-          step={step}
           onChange={(e) => {
             const v = parseInt(e.target.value, 10);
-            if (!isNaN(v) && v >= min && v <= max) onChange(v);
+            if (!isNaN(v)) onChange(clamp(v));
           }}
-          className="w-16 rounded border border-border bg-background px-2 py-0.5 text-right text-xs font-medium text-foreground outline-none focus:border-ring"
+          aria-label={label}
+          className="h-7 w-14 rounded-md border border-border bg-background px-2 text-center text-xs font-medium tabular-nums text-foreground outline-none focus:border-ring"
         />
-        {suffix && <span className="text-[11px] text-muted-foreground">{suffix}</span>}
+        <button
+          type="button"
+          onClick={() => onChange(clamp(value + step))}
+          disabled={value >= max}
+          aria-label={`Increase ${label}`}
+          className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <Plus className="h-3 w-3" />
+        </button>
+        {suffix && <span className="ml-1 text-[11px] text-muted-foreground">{suffix.trim()}</span>}
       </div>
     </div>
   );

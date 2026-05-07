@@ -170,14 +170,20 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
 
     // Paste helper — warn before pasting multi-line content into a shell that
     // hasn't enabled bracketed-paste mode (newlines would execute commands).
+    // The warning is a toast with an explicit confirm action so we don't
+    // block the renderer with window.confirm and don't run input through a
+    // shell ahead of the user's intent.
     const pasteText = (text: string) => {
       if (!text) return;
       const bracketed = (terminal.modes as { bracketedPasteMode?: boolean })?.bracketedPasteMode;
       if (!bracketed && /\r|\n/.test(text)) {
-        const ok = window.confirm(
-          'The clipboard contains multiple lines. Pasting may execute commands. Continue?',
-        );
-        if (!ok) return;
+        toast.warning('Clipboard contains multiple lines — pasting may execute commands.', {
+          action: {
+            label: 'Paste anyway',
+            onClick: () => terminal.paste(text),
+          },
+        });
+        return;
       }
       terminal.paste(text);
     };

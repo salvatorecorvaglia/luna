@@ -2,7 +2,7 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import { ArrowRightToLine, Copy, Loader2, Pencil, Plus, WifiOff, X, XCircle } from 'lucide-react';
 import { motion, Reorder } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { type TerminalSession, useTerminalStore } from '@/stores/terminal-store';
+import { useTerminalStore } from '@/stores/terminal-store';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { PromptDialog } from '@/components/common/PromptDialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
@@ -73,7 +73,6 @@ export function TerminalTabs({ onNewTab }: TerminalTabsProps) {
             <Tab
               key={sessionId}
               sessionId={sessionId}
-              session={session}
               isActive={sessionId === activeTabId}
               onActivate={setActiveTab}
               onClose={handleCloseTab}
@@ -131,7 +130,6 @@ export function TerminalTabs({ onNewTab }: TerminalTabsProps) {
 
 interface TabProps {
   sessionId: string;
-  session: TerminalSession;
   isActive: boolean;
   onActivate: (sessionId: string) => void;
   onClose: (sessionId: string) => void;
@@ -143,7 +141,6 @@ interface TabProps {
 
 const Tab = memo(function Tab({
   sessionId,
-  session,
   isActive,
   onActivate,
   onClose,
@@ -152,19 +149,10 @@ const Tab = memo(function Tab({
   onCloseOthers,
   onCloseToRight,
 }: TabProps) {
-  const statusIcon = () => {
-    switch (session.status) {
-      case 'connected':
-        return <div className="h-2 w-2 rounded-full bg-emerald-500" />;
-      case 'connecting':
-      case 'reconnecting':
-        return <Loader2 className="h-3 w-3 text-amber-500 animate-spin" />;
-      case 'error':
-        return <WifiOff className="h-3 w-3 text-destructive" />;
-      default:
-        return <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />;
-    }
-  };
+  // Read the session directly from the store so this tab always reflects
+  // the latest status — independent of the parent's memo comparison. Keeps
+  // Sidebar and Tab status indicators in lockstep on disconnect events.
+  const session = useTerminalStore((s) => s.sessions.get(sessionId));
 
   const contextItems: ContextMenuItem[] = useMemo(
     () => [
@@ -200,6 +188,22 @@ const Tab = memo(function Tab({
     [sessionId, onRename, onDuplicate, onCloseOthers, onCloseToRight, onClose],
   );
 
+  if (!session) return null;
+
+  const statusIcon = () => {
+    switch (session.status) {
+      case 'connected':
+        return <div className="h-2 w-2 rounded-full bg-emerald-500" />;
+      case 'connecting':
+      case 'reconnecting':
+        return <Loader2 className="h-3 w-3 text-amber-500 animate-spin" />;
+      case 'error':
+        return <WifiOff className="h-3 w-3 text-destructive" />;
+      default:
+        return <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />;
+    }
+  };
+
   return (
     <Reorder.Item
       value={sessionId}
@@ -226,10 +230,7 @@ const Tab = memo(function Tab({
             />
           )}
           {statusIcon()}
-          <span
-            className="truncate font-medium"
-            title={session.title || session.connectionName}
-          >
+          <span className="truncate font-medium" title={session.title || session.connectionName}>
             {session.title || session.connectionName}
           </span>
           <button
