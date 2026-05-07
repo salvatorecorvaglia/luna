@@ -59,6 +59,7 @@ export function TerminalTabs({ onNewTab }: TerminalTabsProps) {
       aria-label="Terminal tabs (drag to reorder)"
     >
       <Reorder.Group
+        transition={{ duration: 0 }}
         axis="x"
         values={tabOrder}
         onReorder={setTabOrder}
@@ -206,6 +207,8 @@ const Tab = memo(function Tab({
 
   return (
     <Reorder.Item
+      initial={false}
+      transition={{ duration: 0 }}
       value={sessionId}
       as="div"
       role="tab"
@@ -223,11 +226,7 @@ const Tab = memo(function Tab({
       <ContextMenu items={contextItems}>
         <div className="flex h-full w-full items-center gap-2">
           {isActive && (
-            <motion.div
-              layoutId="active-tab-indicator"
-              className="absolute inset-x-0 top-0 h-[2px] bg-primary"
-              transition={{ type: 'spring', damping: 30, stiffness: 400 }}
-            />
+            <div className="absolute inset-x-0 top-0 h-[2px] bg-primary" />
           )}
           {statusIcon()}
           <span className="truncate font-medium" title={session.title || session.connectionName}>
