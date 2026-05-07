@@ -1,8 +1,7 @@
 import { dialog, ipcMain } from 'electron';
 import { readFile } from 'fs/promises';
-import { homedir } from 'os';
-import { isAbsolute, resolve as resolvePath } from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { expandAndConfineToHomeSync } from '../lib/validate';
 import { IPC, LIMITS } from '@shared/constants';
 import { type ConnectionRow, getDatabase } from '../services/database';
 import { transferQueue } from '../services/transfer-queue';
@@ -261,23 +260,30 @@ export function registerDbHandlers(): void {
    * Imports may originate from another machine — accept ~ expansion but reject
    * anything that resolves outside home. Returns null when the path can be
    * stored as-is (after canonicalization), or throws to signal "skip this row".
+   * Cross-platform: uses validate.ts's home-confinement helper so a Windows
+   * import from a macOS export doesn't slip past a POSIX-only prefix check.
    */
   function sanitizeImportedKeyPath(input: string | undefined | null): string | null {
     if (!input) return null;
-    if (typeof input !== 'string' || input.includes('\0')) {
-      throw new Error('privateKeyPath must be a string without null bytes');
+    if (typeof input !== 'string') {
+      throw new Error('privateKeyPath must be a string');
     }
-    const home = homedir();
-    const expanded =
-      input === '~' ? home : input.startsWith('~/') ? `${home}/${input.slice(2)}` : input;
-    if (!isAbsolute(expanded)) {
-      throw new Error('privateKeyPath must be absolute or start with ~');
+    return expandAndConfineToHomeSync(input, 'privateKeyPath');
+  }
+
+  // Caps on import payloads. The renderer-side IPC channel accepts an arbitrary
+  // array, so without these a misbehaving renderer (or a poisoned import file)
+  // could insert millions of rows or megabyte-long names.
+  const MAX_IMPORT_CONNECTIONS = 5_000;
+  const MAX_IMPORT_FIELD_LEN = 1_024;
+  function assertImportFieldLen(
+    val: string | undefined | null,
+    label: string,
+    max = MAX_IMPORT_FIELD_LEN,
+  ): void {
+    if (typeof val === 'string' && val.length > max) {
+      throw new Error(`${label} exceeds ${max} characters`);
     }
-    const resolved = resolvePath(expanded);
-    if (resolved !== home && !resolved.startsWith(home + '/')) {
-      throw new Error('privateKeyPath must be inside the home directory');
-    }
-    return resolved;
   }
 
   function importConnections(connections: ExportedConnection[]): {
@@ -285,6 +291,11 @@ export function registerDbHandlers(): void {
     skipped: { name: string; reason: string }[];
   } {
     if (!Array.isArray(connections)) throw new Error('Expected an array of connections');
+    if (connections.length > MAX_IMPORT_CONNECTIONS) {
+      throw new Error(
+        `Import contains ${connections.length} connections (max ${MAX_IMPORT_CONNECTIONS})`,
+      );
+    }
     const insert = db.prepare(
       `INSERT INTO connections (
         id, name, provider, host, port, username, auth_type, private_key_path,
@@ -305,6 +316,23 @@ export function registerDbHandlers(): void {
         const label = conn?.name ?? '(unnamed)';
         if (!conn?.name) {
           skipped.push({ name: label, reason: 'missing name' });
+          continue;
+        }
+        try {
+          assertImportFieldLen(conn.name, 'name');
+          assertImportFieldLen(conn.host, 'host');
+          assertImportFieldLen(conn.username, 'username');
+          assertImportFieldLen(conn.endpoint, 'endpoint');
+          assertImportFieldLen(conn.region, 'region');
+          assertImportFieldLen(conn.defaultBucket, 'defaultBucket');
+          assertImportFieldLen(conn.folder, 'folder');
+          assertImportFieldLen(conn.colorTag, 'colorTag', 64);
+          assertImportFieldLen(conn.privateKeyPath, 'privateKeyPath', 4096);
+        } catch (err) {
+          skipped.push({
+            name: label,
+            reason: err instanceof Error ? err.message : 'field too long',
+          });
           continue;
         }
         const provider = conn.provider ?? 'sftp';
