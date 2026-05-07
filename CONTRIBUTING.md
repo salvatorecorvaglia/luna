@@ -37,7 +37,7 @@ Have an idea for a new feature?
 
 ### Prerequisites
 
-- Node.js ≥ 18.0.0
+- Node.js ≥ 22.0.0
 - npm
 
 ### Setup
