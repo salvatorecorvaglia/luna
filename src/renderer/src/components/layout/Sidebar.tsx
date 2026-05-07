@@ -382,11 +382,15 @@ const ConnectionItem = memo(function ConnectionItem({
   };
 
   const contextMenuItems: ContextMenuItem[] = [
-    {
-      label: isConnected ? 'Show Session' : 'Connect',
-      icon: <Terminal className="h-3.5 w-3.5" />,
-      onClick: handleConnect,
-    },
+    ...(!isConnected
+      ? [
+          {
+            label: 'Connect',
+            icon: <Terminal className="h-3.5 w-3.5" />,
+            onClick: handleConnect,
+          },
+        ]
+      : []),
     ...(isConnected || isConnecting
       ? [
           {
