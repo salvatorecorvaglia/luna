@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-05-07
+
+### Added
+
+- **Modular Components**: Refactored the connection form into modular components for better maintainability and extensibility.
+
+### Changed
+
+- **Security & Infrastructure**: Updated minimum Node.js version to 22 and refined the security support policy.
+- **Improved Stability**: Enhanced connection import security, path validation logic, and general system stability.
+- **UI/UX Refinements**: Implemented IPC error unwrapping for cleaner and more descriptive UI notifications.
+
 ## [0.3.1] - 2026-05-07
 
 ### Added
