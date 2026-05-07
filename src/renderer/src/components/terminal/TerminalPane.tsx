@@ -5,11 +5,18 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { SearchAddon } from '@xterm/addon-search';
 import { WebglAddon } from '@xterm/addon-webgl';
+import { CanvasAddon } from '@xterm/addon-canvas';
+import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { ChevronDown, ChevronUp, RefreshCcw, X } from 'lucide-react';
 import '@xterm/xterm/css/xterm.css';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { terminalThemes } from '@/themes/terminal';
+import { LIMITS } from '@shared/constants';
 import type { SessionStatus } from '@shared/types/terminal';
+
+const isMac =
+  typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+const isLinux = typeof navigator !== 'undefined' && /Linux/.test(navigator.platform);
 
 interface TerminalPaneProps {
   sessionId: string;
@@ -57,18 +64,9 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
     }, 100);
   }, [sessionId]);
 
-  // Ctrl+F to open search
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
-        e.preventDefault();
-        setSearchOpen(true);
-        // Focus on the next microtask so the input has been mounted by then.
-        queueMicrotask(() => searchInputRef.current?.focus());
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+  const openSearch = useCallback(() => {
+    setSearchOpen(true);
+    queueMicrotask(() => searchInputRef.current?.focus());
   }, []);
 
   const closeSearch = useCallback(() => {
@@ -120,10 +118,13 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
       fitAddon = new FitAddon();
       const webLinksAddon = new WebLinksAddon();
       searchAddon = new SearchAddon();
+      const unicode11Addon = new Unicode11Addon();
 
       terminal.loadAddon(fitAddon);
       terminal.loadAddon(webLinksAddon);
       terminal.loadAddon(searchAddon);
+      terminal.loadAddon(unicode11Addon);
+      terminal.unicode.activeVersion = '11';
 
       terminal.open(containerRef.current);
     } catch (err) {
@@ -132,14 +133,19 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
       return;
     }
 
-    // Try WebGL, fall back to canvas. On context loss, dispose the addon
-    // and let xterm fall back to its DOM/canvas renderer instead of going
-    // black silently. Notify the user once so a sudden loss isn't mysterious.
+    // Try WebGL; on context loss dispose it and load the Canvas addon so we
+    // don't drop all the way down to xterm's DOM renderer (which is much
+    // slower). Notify the user once so a sudden loss isn't mysterious.
     try {
       const webglAddon = new WebglAddon();
       let webglNoticeShown = false;
       webglAddon.onContextLoss(() => {
         webglAddon.dispose();
+        try {
+          terminal.loadAddon(new CanvasAddon());
+        } catch {
+          // DOM renderer is the last-resort fallback.
+        }
         if (!webglNoticeShown) {
           webglNoticeShown = true;
           toast.warning('Terminal GPU acceleration was lost — switched to software rendering.', {
@@ -149,7 +155,12 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
       });
       terminal.loadAddon(webglAddon);
     } catch {
-      // Canvas renderer is the default fallback when WebGL itself can't initialize.
+      // WebGL itself failed to initialize — try Canvas, then fall through to DOM.
+      try {
+        terminal.loadAddon(new CanvasAddon());
+      } catch {
+        // DOM renderer is the last-resort fallback.
+      }
     }
 
     fitAddon.fit();
@@ -157,6 +168,177 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
     searchAddonRef.current = searchAddon;
+
+    // Paste helper — warn before pasting multi-line content into a shell that
+    // hasn't enabled bracketed-paste mode (newlines would execute commands).
+    const pasteText = (text: string) => {
+      if (!text) return;
+      const bracketed = (terminal.modes as { bracketedPasteMode?: boolean })?.bracketedPasteMode;
+      if (!bracketed && /\r|\n/.test(text)) {
+        const ok = window.confirm(
+          'The clipboard contains multiple lines. Pasting may execute commands. Continue?',
+        );
+        if (!ok) return;
+      }
+      terminal.paste(text);
+    };
+
+    const copySelection = () => {
+      if (!terminal.hasSelection()) return false;
+      const sel = terminal.getSelection();
+      if (!sel) return false;
+      void navigator.clipboard.writeText(sel).catch(() => {
+        toast.error('Failed to copy to clipboard.');
+      });
+      terminal.clearSelection();
+      return true;
+    };
+
+    const readClipboardAndPaste = () => {
+      navigator.clipboard
+        .readText()
+        .then((text) => pasteText(text))
+        .catch(() => toast.error('Failed to read from clipboard.'));
+    };
+
+    // Cross-platform keyboard shortcuts. Returning false suppresses xterm's
+    // default handling. CRITICAL: never intercept plain Ctrl+C on
+    // Linux/Windows — it must reach the remote shell as SIGINT.
+    terminal.attachCustomKeyEventHandler((e) => {
+      if (e.type !== 'keydown') return true;
+      const meta = isMac ? e.metaKey : e.ctrlKey && e.shiftKey;
+      const mod = isMac ? e.metaKey : e.ctrlKey;
+
+      // Copy
+      if (meta && (e.key === 'c' || e.key === 'C')) {
+        if (copySelection()) {
+          e.preventDefault();
+          return false;
+        }
+        // No selection: on macOS Cmd+C is harmless; on Linux/Win this branch
+        // is Ctrl+Shift+C, so still suppress to avoid any default action.
+        if (!isMac) return false;
+        return true;
+      }
+      // Paste
+      if (meta && (e.key === 'v' || e.key === 'V')) {
+        e.preventDefault();
+        readClipboardAndPaste();
+        return false;
+      }
+      // Find
+      if (meta && (e.key === 'f' || e.key === 'F')) {
+        e.preventDefault();
+        openSearch();
+        return false;
+      }
+      // Clear
+      if (mod && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        terminal.clear();
+        return false;
+      }
+      // Zoom in (= or +)
+      if (mod && (e.key === '=' || e.key === '+')) {
+        e.preventDefault();
+        const { fontSize: cur, setFontSize } = useTerminalStore.getState();
+        setFontSize(cur + 1);
+        return false;
+      }
+      // Zoom out
+      if (mod && e.key === '-') {
+        e.preventDefault();
+        const { fontSize: cur, setFontSize } = useTerminalStore.getState();
+        setFontSize(cur - 1);
+        return false;
+      }
+      // Zoom reset
+      if (mod && e.key === '0') {
+        e.preventDefault();
+        useTerminalStore.getState().setFontSize(LIMITS.DEFAULT_FONT_SIZE);
+        return false;
+      }
+      return true;
+    });
+
+    const xtermEl = containerRef.current;
+
+    // Ctrl/Cmd + wheel → zoom. Throttled via requestAnimationFrame so a
+    // fast scroll doesn't queue dozens of state updates.
+    let wheelPending = false;
+    let wheelDelta = 0;
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      wheelDelta += e.deltaY;
+      if (wheelPending) return;
+      wheelPending = true;
+      requestAnimationFrame(() => {
+        wheelPending = false;
+        const step = -Math.sign(wheelDelta);
+        wheelDelta = 0;
+        if (step === 0) return;
+        const { fontSize: cur, setFontSize } = useTerminalStore.getState();
+        setFontSize(cur + step);
+      });
+    };
+    xtermEl.addEventListener('wheel', onWheel, { passive: false });
+
+    // Right-click → paste from clipboard (conventional on Windows/Linux,
+    // and a useful affordance on macOS too).
+    const onContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      readClipboardAndPaste();
+    };
+    xtermEl.addEventListener('contextmenu', onContextMenu);
+
+    // Middle-click paste on Linux. The selection clipboard isn't directly
+    // accessible via the Web Clipboard API, so this falls through to the
+    // system clipboard — best-effort.
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button !== 1 || !isLinux) return;
+      e.preventDefault();
+      readClipboardAndPaste();
+    };
+    xtermEl.addEventListener('mousedown', onMouseDown);
+
+    // Drag & drop — paste shell-quoted file paths. Electron 32+ removed
+    // File.path; we use text/uri-list (file:// URIs) which works across
+    // versions and platforms.
+    const onDragOver = (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes('Files') || e.dataTransfer?.types.includes('text/uri-list')) {
+        e.preventDefault();
+      }
+    };
+    const onDrop = (e: DragEvent) => {
+      const dt = e.dataTransfer;
+      if (!dt) return;
+      e.preventDefault();
+      const uriList = dt.getData('text/uri-list');
+      if (uriList) {
+        const paths = uriList
+          .split(/\r?\n/)
+          .filter((line) => line && !line.startsWith('#'))
+          .map((uri) => {
+            try {
+              const u = new URL(uri);
+              if (u.protocol === 'file:') return decodeURIComponent(u.pathname);
+            } catch {
+              // Not a URL — fall through to use raw value.
+            }
+            return uri;
+          });
+        if (paths.length > 0) {
+          const quoted = paths.map((p) => `'${p.replace(/'/g, `'\\''`)}'`).join(' ');
+          pasteText(quoted);
+          return;
+        }
+      }
+      const text = dt.getData('text/plain');
+      if (text) pasteText(text);
+    };
+    xtermEl.addEventListener('dragover', onDragOver);
+    xtermEl.addEventListener('drop', onDrop);
 
     // Send keystrokes to SSH
     terminal.onData((data) => {
@@ -216,6 +398,11 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
       cleanupError();
       cleanupStatus();
       observer.disconnect();
+      xtermEl.removeEventListener('wheel', onWheel);
+      xtermEl.removeEventListener('contextmenu', onContextMenu);
+      xtermEl.removeEventListener('mousedown', onMouseDown);
+      xtermEl.removeEventListener('dragover', onDragOver);
+      xtermEl.removeEventListener('drop', onDrop);
       if (resizeTimeoutRef.current) {
         clearTimeout(resizeTimeoutRef.current);
       }
@@ -224,7 +411,7 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
       fitAddonRef.current = null;
       searchAddonRef.current = null;
     };
-  }, [sessionId, handleResize]);
+  }, [sessionId, handleResize, openSearch]);
 
   // Update theme in place without remounting (preserves scroll history).
   // Mutating `options.theme` doesn't trigger xterm's redraw — colors
@@ -360,7 +547,13 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
           </button>
         </div>
       )}
-      <div ref={containerRef} className="h-full w-full" style={{ padding: '4px' }} />
+      <div
+        ref={containerRef}
+        role="application"
+        aria-label={`Terminal session ${session?.title ?? sessionId}`}
+        className="h-full w-full"
+        style={{ padding: '4px' }}
+      />
     </div>
   );
 }
