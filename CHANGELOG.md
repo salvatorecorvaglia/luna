@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-05-07
+
+### Added
+
+- **Terminal Enhancements**: Unicode 11 support, canvas rendering fallback, robust clipboard handling, and native keyboard shortcuts.
+- **UI/UX Refinements**: Improved breadcrumb masks, real-time terminal status updates, and custom input stepper controls.
+- **Accessibility**: Enhanced connection status visibility and UI consistency across all views.
+
+### Changed
+
+- Replaced blocking terminal paste toasts with non-blocking notifications.
+
+### Fixed
+
+- Resolved GitHub Pages synchronization issues during releases.
+
 ## [0.3.0] - 2026-05-07
 
 ### Added
