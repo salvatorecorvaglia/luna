@@ -38,6 +38,23 @@ import type {
 type CleanupFn = () => void;
 
 /**
+ * Strip the `Error invoking remote method '<channel>': Error: ` prefix that
+ * Electron prepends to IPC handler rejections. Without this, a clean message
+ * thrown in main (e.g. "Cannot initialize credential storage: install
+ * libsecret-1-0…") reaches the renderer wrapped in two layers of "Error:" —
+ * which the user-facing toast then shows verbatim. Idempotent for messages
+ * that don't have the prefix.
+ */
+function unwrapIpcError(err: unknown): unknown {
+  if (!(err instanceof Error)) return err;
+  const match = err.message.match(/^Error invoking remote method '[^']+': (?:Error: )?(.*)$/s);
+  if (match) {
+    err.message = match[1];
+  }
+  return err;
+}
+
+/**
  * Typed wrapper around `ipcRenderer.invoke`. Channel + request + response are
  * all derived from `IpcHandlerMap` so a renaming or shape change in main
  * surfaces as a compile error in the renderer instead of a runtime cast that
@@ -53,9 +70,13 @@ function invoke<K extends IpcChannel>(
   channel: K,
   request?: IpcRequest<K>,
 ): Promise<IpcResponse<K>> {
-  return arguments.length > 1
-    ? (ipcRenderer.invoke(channel, request) as Promise<IpcResponse<K>>)
-    : (ipcRenderer.invoke(channel) as Promise<IpcResponse<K>>);
+  const result =
+    arguments.length > 1
+      ? (ipcRenderer.invoke(channel, request) as Promise<IpcResponse<K>>)
+      : (ipcRenderer.invoke(channel) as Promise<IpcResponse<K>>);
+  return result.catch((err) => {
+    throw unwrapIpcError(err);
+  }) as Promise<IpcResponse<K>>;
 }
 
 function createEventListener<K extends IpcEventChannel>(channel: K) {

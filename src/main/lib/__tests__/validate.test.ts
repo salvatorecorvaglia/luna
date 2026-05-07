@@ -121,7 +121,9 @@ describe('expandAndConfineToHomeSync', () => {
   });
 
   it('rejects relative paths', () => {
-    expect(() => expandAndConfineToHomeSync('relative/path', 'p')).toThrow(/absolute or start with ~/);
+    expect(() => expandAndConfineToHomeSync('relative/path', 'p')).toThrow(
+      /absolute or start with ~/,
+    );
   });
 
   it('rejects ~/.. escapes', () => {
