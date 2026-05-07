@@ -202,3 +202,10 @@ jobs:
             --notes "$RELEASE_NOTES" \
             --repo "$GITHUB_REPOSITORY"
 
+  # ──────────────────────────────────────────────
+  # Deploy Pages – update docs after release
+  # ──────────────────────────────────────────────
+  deploy-pages:
+    name: Deploy Pages
+    needs: finalize
+    uses: ./.github/workflows/deploy-pages.yml
