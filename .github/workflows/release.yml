@@ -202,14 +202,3 @@ jobs:
             --notes "$RELEASE_NOTES" \
             --repo "$GITHUB_REPOSITORY"
 
-  # ──────────────────────────────────────────────
-  # Deploy Website – update GitHub Pages
-  # ──────────────────────────────────────────────
-  deploy-site:
-    name: Deploy Website
-    needs: finalize
-    uses: ./.github/workflows/deploy-pages.yml
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
