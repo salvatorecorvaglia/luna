@@ -201,8 +201,9 @@ export function Sidebar() {
             )}
           </div>
 
-          {/* Settings */}
-          <div className="border-t border-border/60 p-1.5">
+          {/* Settings — visually separated footer region so it isn't
+              read as another connection group. */}
+          <div className="border-t border-border bg-sidebar-accent/40 p-1.5">
             <button
               onClick={() => setSettingsOpen(true)}
               className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -435,17 +436,32 @@ const ConnectionItem = memo(function ConnectionItem({
               : 'hover:bg-sidebar-accent/60',
           )}
         >
-          {/* Status dot */}
+          {/* Status indicator — shape + color so colorblind users can
+              still distinguish states. Connected: solid dot with ring.
+              Connecting: spinner. Disconnected: hollow ring. */}
           <div className="relative flex-shrink-0" aria-hidden="true">
-            <div
-              className={cn('h-2.5 w-2.5 rounded-full', !connection.colorTag && 'bg-emerald-500')}
-              style={connection.colorTag ? { backgroundColor: connection.colorTag } : undefined}
-            />
-            {isConnected && (
-              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border-[1.5px] border-sidebar bg-emerald-500 animate-pulse-dot" />
-            )}
-            {isConnecting && (
-              <Loader2 className="absolute -right-1 -top-1 h-3 w-3 text-amber-500 animate-spin" />
+            {isConnecting ? (
+              <Loader2 className="h-3 w-3 text-amber-500 animate-spin" strokeWidth={2.5} />
+            ) : isConnected ? (
+              <div
+                className={cn(
+                  'h-2.5 w-2.5 rounded-full ring-2 ring-emerald-500/30',
+                  !connection.colorTag && 'bg-emerald-500',
+                )}
+                style={connection.colorTag ? { backgroundColor: connection.colorTag } : undefined}
+              />
+            ) : (
+              <div
+                className={cn(
+                  'h-2.5 w-2.5 rounded-full border-[1.5px] border-muted-foreground/60',
+                  connection.colorTag && 'opacity-60',
+                )}
+                style={
+                  connection.colorTag
+                    ? { borderColor: connection.colorTag, backgroundColor: 'transparent' }
+                    : undefined
+                }
+              />
             )}
           </div>
           <span className="sr-only" aria-live="polite">
@@ -453,11 +469,25 @@ const ConnectionItem = memo(function ConnectionItem({
           </span>
 
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] font-medium text-sidebar-foreground">
+            <div
+              className="truncate text-[13px] font-medium text-sidebar-foreground"
+              title={connection.name}
+            >
               {connection.name}
             </div>
             {!compact && (
-              <div className="truncate text-[11px] text-muted-foreground/70">
+              <div
+                className="truncate text-[11px] text-muted-foreground"
+                title={
+                  isS3
+                    ? `${connection.endpoint || connection.region || 'S3 Storage'}${
+                        connection.defaultBucket ? ' / ' + connection.defaultBucket : ''
+                      }`
+                    : `${connection.username}@${connection.host}${
+                        connection.port !== 22 ? ':' + connection.port : ''
+                      }`
+                }
+              >
                 {isS3 ? (
                   <>
                     {connection.endpoint || connection.region || 'S3 Storage'}

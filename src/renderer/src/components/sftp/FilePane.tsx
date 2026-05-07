@@ -247,18 +247,23 @@ export function FilePane({
         <div className="flex items-center gap-0.5 overflow-x-auto px-2.5 py-1 text-xs no-select scrollbar-none">
           <button
             onClick={() => onPathChange('/')}
-            className="flex-shrink-0 rounded p-0.5 text-muted-foreground/70 hover:text-foreground hover:bg-accent cursor-pointer"
+            className="flex-shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer"
             title="Root"
+            aria-label="Navigate to root directory"
           >
             <Home className="h-3 w-3" />
           </button>
           {breadcrumbs.slice(1).map((crumb) => (
             <span key={crumb.path} className="flex items-center gap-0.5">
-              <ChevronRight className="h-3 w-3 text-muted-foreground/40 flex-shrink-0" />
+              <ChevronRight
+                className="h-3 w-3 text-muted-foreground/60 flex-shrink-0"
+                aria-hidden="true"
+              />
               <button
                 onClick={() => onPathChange(crumb.path)}
-                className="truncate text-muted-foreground/70 hover:text-foreground max-w-[120px] cursor-pointer"
+                className="truncate text-muted-foreground hover:text-foreground max-w-[120px] cursor-pointer"
                 title={crumb.path}
+                aria-label={`Navigate to ${crumb.path}`}
               >
                 {crumb.name}
               </button>
@@ -282,7 +287,7 @@ export function FilePane({
               onChange={(e) => setFilterQuery(e.target.value)}
               placeholder="Filter files..."
               aria-label="Filter files in current directory"
-              className="form-input !py-1 !pl-7 !pr-7 !text-xs"
+              className="form-input !py-1 !pl-7 !pr-7"
               onKeyDown={(e) => {
                 if (e.key === 'Escape') {
                   setFilterOpen(false);

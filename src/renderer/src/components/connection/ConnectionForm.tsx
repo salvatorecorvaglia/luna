@@ -1189,11 +1189,12 @@ function FormField({
         {icon}
         {label}
         {required && (
-          <span className="text-destructive/70" aria-hidden="true">
+          <span className="required-mark font-semibold" aria-hidden="true" title="Required">
             *
           </span>
         )}
-        {optional && <span className="text-muted-foreground/50">(optional)</span>}
+        {required && <span className="sr-only">required</span>}
+        {optional && <span className="text-muted-foreground/70">(optional)</span>}
       </label>
       {children}
       {error && (

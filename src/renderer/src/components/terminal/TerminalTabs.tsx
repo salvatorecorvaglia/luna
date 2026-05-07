@@ -226,14 +226,27 @@ const Tab = memo(function Tab({
             />
           )}
           {statusIcon()}
-          <span className="truncate font-medium">{session.title || session.connectionName}</span>
+          <span
+            className="truncate font-medium"
+            title={session.title || session.connectionName}
+          >
+            {session.title || session.connectionName}
+          </span>
           <button
             onClick={(e) => {
               e.stopPropagation();
               onClose(sessionId);
             }}
-            className="ml-auto flex-shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-accent cursor-pointer"
-            aria-label="Close tab"
+            className={cn(
+              'ml-auto flex-shrink-0 rounded p-0.5 hover:bg-accent cursor-pointer transition-opacity',
+              // Visible at low opacity by default so the close affordance is
+              // always discoverable; full opacity on hover/focus.
+              isActive
+                ? 'opacity-70 hover:opacity-100'
+                : 'opacity-40 group-hover:opacity-100 focus:opacity-100',
+            )}
+            aria-label={`Close tab ${session.title || session.connectionName}`}
+            title="Close tab"
           >
             <X className="h-3 w-3" />
           </button>

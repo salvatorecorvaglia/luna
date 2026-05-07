@@ -14,8 +14,7 @@ import { terminalThemes } from '@/themes/terminal';
 import { LIMITS } from '@shared/constants';
 import type { SessionStatus } from '@shared/types/terminal';
 
-const isMac =
-  typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 const isLinux = typeof navigator !== 'undefined' && /Linux/.test(navigator.platform);
 
 interface TerminalPaneProps {
@@ -306,7 +305,10 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
     // File.path; we use text/uri-list (file:// URIs) which works across
     // versions and platforms.
     const onDragOver = (e: DragEvent) => {
-      if (e.dataTransfer?.types.includes('Files') || e.dataTransfer?.types.includes('text/uri-list')) {
+      if (
+        e.dataTransfer?.types.includes('Files') ||
+        e.dataTransfer?.types.includes('text/uri-list')
+      ) {
         e.preventDefault();
       }
     };
