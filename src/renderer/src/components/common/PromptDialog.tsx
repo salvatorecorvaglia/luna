@@ -123,13 +123,18 @@ export function PromptDialog({
                   placeholder={placeholder}
                   className="form-input mt-3"
                 />
-                <div className="mt-4 flex justify-end gap-2">
-                  <button type="button" onClick={onCancel} className="btn-ghost">
-                    {cancelLabel}
-                  </button>
-                  <button type="submit" disabled={!value.trim()} className="btn-primary">
-                    {confirmLabel}
-                  </button>
+                <div className="mt-4 flex items-center justify-between gap-2">
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+                    Esc to cancel
+                  </span>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={onCancel} className="btn-outline">
+                      {cancelLabel}
+                    </button>
+                    <button type="submit" disabled={!value.trim()} className="btn-primary">
+                      {confirmLabel}
+                    </button>
+                  </div>
                 </div>
               </form>
             </div>

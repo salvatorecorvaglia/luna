@@ -37,7 +37,8 @@
   --color-secondary: hsl(240 3.7% 15.9%);
   --color-secondary-foreground: hsl(0 0% 98%);
   --color-muted: hsl(240 3.7% 15.9%);
-  --color-muted-foreground: hsl(240 5% 64.9%);
+  /* Bumped from 64.9% → 72% for ≥ 4.5:1 contrast against bg (WCAG AA). */
+  --color-muted-foreground: hsl(240 5% 72%);
   --color-accent: hsl(240 3.7% 15.9%);
   --color-accent-foreground: hsl(0 0% 98%);
   --color-destructive: hsl(0 62.8% 30.6%);
@@ -135,18 +136,22 @@ select,
 }
 
 /* ──────────────────────────────────────────────────
-   Focus States
+   Focus States — single bright ring everywhere so
+   keyboard focus is unmistakable on dark surfaces.
    ────────────────────────────────────────────────── */
 :focus-visible {
-  outline: 2px solid var(--color-ring);
+  outline: 2px solid var(--color-info);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 4px rgb(59 130 246 / 0.25);
 }
 
 button:focus-visible,
-[role='button']:focus-visible {
-  outline: 2px solid var(--color-sidebar-ring);
+[role='button']:focus-visible,
+[role='tab']:focus-visible {
+  outline: 2px solid var(--color-info);
   outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgb(59 130 246 / 0.25);
 }
 
 /* ──────────────────────────────────────────────────
@@ -168,8 +173,9 @@ button:focus-visible,
 }
 
 .form-input::placeholder {
+  /* Was opacity 0.6 → ~2.2:1. Full muted-foreground gives ≥ 4.5:1. */
   color: var(--color-muted-foreground);
-  opacity: 0.6;
+  opacity: 1;
 }
 
 .form-input:focus {
@@ -178,7 +184,12 @@ button:focus-visible,
 }
 
 .form-input:disabled {
-  opacity: 0.5;
+  /* Distinct visual state — not just opacity — so disabled fields are
+     unmistakable from filled-but-active ones. */
+  opacity: 0.7;
+  background-color: var(--color-muted);
+  border-color: var(--color-border);
+  color: var(--color-muted-foreground);
   cursor: not-allowed;
 }
 
@@ -191,6 +202,10 @@ button:focus-visible,
   justify-content: center;
   border-radius: var(--radius-md);
   padding: 0.375rem;
+  /* Enforce a hit area regardless of inline padding overrides like
+     !p-1 (used in toolbars). The icon itself stays visually small. */
+  min-width: 2rem;
+  min-height: 2rem;
   color: var(--color-muted-foreground);
   cursor: pointer;
 }
@@ -200,6 +215,12 @@ button:focus-visible,
 }
 .btn-icon:active {
   transform: scale(0.92);
+}
+.btn-icon:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: transparent;
+  color: var(--color-muted-foreground);
 }
 
 /* ──────────────────────────────────────────────────
@@ -222,7 +243,11 @@ button:focus-visible,
   opacity: 0.9;
 }
 .btn-primary:disabled {
-  opacity: 0.5;
+  /* Distinct color, not just opacity — disabled must be unmistakable
+     against an otherwise high-contrast primary background. */
+  background-color: var(--color-muted);
+  color: var(--color-muted-foreground);
+  opacity: 0.8;
   cursor: not-allowed;
 }
 
@@ -277,6 +302,37 @@ button:focus-visible,
 .btn-outline:hover {
   background-color: var(--color-accent);
   color: var(--color-foreground);
+}
+.btn-outline:disabled {
+  background-color: var(--color-muted);
+  color: var(--color-muted-foreground);
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* ──────────────────────────────────────────────────
+   Inline form validation
+   ────────────────────────────────────────────────── */
+.form-input[aria-invalid='true'],
+.form-input.invalid {
+  border-color: var(--color-destructive);
+}
+.form-input[aria-invalid='true']:focus,
+.form-input.invalid:focus {
+  border-color: var(--color-destructive);
+  box-shadow: 0 0 0 3px rgb(239 68 68 / 0.15);
+}
+.form-error {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+  font-size: 0.6875rem;
+  color: var(--color-destructive);
+}
+.required-mark {
+  color: var(--color-destructive);
+  margin-left: 0.125rem;
 }
 
 /* ──────────────────────────────────────────────────

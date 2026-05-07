@@ -165,14 +165,15 @@ export function SettingsPanel() {
                             : 'border-border hover:border-ring/50 hover:bg-accent/40',
                         )}
                       >
-                        {/* Mini terminal preview */}
+                        {/* Mini terminal preview — bumped from 8px so the
+                            sample text is actually legible. */}
                         <div
-                          className="w-full rounded-md p-2 font-mono text-[8px] leading-tight"
+                          className="w-full rounded-md p-2 font-mono text-[10px] leading-tight"
                           style={{ backgroundColor: t.bg, color: t.fg }}
                         >
                           <span style={{ color: t.accent }}>$</span> ls -la
                           <br />
-                          <span className="opacity-60">drwxr-xr-x</span>
+                          <span className="opacity-70">drwxr-xr-x</span>
                         </div>
                         <span className="text-[11px] font-medium">{t.label}</span>
                       </button>
@@ -376,13 +377,13 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div>
+    <section className="border-t border-border/60 pt-5 first:border-t-0 first:pt-0">
       <div className="flex items-center gap-2 mb-3.5">
         <span className="text-muted-foreground">{icon}</span>
         <h3 className="text-sm font-semibold text-foreground">{title}</h3>
       </div>
       <div className="space-y-3 pl-6">{children}</div>
-    </div>
+    </section>
   );
 }
 
@@ -399,17 +400,22 @@ function ToggleRow({
   label,
   enabled,
   onToggle,
+  disabled = false,
 }: {
   label: string;
   enabled: boolean;
   onToggle?: (value: boolean) => void;
+  disabled?: boolean;
 }) {
   // Use React.useId for stable, unique IDs instead of module-level counter
   const labelId = useId();
 
   return (
     <div className="flex items-center justify-between py-1">
-      <span id={labelId} className="text-xs text-muted-foreground">
+      <span
+        id={labelId}
+        className={cn('text-xs text-muted-foreground', disabled && 'opacity-60')}
+      >
         {label}
       </span>
       <button
@@ -417,10 +423,14 @@ function ToggleRow({
         role="switch"
         aria-checked={enabled}
         aria-labelledby={labelId}
-        onClick={() => onToggle?.(!enabled)}
+        disabled={disabled}
+        onClick={() => !disabled && onToggle?.(!enabled)}
         className={cn(
-          'flex h-5 w-9 items-center rounded-full px-0.5 cursor-pointer transition-colors',
+          'flex h-5 w-9 items-center rounded-full px-0.5 transition-colors',
           enabled ? 'bg-emerald-500' : 'bg-muted',
+          disabled
+            ? 'cursor-not-allowed opacity-50'
+            : 'cursor-pointer',
         )}
       >
         <div

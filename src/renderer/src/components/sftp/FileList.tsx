@@ -250,8 +250,11 @@ export function FileList({
 
   if (entries.length === 0) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
-        <FolderOpen className="h-8 w-8 text-muted-foreground/20" />
+      <div
+        className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground"
+        role="status"
+      >
+        <FolderOpen className="h-8 w-8 text-muted-foreground/60" />
         <span className="text-xs">{emptyMessage}</span>
       </div>
     );
@@ -266,22 +269,38 @@ export function FileList({
       aria-label="File list"
       aria-multiselectable="true"
     >
-      {/* Header */}
-      <div className="flex items-center border-b border-border/60 bg-muted/20 text-[11px] font-medium text-muted-foreground/80 no-select">
+      {/* Header — semantic columnheaders so the file table is announced
+          correctly by assistive tech. */}
+      <div
+        role="row"
+        className="flex items-center border-b border-border/60 bg-muted/20 text-[11px] font-medium text-muted-foreground no-select"
+      >
         <button
+          role="columnheader"
+          aria-sort={sortField === 'name' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
           onClick={() => handleSort('name')}
           className="flex flex-1 items-center gap-1 px-3 py-1.5 hover:text-foreground cursor-pointer"
         >
           Name <SortIcon field="name" />
         </button>
         <button
+          role="columnheader"
+          aria-sort={sortField === 'size' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
           onClick={() => handleSort('size')}
           className="flex w-20 items-center justify-end gap-1 px-2 py-1.5 hover:text-foreground cursor-pointer"
         >
           Size <SortIcon field="size" />
         </button>
-        {showPermissions && <div className="w-[84px] px-2 py-1.5 text-right">Perms</div>}
+        {showPermissions && (
+          <div role="columnheader" className="w-[84px] px-2 py-1.5 text-right">
+            Perms
+          </div>
+        )}
         <button
+          role="columnheader"
+          aria-sort={
+            sortField === 'modifiedAt' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'
+          }
           onClick={() => handleSort('modifiedAt')}
           className="flex w-36 items-center justify-end gap-1 px-3 py-1.5 hover:text-foreground cursor-pointer"
         >
@@ -337,21 +356,33 @@ export function FileList({
                 draggable={!!onDragStart}
                 onDragStart={(e) => onDragStart?.(entry, e)}
               >
-                <div className="flex flex-1 items-center gap-2 truncate px-3 py-[7px]">
+                <div
+                  className="flex flex-1 items-center gap-2 truncate px-3 py-[7px]"
+                  title={entry.path}
+                >
                   {getFileIcon(entry)}
                   <span className={cn('truncate', entry.isDirectory && 'font-medium')}>
                     {entry.name}
                   </span>
                 </div>
-                <div className="w-20 px-2 py-[7px] text-right text-muted-foreground/70 tabular-nums">
+                <div
+                  className="w-20 px-2 py-[7px] text-right text-muted-foreground tabular-nums"
+                  title={entry.isDirectory ? undefined : `${entry.size.toLocaleString()} bytes`}
+                >
                   {entry.isDirectory ? '\u2014' : formatSize(entry.size)}
                 </div>
                 {showPermissions && (
-                  <div className="w-[84px] px-2 py-[7px] text-right font-mono text-[10px] text-muted-foreground/70">
+                  <div
+                    className="w-[84px] px-2 py-[7px] text-right font-mono text-[10px] text-muted-foreground"
+                    title={entry.permissions || undefined}
+                  >
                     {entry.permissions || '\u2014'}
                   </div>
                 )}
-                <div className="w-36 px-3 py-[7px] text-right text-muted-foreground/70 tabular-nums">
+                <div
+                  className="w-36 px-3 py-[7px] text-right text-muted-foreground tabular-nums"
+                  title={new Date(entry.modifiedAt).toLocaleString()}
+                >
                   {formatDate(entry.modifiedAt)}
                 </div>
               </div>

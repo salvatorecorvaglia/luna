@@ -125,16 +125,23 @@ export function ConfirmDialog({
                   </p>
                 </div>
               </div>
-              <div className="mt-4 flex justify-end gap-2">
-                <button data-cancel onClick={onCancel} className="btn-ghost">
-                  {cancelLabel}
-                </button>
-                <button
-                  onClick={onConfirm}
-                  className={destructive ? 'btn-destructive' : 'btn-primary'}
-                >
-                  {confirmLabel}
-                </button>
+              <div className="mt-4 flex items-center justify-between gap-2">
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+                  Esc to cancel
+                </span>
+                <div className="flex gap-2">
+                  {/* Outline cancel — not ghost — so the "safe" choice has
+                      visible weight when paired with a destructive action. */}
+                  <button data-cancel onClick={onCancel} className="btn-outline">
+                    {cancelLabel}
+                  </button>
+                  <button
+                    onClick={onConfirm}
+                    className={destructive ? 'btn-destructive' : 'btn-primary'}
+                  >
+                    {confirmLabel}
+                  </button>
+                </div>
               </div>
             </div>
           </motion.div>

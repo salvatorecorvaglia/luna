@@ -162,7 +162,7 @@ export function HostKeyDialog() {
                         : 'New (server-presented) fingerprint:'}
                     </span>
                     <div className="mt-1 flex items-center gap-1.5">
-                      <code className="block break-all rounded bg-muted/50 px-1.5 py-0.5 font-mono text-[11px] text-foreground/80 flex-1">
+                      <code className="block break-all rounded bg-muted/50 px-1.5 py-0.5 font-mono text-xs text-foreground/80 flex-1">
                         SHA256:{event.newFingerprint}
                       </code>
                       <button
@@ -181,13 +181,13 @@ export function HostKeyDialog() {
                 </div>
 
                 {!event.isFirst && event.storedFingerprint && (
-                  <div className="flex items-start gap-2 text-xs">
+                  <div className="flex items-start gap-2 text-xs border-t border-border/60 pt-2.5">
                     <Fingerprint className="h-3.5 w-3.5 text-destructive/60 flex-shrink-0 mt-0.5" />
                     <div className="min-w-0 flex-1">
                       <span className="text-muted-foreground/70">
                         Previously trusted fingerprint:
                       </span>
-                      <code className="mt-1 block break-all rounded bg-destructive/5 px-1.5 py-0.5 font-mono text-[11px] text-destructive/80">
+                      <code className="mt-1 block break-all rounded bg-destructive/5 px-1.5 py-0.5 font-mono text-xs text-destructive/80">
                         SHA256:{event.storedFingerprint}
                       </code>
                     </div>

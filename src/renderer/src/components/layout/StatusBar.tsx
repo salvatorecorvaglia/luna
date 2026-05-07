@@ -21,18 +21,23 @@ export function StatusBar() {
   return (
     <div className="flex h-[26px] items-center justify-between border-t border-border/60 bg-card/60 px-3 text-[11px] text-muted-foreground no-select">
       {/* Left */}
-      <div className="flex items-center gap-4">
+      <div className="flex min-w-0 flex-1 items-center gap-4">
         {activeSession ? (
-          <div className="flex items-center gap-1.5">
+          <div className="flex min-w-0 items-center gap-1.5">
             {activeSession.status === 'connected' ? (
-              <Wifi className="h-3.5 w-3.5 text-emerald-500" />
+              <Wifi className="h-3.5 w-3.5 flex-shrink-0 text-emerald-500" />
             ) : (
-              <WifiOff className="h-3.5 w-3.5 text-destructive" />
+              <WifiOff className="h-3.5 w-3.5 flex-shrink-0 text-destructive" />
             )}
-            <span className="font-medium text-foreground/80">{activeSession.connectionName}</span>
+            <span
+              className="max-w-[240px] truncate font-medium text-foreground/90"
+              title={activeSession.connectionName}
+            >
+              {activeSession.connectionName}
+            </span>
             <span
               className={cn(
-                'rounded-full px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider',
+                'flex-shrink-0 rounded-full px-1.5 py-px text-[10px] font-semibold uppercase tracking-wider',
                 activeSession.status === 'connected'
                   ? 'bg-emerald-500/10 text-emerald-500'
                   : activeSession.status === 'error'
@@ -44,7 +49,7 @@ export function StatusBar() {
             </span>
           </div>
         ) : (
-          <span className="text-muted-foreground/50">No active connection</span>
+          <span className="text-muted-foreground">No active connection</span>
         )}
 
         {activeSessions > 1 && (
@@ -72,7 +77,7 @@ export function StatusBar() {
           </button>
         ) : (
           activeSessions > 0 && (
-            <span className="text-muted-foreground/50">
+            <span className="text-muted-foreground">
               {activeSessions} session{activeSessions !== 1 ? 's' : ''}
             </span>
           )
