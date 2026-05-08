@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useState } from 'react';
-import { ArrowRightToLine, Copy, Loader2, Pencil, Plus, WifiOff, X, XCircle } from 'lucide-react';
+import { ArrowRightToLine, Copy, Loader2, Pencil, WifiOff, X, XCircle } from 'lucide-react';
 import { Reorder } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useTerminalStore } from '@/stores/terminal-store';
@@ -12,7 +12,7 @@ interface TerminalTabsProps {
   onNewTab: () => void;
 }
 
-export function TerminalTabs({ onNewTab }: TerminalTabsProps) {
+export function TerminalTabs({}: TerminalTabsProps) {
   const {
     sessions,
     tabOrder,
@@ -85,14 +85,6 @@ export function TerminalTabs({ onNewTab }: TerminalTabsProps) {
           );
         })}
       </Reorder.Group>
-      <button
-        onClick={onNewTab}
-        className="btn-icon mx-1 !p-1.5 flex-shrink-0"
-        title="New tab"
-        aria-label="New tab"
-      >
-        <Plus className="h-3.5 w-3.5" />
-      </button>
 
       <ConfirmDialog
         open={!!closingTabId}

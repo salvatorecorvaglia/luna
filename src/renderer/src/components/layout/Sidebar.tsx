@@ -36,6 +36,8 @@ export function Sidebar() {
   const sidebarSectionOrder = useUIStore((s) => s.sidebarSectionOrder);
   const setSidebarSectionOrder = useUIStore((s) => s.setSidebarSectionOrder);
 
+  const [draggingSection, setDraggingSection] = useState<string | null>(null);
+
   const { openCreateForm } = useConnectionStore();
   const { data: connections, isLoading } = useConnections();
   const connectionList = useMemo(() => connections ?? [], [connections]);
@@ -188,6 +190,8 @@ export function Sidebar() {
                         key="ssh"
                         value="ssh"
                         initial={false}
+                        onDragStart={() => setDraggingSection('ssh')}
+                        onDragEnd={() => setTimeout(() => setDraggingSection(null), 100)}
                         className="space-y-1 bg-sidebar"
                       >
                         <div className="flex items-center justify-between px-2.5 pb-1 cursor-grab active:cursor-grabbing">
@@ -198,7 +202,11 @@ export function Sidebar() {
                         </div>
                         <div className="space-y-0.5">
                           {groupedByProvider.sftp.map((conn) => (
-                            <ConnectionItem key={conn.id} connection={conn} />
+                            <ConnectionItem
+                              key={conn.id}
+                              connection={conn}
+                              disabled={!!draggingSection}
+                            />
                           ))}
                         </div>
                       </Reorder.Item>
@@ -210,6 +218,8 @@ export function Sidebar() {
                         key="s3"
                         value="s3"
                         initial={false}
+                        onDragStart={() => setDraggingSection('s3')}
+                        onDragEnd={() => setTimeout(() => setDraggingSection(null), 100)}
                         className="space-y-1 bg-sidebar"
                       >
                         <div className="flex items-center justify-between px-2.5 pb-1 cursor-grab active:cursor-grabbing">
@@ -220,7 +230,11 @@ export function Sidebar() {
                         </div>
                         <div className="space-y-0.5">
                           {groupedByProvider.s3.map((conn) => (
-                            <ConnectionItem key={conn.id} connection={conn} />
+                            <ConnectionItem
+                              key={conn.id}
+                              connection={conn}
+                              disabled={!!draggingSection}
+                            />
                           ))}
                         </div>
                       </Reorder.Item>
@@ -267,6 +281,7 @@ export function Sidebar() {
 const ConnectionItem = memo(function ConnectionItem({
   connection,
   compact = false,
+  disabled = false,
 }: {
   connection: {
     id: string;
@@ -281,6 +296,7 @@ const ConnectionItem = memo(function ConnectionItem({
     defaultBucket?: string;
   };
   compact?: boolean;
+  disabled?: boolean;
 }) {
   const { activeConnectionId, setActiveConnectionId, openEditForm, openDuplicateForm } =
     useConnectionStore();
@@ -310,6 +326,7 @@ const ConnectionItem = memo(function ConnectionItem({
       );
 
   const handleConnect = () => {
+    if (disabled) return;
     setActiveConnectionId(connection.id);
 
     if (isS3) {
