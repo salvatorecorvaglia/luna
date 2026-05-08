@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.4] - 2026-05-09
+
+### Added
+
+- **Storage Improvements**: Implemented S3 operation timeouts and optimized storage query caching for better performance.
+- **UI/UX Refinements**: Added reorderable sidebar sections with persistence, drag-and-drop state for sidebar connections, and a close button to the command palette.
+- **Error Handling**: Introduced toast notifications for directory listing failures to provide better user feedback.
+
+### Changed
+
+- **Navigation Enhancements**: Settings panel now closes on overlay click, and the redundant "Add Tab" button was removed from the terminal view to streamline the UI.
+
+### Fixed
+
+- **UI Stability**: Resolved z-index conflicts in the settings panel and ensured consistent `cursor-pointer` styles for interactive elements.
+
 ## [0.3.3] - 2026-05-08
 
 ### Added
