@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, Reorder } from 'framer-motion';
 import {
   ChevronRight,
   Copy,
@@ -29,7 +29,13 @@ import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMe
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 
 export function Sidebar() {
-  const { sidebarOpen, sidebarWidth, setSidebarWidth, setSettingsOpen } = useUIStore();
+  const sidebarOpen = useUIStore((s) => s.sidebarOpen);
+  const sidebarWidth = useUIStore((s) => s.sidebarWidth);
+  const setSidebarWidth = useUIStore((s) => s.setSidebarWidth);
+  const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
+  const sidebarSectionOrder = useUIStore((s) => s.sidebarSectionOrder);
+  const setSidebarSectionOrder = useUIStore((s) => s.setSidebarSectionOrder);
+
   const { openCreateForm } = useConnectionStore();
   const { data: connections, isLoading } = useConnections();
   const connectionList = useMemo(() => connections ?? [], [connections]);
@@ -169,35 +175,60 @@ export function Sidebar() {
                 )}
               </div>
             ) : (
-              <div className="space-y-4">
-                {groupedByProvider.sftp.length > 0 && (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1.5 px-2.5 pb-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
-                      <Terminal className="h-3 w-3" />
-                      <span>SSH Sessions</span>
-                    </div>
-                    <div className="space-y-0.5">
-                      {groupedByProvider.sftp.map((conn) => (
-                        <ConnectionItem key={conn.id} connection={conn} />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {groupedByProvider.s3.length > 0 && (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1.5 px-2.5 pb-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
-                      <FolderClosed className="h-3 w-3" />
-                      <span>S3 Storage</span>
-                    </div>
-                    <div className="space-y-0.5">
-                      {groupedByProvider.s3.map((conn) => (
-                        <ConnectionItem key={conn.id} connection={conn} />
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <Reorder.Group
+                axis="y"
+                values={sidebarSectionOrder}
+                onReorder={setSidebarSectionOrder}
+                className="space-y-4"
+              >
+                {sidebarSectionOrder.map((sectionId) => {
+                  if (sectionId === 'ssh' && groupedByProvider.sftp.length > 0) {
+                    return (
+                      <Reorder.Item
+                        key="ssh"
+                        value="ssh"
+                        initial={false}
+                        className="space-y-1 bg-sidebar"
+                      >
+                        <div className="flex items-center justify-between px-2.5 pb-1 cursor-grab active:cursor-grabbing">
+                          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
+                            <Terminal className="h-3 w-3" />
+                            <span>SSH Sessions</span>
+                          </div>
+                        </div>
+                        <div className="space-y-0.5">
+                          {groupedByProvider.sftp.map((conn) => (
+                            <ConnectionItem key={conn.id} connection={conn} />
+                          ))}
+                        </div>
+                      </Reorder.Item>
+                    );
+                  }
+                  if (sectionId === 's3' && groupedByProvider.s3.length > 0) {
+                    return (
+                      <Reorder.Item
+                        key="s3"
+                        value="s3"
+                        initial={false}
+                        className="space-y-1 bg-sidebar"
+                      >
+                        <div className="flex items-center justify-between px-2.5 pb-1 cursor-grab active:cursor-grabbing">
+                          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
+                            <FolderClosed className="h-3 w-3" />
+                            <span>S3 Storage</span>
+                          </div>
+                        </div>
+                        <div className="space-y-0.5">
+                          {groupedByProvider.s3.map((conn) => (
+                            <ConnectionItem key={conn.id} connection={conn} />
+                          ))}
+                        </div>
+                      </Reorder.Item>
+                    );
+                  }
+                  return null;
+                })}
+              </Reorder.Group>
             )}
           </div>
 
