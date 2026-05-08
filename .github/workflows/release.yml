@@ -214,6 +214,9 @@ jobs:
     needs: finalize
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
       - name: Trigger Pages Deployment on Main
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
