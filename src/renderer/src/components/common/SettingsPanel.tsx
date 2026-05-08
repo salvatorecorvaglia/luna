@@ -141,7 +141,7 @@ export function SettingsPanel() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="settings-dialog-title"
-            className="no-drag fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l border-border/60 bg-card shadow-xl"
+            className="no-drag fixed right-0 top-0 z-[100] flex h-full w-full max-w-md flex-col border-l border-border/60 bg-card shadow-xl pointer-events-auto"
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
@@ -150,7 +150,7 @@ export function SettingsPanel() {
               </h2>
               <button
                 onClick={() => setSettingsOpen(false)}
-                className="btn-icon"
+                className="btn-icon cursor-pointer relative z-[110]"
                 aria-label="Close settings"
               >
                 <X className="h-4 w-4" />
