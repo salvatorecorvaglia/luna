@@ -14,6 +14,7 @@ interface UIState {
   commandPaletteOpen: boolean;
   activeView: ActiveView;
   settingsOpen: boolean;
+  sidebarSectionOrder: string[];
 
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
@@ -22,6 +23,7 @@ interface UIState {
   setCommandPaletteOpen: (open: boolean) => void;
   setActiveView: (view: ActiveView) => void;
   setSettingsOpen: (open: boolean) => void;
+  setSidebarSectionOrder: (order: string[]) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -32,6 +34,7 @@ export const useUIStore = create<UIState>()(
       commandPaletteOpen: false,
       activeView: 'terminal',
       settingsOpen: false,
+      sidebarSectionOrder: ['ssh', 's3'],
 
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
@@ -40,6 +43,7 @@ export const useUIStore = create<UIState>()(
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
       setActiveView: (view) => set({ activeView: view }),
       setSettingsOpen: (open) => set({ settingsOpen: open }),
+      setSidebarSectionOrder: (order) => set({ sidebarSectionOrder: order }),
     }),
     {
       name: 'lunar-ui-storage',
@@ -47,6 +51,7 @@ export const useUIStore = create<UIState>()(
         sidebarOpen: state.sidebarOpen,
         sidebarWidth: state.sidebarWidth,
         activeView: state.activeView,
+        sidebarSectionOrder: state.sidebarSectionOrder,
       }),
     },
   ),
