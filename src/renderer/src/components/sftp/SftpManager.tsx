@@ -149,6 +149,22 @@ export function SftpManager() {
     error: localError,
   } = useLocalDirectory(localPath);
 
+  useEffect(() => {
+    if (remoteError) {
+      toast.error(
+        `Remote listing failed: ${remoteError instanceof Error ? remoteError.message : String(remoteError)}`,
+      );
+    }
+  }, [remoteError]);
+
+  useEffect(() => {
+    if (localError) {
+      toast.error(
+        `Local listing failed: ${localError instanceof Error ? localError.message : String(localError)}`,
+      );
+    }
+  }, [localError]);
+
   const addTransfer = useTransferStore((s) => s.addTransfer);
 
   // Drag-and-drop transfer handlers live in their own hook so this component

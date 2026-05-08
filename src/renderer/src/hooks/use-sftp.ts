@@ -19,8 +19,8 @@ export function useSftpDirectory(
     queryKey: ['storage', sessionId, path],
     queryFn: () => window.api.storage.list({ sessionId: sessionId!, path }),
     enabled: (options.enabled ?? true) && !!sessionId && !!path,
-    staleTime: 30_000,
-    retry: 1,
+    staleTime: 60_000,
+    retry: false,
   });
 }
 
@@ -31,8 +31,8 @@ export function useLocalDirectory(path: string) {
     queryKey: ['local-dir', path],
     queryFn: () => window.api.shell.readdir(path),
     enabled: !!path,
-    staleTime: 30_000,
-    retry: 1,
+    staleTime: 60_000,
+    retry: false,
   });
 }
 

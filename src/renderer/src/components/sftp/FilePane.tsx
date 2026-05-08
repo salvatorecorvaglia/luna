@@ -9,6 +9,7 @@ import {
   Loader2,
   RefreshCw,
   Search,
+  WifiOff,
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -321,22 +322,20 @@ export function FilePane({
           <div
             role="alert"
             aria-live="polite"
-            className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center"
+            className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center"
           >
-            <span className="text-xs font-medium text-destructive">
-              {error.message || 'Failed to load directory'}
+            <WifiOff className="h-8 w-8 text-muted-foreground/30" aria-hidden="true" />
+            <span className="max-w-[280px] text-xs font-medium text-destructive/90 leading-relaxed">
+              {error.message
+                .replace(/^S3StorageError:\s*/i, '')
+                .replace(/^SftpStorageError:\s*/i, '')
+                .replace(/^Error:\s*/i, '') || 'Failed to load directory'}
             </span>
             <button
               onClick={onRefresh}
-              className="text-xs text-muted-foreground hover:text-foreground cursor-pointer underline"
+              className="mt-2 rounded-full bg-accent px-4 py-1.5 text-[11px] font-semibold text-accent-foreground hover:bg-accent/80 transition-colors"
             >
               Try again
-            </button>
-            <button
-              onClick={() => onPathChange('/')}
-              className="text-xs text-muted-foreground hover:text-foreground cursor-pointer underline"
-            >
-              Go to root
             </button>
           </div>
         ) : isLoading && entries.length === 0 ? (

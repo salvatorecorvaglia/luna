@@ -8,11 +8,7 @@ import { PromptDialog } from '@/components/common/PromptDialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
 import { connectToHost } from '@/lib/ssh';
 
-interface TerminalTabsProps {
-  onNewTab: () => void;
-}
-
-export function TerminalTabs({}: TerminalTabsProps) {
+export function TerminalTabs() {
   const {
     sessions,
     tabOrder,

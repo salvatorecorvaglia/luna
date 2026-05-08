@@ -21,6 +21,7 @@ import { LIMITS } from '@shared/constants';
 import type { StorageEntry, StorageStatResult } from '@shared/types/storage-provider';
 import type { StepCallback, StorageProvider } from '../storage/types';
 import { AbortError, S3StorageError } from '../../lib/errors';
+import { TimeoutError, withTimeout } from '../../lib/with-timeout';
 import log from '../../lib/logger';
 import { parseS3Path } from './s3-paths';
 
@@ -96,66 +97,84 @@ class S3StorageProvider implements StorageProvider {
     return s.client;
   }
 
-  async list(sessionId: string, path: string): Promise<StorageEntry[]> {
+  private async runOp<T>(
+    sessionId: string,
+    op: string,
+    fn: (client: S3Client) => Promise<T>,
+    timeoutMs: number = LIMITS.SFTP_OP_TIMEOUT_MS,
+  ): Promise<T> {
     const client = this.requireClient(sessionId);
-    const { bucket, key } = parseS3Path(path);
-
-    if (!bucket) {
-      // Root: list buckets.
-      try {
-        const out = await client.send(new ListBucketsCommand({}));
-        const now = Math.floor(Date.now() / 1000);
-        return (out.Buckets ?? []).map((b) => ({
-          name: b.Name ?? '',
-          path: `/${b.Name ?? ''}`,
-          size: 0,
-          modifiedAt: b.CreationDate ? Math.floor(b.CreationDate.getTime() / 1000) : now,
-          isDirectory: true,
-          isSymlink: false,
-          isPrefix: true,
-        }));
-      } catch (err) {
-        throw this.wrapError('list-buckets', err);
-      }
-    }
-
-    // List objects + common prefixes within `bucket` at `key/` (or root).
-    const prefix = key ? (key.endsWith('/') ? key : `${key}/`) : '';
-    const entries: StorageEntry[] = [];
-    let ContinuationToken: string | undefined;
     try {
-      do {
-        const out = await client.send(
-          new ListObjectsV2Command({
-            Bucket: bucket,
-            Prefix: prefix,
-            Delimiter: '/',
-            ContinuationToken,
-          }),
-        );
-        for (const cp of out.CommonPrefixes ?? []) {
-          const full = cp.Prefix ?? '';
-          // strip the listing prefix and the trailing slash
-          const name = full.slice(prefix.length).replace(/\/$/, '');
-          if (!name) continue;
-          entries.push(this.prefixToEntry(bucket, full, name));
-        }
-        for (const obj of out.Contents ?? []) {
-          // Skip the folder-marker key itself (matches the listing prefix).
-          if (obj.Key === prefix) continue;
-          const name = (obj.Key ?? '').slice(prefix.length);
-          if (!name) continue;
-          // Treat trailing-slash markers as prefix entries to avoid showing
-          // them as zero-byte files alongside the prefix they represent.
-          if (name.endsWith('/')) continue;
-          entries.push(this.objectToEntry(bucket, obj, name));
-        }
-        ContinuationToken = out.IsTruncated ? out.NextContinuationToken : undefined;
-      } while (ContinuationToken);
+      return await withTimeout(fn(client), timeoutMs, `s3:${op}`);
     } catch (err) {
-      throw this.wrapError('list-objects', err);
+      if (err instanceof TimeoutError) {
+        throw new S3StorageError(`S3 ${op} operation timed out after ${timeoutMs}ms`, err);
+      }
+      throw err;
     }
-    return entries;
+  }
+
+  async list(sessionId: string, path: string): Promise<StorageEntry[]> {
+    return this.runOp(sessionId, 'list', async (client) => {
+      const { bucket, key } = parseS3Path(path);
+
+      if (!bucket) {
+        // Root: list buckets.
+        try {
+          const out = await client.send(new ListBucketsCommand({}));
+          const now = Math.floor(Date.now() / 1000);
+          return (out.Buckets ?? []).map((b) => ({
+            name: b.Name ?? '',
+            path: `/${b.Name ?? ''}`,
+            size: 0,
+            modifiedAt: b.CreationDate ? Math.floor(b.CreationDate.getTime() / 1000) : now,
+            isDirectory: true,
+            isSymlink: false,
+            isPrefix: true,
+          }));
+        } catch (err) {
+          throw this.wrapError('list-buckets', err);
+        }
+      }
+
+      // List objects + common prefixes within `bucket` at `key/` (or root).
+      const prefix = key ? (key.endsWith('/') ? key : `${key}/`) : '';
+      const entries: StorageEntry[] = [];
+      let ContinuationToken: string | undefined;
+      try {
+        do {
+          const out = await client.send(
+            new ListObjectsV2Command({
+              Bucket: bucket,
+              Prefix: prefix,
+              Delimiter: '/',
+              ContinuationToken,
+            }),
+          );
+          for (const cp of out.CommonPrefixes ?? []) {
+            const full = cp.Prefix ?? '';
+            // strip the listing prefix and the trailing slash
+            const name = full.slice(prefix.length).replace(/\/$/, '');
+            if (!name) continue;
+            entries.push(this.prefixToEntry(bucket, full, name));
+          }
+          for (const obj of out.Contents ?? []) {
+            // Skip the folder-marker key itself (matches the listing prefix).
+            if (obj.Key === prefix) continue;
+            const name = (obj.Key ?? '').slice(prefix.length);
+            if (!name) continue;
+            // Treat trailing-slash markers as prefix entries to avoid showing
+            // them as zero-byte files alongside the prefix they represent.
+            if (name.endsWith('/')) continue;
+            entries.push(this.objectToEntry(bucket, obj, name));
+          }
+          ContinuationToken = out.IsTruncated ? out.NextContinuationToken : undefined;
+        } while (ContinuationToken);
+      } catch (err) {
+        throw this.wrapError('list-objects', err);
+      }
+      return entries;
+    });
   }
 
   private prefixToEntry(bucket: string, fullPrefix: string, name: string): StorageEntry {
@@ -182,41 +201,42 @@ class S3StorageProvider implements StorageProvider {
   }
 
   async stat(sessionId: string, path: string): Promise<StorageStatResult> {
-    const client = this.requireClient(sessionId);
-    const { bucket, key } = parseS3Path(path);
-    if (!bucket) {
-      return { size: 0, modifiedAt: 0, isDirectory: true, isSymlink: false };
-    }
-    if (!key) {
-      // bucket root — treat as directory
-      return { size: 0, modifiedAt: 0, isDirectory: true, isSymlink: false };
-    }
-    try {
-      const out = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
-      return {
-        size: out.ContentLength ?? 0,
-        modifiedAt: out.LastModified ? Math.floor(out.LastModified.getTime() / 1000) : 0,
-        isDirectory: false,
-        isSymlink: false,
-      };
-    } catch (err) {
-      // Maybe it's a prefix (logical directory) — verify with a 1-key list.
-      try {
-        const probe = await client.send(
-          new ListObjectsV2Command({
-            Bucket: bucket,
-            Prefix: key.endsWith('/') ? key : `${key}/`,
-            MaxKeys: 1,
-          }),
-        );
-        if ((probe.KeyCount ?? 0) > 0) {
-          return { size: 0, modifiedAt: 0, isDirectory: true, isSymlink: false };
-        }
-      } catch {
-        // fall through to throw the original head error
+    return this.runOp(sessionId, 'stat', async (client) => {
+      const { bucket, key } = parseS3Path(path);
+      if (!bucket) {
+        return { size: 0, modifiedAt: 0, isDirectory: true, isSymlink: false };
       }
-      throw this.wrapError('stat', err);
-    }
+      if (!key) {
+        // bucket root — treat as directory
+        return { size: 0, modifiedAt: 0, isDirectory: true, isSymlink: false };
+      }
+      try {
+        const out = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+        return {
+          size: out.ContentLength ?? 0,
+          modifiedAt: out.LastModified ? Math.floor(out.LastModified.getTime() / 1000) : 0,
+          isDirectory: false,
+          isSymlink: false,
+        };
+      } catch (err) {
+        // Maybe it's a prefix (logical directory) — verify with a 1-key list.
+        try {
+          const probe = await client.send(
+            new ListObjectsV2Command({
+              Bucket: bucket,
+              Prefix: key.endsWith('/') ? key : `${key}/`,
+              MaxKeys: 1,
+            }),
+          );
+          if ((probe.KeyCount ?? 0) > 0) {
+            return { size: 0, modifiedAt: 0, isDirectory: true, isSymlink: false };
+          }
+        } catch {
+          // fall through to throw the original head error
+        }
+        throw this.wrapError('stat', err);
+      }
+    });
   }
 
   async statSize(sessionId: string, path: string): Promise<number> {
@@ -232,58 +252,53 @@ class S3StorageProvider implements StorageProvider {
   }
 
   async mkdir(sessionId: string, path: string): Promise<void> {
-    const client = this.requireClient(sessionId);
-    const { bucket, key } = parseS3Path(path);
-    if (!bucket) {
-      throw new S3StorageError('Cannot create a directory at the root — create a bucket instead');
-    }
-    if (!key) {
-      // top-level: create the bucket itself
-      try {
-        await client.send(new CreateBucketCommand({ Bucket: bucket }));
-      } catch (err) {
-        throw this.wrapError('create-bucket', err);
+    return this.runOp(sessionId, 'mkdir', async (client) => {
+      const { bucket, key } = parseS3Path(path);
+      if (!bucket) {
+        throw new S3StorageError('Cannot create a directory at the root — create a bucket instead');
       }
-      return;
-    }
-    const markerKey = key.endsWith(FOLDER_MARKER_SUFFIX) ? key : `${key}${FOLDER_MARKER_SUFFIX}`;
-    try {
-      await client.send(new PutObjectCommand({ Bucket: bucket, Key: markerKey, Body: '' }));
-    } catch (err) {
-      throw this.wrapError('mkdir', err);
-    }
+      if (!key) {
+        // top-level: create the bucket itself
+        try {
+          await client.send(new CreateBucketCommand({ Bucket: bucket }));
+        } catch (err) {
+          throw this.wrapError('create-bucket', err);
+        }
+        return;
+      }
+      const markerKey = key.endsWith(FOLDER_MARKER_SUFFIX) ? key : `${key}${FOLDER_MARKER_SUFFIX}`;
+      try {
+        await client.send(new PutObjectCommand({ Bucket: bucket, Key: markerKey, Body: '' }));
+      } catch (err) {
+        throw this.wrapError('mkdir', err);
+      }
+    });
   }
 
   async rename(sessionId: string, oldPath: string, newPath: string): Promise<void> {
-    const client = this.requireClient(sessionId);
-    const a = parseS3Path(oldPath);
-    const b = parseS3Path(newPath);
-    if (!a.bucket || !b.bucket) {
-      throw new S3StorageError('Cannot rename buckets — create a new bucket and copy contents');
-    }
-    if (!a.key && !b.key) {
-      throw new S3StorageError('Bucket-level rename is not supported');
-    }
-    // Single-key copy + delete. Prefix-level moves require a paginated copy
-    // loop; we surface that as unsupported in iteration 1 to keep semantics
-    // tight (a half-moved prefix is hard to recover from).
-    try {
-      // CopySource is `/{bucket}/{key}` with the key URL-encoded, but each
-      // segment between '/' separators must be encoded individually so a
-      // literal '%2F' inside a key doesn't get folded back into a path
-      // separator (which the previous .replace(/%2F/g, '/') did, lossily).
-      const encodedKey = a.key.split('/').map(encodeURIComponent).join('/');
-      await client.send(
-        new CopyObjectCommand({
-          Bucket: b.bucket,
-          Key: b.key,
-          CopySource: `/${a.bucket}/${encodedKey}`,
-        }),
-      );
-      await client.send(new DeleteObjectCommand({ Bucket: a.bucket, Key: a.key }));
-    } catch (err) {
-      throw this.wrapError('rename', err);
-    }
+    return this.runOp(sessionId, 'rename', async (client) => {
+      const a = parseS3Path(oldPath);
+      const b = parseS3Path(newPath);
+      if (!a.bucket || !b.bucket) {
+        throw new S3StorageError('Cannot rename buckets — create a new bucket and copy contents');
+      }
+      if (!a.key && !b.key) {
+        throw new S3StorageError('Bucket-level rename is not supported');
+      }
+      try {
+        const encodedKey = a.key.split('/').map(encodeURIComponent).join('/');
+        await client.send(
+          new CopyObjectCommand({
+            Bucket: b.bucket,
+            Key: b.key,
+            CopySource: `/${a.bucket}/${encodedKey}`,
+          }),
+        );
+        await client.send(new DeleteObjectCommand({ Bucket: a.bucket, Key: a.key }));
+      } catch (err) {
+        throw this.wrapError('rename', err);
+      }
+    });
   }
 
   async remove(sessionId: string, path: string, isDirectory: boolean): Promise<void> {
@@ -356,45 +371,46 @@ class S3StorageProvider implements StorageProvider {
     path: string,
     maxSize?: number,
   ): Promise<{ content: string; encoding: 'utf-8' | 'base64' }> {
-    const client = this.requireClient(sessionId);
-    const { bucket, key } = parseS3Path(path);
-    if (!bucket || !key) throw new S3StorageError('Cannot read a non-key path');
-    const limit = Math.min(maxSize || LIMITS.MAX_PREVIEW_BYTES, LIMITS.MAX_PREVIEW_BYTES);
+    return this.runOp(sessionId, 'readFile', async (client) => {
+      const { bucket, key } = parseS3Path(path);
+      if (!bucket || !key) throw new S3StorageError('Cannot read a non-key path');
+      const limit = Math.min(maxSize || LIMITS.MAX_PREVIEW_BYTES, LIMITS.MAX_PREVIEW_BYTES);
 
-    let head;
-    try {
-      head = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
-    } catch (err) {
-      throw this.wrapError('read-head', err);
-    }
-    if ((head.ContentLength ?? 0) > limit) {
-      throw new S3StorageError(
-        `File too large to preview: ${head.ContentLength} bytes (max ${limit}). Download it instead.`,
-      );
-    }
-
-    try {
-      const out = await client.send(
-        new GetObjectCommand({ Bucket: bucket, Key: key, Range: `bytes=0-${limit - 1}` }),
-      );
-      const body = out.Body as Readable | undefined;
-      if (!body) throw new S3StorageError('Empty response body');
-      const chunks: Buffer[] = [];
-      for await (const chunk of body as AsyncIterable<Buffer | Uint8Array>) {
-        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      let head;
+      try {
+        head = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+      } catch (err) {
+        throw this.wrapError('read-head', err);
       }
-      const buffer = Buffer.concat(chunks);
-      const ext = key.split('.').pop()?.toLowerCase() || '';
-      const binaryExts = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp', 'pdf'];
-      const isBinary = binaryExts.includes(ext);
+      if ((head.ContentLength ?? 0) > limit) {
+        throw new S3StorageError(
+          `File too large to preview: ${head.ContentLength} bytes (max ${limit}). Download it instead.`,
+        );
+      }
 
-      return {
-        content: buffer.toString(isBinary ? 'base64' : 'utf-8'),
-        encoding: isBinary ? 'base64' : 'utf-8',
-      };
-    } catch (err) {
-      throw this.wrapError('read-object', err);
-    }
+      try {
+        const out = await client.send(
+          new GetObjectCommand({ Bucket: bucket, Key: key, Range: `bytes=0-${limit - 1}` }),
+        );
+        const body = out.Body as Readable | undefined;
+        if (!body) throw new S3StorageError('Empty response body');
+        const chunks: Buffer[] = [];
+        for await (const chunk of body as AsyncIterable<Buffer | Uint8Array>) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+        const buffer = Buffer.concat(chunks);
+        const ext = key.split('.').pop()?.toLowerCase() || '';
+        const binaryExts = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp', 'pdf'];
+        const isBinary = binaryExts.includes(ext);
+
+        return {
+          content: buffer.toString(isBinary ? 'base64' : 'utf-8'),
+          encoding: isBinary ? 'base64' : 'utf-8',
+        };
+      } catch (err) {
+        throw this.wrapError('read-object', err);
+      }
+    });
   }
 
   async streamDownload(

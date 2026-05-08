@@ -72,7 +72,7 @@ export function TerminalView() {
 
   return (
     <div className="flex h-full flex-col">
-      <TerminalTabs onNewTab={handleNewTab} />
+      <TerminalTabs />
       <div className="flex-1 relative overflow-hidden" style={{ backgroundColor: themeBg }}>
         {tabOrder.map((sessionId) => (
           <div key={sessionId} className={sessionId === activeTabId ? 'h-full w-full' : 'hidden'}>
