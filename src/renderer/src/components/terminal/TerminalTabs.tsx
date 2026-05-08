@@ -1,6 +1,6 @@
 import { memo, useCallback, useMemo, useState } from 'react';
 import { ArrowRightToLine, Copy, Loader2, Pencil, Plus, WifiOff, X, XCircle } from 'lucide-react';
-import { motion, Reorder } from 'framer-motion';
+import { Reorder } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
@@ -225,9 +225,7 @@ const Tab = memo(function Tab({
     >
       <ContextMenu items={contextItems}>
         <div className="flex h-full w-full items-center gap-2">
-          {isActive && (
-            <div className="absolute inset-x-0 top-0 h-[2px] bg-primary" />
-          )}
+          {isActive && <div className="absolute inset-x-0 top-0 h-[2px] bg-primary" />}
           {statusIcon()}
           <span className="truncate font-medium" title={session.title || session.connectionName}>
             {session.title || session.connectionName}
