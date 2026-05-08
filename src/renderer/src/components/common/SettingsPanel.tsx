@@ -483,7 +483,7 @@ function EditableNumberRow({
           onClick={() => onChange(clamp(value - step))}
           disabled={value <= min}
           aria-label={`Decrease ${label}`}
-          className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Minus className="h-3 w-3" />
         </button>
@@ -505,7 +505,7 @@ function EditableNumberRow({
           onClick={() => onChange(clamp(value + step))}
           disabled={value >= max}
           aria-label={`Increase ${label}`}
-          className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Plus className="h-3 w-3" />
         </button>

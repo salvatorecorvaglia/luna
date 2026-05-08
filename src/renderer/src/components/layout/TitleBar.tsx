@@ -122,7 +122,7 @@ function ViewTab({
     <button
       onClick={onClick}
       className={cn(
-        'relative flex items-center gap-1.5 rounded-md px-3 py-[5px] text-xs font-medium',
+        'relative flex items-center gap-1.5 rounded-md px-3 py-[5px] text-xs font-medium cursor-pointer',
         active
           ? 'bg-background text-foreground shadow-sm'
           : 'text-muted-foreground hover:text-foreground',

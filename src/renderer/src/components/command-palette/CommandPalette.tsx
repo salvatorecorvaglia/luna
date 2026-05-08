@@ -379,9 +379,16 @@ export function CommandPalette() {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  className="flex-1 border-none bg-transparent py-3 pl-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:!outline-none focus:ring-2 focus:ring-inset focus:ring-sidebar-ring/60 rounded-lg transition-all duration-200"
+                  className="flex-1 border-none bg-transparent py-3 pl-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 !outline-none !ring-0 focus:!outline-none focus:!ring-0 focus:!shadow-none focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!shadow-none rounded-lg transition-all duration-200"
                   autoFocus
                 />
+                <button
+                  onClick={() => setCommandPaletteOpen(false)}
+                  className="btn-icon !p-1.5 ml-1"
+                  aria-label="Close command palette"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
 
               {/* Results */}
