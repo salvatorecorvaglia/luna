@@ -161,7 +161,7 @@ export function Sidebar() {
                 {!searchQuery && (
                   <button
                     onClick={() => openCreateForm()}
-                    className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-sidebar-primary hover:underline"
+                    className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-sidebar-primary hover:underline cursor-pointer"
                   >
                     <Plus className="h-3 w-3" />
                     Add your first connection
@@ -206,7 +206,7 @@ export function Sidebar() {
           <div className="border-t border-border bg-sidebar-accent/40 p-1.5">
             <button
               onClick={() => setSettingsOpen(true)}
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
             >
               <Settings className="h-3.5 w-3.5" />
               Settings
@@ -433,7 +433,7 @@ const ConnectionItem = memo(function ConnectionItem({
           onClick={handleConnect}
           aria-label={`${connection.name} (${connection.username}@${connection.host}) — ${statusLabel}`}
           className={cn(
-            'group flex w-full items-center gap-2.5 rounded-lg px-2.5 text-left',
+            'group flex w-full items-center gap-2.5 rounded-lg px-2.5 text-left cursor-pointer',
             compact ? 'py-[7px]' : 'py-2',
             isActive
               ? 'bg-sidebar-accent border-l-[3px] border-l-sidebar-primary pl-[7px]'
