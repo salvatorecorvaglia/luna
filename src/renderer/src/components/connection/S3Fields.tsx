@@ -1,6 +1,7 @@
 import { Check, Eye, EyeOff, FolderClosed, Globe, Hash, Key, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { FormField } from './FormField';
+import { HelpTooltip } from '../common/HelpTooltip';
 
 interface S3FieldsProps {
   fieldId: string;
@@ -90,7 +91,7 @@ export function S3Fields({
           value={accessKeyId}
           onChange={(e) => setAccessKeyId(e.target.value)}
           onBlur={() => markTouched('accessKeyId')}
-          placeholder={isEditing ? '(unchanged)' : 'AKIA...'}
+          placeholder={isEditing ? '(unchanged)' : 'Access key'}
           className={cn(
             'form-input',
             visibleError('accessKeyId') && 'border-destructive/60 focus:border-destructive',
@@ -177,9 +178,15 @@ export function S3Fields({
               strokeWidth={3}
             />
           </div>
-          <span className="truncate text-[11px] font-medium text-muted-foreground transition-colors group-hover:text-foreground">
-            Path-style URLs (MinIO, R2)
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="truncate text-[11px] font-medium text-muted-foreground transition-colors group-hover:text-foreground">
+              Path-style URLs (MinIO, R2)
+            </span>
+            <HelpTooltip
+              content="Use path-style addressing (endpoint/bucket) instead of subdomains. Required for MinIO and R2."
+              iconClassName="group-hover:text-muted-foreground/50"
+            />
+          </div>
         </label>
       </div>
     </div>
