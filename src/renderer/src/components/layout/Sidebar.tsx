@@ -376,7 +376,6 @@ function ConnectionItem({
   const setSftpSessionId = useSftpStore((s) => s.setSftpSessionId);
   const deleteMutation = useDeleteConnection();
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const isActive = activeConnectionId === connection.id;
   const isS3 = connection.provider === 's3';
   const isConnected = isS3
     ? Array.from(storageSessions.values()).some(
@@ -394,6 +393,7 @@ function ConnectionItem({
           s.connectionId === connection.id &&
           (s.status === 'connecting' || s.status === 'reconnecting'),
       );
+  const isActive = activeConnectionId === connection.id && (isConnected || isConnecting);
 
   const handleConnect = () => {
     if (disabled) return;
