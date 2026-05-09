@@ -13,12 +13,6 @@ function Features() {
       desc: 'Tabs, horizontal and vertical splits. Organize parallel sessions however your workflow demands.',
     },
     {
-      icon: 'terminal',
-      tint: '#10b981',
-      title: 'Native Local Terminal',
-      desc: 'Access your machine’s local shell (bash, zsh, powershell) side-by-side with remote ones via node-pty.',
-    },
-    {
       icon: 'folder',
       tint: '#38bdf8',
       title: 'Dual-Pane SFTP',
