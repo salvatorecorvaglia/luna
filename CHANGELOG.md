@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.5] - 2026-05-09
+
+### Added
+
+- **UI/UX Refinements**: Implemented drag-and-drop reordering for connections in the sidebar with state persistence.
+- **Documentation**: Added helpful tooltips to S3 connection fields to guide users through configuration.
+
+### Changed
+
+- **Internationalization**: Completed a full audit and removal of Italian localization from comments and source code to standardize on English.
+
+### Fixed
+
+- **Code Quality**: Resolved linting errors and improved type safety in the settings panel by removing `any` types.
+
 ## [0.3.4] - 2026-05-09
 
 ### Added
