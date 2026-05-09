@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, Reorder, useDragControls } from 'framer-motion';
 import {
   ChevronRight,
@@ -27,6 +27,9 @@ import {
   useDeleteConnection,
   useReorderConnections,
 } from '@/hooks/use-connections';
+import type { UseMutationResult } from '@tanstack/react-query';
+import type { Connection } from '@shared/types/ipc';
+import type { DragControls } from 'framer-motion';
 import { connectToHost } from '@/lib/ssh';
 import { connectToS3 } from '@/lib/s3';
 import { useSftpStore } from '@/stores/sftp-store';
@@ -72,12 +75,17 @@ export function Sidebar() {
   }, [filteredConnections]);
 
   // Sync local state with grouped connections when not reordering and no mutation is pending
-  useEffect(() => {
-    if (!isDraggingConnection && !reorderMutation.isPending) {
-      setLocalSshConnections(groupedByProvider.sftp);
-      setLocalS3Connections(groupedByProvider.s3);
-    }
-  }, [groupedByProvider, isDraggingConnection, reorderMutation.isPending]);
+  // Using render-time sync to avoid cascading renders (react-hooks/set-state-in-effect)
+  const [prevGroupedByProvider, setPrevGroupedByProvider] = useState(groupedByProvider);
+  if (
+    groupedByProvider !== prevGroupedByProvider &&
+    !isDraggingConnection &&
+    !reorderMutation.isPending
+  ) {
+    setPrevGroupedByProvider(groupedByProvider);
+    setLocalSshConnections(groupedByProvider.sftp);
+    setLocalS3Connections(groupedByProvider.s3);
+  }
 
   const [resizing, setResizing] = useState(false);
   // Guard against double mousedown without an intervening mouseup (e.g. dev-tools
@@ -266,15 +274,15 @@ function SidebarSection({
   reorderMutation,
 }: {
   sectionId: 'ssh' | 's3';
-  groupedByProvider: { sftp: any[]; s3: any[] };
-  localSshConnections: any[];
-  setLocalSshConnections: (v: any[]) => void;
-  localS3Connections: any[];
-  setLocalS3Connections: (v: any[]) => void;
+  groupedByProvider: { sftp: Connection[]; s3: Connection[] };
+  localSshConnections: Connection[];
+  setLocalSshConnections: (v: Connection[]) => void;
+  localS3Connections: Connection[];
+  setLocalS3Connections: (v: Connection[]) => void;
   setIsDraggingConnection: (v: boolean) => void;
   draggingSection: string | null;
   setDraggingSection: (v: string | null) => void;
-  reorderMutation: any;
+  reorderMutation: UseMutationResult<void, Error, string[], unknown>;
 }) {
   const controls = useDragControls();
   const isSsh = sectionId === 'ssh';
@@ -322,7 +330,7 @@ function SidebarSection({
             onDragStart={() => setIsDraggingConnection(true)}
             onDragEnd={() => {
               setIsDraggingConnection(false);
-              reorderMutation.mutate(connections.map((c: any) => c.id));
+              reorderMutation.mutate(connections.map((c: Connection) => c.id));
             }}
           />
         ))}
@@ -337,7 +345,7 @@ function DraggableConnectionItem({
   onDragStart,
   onDragEnd,
 }: {
-  connection: any;
+  connection: Connection;
   disabled: boolean;
   onDragStart: () => void;
   onDragEnd: () => void;
@@ -363,10 +371,10 @@ function ConnectionItem({
   disabled = false,
   dragControls,
 }: {
-  connection: any;
+  connection: Connection;
   compact?: boolean;
   disabled?: boolean;
-  dragControls: any;
+  dragControls: DragControls;
 }) {
   const { activeConnectionId, setActiveConnectionId, openEditForm, openDuplicateForm } =
     useConnectionStore();

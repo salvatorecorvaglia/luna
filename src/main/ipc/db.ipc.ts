@@ -238,7 +238,7 @@ export function registerDbHandlers(): void {
     db.prepare('DELETE FROM connections WHERE id = ?').run(id);
     deleteCredential(id);
   });
- 
+
   ipcMain.handle(IPC.CONNECTION_REORDER, (_event, ids: string[]) => {
     const update = db.prepare('UPDATE connections SET sort_order = ? WHERE id = ?');
     const transaction = db.transaction((idList: string[]) => {
