@@ -20,6 +20,7 @@ export interface Connection {
   forcePathStyle?: boolean;
   folder: string;
   colorTag?: string;
+  sortOrder?: number;
   lastConnectedAt?: number;
   createdAt: number;
   updatedAt: number;

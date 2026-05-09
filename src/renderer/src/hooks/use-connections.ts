@@ -47,3 +47,13 @@ export function useDeleteConnection() {
     },
   });
 }
+ 
+export function useReorderConnections() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: string[]) => window.api.connections.reorder(ids),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['connections'] });
+    },
+  });
+}

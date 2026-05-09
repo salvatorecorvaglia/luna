@@ -23,6 +23,7 @@ export interface ConnectionRow {
   force_path_style: number | null;
   folder: string;
   color_tag: string | null;
+  sort_order: number;
   startup_command: string | null;
   last_connected_at: number | null;
   created_at: number;
@@ -258,6 +259,13 @@ function getMigrations(): { name: string; sql: string }[] {
         CREATE INDEX IF NOT EXISTS idx_connections_host ON connections(host);
         CREATE INDEX IF NOT EXISTS idx_connections_folder ON connections(folder);
         CREATE INDEX IF NOT EXISTS idx_connections_provider ON connections(provider);
+      `,
+    },
+    {
+      name: '009_connection_sort_order',
+      sql: `
+        ALTER TABLE connections ADD COLUMN sort_order INTEGER DEFAULT 0;
+        CREATE INDEX IF NOT EXISTS idx_connections_sort_order ON connections(sort_order);
       `,
     },
   ];
