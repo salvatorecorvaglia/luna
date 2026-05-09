@@ -1,4 +1,4 @@
-import { dialog, ipcMain } from 'electron';
+import { dialog } from 'electron';
 import { readFile } from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
 import { expandAndConfineToHomeSync } from '../lib/validate';
@@ -13,6 +13,7 @@ import type {
 } from '@shared/types/connection';
 import { deleteCredential, storeCredential } from '../services/credential-store';
 import type { AppSettings } from '@shared/types/settings';
+import { registerHandler } from '../lib/ipc-handler';
 
 const VALID_AUTH_TYPES = ['password', 'key', 'key+passphrase'] as const;
 
@@ -68,21 +69,21 @@ function rowToConnection(row: ConnectionRow): Connection {
 export function registerDbHandlers(): void {
   const db = getDatabase();
 
-  ipcMain.handle(IPC.CONNECTION_LIST, () => {
+  registerHandler(IPC.CONNECTION_LIST, () => {
     const rows = db
       .prepare('SELECT * FROM connections ORDER BY sort_order ASC, name ASC')
       .all() as ConnectionRow[];
     return rows.map(rowToConnection);
   });
 
-  ipcMain.handle(IPC.CONNECTION_GET, (_event, id: string) => {
+  registerHandler(IPC.CONNECTION_GET, (_event, id: string) => {
     const row = db.prepare('SELECT * FROM connections WHERE id = ?').get(id) as
       | ConnectionRow
       | undefined;
     return row ? rowToConnection(row) : null;
   });
 
-  ipcMain.handle(IPC.CONNECTION_CREATE, (_event, input: CreateConnectionInput) => {
+  registerHandler(IPC.CONNECTION_CREATE, (_event, input: CreateConnectionInput) => {
     if (!input.name?.trim()) throw new Error('Connection name is required');
     const provider = input.provider ?? 'sftp';
 
@@ -172,7 +173,7 @@ export function registerDbHandlers(): void {
     colorTag: 'color_tag',
   };
 
-  ipcMain.handle(IPC.CONNECTION_UPDATE, (_event, input: UpdateConnectionInput) => {
+  registerHandler(IPC.CONNECTION_UPDATE, (_event, input: UpdateConnectionInput) => {
     const now = Math.floor(Date.now() / 1000);
     const existing = db.prepare('SELECT * FROM connections WHERE id = ?').get(input.id) as
       | ConnectionRow
@@ -234,12 +235,12 @@ export function registerDbHandlers(): void {
     return rowToConnection(row);
   });
 
-  ipcMain.handle(IPC.CONNECTION_DELETE, (_event, id: string) => {
+  registerHandler(IPC.CONNECTION_DELETE, (_event, id: string) => {
     db.prepare('DELETE FROM connections WHERE id = ?').run(id);
     deleteCredential(id);
   });
 
-  ipcMain.handle(IPC.CONNECTION_REORDER, (_event, ids: string[]) => {
+  registerHandler(IPC.CONNECTION_REORDER, (_event, ids: string[]) => {
     const update = db.prepare('UPDATE connections SET sort_order = ? WHERE id = ?');
     const transaction = db.transaction((idList: string[]) => {
       idList.forEach((id, index) => {
@@ -249,7 +250,7 @@ export function registerDbHandlers(): void {
     transaction(ids);
   });
 
-  ipcMain.handle(IPC.CONNECTION_EXPORT, (): ExportedConnection[] => {
+  registerHandler(IPC.CONNECTION_EXPORT, (): ExportedConnection[] => {
     const rows = db
       .prepare('SELECT * FROM connections ORDER BY sort_order ASC, name ASC')
       .all() as ConnectionRow[];
@@ -430,11 +431,11 @@ export function registerDbHandlers(): void {
     return { imported, skipped };
   }
 
-  ipcMain.handle(IPC.CONNECTION_IMPORT, (_event, connections: ExportedConnection[]) =>
+  registerHandler(IPC.CONNECTION_IMPORT, (_event, connections: ExportedConnection[]) =>
     importConnections(connections),
   );
 
-  ipcMain.handle(IPC.CONNECTION_IMPORT_FROM_FILE, async () => {
+  registerHandler(IPC.CONNECTION_IMPORT_FROM_FILE, async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: [{ name: 'JSON', extensions: ['json'] }],
@@ -462,7 +463,7 @@ export function registerDbHandlers(): void {
   });
 
   // Settings
-  ipcMain.handle(IPC.SETTINGS_GET, (_event, key: string) => {
+  registerHandler(IPC.SETTINGS_GET, (_event, key: string) => {
     if (!VALID_SETTINGS_KEYS.has(key)) {
       throw new Error(`Unknown setting key: ${key}`);
     }
@@ -472,7 +473,7 @@ export function registerDbHandlers(): void {
     return row?.value ?? null;
   });
 
-  ipcMain.handle(IPC.SETTINGS_SET, (_event, { key, value }: { key: string; value: string }) => {
+  registerHandler(IPC.SETTINGS_SET, (_event, { key, value }: { key: string; value: string }) => {
     if (!VALID_SETTINGS_KEYS.has(key)) {
       throw new Error(`Unknown setting key: ${key}`);
     }
@@ -497,7 +498,7 @@ export function registerDbHandlers(): void {
     db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, v);
   });
 
-  ipcMain.handle(IPC.SETTINGS_GET_ALL, () => {
+  registerHandler(IPC.SETTINGS_GET_ALL, () => {
     const rows = db.prepare('SELECT key, value FROM settings').all() as {
       key: string;
       value: string;

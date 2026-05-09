@@ -11,13 +11,15 @@ import { sftpManager } from './services/sftp-manager';
 import { transferQueue } from './services/transfer-queue';
 import { initAutoUpdater } from './services/updater';
 import log from './lib/logger';
+import { LunarError, ErrorCode } from '@shared/errors';
 
 // Global error handlers. After an uncaughtException the process state is
 // undefined per Node best practice — flush logs and exit so a supervisor /
 // auto-relaunch can restart cleanly rather than letting the app limp along
 // with corrupted internals.
 process.on('uncaughtException', (err) => {
-  log.error('[Main] Uncaught exception:', err);
+  const lunarError = LunarError.fromUnknown(err, ErrorCode.INTERNAL_ERROR);
+  log.error('[Main] Uncaught exception:', lunarError.toObject());
   // Best-effort: shut the DB cleanly so the WAL is flushed before exit.
   try {
     closeDatabase();
@@ -28,7 +30,8 @@ process.on('uncaughtException', (err) => {
 });
 
 process.on('unhandledRejection', (reason) => {
-  log.error('[Main] Unhandled rejection:', reason);
+  const lunarError = LunarError.fromUnknown(reason, ErrorCode.INTERNAL_ERROR);
+  log.error('[Main] Unhandled rejection:', lunarError.toObject());
 });
 
 let mainWindow: BrowserWindow | null = null;

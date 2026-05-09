@@ -6,18 +6,28 @@ import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import App from './App';
 import '@/assets/main.css';
 
+import { LunarError } from '@shared/errors';
+
 // Global handlers for unhandled errors and promise rejections (e.g. failed IPC).
 // React's ErrorBoundary catches render-phase errors; this catches the rest.
 window.addEventListener('unhandledrejection', (event) => {
   const reason = event.reason;
-  const message =
-    reason instanceof Error
-      ? reason.message
-      : typeof reason === 'string'
-        ? reason
-        : 'Unknown error';
   console.error('[unhandledrejection]', reason);
-  toast.error(message, { description: 'An unexpected error occurred.' });
+
+  if (LunarError.isLunarError(reason)) {
+    const lunarError = LunarError.fromUnknown(reason);
+    toast.error(lunarError.message, {
+      description: `Error code: ${lunarError.code}`,
+    });
+  } else {
+    const message =
+      reason instanceof Error
+        ? reason.message
+        : typeof reason === 'string'
+          ? reason
+          : 'Unknown error';
+    toast.error(message, { description: 'An unexpected error occurred.' });
+  }
 });
 
 window.addEventListener('error', (event) => {
