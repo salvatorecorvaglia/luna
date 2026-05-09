@@ -8,7 +8,7 @@ function Hero() {
           Windows · Linux
         </div>
         <h1 className="lunar-hero__title">
-          SSH, SFTP, S3, and Local
+          your place
           <br />
           <span className="lunar-gradient-text">in one calm workspace.</span>
         </h1>
