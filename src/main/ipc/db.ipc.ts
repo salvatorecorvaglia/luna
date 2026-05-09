@@ -15,6 +15,8 @@ import { deleteCredential, storeCredential } from '../services/credential-store'
 import type { AppSettings } from '@shared/types/settings';
 import { registerHandler } from '../lib/ipc-handler';
 
+import { logger } from '../lib/logger';
+
 const VALID_AUTH_TYPES = ['password', 'key', 'key+passphrase'] as const;
 
 /** Per-key value type guards. Values arrive from the renderer as JSON-encoded
@@ -151,7 +153,12 @@ export function registerDbHandlers(): void {
     }
 
     const row = db.prepare('SELECT * FROM connections WHERE id = ?').get(id) as ConnectionRow;
-    return rowToConnection(row);
+    const connection = rowToConnection(row);
+    logger.info(`Connection created: ${connection.name}`, {
+      id: connection.id,
+      provider: connection.provider,
+    });
+    return connection;
   });
 
   // Whitelist of UpdateConnectionInput keys → DB column names. Only fields listed
@@ -232,12 +239,15 @@ export function registerDbHandlers(): void {
     }
 
     const row = db.prepare('SELECT * FROM connections WHERE id = ?').get(input.id) as ConnectionRow;
-    return rowToConnection(row);
+    const connection = rowToConnection(row);
+    logger.info(`Connection updated: ${connection.name}`, { id: connection.id });
+    return connection;
   });
 
   registerHandler(IPC.CONNECTION_DELETE, (_event, id: string) => {
     db.prepare('DELETE FROM connections WHERE id = ?').run(id);
     deleteCredential(id);
+    logger.info(`Connection deleted: ${id}`);
   });
 
   registerHandler(IPC.CONNECTION_REORDER, (_event, ids: string[]) => {

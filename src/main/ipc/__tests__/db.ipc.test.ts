@@ -71,8 +71,10 @@ describe('db.ipc CONNECTION_IMPORT (privateKeyPath sanitization)', () => {
     return (conns) => fn({}, conns);
   };
 
-  it('expands ~ to the home directory and stores the absolute path', () => {
-    const result = importHandler()([{ ...baseConn, privateKeyPath: '~/.ssh/id_ed25519' }]) as {
+  it('expands ~ to the home directory and stores the absolute path', async () => {
+    const result = (await importHandler()([
+      { ...baseConn, privateKeyPath: '~/.ssh/id_ed25519' },
+    ])) as {
       imported: number;
       skipped: { reason: string }[];
     };
@@ -82,8 +84,10 @@ describe('db.ipc CONNECTION_IMPORT (privateKeyPath sanitization)', () => {
     expect(inserts[0][7]).toBe(`${HOME}/.ssh/id_ed25519`);
   });
 
-  it('skips imports whose privateKeyPath escapes via ..', () => {
-    const result = importHandler()([{ ...baseConn, privateKeyPath: '~/../etc/passwd' }]) as {
+  it('skips imports whose privateKeyPath escapes via ..', async () => {
+    const result = (await importHandler()([
+      { ...baseConn, privateKeyPath: '~/../etc/passwd' },
+    ])) as {
       imported: number;
       skipped: { reason: string }[];
     };
@@ -91,8 +95,8 @@ describe('db.ipc CONNECTION_IMPORT (privateKeyPath sanitization)', () => {
     expect(result.skipped[0].reason).toMatch(/home directory/);
   });
 
-  it('skips imports whose privateKeyPath is an absolute system path', () => {
-    const result = importHandler()([{ ...baseConn, privateKeyPath: '/etc/shadow' }]) as {
+  it('skips imports whose privateKeyPath is an absolute system path', async () => {
+    const result = (await importHandler()([{ ...baseConn, privateKeyPath: '/etc/shadow' }])) as {
       imported: number;
       skipped: { reason: string }[];
     };
@@ -100,8 +104,8 @@ describe('db.ipc CONNECTION_IMPORT (privateKeyPath sanitization)', () => {
     expect(result.skipped[0].reason).toMatch(/home directory/);
   });
 
-  it('skips imports whose privateKeyPath contains null bytes', () => {
-    const result = importHandler()([{ ...baseConn, privateKeyPath: '~/keys\0/evil' }]) as {
+  it('skips imports whose privateKeyPath contains null bytes', async () => {
+    const result = (await importHandler()([{ ...baseConn, privateKeyPath: '~/keys\0/evil' }])) as {
       imported: number;
       skipped: { reason: string }[];
     };
@@ -109,8 +113,8 @@ describe('db.ipc CONNECTION_IMPORT (privateKeyPath sanitization)', () => {
     expect(result.skipped[0].reason).toMatch(/null bytes/);
   });
 
-  it('accepts a missing privateKeyPath (password auth)', () => {
-    const result = importHandler()([{ ...baseConn, authType: 'password' }]) as {
+  it('accepts a missing privateKeyPath (password auth)', async () => {
+    const result = (await importHandler()([{ ...baseConn, authType: 'password' }])) as {
       imported: number;
       skipped: { reason: string }[];
     };
@@ -118,15 +122,17 @@ describe('db.ipc CONNECTION_IMPORT (privateKeyPath sanitization)', () => {
     expect(inserts[0][7]).toBeNull();
   });
 
-  it('skips records with missing required fields rather than throwing', () => {
-    const result = importHandler()([
+  it('skips records with missing required fields rather than throwing', async () => {
+    const result = (await importHandler()([
       { name: '', host: 'h', port: 22, username: 'u', authType: 'password' } as ExportedConnection,
-    ]) as { imported: number; skipped: { reason: string }[] };
+    ])) as { imported: number; skipped: { reason: string }[] };
     expect(result.imported).toBe(0);
     expect(result.skipped[0].reason).toMatch(/name|host|username/);
   });
 
-  it('rejects invalid input shapes early', () => {
-    expect(() => importHandler()(undefined as unknown as ExportedConnection[])).toThrow(/array/);
+  it('rejects invalid input shapes early', async () => {
+    await expect(importHandler()(undefined as unknown as ExportedConnection[])).rejects.toThrow(
+      /array/,
+    );
   });
 });

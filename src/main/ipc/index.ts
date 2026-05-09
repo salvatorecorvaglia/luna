@@ -7,6 +7,7 @@ import { registerStorageHandlers } from './storage.ipc';
 import { registerS3Handlers } from './s3.ipc';
 import { registerAppHandlers } from './app.ipc';
 import { registerLocalTerminalHandlers } from './local-terminal.ipc';
+import { registerLogHandlers } from './log.ipc';
 
 export function registerAllHandlers(): void {
   registerDbHandlers();
@@ -18,4 +19,5 @@ export function registerAllHandlers(): void {
   registerS3Handlers();
   registerAppHandlers();
   registerLocalTerminalHandlers();
+  registerLogHandlers();
 }

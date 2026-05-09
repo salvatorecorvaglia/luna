@@ -263,6 +263,13 @@ const api = {
     onUpdateDownloaded: createEventListener(IPC.APP_UPDATE_DOWNLOADED),
     onUpdateError: createEventListener(IPC.APP_UPDATE_ERROR),
   },
+
+  // Logging
+  log: (
+    level: 'info' | 'warn' | 'error' | 'debug',
+    message: string,
+    context?: Record<string, unknown>,
+  ) => invoke(IPC.LOG_MESSAGE, { level, message, context }),
 };
 
 contextBridge.exposeInMainWorld('api', api);

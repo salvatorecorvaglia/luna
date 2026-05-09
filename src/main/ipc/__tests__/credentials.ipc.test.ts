@@ -39,36 +39,38 @@ beforeEach(() => {
 });
 
 describe('credentials IPC', () => {
-  it('rejects empty connectionId on store', () => {
+  it('rejects empty connectionId on store', async () => {
     const handler = handlers.get(IPC.CREDENTIAL_STORE)!;
-    expect(() => handler({}, { connectionId: '', secret: 's' })).toThrow(/connectionId/);
+    await expect(handler({}, { connectionId: '', secret: 's' })).rejects.toThrow(/connectionId/);
     expect(store).not.toHaveBeenCalled();
   });
 
-  it('rejects empty secret on store', () => {
+  it('rejects empty secret on store', async () => {
     const handler = handlers.get(IPC.CREDENTIAL_STORE)!;
-    expect(() => handler({}, { connectionId: 'id', secret: '' })).toThrow(/secret/);
+    await expect(handler({}, { connectionId: 'id', secret: '' })).rejects.toThrow(/secret/);
     expect(store).not.toHaveBeenCalled();
   });
 
-  it('rejects null-byte connectionId on store', () => {
+  it('rejects null-byte connectionId on store', async () => {
     const handler = handlers.get(IPC.CREDENTIAL_STORE)!;
-    expect(() => handler({}, { connectionId: 'id\0evil', secret: 's' })).toThrow(/null byte/);
+    await expect(handler({}, { connectionId: 'id\0evil', secret: 's' })).rejects.toThrow(
+      /null byte/,
+    );
   });
 
-  it('forwards valid input to storeCredential', () => {
+  it('forwards valid input to storeCredential', async () => {
     const handler = handlers.get(IPC.CREDENTIAL_STORE)!;
-    handler({}, { connectionId: 'abc', secret: 'shh' });
+    await handler({}, { connectionId: 'abc', secret: 'shh' });
     expect(store).toHaveBeenCalledWith('abc', 'shh');
   });
 
-  it('rejects empty connectionId on retrieve and delete', () => {
-    expect(() => handlers.get(IPC.CREDENTIAL_RETRIEVE)!({}, '')).toThrow(/connectionId/);
-    expect(() => handlers.get(IPC.CREDENTIAL_DELETE)!({}, '')).toThrow(/connectionId/);
+  it('rejects empty connectionId on retrieve and delete', async () => {
+    await expect(handlers.get(IPC.CREDENTIAL_RETRIEVE)!({}, '')).rejects.toThrow(/connectionId/);
+    await expect(handlers.get(IPC.CREDENTIAL_DELETE)!({}, '')).rejects.toThrow(/connectionId/);
   });
 
-  it('returns retrieve result for valid input', () => {
-    const result = handlers.get(IPC.CREDENTIAL_RETRIEVE)!({}, 'abc');
+  it('returns retrieve result for valid input', async () => {
+    const result = await handlers.get(IPC.CREDENTIAL_RETRIEVE)!({}, 'abc');
     expect(result).toBe('secret');
     expect(retrieve).toHaveBeenCalledWith('abc');
   });

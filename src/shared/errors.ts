@@ -17,6 +17,7 @@ export interface ErrorDetails {
   message: string;
   stack?: string;
   metadata?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 export class LunarError extends Error {

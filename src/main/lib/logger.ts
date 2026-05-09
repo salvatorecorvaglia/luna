@@ -1,17 +1,67 @@
 import log from 'electron-log/main';
 import { redact } from './redact';
+import { LunarError } from '@shared/errors';
 
 log.initialize();
 
 log.transports.file.level = 'info';
 log.transports.console.level = 'debug';
-log.transports.file.maxSize = 5 * 1024 * 1024; // 5 MB
+log.transports.file.maxSize = 10 * 1024 * 1024; // 10 MB
 
-// Redact at the hook boundary so every log path is covered, including ones
-// that pass error objects directly.
+// Custom format for console to make it more readable during development
+log.transports.console.format = '[{h}:{i}:{s}.{ms}] [{level}] {text}';
+
+/**
+ * Hook to redact sensitive information (passwords, keys, etc.) from all logs.
+ */
 log.hooks.push((message) => {
-  message.data = message.data.map((v) => redact(v));
+  message.data = message.data.map((v) => {
+    if (v instanceof Error) {
+      // For errors, we redact the message and any custom properties
+      v.message = redact(v.message) as string;
+      if (LunarError.isLunarError(v)) {
+        const metadata = v.metadata;
+        if (metadata) {
+          const redactedMetadata: Record<string, unknown> = {};
+          for (const [key, value] of Object.entries(metadata)) {
+            redactedMetadata[key] = redact(value);
+          }
+          // We can't easily modify the metadata on the error object without potentially
+          // causing issues if it's used elsewhere, but for logging it's fine.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (v as any).metadata = redactedMetadata;
+        }
+      }
+      return v;
+    }
+    return redact(v);
+  });
   return message;
 });
+
+/**
+ * Structured logger utility.
+ */
+export const logger = {
+  info: (message: string, context?: Record<string, unknown>) => {
+    if (context) log.info(message, context);
+    else log.info(message);
+  },
+  warn: (message: string, context?: Record<string, unknown>) => {
+    if (context) log.warn(message, context);
+    else log.warn(message);
+  },
+  error: (message: string, error?: unknown, context?: Record<string, unknown>) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data: any[] = [message];
+    if (error) data.push(error);
+    if (context) data.push(context);
+    log.error(...data);
+  },
+  debug: (message: string, context?: Record<string, unknown>) => {
+    if (context) log.debug(message, context);
+    else log.debug(message);
+  },
+};
 
 export default log;
