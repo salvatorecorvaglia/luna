@@ -1,39 +1,41 @@
 # <img src="resources/lunar.png" align="center" width="48" height="48" /> Lunar
 
-**A modern SSH terminal, SFTP file manager, and S3-compatible object storage browser — all in one.**
+**A modern SSH & Local terminal, SFTP file manager, and S3-compatible object storage browser — all in one.**
 
-Lunar is a high-performance, cross-platform desktop application designed to streamline your remote workflows. Browse SSH/SFTP servers and S3-compatible object stores side-by-side in the same dual-pane file manager, with a powerful terminal a tab away.
+Lunar is a high-performance, cross-platform desktop application designed to streamline your remote and local workflows. Browse SSH/SFTP servers and S3-compatible object stores side-by-side with your local filesystem, with a powerful terminal just a tab away.
 
 ---
 
 ## ✨ Key Features
 
-### 💻 Advanced SSH Terminal
+### 💻 Advanced Terminal (SSH & Local)
 
+- **Native Local Shell**: Access your local machine's shell (bash, zsh, powershell) directly within Lunar using `node-pty`.
 - **High Performance**: Powered by **xterm.js** with **WebGL rendering** for buttery-smooth scrolling and zero-lag input.
 - **Multi-Session Management**: Organize your work with tabs and multi-pane splits (horizontal/vertical).
 - **Professional Theming**: Built-in themes including Dracula, Nord, Tokyo Night, Gruvbox, and Monokai.
 - **Unicode 11 Support**: Robust character rendering for modern CLI tools and emojis.
-- **Resilient Connectivity**: Automatic reconnection with exponential backoff and configurable retry limits.
+- **Resilient Connectivity**: Automatic reconnection with exponential backoff and configurable retry limits for SSH.
 
 ### 📁 Integrated SFTP Browser
 
 - **Dual-Pane Workflow**: Effortlessly transfer files between local and remote systems.
 - **Drag & Drop**: Seamlessly move files into the cloud or down to your machine.
-- **Queue Management**: Concurrent transfer engine with real-time progress monitoring.
+- **Queue Management**: Concurrent transfer engine with real-time progress monitoring and abort support.
 - **In-App Preview**: Securely preview configuration files without leaving the application.
+- **Session Recovery**: Persistent session state across application restarts.
 
 ### ☁️ S3-Compatible Object Storage
 
 - **First-Class Provider**: AWS S3 and any S3-compatible service (MinIO, Cloudflare R2, Backblaze B2, Wasabi) sit alongside SFTP.
 - **Multipart Uploads**: Large files stream through `@aws-sdk/lib-storage` with live progress and abort support.
-- **Bucket-Aware Navigation**: Connections can pin a default bucket or browse the whole account from the virtual root.
-- **S3 Operation Timeouts**: Optimized storage engine ensuring a responsive experience even on slow networks.
+- **Bucket Management**: List, create, and delete buckets; pin a default bucket or browse the whole account.
+- **Optimized Storage**: Operation timeouts and query caching ensuring a responsive experience even on slow networks.
 
 ### 🛠️ Developer-First Tools
 
 - **Command Palette**: Access every action instantly with `Cmd+K` (macOS) or `Ctrl+K` (Linux/Windows).
-- **Connection Manager**: Securely store SSH/SFTP and S3 connections side-by-side. Organize via folders and tags.
+- **Connection Manager**: Securely store SSH/SFTP and S3 connections. Organize via folders, tags, and reorderable sections.
 - **Customizable Sidebar**: Reorderable connection sections with persistent drag-and-drop state.
 - **Auto-Update**: Stay current with integrated GitHub-based updates and interactive notifications.
 

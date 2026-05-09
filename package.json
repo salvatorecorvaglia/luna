@@ -1,7 +1,7 @@
 {
   "name": "lunar",
   "version": "0.3.5",
-  "description": "A modern SSH terminal, SFTP file manager, and S3-compatible object storage browser — all in one.",
+  "description": "A modern SSH & Local terminal, SFTP file manager, and S3-compatible object storage browser — all in one.",
   "main": "./out/main/index.js",
   "author": "Salvatore Corvaglia",
   "license": "MIT",
