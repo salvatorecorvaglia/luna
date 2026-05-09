@@ -47,7 +47,7 @@ export function useDeleteConnection() {
     },
   });
 }
- 
+
 export function useReorderConnections() {
   const queryClient = useQueryClient();
   return useMutation({

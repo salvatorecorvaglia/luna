@@ -131,7 +131,7 @@ export function SettingsPanel() {
             animate="animate"
             exit="exit"
             onClick={() => setSettingsOpen(false)}
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-[998] bg-black/60 backdrop-blur-sm"
           />
           <motion.div
             variants={panelVariants}
@@ -142,19 +142,23 @@ export function SettingsPanel() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="settings-dialog-title"
-            className="no-drag fixed right-0 top-0 z-[100] flex h-full w-full max-w-md flex-col border-l border-border/60 bg-card shadow-xl pointer-events-auto"
+            className="no-drag fixed right-0 top-0 z-[999] flex h-full w-full max-w-md flex-col border-l border-border/60 bg-card shadow-xl pointer-events-auto"
           >
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
+            <div
+              className="no-drag flex items-center justify-between border-b border-border/60 px-5 pb-4 pt-8"
+              style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+            >
               <h2 id="settings-dialog-title" className="text-base font-semibold text-foreground">
                 Settings
               </h2>
               <button
                 onClick={() => setSettingsOpen(false)}
-                className="btn-icon cursor-pointer relative z-[110]"
+                className="btn-icon no-drag relative z-[120] -mr-2 cursor-pointer p-2 hover:bg-accent/80"
+                style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                 aria-label="Close settings"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4.5 w-4.5" />
               </button>
             </div>
 
