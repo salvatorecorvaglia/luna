@@ -9,7 +9,8 @@ import { LunarError } from '@shared/errors';
  */
 export function registerHandler(
   channel: string,
-  handler: (event: Electron.IpcMainInvokeEvent, ...args: unknown[]) => Promise<unknown> | unknown,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  handler: (event: Electron.IpcMainInvokeEvent, ...args: any[]) => Promise<unknown> | unknown,
 ): void {
   ipcMain.handle(channel, async (event, ...args) => {
     try {

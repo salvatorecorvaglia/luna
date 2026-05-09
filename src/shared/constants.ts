@@ -107,8 +107,9 @@ export const IPC = {
   // Transfers (additional)
   TRANSFER_CANCELLED: 'transfer:cancelled',
 
-  // SSH (additional)
   SSH_TEST_CONNECTION: 'ssh:test-connection',
+  // Logging
+  LOG_MESSAGE: 'log:message',
 } as const;
 
 /** Resource limits — centralised so renderer + main agree. */

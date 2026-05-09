@@ -51,47 +51,47 @@ describe('ssh.ipc validation', () => {
   });
 
   describe('SSH_SEND_DATA size cap', () => {
-    it('rejects payloads over 64 KiB', () => {
+    it('rejects payloads over 64 KiB', async () => {
       const handler = handlers.get(IPC.SSH_SEND_DATA)!;
       const huge = 'x'.repeat(65537); // 65537 ASCII bytes
-      expect(() => handler({}, { sessionId: 's', data: huge })).toThrow(/exceeds/);
+      await expect(handler({}, { sessionId: 's', data: huge })).rejects.toThrow(/exceeds/);
       expect(sshManagerMock.sendData).not.toHaveBeenCalled();
     });
 
-    it('accepts payloads at exactly 64 KiB', () => {
+    it('accepts payloads at exactly 64 KiB', async () => {
       const handler = handlers.get(IPC.SSH_SEND_DATA)!;
       const ok = 'x'.repeat(65536);
-      expect(() => handler({}, { sessionId: 's', data: ok })).not.toThrow();
+      await expect(handler({}, { sessionId: 's', data: ok })).resolves.not.toThrow();
       expect(sshManagerMock.sendData).toHaveBeenCalledWith('s', ok);
     });
 
-    it('rejects non-string data', () => {
+    it('rejects non-string data', async () => {
       const handler = handlers.get(IPC.SSH_SEND_DATA)!;
-      expect(() => handler({}, { sessionId: 's', data: 123 as unknown as string })).toThrow(
+      await expect(handler({}, { sessionId: 's', data: 123 as unknown as string })).rejects.toThrow(
         /string/,
       );
     });
 
-    it('counts UTF-8 byte length, not character count', () => {
+    it('counts UTF-8 byte length, not character count', async () => {
       const handler = handlers.get(IPC.SSH_SEND_DATA)!;
       // Each '✓' is 3 UTF-8 bytes. 22000 × 3 = 66000 bytes > 65536.
       const tricky = '✓'.repeat(22000);
-      expect(() => handler({}, { sessionId: 's', data: tricky })).toThrow(/exceeds/);
+      await expect(handler({}, { sessionId: 's', data: tricky })).rejects.toThrow(/exceeds/);
     });
   });
 
-  it('SSH_RESIZE rejects out-of-range cols/rows', () => {
+  it('SSH_RESIZE rejects out-of-range cols/rows', async () => {
     const handler = handlers.get(IPC.SSH_RESIZE)!;
-    expect(() => handler({}, { sessionId: 's', cols: 0, rows: 24 })).toThrow(/cols/);
-    expect(() => handler({}, { sessionId: 's', cols: 80, rows: 1000 })).toThrow(/rows/);
+    await expect(handler({}, { sessionId: 's', cols: 0, rows: 24 })).rejects.toThrow(/cols/);
+    await expect(handler({}, { sessionId: 's', cols: 80, rows: 1000 })).rejects.toThrow(/rows/);
     expect(sshManagerMock.resize).not.toHaveBeenCalled();
   });
 
-  it('SSH_TRUST_HOST_KEY validates host and port', () => {
+  it('SSH_TRUST_HOST_KEY validates host and port', async () => {
     const handler = handlers.get(IPC.SSH_TRUST_HOST_KEY)!;
-    expect(() => handler({}, { host: '', port: 22 })).toThrow(/host/);
-    expect(() => handler({}, { host: 'h', port: 0 })).toThrow(/port/);
-    expect(() => handler({}, { host: 'h', port: 70000 })).toThrow(/port/);
+    await expect(handler({}, { host: '', port: 22 })).rejects.toThrow(/host/);
+    await expect(handler({}, { host: 'h', port: 0 })).rejects.toThrow(/port/);
+    await expect(handler({}, { host: 'h', port: 70000 })).rejects.toThrow(/port/);
   });
 
   describe('SSH_TEST_CONNECTION', () => {

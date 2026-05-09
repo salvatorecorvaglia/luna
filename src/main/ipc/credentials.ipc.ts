@@ -1,4 +1,3 @@
-import { ipcMain } from 'electron';
 import { IPC } from '@shared/constants';
 import {
   deleteCredential,
@@ -6,6 +5,7 @@ import {
   storeCredential,
 } from '../services/credential-store';
 import { assertNonEmptyString } from '../lib/validate';
+import { registerHandler } from '../lib/ipc-handler';
 
 /**
  * Sliding-window rate limit on credential retrievals so a compromised renderer
@@ -30,10 +30,7 @@ function checkRetrieveRate(): void {
 }
 
 export function registerCredentialHandlers(): void {
-  // Validation errors are the validators doing their job — they propagate to
-  // the renderer naturally as a rejected invoke(). Don't log them: it floods
-  // the file with normal-path noise (tests + transient bad payloads).
-  ipcMain.handle(
+  registerHandler(
     IPC.CREDENTIAL_STORE,
     (_event, payload: { connectionId: string; secret: string }) => {
       assertNonEmptyString(payload?.connectionId, 'connectionId');
@@ -42,13 +39,13 @@ export function registerCredentialHandlers(): void {
     },
   );
 
-  ipcMain.handle(IPC.CREDENTIAL_RETRIEVE, (_event, connectionId: string) => {
+  registerHandler(IPC.CREDENTIAL_RETRIEVE, (_event, connectionId: string) => {
     checkRetrieveRate();
     assertNonEmptyString(connectionId, 'connectionId');
     return retrieveCredential(connectionId);
   });
 
-  ipcMain.handle(IPC.CREDENTIAL_DELETE, (_event, connectionId: string) => {
+  registerHandler(IPC.CREDENTIAL_DELETE, (_event, connectionId: string) => {
     assertNonEmptyString(connectionId, 'connectionId');
     deleteCredential(connectionId);
   });

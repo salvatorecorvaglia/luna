@@ -208,6 +208,16 @@ export interface IpcHandlerMap {
     request: void;
     response: { backend: 'safeStorage' | 'plaintext' | 'uninitialized' };
   };
+
+  // Logging
+  'log:message': {
+    request: {
+      level: 'info' | 'warn' | 'error' | 'debug';
+      message: string;
+      context?: Record<string, unknown>;
+    };
+    response: void;
+  };
 }
 
 // Streaming events (main -> renderer, via webContents.send)
