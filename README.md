@@ -1,8 +1,8 @@
 # <img src="resources/lunar.png" align="center" width="48" height="48" /> Lunar
 
-**A modern SSH, SFTP file manager, and S3-compatible object storage browser — all in one.**
+**A modern SSH terminal, local terminal, SFTP file manager, and S3-compatible object storage browser — all in one.**
 
-Lunar is a high-performance, cross-platform desktop application designed to streamline your remote and local workflows. Browse SSH/SFTP servers and S3-compatible object stores side-by-side with your local filesystem, with a powerful terminal just a tab away.
+Lunar is a high-performance, cross-platform desktop application designed to streamline your remote and local workflows. Browse SSH/SFTP servers and S3-compatible object stores side-by-side with your local filesystem, with a powerful terminal (SSH or local shell) just a tab away.
 
 ---
 
@@ -13,7 +13,7 @@ Lunar is a high-performance, cross-platform desktop application designed to stre
 - **Native Local Shell**: Access your local machine's shell (bash, zsh, powershell) directly within Lunar using `node-pty`.
 - **High Performance**: Powered by **xterm.js** with **WebGL rendering** for buttery-smooth scrolling and zero-lag input.
 - **Multi-Session Management**: Organize your work with tabs and multi-pane splits (horizontal/vertical).
-- **Professional Theming**: Built-in themes including Dracula, Nord, Tokyo Night, Gruvbox, and Monokai.
+- **Professional Theming**: Built-in themes including Dracula, Nord, Tokyo Night, Gruvbox, Monokai, and One Dark.
 - **Unicode 11 Support**: Robust character rendering for modern CLI tools and emojis.
 - **Resilient Connectivity**: Automatic reconnection with exponential backoff and configurable retry limits for SSH.
 
@@ -51,6 +51,7 @@ Lunar has undergone a rigorous architectural audit to ensure the highest standar
 - **Input Validation**: All IPC arguments undergo strict validation, including path traversal guards and settings whitelisting.
 - **Zero Circular Dependencies**: A clean, modular architecture ensures long-term maintainability.
 - **Credential Protection**: SSH passwords/passphrases and S3 access keys are encrypted using **AES-256-GCM** — never stored in plain text.
+- **IPC Logging**: Robust logging system for monitoring cross-process communication and debugging.
 
 ---
 

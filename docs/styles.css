@@ -723,6 +723,7 @@ img {
 }
 .lunar-footer__brand {
   display: flex;
+  align-items: center;
   gap: 12px;
 }
 .lunar-footer__brand img {
@@ -732,7 +733,6 @@ img {
 .lunar-footer__name {
   font-size: 15px;
   font-weight: 600;
-  margin-bottom: 2px;
 }
 .lunar-footer__tag {
   font-size: 12px;

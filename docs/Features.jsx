@@ -1,6 +1,12 @@
 function Features() {
   const items = [
     {
+      icon: 'terminal',
+      tint: '#10b981',
+      title: 'Native Local Terminal',
+      desc: 'Full-featured local shell integration (bash, zsh, powershell) for seamless local and remote workflows.',
+    },
+    {
       icon: 'zap',
       tint: '#3b82f6',
       title: 'High Performance',
@@ -22,7 +28,13 @@ function Features() {
       icon: 'cloud',
       tint: '#0ea5e9',
       title: 'S3-Compatible Storage',
-      desc: 'AWS S3, MinIO, Cloudflare R2, Backblaze B2, Wasabi — first-class providers in the same browser and queue. Multipart uploads with abort.',
+      desc: 'AWS S3, MinIO, Cloudflare R2, Backblaze B2, Wasabi — first-class providers in the same browser and queue.',
+    },
+    {
+      icon: 'list',
+      tint: '#f59e0b',
+      title: 'Connection Management',
+      desc: 'Organize connections with folders, tags, and drag-and-drop reordering. State persists across restarts.',
     },
     {
       icon: 'command',
@@ -33,7 +45,7 @@ function Features() {
     {
       icon: 'palette',
       tint: '#f472b6',
-      title: 'Six Pro Themes',
+      title: 'Professional Themes',
       desc: 'Dracula, Nord, Tokyo Night, Gruvbox, Monokai, One Dark — UI follows your terminal.',
     },
     {
