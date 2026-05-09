@@ -11,6 +11,10 @@ log.transports.file.maxSize = 10 * 1024 * 1024; // 10 MB
 // Custom format for console to make it more readable during development
 log.transports.console.format = '[{h}:{i}:{s}.{ms}] [{level}] {text}';
 
+if (process.env.NODE_ENV === 'test') {
+  log.transports.console.level = false;
+}
+
 /**
  * Hook to redact sensitive information (passwords, keys, etc.) from all logs.
  */
