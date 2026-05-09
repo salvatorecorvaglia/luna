@@ -1,9 +1,9 @@
-import { ipcMain } from 'electron';
 import { IPC } from '@shared/constants';
 import { sshManager } from '../services/ssh-manager';
 import { storageRegistry } from '../services/storage/registry';
 import { sftpStorageProvider } from '../services/storage/sftp-storage-provider';
 import { assertBoundedInt, assertNonEmptyString } from '../lib/validate';
+import { registerHandler } from '../lib/ipc-handler';
 
 const VALID_AUTH_TYPES = new Set(['password', 'key', 'key+passphrase']);
 /** Cap on the size of a single transient secret accepted from the renderer. */
@@ -19,7 +19,7 @@ import type { SshConnectParams, SshResizeParams, SshSendDataParams } from '@shar
 import type { AuthType } from '@shared/types/connection';
 
 export function registerSshHandlers(): void {
-  ipcMain.handle(IPC.SSH_CONNECT, async (_event, params: SshConnectParams) => {
+  registerHandler(IPC.SSH_CONNECT, async (_event, params: SshConnectParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
     assertNonEmptyString(params.connectionId, 'connectionId');
     const result = await sshManager.connect(
@@ -34,13 +34,13 @@ export function registerSshHandlers(): void {
     return result;
   });
 
-  ipcMain.handle(IPC.SSH_DISCONNECT, (_event, sessionId: string) => {
+  registerHandler(IPC.SSH_DISCONNECT, (_event, sessionId: string) => {
     assertNonEmptyString(sessionId, 'sessionId');
     sshManager.disconnect(sessionId);
     storageRegistry.unregister(sessionId);
   });
 
-  ipcMain.handle(IPC.SSH_SEND_DATA, (_event, params: SshSendDataParams) => {
+  registerHandler(IPC.SSH_SEND_DATA, (_event, params: SshSendDataParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
     if (typeof params.data !== 'string') {
       throw new Error('data must be a string');
@@ -54,7 +54,7 @@ export function registerSshHandlers(): void {
     sshManager.sendData(params.sessionId, params.data);
   });
 
-  ipcMain.handle(
+  registerHandler(
     IPC.SSH_TEST_CONNECTION,
     async (
       _event,
@@ -100,14 +100,14 @@ export function registerSshHandlers(): void {
     },
   );
 
-  ipcMain.handle(IPC.SSH_RESIZE, (_event, params: SshResizeParams) => {
+  registerHandler(IPC.SSH_RESIZE, (_event, params: SshResizeParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
     assertBoundedInt(params.cols, 'cols', 1, 500);
     assertBoundedInt(params.rows, 'rows', 1, 500);
     sshManager.resize(params.sessionId, params.cols, params.rows);
   });
 
-  ipcMain.handle(
+  registerHandler(
     IPC.SSH_TRUST_HOST_KEY,
     (
       _event,

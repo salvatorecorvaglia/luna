@@ -1,10 +1,11 @@
-import { app, BrowserWindow, ipcMain, shell, type WebContents } from 'electron';
+import { app, BrowserWindow, shell, type WebContents } from 'electron';
 import { IPC } from '@shared/constants';
 import { checkForUpdate, installUpdate } from '../services/updater';
 import { sshManager } from '../services/ssh-manager';
 import { s3StorageProvider } from '../services/s3/s3-provider';
 import { getCredentialBackendStatus } from '../services/credential-store';
 import log from '../lib/logger';
+import { registerHandler } from '../lib/ipc-handler';
 
 let mainWindowRef: BrowserWindow | null = null;
 
@@ -27,47 +28,47 @@ function assertFromMainWindow(sender: WebContents): BrowserWindow {
 }
 
 export function registerAppHandlers(): void {
-  ipcMain.handle(IPC.APP_CHECK_UPDATE, () => {
+  registerHandler(IPC.APP_CHECK_UPDATE, () => {
     return checkForUpdate();
   });
 
-  ipcMain.handle(IPC.APP_INSTALL_UPDATE, () => {
+  registerHandler(IPC.APP_INSTALL_UPDATE, () => {
     installUpdate();
   });
 
-  ipcMain.handle(IPC.APP_GET_ACTIVE_SESSIONS, () => {
+  registerHandler(IPC.APP_GET_ACTIVE_SESSIONS, () => {
     return {
       ssh: sshManager.listSessions(),
       s3: s3StorageProvider.listSessions(),
     };
   });
 
-  ipcMain.handle(IPC.APP_GET_VERSION, () => app.getVersion());
+  registerHandler(IPC.APP_GET_VERSION, () => app.getVersion());
 
-  ipcMain.handle(IPC.APP_GET_CREDENTIAL_BACKEND, () => getCredentialBackendStatus());
+  registerHandler(IPC.APP_GET_CREDENTIAL_BACKEND, () => getCredentialBackendStatus());
 
-  ipcMain.handle(IPC.APP_GET_LOG_PATH, () => log.transports.file.getFile().path);
+  registerHandler(IPC.APP_GET_LOG_PATH, () => log.transports.file.getFile().path);
 
-  ipcMain.handle(IPC.APP_OPEN_LOG_FILE, () => {
+  registerHandler(IPC.APP_OPEN_LOG_FILE, () => {
     shell.showItemInFolder(log.transports.file.getFile().path);
   });
 
   // Window management IPC — only the main window may control itself.
-  ipcMain.handle(IPC.WINDOW_MINIMIZE, (event) => {
+  registerHandler(IPC.WINDOW_MINIMIZE, (event) => {
     assertFromMainWindow(event.sender).minimize();
   });
 
-  ipcMain.handle(IPC.WINDOW_MAXIMIZE, (event) => {
+  registerHandler(IPC.WINDOW_MAXIMIZE, (event) => {
     const win = assertFromMainWindow(event.sender);
     if (win.isMaximized()) win.unmaximize();
     else win.maximize();
   });
 
-  ipcMain.handle(IPC.WINDOW_CLOSE, (event) => {
+  registerHandler(IPC.WINDOW_CLOSE, (event) => {
     assertFromMainWindow(event.sender).close();
   });
 
-  ipcMain.handle(IPC.WINDOW_IS_MAXIMIZED, (event) => {
+  registerHandler(IPC.WINDOW_IS_MAXIMIZED, (event) => {
     return assertFromMainWindow(event.sender).isMaximized();
   });
 }

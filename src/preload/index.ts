@@ -34,24 +34,45 @@ import type {
   StorageStatParams,
   StorageTransferParams,
 } from '@shared/types/storage-provider';
+import { LunarError, ErrorCode } from '@shared/errors';
 
 type CleanupFn = () => void;
 
 /**
- * Strip the `Error invoking remote method '<channel>': Error: ` prefix that
- * Electron prepends to IPC handler rejections. Without this, a clean message
- * thrown in main (e.g. "Cannot initialize credential storage: install
- * libsecret-1-0…") reaches the renderer wrapped in two layers of "Error:" —
- * which the user-facing toast then shows verbatim. Idempotent for messages
- * that don't have the prefix.
+ * Strip the `Error invoking remote method '<channel>': Error: ` prefix and
+ * reconstitute a LunarError if the underlying error is structured.
  */
 function unwrapIpcError(err: unknown): unknown {
   if (!(err instanceof Error)) return err;
+
+  // Electron's default prefix
   const match = err.message.match(/^Error invoking remote method '[^']+': (?:Error: )?(.*)$/s);
-  if (match) {
-    err.message = match[1];
+  const message = match ? match[1] : err.message;
+
+  // Try to see if the message is a JSON-serialized LunarError
+  // (In some Electron versions/configs, custom Error properties might not survive,
+  // but if we throw a LunarError it might have those properties if it's the same process,
+  // but across IPC they might be lost depending on Electron version.)
+
+  // If it's already an object with 'code' and 'message', it might have survived serialization
+  if ('code' in err && 'message' in err) {
+    return LunarError.fromUnknown(err);
   }
-  return err;
+
+  // If it's a string that looks like JSON, it might be our serialized error
+  if (message.startsWith('{') && message.endsWith('}')) {
+    try {
+      const parsed = JSON.parse(message);
+      if (parsed.code && parsed.message) {
+        return LunarError.fromUnknown(parsed);
+      }
+    } catch {
+      // Not JSON, continue with original message
+    }
+  }
+
+  // If it's a standard error, just wrap it as INTERNAL_ERROR
+  return new LunarError(message, ErrorCode.INTERNAL_ERROR);
 }
 
 /**
