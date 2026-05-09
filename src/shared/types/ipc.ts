@@ -60,6 +60,7 @@ export interface IpcHandlerMap {
   'connection:create': { request: CreateConnectionInput; response: Connection };
   'connection:update': { request: UpdateConnectionInput; response: Connection };
   'connection:delete': { request: string; response: void };
+  'connection:reorder': { request: string[]; response: void };
   'connection:export': { request: void; response: ExportedConnection[] };
   'connection:import': {
     request: ExportedConnection[];

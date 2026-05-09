@@ -58,6 +58,7 @@ function rowToConnection(row: ConnectionRow): Connection {
     forcePathStyle: row.force_path_style == null ? undefined : row.force_path_style === 1,
     folder: row.folder,
     colorTag: row.color_tag || undefined,
+    sortOrder: row.sort_order,
     lastConnectedAt: row.last_connected_at || undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -68,7 +69,9 @@ export function registerDbHandlers(): void {
   const db = getDatabase();
 
   ipcMain.handle(IPC.CONNECTION_LIST, () => {
-    const rows = db.prepare('SELECT * FROM connections ORDER BY name ASC').all() as ConnectionRow[];
+    const rows = db
+      .prepare('SELECT * FROM connections ORDER BY sort_order ASC, name ASC')
+      .all() as ConnectionRow[];
     return rows.map(rowToConnection);
   });
 
@@ -235,9 +238,21 @@ export function registerDbHandlers(): void {
     db.prepare('DELETE FROM connections WHERE id = ?').run(id);
     deleteCredential(id);
   });
+ 
+  ipcMain.handle(IPC.CONNECTION_REORDER, (_event, ids: string[]) => {
+    const update = db.prepare('UPDATE connections SET sort_order = ? WHERE id = ?');
+    const transaction = db.transaction((idList: string[]) => {
+      idList.forEach((id, index) => {
+        update.run(index, id);
+      });
+    });
+    transaction(ids);
+  });
 
   ipcMain.handle(IPC.CONNECTION_EXPORT, (): ExportedConnection[] => {
-    const rows = db.prepare('SELECT * FROM connections ORDER BY name ASC').all() as ConnectionRow[];
+    const rows = db
+      .prepare('SELECT * FROM connections ORDER BY sort_order ASC, name ASC')
+      .all() as ConnectionRow[];
     return rows.map((row) => {
       const out: ExportedConnection = { name: row.name, provider: row.provider ?? 'sftp' };
       if (row.host) out.host = row.host;

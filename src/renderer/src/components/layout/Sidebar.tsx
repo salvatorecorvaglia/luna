@@ -1,5 +1,5 @@
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion, Reorder } from 'framer-motion';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion, Reorder, useDragControls } from 'framer-motion';
 import {
   ChevronRight,
   Copy,
@@ -15,13 +15,18 @@ import {
   Terminal,
   Trash2,
   X,
+  GripVertical,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useUIStore } from '@/stores/ui-store';
 import { useConnectionStore } from '@/stores/connection-store';
 import { useTerminalStore } from '@/stores/terminal-store';
-import { useConnections, useDeleteConnection } from '@/hooks/use-connections';
+import {
+  useConnections,
+  useDeleteConnection,
+  useReorderConnections,
+} from '@/hooks/use-connections';
 import { connectToHost } from '@/lib/ssh';
 import { connectToS3 } from '@/lib/s3';
 import { useSftpStore } from '@/stores/sftp-store';
@@ -42,6 +47,12 @@ export function Sidebar() {
   const { data: connections, isLoading } = useConnections();
   const connectionList = useMemo(() => connections ?? [], [connections]);
   const [searchQuery, setSearchQuery] = useState('');
+  const reorderMutation = useReorderConnections();
+
+  // Local state for connections to allow smooth reordering
+  const [localSshConnections, setLocalSshConnections] = useState<typeof connectionList>([]);
+  const [localS3Connections, setLocalS3Connections] = useState<typeof connectionList>([]);
+  const [isDraggingConnection, setIsDraggingConnection] = useState(false);
 
   const filteredConnections = useMemo(() => {
     if (!searchQuery.trim()) return connectionList;
@@ -59,6 +70,14 @@ export function Sidebar() {
     const s3 = filteredConnections.filter((c) => c.provider === 's3');
     return { sftp, s3 };
   }, [filteredConnections]);
+
+  // Sync local state with grouped connections when not reordering and no mutation is pending
+  useEffect(() => {
+    if (!isDraggingConnection && !reorderMutation.isPending) {
+      setLocalSshConnections(groupedByProvider.sftp);
+      setLocalS3Connections(groupedByProvider.s3);
+    }
+  }, [groupedByProvider, isDraggingConnection, reorderMutation.isPending]);
 
   const [resizing, setResizing] = useState(false);
   // Guard against double mousedown without an intervening mouseup (e.g. dev-tools
@@ -183,65 +202,21 @@ export function Sidebar() {
                 onReorder={setSidebarSectionOrder}
                 className="space-y-4"
               >
-                {sidebarSectionOrder.map((sectionId) => {
-                  if (sectionId === 'ssh' && groupedByProvider.sftp.length > 0) {
-                    return (
-                      <Reorder.Item
-                        key="ssh"
-                        value="ssh"
-                        initial={false}
-                        onDragStart={() => setDraggingSection('ssh')}
-                        onDragEnd={() => setTimeout(() => setDraggingSection(null), 100)}
-                        className="space-y-1 bg-sidebar"
-                      >
-                        <div className="flex items-center justify-between px-2.5 pb-1 cursor-grab active:cursor-grabbing">
-                          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
-                            <Terminal className="h-3 w-3" />
-                            <span>SSH Sessions</span>
-                          </div>
-                        </div>
-                        <div className="space-y-0.5">
-                          {groupedByProvider.sftp.map((conn) => (
-                            <ConnectionItem
-                              key={conn.id}
-                              connection={conn}
-                              disabled={!!draggingSection}
-                            />
-                          ))}
-                        </div>
-                      </Reorder.Item>
-                    );
-                  }
-                  if (sectionId === 's3' && groupedByProvider.s3.length > 0) {
-                    return (
-                      <Reorder.Item
-                        key="s3"
-                        value="s3"
-                        initial={false}
-                        onDragStart={() => setDraggingSection('s3')}
-                        onDragEnd={() => setTimeout(() => setDraggingSection(null), 100)}
-                        className="space-y-1 bg-sidebar"
-                      >
-                        <div className="flex items-center justify-between px-2.5 pb-1 cursor-grab active:cursor-grabbing">
-                          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
-                            <FolderClosed className="h-3 w-3" />
-                            <span>S3 Storage</span>
-                          </div>
-                        </div>
-                        <div className="space-y-0.5">
-                          {groupedByProvider.s3.map((conn) => (
-                            <ConnectionItem
-                              key={conn.id}
-                              connection={conn}
-                              disabled={!!draggingSection}
-                            />
-                          ))}
-                        </div>
-                      </Reorder.Item>
-                    );
-                  }
-                  return null;
-                })}
+                {sidebarSectionOrder.map((sectionId) => (
+                  <SidebarSection
+                    key={sectionId}
+                    sectionId={sectionId as 'ssh' | 's3'}
+                    groupedByProvider={groupedByProvider}
+                    localSshConnections={localSshConnections}
+                    setLocalSshConnections={setLocalSshConnections}
+                    localS3Connections={localS3Connections}
+                    setLocalS3Connections={setLocalS3Connections}
+                    setIsDraggingConnection={setIsDraggingConnection}
+                    draggingSection={draggingSection}
+                    setDraggingSection={setDraggingSection}
+                    reorderMutation={reorderMutation}
+                  />
+                ))}
               </Reorder.Group>
             )}
           </div>
@@ -278,25 +253,120 @@ export function Sidebar() {
   );
 }
 
-const ConnectionItem = memo(function ConnectionItem({
+function SidebarSection({
+  sectionId,
+  groupedByProvider,
+  localSshConnections,
+  setLocalSshConnections,
+  localS3Connections,
+  setLocalS3Connections,
+  setIsDraggingConnection,
+  draggingSection,
+  setDraggingSection,
+  reorderMutation,
+}: {
+  sectionId: 'ssh' | 's3';
+  groupedByProvider: { sftp: any[]; s3: any[] };
+  localSshConnections: any[];
+  setLocalSshConnections: (v: any[]) => void;
+  localS3Connections: any[];
+  setLocalS3Connections: (v: any[]) => void;
+  setIsDraggingConnection: (v: boolean) => void;
+  draggingSection: string | null;
+  setDraggingSection: (v: string | null) => void;
+  reorderMutation: any;
+}) {
+  const controls = useDragControls();
+  const isSsh = sectionId === 'ssh';
+  const connections = isSsh ? localSshConnections : localS3Connections;
+  const setConnections = isSsh ? setLocalSshConnections : setLocalS3Connections;
+  const hasConnections = isSsh
+    ? groupedByProvider.sftp.length > 0
+    : groupedByProvider.s3.length > 0;
+
+  if (!hasConnections) return null;
+
+  return (
+    <Reorder.Item
+      value={sectionId}
+      dragListener={false}
+      dragControls={controls}
+      onDragStart={() => setDraggingSection(sectionId)}
+      onDragEnd={() => setTimeout(() => setDraggingSection(null), 100)}
+      className="space-y-1 bg-sidebar"
+    >
+      <div
+        onPointerDown={(e) => controls.start(e)}
+        className="flex items-center justify-between px-2.5 pb-1 cursor-grab active:cursor-grabbing group/section"
+      >
+        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50 group-hover/section:text-muted-foreground/80 transition-colors">
+          {isSsh ? <Terminal className="h-3 w-3" /> : <FolderClosed className="h-3 w-3" />}
+          <span>{isSsh ? 'SSH Sessions' : 'S3 Storage'}</span>
+        </div>
+        <GripVertical className="h-3 w-3 text-muted-foreground/20 opacity-0 group-hover/section:opacity-100 transition-opacity" />
+      </div>
+
+      <Reorder.Group
+        axis="y"
+        values={connections}
+        onReorder={(newOrder) => {
+          setConnections(newOrder);
+        }}
+        className="space-y-0.5"
+      >
+        {connections.map((conn) => (
+          <DraggableConnectionItem
+            key={conn.id}
+            connection={conn}
+            disabled={!!draggingSection}
+            onDragStart={() => setIsDraggingConnection(true)}
+            onDragEnd={() => {
+              setIsDraggingConnection(false);
+              reorderMutation.mutate(connections.map((c: any) => c.id));
+            }}
+          />
+        ))}
+      </Reorder.Group>
+    </Reorder.Item>
+  );
+}
+
+function DraggableConnectionItem({
+  connection,
+  disabled,
+  onDragStart,
+  onDragEnd,
+}: {
+  connection: any;
+  disabled: boolean;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+}) {
+  const controls = useDragControls();
+  return (
+    <Reorder.Item
+      value={connection}
+      dragListener={false}
+      dragControls={controls}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      className="bg-sidebar"
+    >
+      <ConnectionItem connection={connection} disabled={disabled} dragControls={controls} />
+    </Reorder.Item>
+  );
+}
+
+function ConnectionItem({
   connection,
   compact = false,
   disabled = false,
+  dragControls,
 }: {
-  connection: {
-    id: string;
-    name: string;
-    host: string;
-    username: string;
-    port: number;
-    colorTag?: string;
-    provider?: 'sftp' | 's3';
-    endpoint?: string;
-    region?: string;
-    defaultBucket?: string;
-  };
+  connection: any;
   compact?: boolean;
   disabled?: boolean;
+  dragControls: any;
 }) {
   const { activeConnectionId, setActiveConnectionId, openEditForm, openDuplicateForm } =
     useConnectionStore();
@@ -481,7 +551,7 @@ const ConnectionItem = memo(function ConnectionItem({
           onClick={handleConnect}
           aria-label={`${connection.name} (${connection.username}@${connection.host}) — ${statusLabel}`}
           className={cn(
-            'group flex w-full items-center gap-2.5 rounded-lg px-2.5 text-left cursor-pointer',
+            'group flex w-full items-center gap-2.5 rounded-lg px-2.5 text-left cursor-pointer transition-colors',
             compact ? 'py-[7px]' : 'py-2',
             isActive
               ? 'bg-sidebar-accent border-l-[3px] border-l-sidebar-primary pl-[7px]'
@@ -559,6 +629,16 @@ const ConnectionItem = memo(function ConnectionItem({
             aria-hidden="true"
             className="h-3.5 w-3.5 text-muted-foreground/30 group-hover:text-muted-foreground/70 flex-shrink-0 transition-colors"
           />
+          <div
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              dragControls.start(e);
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="cursor-grab active:cursor-grabbing px-1 py-2 -mr-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <GripVertical className="h-3 w-3 text-muted-foreground/40" />
+          </div>
         </button>
       </ContextMenu>
 
@@ -579,4 +659,4 @@ const ConnectionItem = memo(function ConnectionItem({
       />
     </>
   );
-});
+}
