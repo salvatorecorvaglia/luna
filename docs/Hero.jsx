@@ -13,9 +13,7 @@ function Hero() {
           <span className="lunar-gradient-text">in one calm workspace.</span>
         </h1>
         <p className="lunar-hero__sub">
-          Lunar is a high-performance, cross-platform desktop app that pairs a powerful SSH and
-          local terminal with a dual-pane file manager for SFTP servers and S3-compatible
-          object storage — AWS, MinIO, R2, B2, Wasabi — side by side.
+          Lunar is a cross-platform desktop app that combines SSH and local terminals with a dual-pane file manager for SFTP and S3-compatible storage.
         </p>
         <div className="lunar-hero__cta">
           <a href="#download" className="btn btn-primary btn-lg">
