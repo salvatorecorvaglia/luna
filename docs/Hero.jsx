@@ -8,13 +8,13 @@ function Hero() {
           Windows · Linux
         </div>
         <h1 className="lunar-hero__title">
-          SSH, Local Terminal, and S3
+          SSH, SFTP, and S3
           <br />
           <span className="lunar-gradient-text">in one calm workspace.</span>
         </h1>
         <p className="lunar-hero__sub">
-          Lunar is a high-performance, cross-platform desktop app that pairs powerful SSH and Local
-          terminals with a dual-pane file manager for SFTP servers and S3-compatible object
+          Lunar is a high-performance, cross-platform desktop app that pairs a powerful SSH
+          terminal with a dual-pane file manager for SFTP servers and S3-compatible object
           storage — AWS, MinIO, R2, B2, Wasabi — side by side.
         </p>
         <div className="lunar-hero__cta">
@@ -86,11 +86,11 @@ function FakeAppWindow() {
         </aside>
         <div className="lunar-app-window__main">
           <div className="lunar-tabs">
-            <div className="lunar-tab">
-              <Icon name="terminal" size={12} /> zsh · local
-            </div>
             <div className="lunar-tab lunar-tab--active">
               <Icon name="terminal" size={12} /> bash · prod
+            </div>
+            <div className="lunar-tab">
+              <Icon name="terminal" size={12} /> bash · prod (2)
             </div>
             <div className="lunar-tab">
               <Icon name="folder" size={12} /> SFTP
