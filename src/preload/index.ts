@@ -200,6 +200,19 @@ const api = {
     onCancelled: createEventListener(IPC.TRANSFER_CANCELLED),
   },
 
+  // Local terminal (PTY)
+  localTerminal: {
+    spawn: (params: { sessionId: string; cols: number; rows: number }) =>
+      invoke(IPC.LOCAL_TERMINAL_SPAWN, params),
+    kill: (sessionId: string) => invoke(IPC.LOCAL_TERMINAL_KILL, sessionId),
+    sendData: (params: { sessionId: string; data: string }) =>
+      invoke(IPC.LOCAL_TERMINAL_SEND_DATA, params),
+    resize: (params: { sessionId: string; cols: number; rows: number }) =>
+      invoke(IPC.LOCAL_TERMINAL_RESIZE, params),
+    onData: createEventListener(IPC.LOCAL_TERMINAL_ON_DATA),
+    onExit: createEventListener(IPC.LOCAL_TERMINAL_ON_EXIT),
+  },
+
   // Credentials
   credentials: {
     store: (connectionId: string, secret: string) =>

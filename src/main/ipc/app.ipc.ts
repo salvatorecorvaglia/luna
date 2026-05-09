@@ -13,6 +13,11 @@ export function setMainWindow(win: BrowserWindow | null): void {
   mainWindowRef = win;
 }
 
+/** Returns the main BrowserWindow reference (may be null if not yet created or destroyed). */
+export function getMainWindow(): BrowserWindow | null {
+  return mainWindowRef;
+}
+
 function assertFromMainWindow(sender: WebContents): BrowserWindow {
   const win = BrowserWindow.fromWebContents(sender);
   if (!win || !mainWindowRef || win.id !== mainWindowRef.id) {

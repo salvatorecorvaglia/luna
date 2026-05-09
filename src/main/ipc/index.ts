@@ -6,6 +6,7 @@ import { registerSftpHandlers } from './sftp.ipc';
 import { registerStorageHandlers } from './storage.ipc';
 import { registerS3Handlers } from './s3.ipc';
 import { registerAppHandlers } from './app.ipc';
+import { registerLocalTerminalHandlers } from './local-terminal.ipc';
 
 export function registerAllHandlers(): void {
   registerDbHandlers();
@@ -16,4 +17,5 @@ export function registerAllHandlers(): void {
   registerStorageHandlers();
   registerS3Handlers();
   registerAppHandlers();
+  registerLocalTerminalHandlers();
 }

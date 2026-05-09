@@ -4,6 +4,7 @@ import { is } from '@electron-toolkit/utils';
 import icon from '../../resources/lunar.png?asset';
 import { registerAllHandlers } from './ipc';
 import { setMainWindow } from './ipc/app.ipc';
+import { disposeLocalTerminals } from './ipc/local-terminal.ipc';
 import { closeDatabase, getDatabase, MigrationError } from './services/database';
 import { sshManager } from './services/ssh-manager';
 import { sftpManager } from './services/sftp-manager';
@@ -182,6 +183,7 @@ app.on('before-quit', (event) => {
       transferQueue.cancelAll();
       sftpManager.dispose();
       sshManager.disconnectAll();
+      disposeLocalTerminals();
       // Give in-flight aborts a window to settle. SFTP/S3 abort handlers
       // run asynchronously after `controller.abort()`, so an immediate quit
       // can leave a local file descriptor half-flushed. 500 ms is well under

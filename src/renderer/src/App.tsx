@@ -11,6 +11,7 @@ import { CommandPalette } from '@/components/command-palette/CommandPalette';
 import { SettingsPanel } from '@/components/common/SettingsPanel';
 import { HostKeyDialog } from '@/components/common/HostKeyDialog';
 import { TerminalView } from '@/components/terminal/TerminalView';
+import { LocalTerminalView } from '@/components/terminal/LocalTerminalView';
 import { SftpManager } from '@/components/sftp/SftpManager';
 import { useTransferEventListener } from '@/hooks/use-transfers';
 import { useUpdaterEventListener } from '@/hooks/use-updater';
@@ -20,8 +21,7 @@ import { applyUIThemeTokens, buildUIThemeTokens } from '@/themes/ui-from-termina
 export default function App() {
   const activeView = useUIStore((s) => s.activeView);
   const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen);
-  const tabOrder = useTerminalStore((s) => s.tabOrder);
-  const terminalTheme = useTerminalStore((s) => s.terminalTheme);
+  const { tabOrder, terminalTheme, sessions } = useTerminalStore();
 
   // Apply terminal palette to UI tokens
   useEffect(() => {
@@ -89,9 +89,7 @@ export default function App() {
         useConnectionStore.getState().openCreateForm();
       }
 
-      // Cmd+Shift+1 — Switch to Terminal view. Match on event.code so the
-      // shortcut works on AZERTY/QWERTZ/etc. where Shift+1 doesn't produce
-      // '!'. Fall back to e.key for layouts where event.code is unreliable.
+      // Cmd+Shift+1 — Switch to Terminal view
       if (mod && e.shiftKey && (e.code === 'Digit1' || e.key === '!')) {
         e.preventDefault();
         useUIStore.getState().setActiveView('terminal');
@@ -102,26 +100,41 @@ export default function App() {
         e.preventDefault();
         useUIStore.getState().setActiveView('sftp');
       }
+
+      // Cmd+Shift+3 — Switch to Local Terminal view
+      if (mod && e.shiftKey && (e.code === 'Digit3' || e.key === '#')) {
+        e.preventDefault();
+        useUIStore.getState().setActiveView('local');
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [setCommandPaletteOpen]);
 
-  const hasTerminals = tabOrder.length > 0;
+  const hasTerminals = tabOrder.some((id) => {
+    const s = sessions.get(id);
+    return !s || !s.type || s.type === 'ssh';
+  });
+
   const showTerminal = activeView === 'terminal' && hasTerminals;
   const showSftp = activeView === 'sftp';
-  const showWelcome = !showTerminal && !showSftp;
+  const showLocal = activeView === 'local';
+  const showWelcome = !showTerminal && !showSftp && !showLocal;
 
   return (
     <>
       <AppShell>
         {/* Keep TerminalView mounted across view switches so xterm buffers/history survive */}
-        {hasTerminals && (
-          <div className={showTerminal ? 'h-full' : 'hidden'}>
-            <TerminalView />
-          </div>
-        )}
+        <div className={showTerminal ? 'h-full' : 'hidden'}>
+          <TerminalView />
+        </div>
+
+        {/* Keep LocalTerminalView mounted to preserve history and allow auto-spawn on view switch */}
+        <div className={showLocal ? 'h-full' : 'hidden'}>
+          <LocalTerminalView />
+        </div>
+
         {showSftp && <SftpManager />}
         {showWelcome && <WelcomeView />}
       </AppShell>
@@ -135,13 +148,7 @@ export default function App() {
       <Toaster
         theme="dark"
         position="bottom-right"
-        // Cap the visible queue. A bulk-transfer failure (10 files) would
-        // otherwise stack 10 toasts in the corner and block UI underneath.
-        // Sonner queues the rest internally — they show as the visible ones
-        // are dismissed.
         visibleToasts={4}
-        // Sonner forwards `aria-live` onto the live region; "polite" so toasts
-        // don't interrupt screen-reader users mid-utterance.
         toastOptions={{
           className: 'text-sm',
         }}

@@ -76,7 +76,10 @@ export function SftpManager() {
     if (activeConnectionId) {
       // Prioritize SSH sessions for the active connection
       const sshSession = Array.from(sessions.values()).find(
-        (s) => s.connectionId === activeConnectionId && s.status === 'connected',
+        (s) =>
+          s.connectionId === activeConnectionId &&
+          s.status === 'connected' &&
+          (!s.type || s.type === 'ssh'),
       );
       if (sshSession) {
         targetSessionId = sshSession.id;
@@ -93,7 +96,9 @@ export function SftpManager() {
 
     // Auto-select first connected session if none found for active connection
     if (!targetSessionId && !sftpSessionId) {
-      const connectedSsh = Array.from(sessions.values()).find((s) => s.status === 'connected');
+      const connectedSsh = Array.from(sessions.values()).find(
+        (s) => s.status === 'connected' && (!s.type || s.type === 'ssh'),
+      );
       if (connectedSsh) {
         targetSessionId = connectedSsh.id;
       } else {

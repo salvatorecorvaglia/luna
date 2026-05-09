@@ -45,6 +45,7 @@ export interface TerminalSession {
   connectionName: string;
   status: SessionStatus;
   title: string;
+  type?: 'ssh' | 'local';
 }
 
 interface TerminalState {
@@ -158,16 +159,26 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     }),
 
   closeTab: (sessionId) => {
-    window.api.ssh.disconnect(sessionId);
+    const session = get().sessions.get(sessionId);
+    if (session?.type === 'local') {
+      window.api.localTerminal.kill(sessionId);
+    } else {
+      window.api.ssh.disconnect(sessionId);
+    }
     get().removeSession(sessionId);
   },
 
   closeOtherTabs: (sessionId) => {
-    const { tabOrder } = get();
+    const { tabOrder, sessions } = get();
     const toClose = tabOrder.filter((id) => id !== sessionId);
     // Disconnect all first, then batch-remove from state
     for (const id of toClose) {
-      window.api.ssh.disconnect(id);
+      const s = sessions.get(id);
+      if (s?.type === 'local') {
+        window.api.localTerminal.kill(id);
+      } else {
+        window.api.ssh.disconnect(id);
+      }
     }
     set((s) => {
       const sessions = new Map(s.sessions);
@@ -183,13 +194,18 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   },
 
   closeTabsToRight: (sessionId) => {
-    const { tabOrder } = get();
+    const { tabOrder, sessions } = get();
     const idx = tabOrder.indexOf(sessionId);
     if (idx === -1) return;
     const toClose = tabOrder.slice(idx + 1);
     // Disconnect all first, then batch-remove from state
     for (const id of toClose) {
-      window.api.ssh.disconnect(id);
+      const s = sessions.get(id);
+      if (s?.type === 'local') {
+        window.api.localTerminal.kill(id);
+      } else {
+        window.api.ssh.disconnect(id);
+      }
     }
     set((s) => {
       const sessions = new Map(s.sessions);
