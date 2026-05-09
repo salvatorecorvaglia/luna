@@ -4,11 +4,10 @@ import { IPC } from '@shared/constants';
 import { getMainWindow } from './app.ipc';
 import log from '../lib/logger';
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pty = require('node-pty') as typeof import('node-pty');
+import * as pty from 'node-pty';
 
 interface LocalPtySession {
-  pty: import('node-pty').IPty;
+  pty: pty.IPty;
 }
 
 const sessions = new Map<string, LocalPtySession>();
@@ -39,7 +38,7 @@ export function registerLocalTerminalHandlers(): void {
           COLORTERM: 'truecolor',
           // Ensure we don't pass Electron-specific vars that might confuse child shells
           ELECTRON_RUN_AS_NODE: undefined,
-        } as Record<string, string | undefined> as Record<string, string>,
+        },
       });
 
       sessions.set(sessionId, { pty: ptyProcess });
