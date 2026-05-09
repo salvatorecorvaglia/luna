@@ -223,7 +223,7 @@ const Tab = memo(function Tab({
       aria-selected={isActive}
       aria-label={session.title || session.connectionName}
       className={cn(
-        'group relative flex h-9 min-w-[120px] max-w-[200px] items-center gap-2 border-r border-border/40 px-3 text-xs cursor-grab active:cursor-grabbing',
+        'group relative flex h-9 min-w-[90px] max-w-[200px] items-center gap-2 border-r border-border/40 px-3 text-xs cursor-grab active:cursor-grabbing',
         isActive
           ? 'bg-background text-foreground'
           : 'text-muted-foreground hover:bg-background/50 hover:text-foreground',
