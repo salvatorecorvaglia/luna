@@ -110,6 +110,17 @@ function Icon({ name, size = 16 }) {
           <path d="M7 11V7a5 5 0 0 1 10 0v4" />
         </svg>
       );
+    case 'list':
+      return (
+        <svg {...props}>
+          <line x1="8" y1="6" x2="21" y2="6" />
+          <line x1="8" y1="12" x2="21" y2="12" />
+          <line x1="8" y1="18" x2="21" y2="18" />
+          <line x1="3" y1="6" x2="3.01" y2="6" />
+          <line x1="3" y1="12" x2="3.01" y2="12" />
+          <line x1="3" y1="18" x2="3.01" y2="18" />
+        </svg>
+      );
     case 'apple':
       return (
         <svg {...props}>

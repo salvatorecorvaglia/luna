@@ -4,10 +4,7 @@ function Footer() {
       <div className="lunar-footer__inner">
         <div className="lunar-footer__brand">
           <img src="assets/lunar-logo.png" alt="" />
-          <div>
-            <div className="lunar-footer__name">Lunar</div>
-            <div className="lunar-footer__tag">SSH · SFTP · S3-compatible storage</div>
-          </div>
+          <div className="lunar-footer__name">Lunar</div>
         </div>
         <div className="lunar-footer__cols">
           <div>
@@ -34,13 +31,6 @@ function Footer() {
               rel="noreferrer"
             >
               Changelog
-            </a>
-            <a
-              href="https://github.com/salvatorecorvaglia/lunar/blob/main/CONTRIBUTING.md"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Contributing
             </a>
           </div>
           <div>

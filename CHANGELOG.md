@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-05-09
+
+### Added
+
+- **Local Terminal Support**: Native local shell integration (bash, zsh, powershell) using `node-pty`, allowing users to manage local and remote workflows in one place.
+- **IPC Logging**: Implemented a robust renderer-to-main IPC logging system for improved debugging and monitoring.
+
+### Changed
+
+- **Infrastructure Hardening**: Introduced structured error handling and a centralized IPC handler for consistent cross-process error propagation.
+- **Terminal Optimization**: Reduced minimum terminal tab width to 90px to improve tab density and visibility.
+- **Process Management**: Refactored `node-pty` integration to use ESM and sanitized the local terminal process environment.
+
 ## [0.3.5] - 2026-05-09
 
 ### Added
