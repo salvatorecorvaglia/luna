@@ -58,6 +58,16 @@ export const IPC = {
   SHELL_CHECK_FILE: 'shell:check-file',
   SHELL_READ_FILE: 'shell:read-file',
 
+  // Local terminal (PTY)
+  LOCAL_TERMINAL_SPAWN: 'local-terminal:spawn',
+  LOCAL_TERMINAL_KILL: 'local-terminal:kill',
+  LOCAL_TERMINAL_SEND_DATA: 'local-terminal:send-data',
+  LOCAL_TERMINAL_RESIZE: 'local-terminal:resize',
+
+  // Local terminal events (main -> renderer)
+  LOCAL_TERMINAL_ON_DATA: 'local-terminal:on-data',
+  LOCAL_TERMINAL_ON_EXIT: 'local-terminal:on-exit',
+
   // Transfers (main -> renderer)
   TRANSFER_PROGRESS: 'transfer:progress',
   TRANSFER_COMPLETE: 'transfer:complete',

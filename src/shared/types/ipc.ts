@@ -154,6 +154,18 @@ export interface IpcHandlerMap {
   };
   'shell:read-file': { request: string; response: { content: string; size: number } };
 
+  // Local terminal (PTY)
+  'local-terminal:spawn': {
+    request: { sessionId: string; cols: number; rows: number };
+    response: void;
+  };
+  'local-terminal:kill': { request: string; response: void };
+  'local-terminal:send-data': { request: { sessionId: string; data: string }; response: void };
+  'local-terminal:resize': {
+    request: { sessionId: string; cols: number; rows: number };
+    response: void;
+  };
+
   // Transfers
   'transfer:cancel': { request: string; response: void };
   'transfer:cancel-by-session': { request: string; response: void };
@@ -213,6 +225,10 @@ export interface IpcEventMap {
   'app:update-download-progress': { percent: number; bytesPerSecond: number };
   'app:update-downloaded': Record<string, never>;
   'app:update-error': { error: string };
+
+  // Local terminal events
+  'local-terminal:on-data': { sessionId: string; data: string };
+  'local-terminal:on-exit': { sessionId: string; exitCode: number };
 }
 
 /** Convenience aliases for invoke<channel, req, res> helpers. */

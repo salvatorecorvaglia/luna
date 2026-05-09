@@ -23,6 +23,26 @@ export function TerminalTabs() {
   const [closingTabId, setClosingTabId] = useState<string | null>(null);
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
 
+  const sshTabs = useMemo(
+    () =>
+      tabOrder.filter((id) => {
+        const s = sessions.get(id);
+        return !s || !s.type || s.type === 'ssh';
+      }),
+    [tabOrder, sessions],
+  );
+
+  const handleReorder = useCallback(
+    (newOrder: string[]) => {
+      const localTabs = tabOrder.filter((id) => sessions.get(id)?.type === 'local');
+      // Combine new ssh order with existing local tabs
+      // Note: this simple join might mix them if they were interleaved,
+      // but usually they are kept separate in the UI views anyway.
+      setTabOrder([...newOrder, ...localTabs]);
+    },
+    [tabOrder, sessions, setTabOrder],
+  );
+
   const handleCloseTab = useCallback(
     (sessionId: string) => {
       const session = sessions.get(sessionId);
@@ -57,12 +77,12 @@ export function TerminalTabs() {
       <Reorder.Group
         transition={{ duration: 0 }}
         axis="x"
-        values={tabOrder}
-        onReorder={setTabOrder}
+        values={sshTabs}
+        onReorder={handleReorder}
         className="flex flex-1 items-center overflow-x-auto"
         as="div"
       >
-        {tabOrder.map((sessionId) => {
+        {sshTabs.map((sessionId) => {
           const session = sessions.get(sessionId);
           if (!session) return null;
 

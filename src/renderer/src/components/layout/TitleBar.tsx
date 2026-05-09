@@ -1,5 +1,14 @@
 import { useEffect, useState } from 'react';
-import { FolderOpen, Maximize2, Minimize2, Minus, PanelLeft, Terminal, X } from 'lucide-react';
+import {
+  FolderOpen,
+  Maximize2,
+  Minimize2,
+  Minus,
+  Monitor,
+  PanelLeft,
+  Terminal,
+  X,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/ui-store';
 import lunarLogo from '../../../../../resources/lunar.png';
@@ -66,6 +75,12 @@ export function TitleBar() {
             onClick={() => setActiveView('sftp')}
             icon={<FolderOpen className="h-3.5 w-3.5" />}
             label="SFTP"
+          />
+          <ViewTab
+            active={activeView === 'local'}
+            onClick={() => setActiveView('local')}
+            icon={<Monitor className="h-3.5 w-3.5" />}
+            label="Local"
           />
         </div>
       </div>

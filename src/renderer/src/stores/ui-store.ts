@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type ActiveView = 'terminal' | 'sftp' | 'welcome';
+export type ActiveView = 'terminal' | 'sftp' | 'local' | 'welcome';
 
 // Enable smooth theme transitions after initial load
 if (typeof document !== 'undefined') {
