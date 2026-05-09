@@ -1,6 +1,6 @@
 # <img src="resources/lunar.png" align="center" width="48" height="48" /> Lunar
 
-**A modern SSH & Local terminal, SFTP file manager, and S3-compatible object storage browser — all in one.**
+**A modern SSH, SFTP file manager, and S3-compatible object storage browser — all in one.**
 
 Lunar is a high-performance, cross-platform desktop application designed to streamline your remote and local workflows. Browse SSH/SFTP servers and S3-compatible object stores side-by-side with your local filesystem, with a powerful terminal just a tab away.
 

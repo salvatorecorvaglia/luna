@@ -84,7 +84,7 @@ linux:
   artifactName: '${name}-${version}-linux-${arch}.${ext}'
   category: Development;Utility;Network
   maintainer: Salvatore Corvaglia
-  synopsis: A modern SSH & Local terminal, SFTP file manager, and S3-compatible object storage browser — all in one.
+  synopsis: A modern SSH terminal, SFTP file manager, and S3-compatible object storage browser — all in one.
   description: >-
     A high-performance, cross-platform desktop application designed to streamline
     your remote server workflows. Combining a powerful terminal with an intuitive
@@ -92,7 +92,7 @@ linux:
   desktop:
     entry:
       Name: Lunar
-      Comment: A modern SSH & Local terminal, SFTP file manager, and S3-compatible object storage browser — all in one.
+      Comment: A modern SSH terminal, SFTP file manager, and S3-compatible object storage browser — all in one.
       Keywords: ssh;sftp;terminal;file-manager;remote
 
 appImage:
