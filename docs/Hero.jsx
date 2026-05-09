@@ -8,7 +8,7 @@ function Hero() {
           Windows · Linux
         </div>
         <h1 className="lunar-hero__title">
-          your place
+          Your place
           <br />
           <span className="lunar-gradient-text">in one calm workspace.</span>
         </h1>
