@@ -93,8 +93,10 @@ export function FilePane({
 
   if (prevPath !== path) {
     setPrevPath(path);
+    // Clear the filter query on navigation but keep the input open so a user
+    // browsing rapidly through subdirectories doesn't have to re-trigger the
+    // filter UI on every step.
     if (filterQuery) setFilterQuery('');
-    if (filterOpen) setFilterOpen(false);
   }
 
   useEffect(() => {
@@ -261,22 +263,26 @@ export function FilePane({
           >
             <Home className="h-3 w-3" />
           </button>
-          {breadcrumbs.slice(1).map((crumb) => (
-            <span key={crumb.path} className="flex items-center gap-0.5">
-              <ChevronRight
-                className="h-3 w-3 text-muted-foreground/60 flex-shrink-0"
-                aria-hidden="true"
-              />
-              <button
-                onClick={() => onPathChange(crumb.path)}
-                className="truncate text-muted-foreground hover:text-foreground max-w-[120px] cursor-pointer"
-                title={crumb.path}
-                aria-label={`Navigate to ${crumb.path}`}
-              >
-                {crumb.name}
-              </button>
-            </span>
-          ))}
+          {breadcrumbs.slice(1).map((crumb, idx, arr) => {
+            const isCurrent = idx === arr.length - 1;
+            return (
+              <span key={crumb.path} className="flex items-center gap-0.5">
+                <ChevronRight
+                  className="h-3 w-3 text-muted-foreground/60 flex-shrink-0"
+                  aria-hidden="true"
+                />
+                <button
+                  onClick={() => onPathChange(crumb.path)}
+                  className="truncate text-muted-foreground hover:text-foreground max-w-[120px] cursor-pointer"
+                  title={crumb.path}
+                  aria-label={`Navigate to ${crumb.path}`}
+                  aria-current={isCurrent ? 'page' : undefined}
+                >
+                  {crumb.name}
+                </button>
+              </span>
+            );
+          })}
         </div>
       </div>
 

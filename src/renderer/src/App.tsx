@@ -148,7 +148,13 @@ export default function App() {
           <LocalTerminalView />
         </div>
 
-        {showSftp && <SftpManager />}
+        {/* Keep SftpManager mounted across view switches so the split-ratio,
+            filter input, and react-query cache survive a hop into the terminal
+            and back. */}
+        <div className={showSftp ? 'h-full' : 'hidden'}>
+          <SftpManager />
+        </div>
+
         {showWelcome && <WelcomeView />}
       </AppShell>
 

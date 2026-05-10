@@ -189,7 +189,7 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
       if (!text) return;
       const bracketed = (terminal.modes as { bracketedPasteMode?: boolean })?.bracketedPasteMode;
       if (!bracketed && /\r|\n/.test(text)) {
-        toast.warning('Clipboard contains multiple lines — pasting may execute commands.', {
+        toast.warning('Clipboard contains multiple lines — each newline will run as a separate command in this shell.', {
           action: {
             label: 'Paste anyway',
             onClick: () => terminal.paste(text),

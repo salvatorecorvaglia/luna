@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from 'react';
 import { AlertTriangle, RotateCcw } from 'lucide-react';
+import { logger } from '@/lib/logger';
 
 interface Props {
   children: ReactNode;
@@ -18,7 +19,14 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo): void {
+    // Forward to the unified logger so renderer crashes land in the same
+    // file as main-process logs. Local console.error stays for devtools.
     console.error('[ErrorBoundary]', error, info.componentStack);
+    logger.error('[ErrorBoundary] renderer crash', {
+      message: error.message,
+      stack: error.stack,
+      componentStack: info.componentStack ?? undefined,
+    });
   }
 
   handleReload = (): void => {

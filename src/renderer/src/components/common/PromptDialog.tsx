@@ -119,7 +119,10 @@ export function PromptDialog({
                   ref={inputRef}
                   type="text"
                   value={value}
-                  onChange={(e) => setValue(e.target.value)}
+                  // Strip leading whitespace as the user types so the
+                  // disabled-state of the submit button matches the value
+                  // that would actually be submitted.
+                  onChange={(e) => setValue(e.target.value.replace(/^\s+/, ''))}
                   placeholder={placeholder}
                   className="form-input mt-3"
                 />

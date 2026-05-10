@@ -29,7 +29,45 @@ interface TransferState {
   toggleQueueExpanded: () => void;
 }
 
-export const useTransferStore = create<TransferState>((set) => ({
+/**
+ * How long terminal-state transfers (completed/cancelled/error) stay in the
+ * store before being auto-removed. Without this the map grew unbounded over
+ * a long session — the only previous reaper was the manual "clear completed"
+ * button. 5 minutes is enough for a user to notice + retry, short enough
+ * that idle UIs reclaim memory.
+ */
+const TERMINAL_RETENTION_MS = 5 * 60 * 1000;
+
+/** Hard cap on retained terminal-state transfers — guards against bursts. */
+const MAX_RETAINED_TERMINAL = 200;
+
+function scheduleAutoRemove(
+  transferId: string,
+  remove: (id: string) => void,
+): void {
+  setTimeout(() => remove(transferId), TERMINAL_RETENTION_MS);
+}
+
+/**
+ * Drop the oldest terminal-state transfers until the count is within
+ * MAX_RETAINED_TERMINAL. Active/queued transfers are never evicted —
+ * only completed/cancelled/error rows count against the cap.
+ */
+function evictOldestTerminal(transfers: Map<string, TransferItem>): void {
+  const terminalIds: string[] = [];
+  for (const [id, item] of transfers) {
+    if (item.status === 'completed' || item.status === 'cancelled' || item.status === 'error') {
+      terminalIds.push(id);
+    }
+  }
+  // Map preserves insertion order — older entries are at the front.
+  while (terminalIds.length > MAX_RETAINED_TERMINAL) {
+    const id = terminalIds.shift();
+    if (id) transfers.delete(id);
+  }
+}
+
+export const useTransferStore = create<TransferState>((set, get) => ({
   transfers: new Map(),
   queueExpanded: false,
 
@@ -80,7 +118,7 @@ export const useTransferStore = create<TransferState>((set) => ({
       return mutated ? { transfers } : s;
     }),
 
-  completeTransfer: (transferId) =>
+  completeTransfer: (transferId) => {
     set((s) => {
       const transfers = new Map(s.transfers);
       const item = transfers.get(transferId);
@@ -91,29 +129,38 @@ export const useTransferStore = create<TransferState>((set) => ({
           transferred: item.size,
           bytesPerSec: 0,
         });
+        evictOldestTerminal(transfers);
       }
       return { transfers };
-    }),
+    });
+    scheduleAutoRemove(transferId, (id) => get().removeTransfer(id));
+  },
 
-  cancelTransfer: (transferId) =>
+  cancelTransfer: (transferId) => {
     set((s) => {
       const transfers = new Map(s.transfers);
       const item = transfers.get(transferId);
       if (item) {
         transfers.set(transferId, { ...item, status: 'cancelled', bytesPerSec: 0 });
+        evictOldestTerminal(transfers);
       }
       return { transfers };
-    }),
+    });
+    scheduleAutoRemove(transferId, (id) => get().removeTransfer(id));
+  },
 
-  errorTransfer: (transferId, error) =>
+  errorTransfer: (transferId, error) => {
     set((s) => {
       const transfers = new Map(s.transfers);
       const item = transfers.get(transferId);
       if (item) {
         transfers.set(transferId, { ...item, status: 'error', error, bytesPerSec: 0 });
+        evictOldestTerminal(transfers);
       }
       return { transfers };
-    }),
+    });
+    scheduleAutoRemove(transferId, (id) => get().removeTransfer(id));
+  },
 
   removeTransfer: (transferId) =>
     set((s) => {

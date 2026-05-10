@@ -4,9 +4,10 @@ import { stat as fsStat, unlink } from 'fs/promises';
 import { sshManager } from './ssh-manager';
 import type { SftpEntry } from '@shared/types/sftp';
 import { LIMITS } from '@shared/constants';
-import { TimeoutError, withTimeout } from '../lib/with-timeout';
+import { withTimeout } from '../lib/with-timeout';
 import log from '../lib/logger';
 import { AbortError, SftpTransferError, SshConnectionError } from '../lib/errors';
+import { formatPermissions, isSessionFatal } from './sftp/sftp-helpers';
 
 // Deliberately do NOT import transferQueue here — that created a cycle
 // (sftp-manager ↔ transfer-queue). Transfer enqueueing is the IPC layer's
@@ -20,32 +21,6 @@ const IDLE_CHECK_INTERVAL_MS = 60 * 1000;
  * write stream time to flush its destroy ack so unlink doesn't race with it. */
 const ABORT_CLEANUP_DELAY_MS = 50;
 
-/** Node/ssh2 error codes that imply the SFTP channel/socket is gone. */
-const FATAL_ERR_CODES = new Set([
-  'ECONNRESET',
-  'EPIPE',
-  'ENOTCONN',
-  'ECONNABORTED',
-  'ERR_STREAM_DESTROYED',
-  'ERR_STREAM_PREMATURE_CLOSE',
-]);
-
-/** Errors that indicate the SFTP session is unusable and must be re-opened. */
-function isSessionFatal(err: unknown): boolean {
-  if (err instanceof TimeoutError) return true;
-  if (err instanceof SshConnectionError) return true;
-  if (!(err instanceof Error)) return false;
-  const code = (err as NodeJS.ErrnoException).code;
-  if (code && FATAL_ERR_CODES.has(code)) return true;
-  // Fallback: ssh2 doesn't always populate codes for channel teardown.
-  const msg = err.message.toLowerCase();
-  return (
-    msg.includes('channel') ||
-    msg.includes('connection') ||
-    msg.includes('closed') ||
-    msg.includes('not connected')
-  );
-}
 
 class SftpManager {
   private sftpSessions = new Map<string, SFTPWrapper>();
@@ -195,7 +170,7 @@ class SftpManager {
               modifiedAt: item.attrs.mtime,
               isDirectory: isDir,
               isSymlink: isLink,
-              permissions: this.formatPermissions(item.attrs.mode),
+              permissions: formatPermissions(item.attrs.mode),
               owner: item.attrs.uid,
               group: item.attrs.gid,
             };
@@ -395,7 +370,7 @@ class SftpManager {
             gid: stats.gid,
             isDirectory: fileType === 0o040000,
             isSymlink: fileType === 0o120000,
-            permissions: this.formatPermissions(stats.mode),
+            permissions: formatPermissions(stats.mode),
           });
         });
       });
@@ -596,14 +571,6 @@ class SftpManager {
     this.leases.delete(sessionId);
   }
 
-  private formatPermissions(mode: number): string {
-    const chars = 'rwxrwxrwx';
-    let result = '';
-    for (let i = 0; i < 9; i++) {
-      result += mode & (1 << (8 - i)) ? chars[i] : '-';
-    }
-    return result;
-  }
 }
 
 export const sftpManager = new SftpManager();

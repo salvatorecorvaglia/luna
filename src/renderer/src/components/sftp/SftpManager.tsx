@@ -84,12 +84,23 @@ export function SftpManager() {
       if (sshSession) {
         targetSessionId = sshSession.id;
       } else {
-        // Fallback to storage (S3) sessions for the active connection
-        const storageSession = Array.from(storageSessions.values()).find(
-          (s) => s.connectionId === activeConnectionId && s.status === 'connected',
+        // If an SSH session for the active connection is mid-handshake,
+        // prefer waiting for it over silently swapping to an S3 session
+        // that happens to belong to a different active connection. Without
+        // this gate the SFTP pane briefly shows the wrong remote tree.
+        const sshConnecting = Array.from(sessions.values()).some(
+          (s) =>
+            s.connectionId === activeConnectionId &&
+            (s.status === 'connecting' || s.status === 'reconnecting') &&
+            (!s.type || s.type === 'ssh'),
         );
-        if (storageSession) {
-          targetSessionId = storageSession.id;
+        if (!sshConnecting) {
+          const storageSession = Array.from(storageSessions.values()).find(
+            (s) => s.connectionId === activeConnectionId && s.status === 'connected',
+          );
+          if (storageSession) {
+            targetSessionId = storageSession.id;
+          }
         }
       }
     }
