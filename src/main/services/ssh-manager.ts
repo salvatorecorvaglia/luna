@@ -7,29 +7,12 @@ import type { SessionStatus } from '@shared/types/terminal';
 import type { AuthType } from '@shared/types/connection';
 import { type ConnectionRow, getDatabase, getSetting } from './database';
 import { retrieveCredential } from './credential-store';
-import {
-  fingerprintKey,
-  formatHostKey,
-  getStoredHostKey,
-  updateHostKey,
-  verifyHostKey,
-} from './host-key-store';
+import { fingerprintKey, getStoredHostKey, verifyHostKey } from './host-key-store';
+import { parseHostKeyAlgorithm, PendingHostKeyRegistry } from './ssh/host-key-flow';
 import { TimeoutError, withTimeout } from '../lib/with-timeout';
 import { describeSshError } from '../lib/error-map';
 import { expandAndConfineToHome } from '../lib/validate';
 import log from '../lib/logger';
-
-/**
- * Extract the SSH host-key algorithm from the wire-format key buffer.
- * SSH host keys are encoded as: uint32 length || algorithm-name-string || ...
- * Returns 'unknown' if the buffer is malformed.
- */
-function parseHostKeyAlgorithm(key: Buffer): string {
-  if (key.length < 4) return 'unknown';
-  const len = key.readUInt32BE(0);
-  if (len === 0 || len > 64 || key.length < 4 + len) return 'unknown';
-  return key.subarray(4, 4 + len).toString('ascii');
-}
 
 interface StreamListeners {
   onData: (data: Buffer) => void;
@@ -67,33 +50,14 @@ class SshManager {
   private sessions = new Map<string, SshSession>();
   private onDisconnectCallbacks: ((sessionId: string) => void)[] = [];
   /** Candidate host keys captured during a rejected verification, awaiting user trust. */
-  private pendingHostKeys = new Map<string, { key: Buffer; algorithm: string }>();
-  /** Cap on pending host-key candidates (LRU) — prevents unbounded growth on repeated mismatches. */
-  private static readonly PENDING_HOST_KEYS_MAX = 64;
-
-  private rememberPendingHostKey(host: string, port: number, key: Buffer, algorithm: string): void {
-    const k = formatHostKey(host, port);
-    // Refresh LRU order
-    if (this.pendingHostKeys.has(k)) this.pendingHostKeys.delete(k);
-    this.pendingHostKeys.set(k, { key: Buffer.from(key), algorithm });
-    while (this.pendingHostKeys.size > SshManager.PENDING_HOST_KEYS_MAX) {
-      const oldest = this.pendingHostKeys.keys().next().value;
-      if (oldest === undefined) break;
-      this.pendingHostKeys.delete(oldest);
-    }
-  }
+  private pendingHostKeys = new PendingHostKeyRegistry();
 
   /**
    * Trust a captured host key so the next connect succeeds.
    * Returns the fingerprint that was stored, or null if no candidate is pending.
    */
   trustPendingHostKey(host: string, port: number): string | null {
-    const key = formatHostKey(host, port);
-    const pending = this.pendingHostKeys.get(key);
-    if (!pending) return null;
-    updateHostKey(host, port, pending.key, pending.algorithm);
-    this.pendingHostKeys.delete(key);
-    return fingerprintKey(pending.key);
+    return this.pendingHostKeys.trust(host, port);
   }
 
   /**
@@ -158,7 +122,7 @@ class SshManager {
         }
         if (!result.trusted) {
           const stored = getStoredHostKey(params.host, params.port);
-          this.rememberPendingHostKey(params.host, params.port, key, algorithm);
+          this.pendingHostKeys.remember(params.host, params.port, key, algorithm);
           emitToRenderer(IPC.SSH_ON_HOST_KEY_CHANGE, {
             sessionId: sessionId ?? '',
             connectionId: connectionId ?? '',
@@ -589,7 +553,7 @@ class SshManager {
       const row = db
         .prepare('SELECT host, port FROM connections WHERE id = ?')
         .get(session.connectionId) as { host: string; port: number } | undefined;
-      if (row) this.pendingHostKeys.delete(formatHostKey(row.host, row.port));
+      if (row) this.pendingHostKeys.forget(row.host, row.port);
     } catch {
       // best-effort cleanup
     }

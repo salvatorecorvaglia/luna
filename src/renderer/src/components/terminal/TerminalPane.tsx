@@ -38,6 +38,15 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Tracks the current activeness of this pane through a ref so the deferred
+  // resize callback can re-check it at fire time. Without this, a debounced
+  // resize queued while active could fire after the user switched away,
+  // sending an SSH `resize` to the wrong session.
+  const isActiveRef = useRef<boolean>(isActive ?? true);
+  useEffect(() => {
+    isActiveRef.current = isActive ?? true;
+  }, [isActive]);
+
   const handleResize = useCallback(() => {
     // Debounce so a stream of ResizeObserver events during a window drag
     // doesn't fan out into a fit()/SSH-resize per frame.
@@ -45,6 +54,8 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
       clearTimeout(resizeTimeoutRef.current);
     }
     resizeTimeoutRef.current = setTimeout(() => {
+      resizeTimeoutRef.current = null;
+      if (!isActiveRef.current) return;
       const fitAddon = fitAddonRef.current;
       const terminal = terminalRef.current;
       if (fitAddon && terminal) {
@@ -464,6 +475,11 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
     if (isActive) {
       handleResize();
       terminalRef.current?.focus();
+    } else if (resizeTimeoutRef.current) {
+      // Pane went inactive while a debounced resize was queued — drop it
+      // so it can't fire and dispatch ssh:resize for the wrong session.
+      clearTimeout(resizeTimeoutRef.current);
+      resizeTimeoutRef.current = null;
     }
   }, [isActive, handleResize]);
 

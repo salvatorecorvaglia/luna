@@ -5,7 +5,7 @@ export function useConnections() {
   return useQuery<Connection[]>({
     queryKey: ['connections'],
     queryFn: () => window.api.connections.list(),
-    staleTime: Infinity,
+    staleTime: 30_000,
   });
 }
 
@@ -14,7 +14,7 @@ export function useConnection(id: string | null) {
     queryKey: ['connections', id],
     queryFn: () => (id ? window.api.connections.get(id) : null),
     enabled: !!id,
-    staleTime: Infinity,
+    staleTime: 30_000,
   });
 }
 

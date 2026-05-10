@@ -5,7 +5,7 @@ export function useSettings() {
   return useQuery<Partial<AppSettings>>({
     queryKey: ['settings'],
     queryFn: () => window.api.settings.getAll(),
-    staleTime: Infinity,
+    staleTime: 30_000,
   });
 }
 
@@ -13,7 +13,7 @@ export function useSetting<K extends keyof AppSettings>(key: K) {
   return useQuery<string>({
     queryKey: ['settings', key],
     queryFn: () => window.api.settings.get(key),
-    staleTime: Infinity,
+    staleTime: 30_000,
   });
 }
 
