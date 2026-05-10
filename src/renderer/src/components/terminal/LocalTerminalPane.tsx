@@ -148,7 +148,14 @@ export function LocalTerminalPane({ sessionId, isActive }: LocalTerminalPaneProp
       }
     }
 
-    fitAddon.fit();
+    try {
+      fitAddon.fit();
+    } catch (err) {
+      // Best-effort fit on initial mount. If it fails (e.g. terminal hidden),
+      // it will be retried when the tab becomes active or resized.
+      logger.debug('[LocalTerminalPane] Initial fit failed', { error: err });
+    }
+
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
     searchAddonRef.current = searchAddon;
@@ -379,7 +386,11 @@ export function LocalTerminalPane({ sessionId, isActive }: LocalTerminalPaneProp
     const terminal = terminalRef.current;
     if (terminal) {
       terminal.options.fontSize = fontSize;
-      fitAddonRef.current?.fit();
+      try {
+        fitAddonRef.current?.fit();
+      } catch {
+        /* ignore */
+      }
     }
   }, [fontSize]);
 
@@ -388,7 +399,11 @@ export function LocalTerminalPane({ sessionId, isActive }: LocalTerminalPaneProp
     const terminal = terminalRef.current;
     if (terminal) {
       terminal.options.scrollback = scrollback;
-      fitAddonRef.current?.fit();
+      try {
+        fitAddonRef.current?.fit();
+      } catch {
+        /* ignore */
+      }
     }
   }, [scrollback]);
 
