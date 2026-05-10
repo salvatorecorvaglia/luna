@@ -48,6 +48,7 @@ export function LocalTerminalPane({ sessionId, isActive }: LocalTerminalPaneProp
       if (!isActiveRef.current) return;
       const fitAddon = fitAddonRef.current;
       const terminal = terminalRef.current;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (fitAddon && terminal && (terminal as any)._core?._renderService) {
         try {
           fitAddon.fit();
