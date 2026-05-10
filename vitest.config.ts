@@ -26,10 +26,10 @@ export default defineConfig({
       // and database migrations. Raise as new tests are added rather
       // than treating these as final goals.
       thresholds: {
-        lines: 21,
-        functions: 19.5,
-        branches: 12.3,
-        statements: 20.3
+        lines: 22.8,
+        functions: 20.7,
+        branches: 14.7,
+        statements: 22
       }
     }
   },

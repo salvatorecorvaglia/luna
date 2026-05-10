@@ -31,6 +31,9 @@ export const useUIStore = create<UIState>()(
     (set) => ({
       sidebarOpen: true,
       sidebarWidth: 260,
+      // sidebar width bounds — clamp on every set so a corrupted localStorage
+      // value can't collapse the sidebar past the rebind handle (180px) or
+      // push it so wide it eats the editor (600px).
       commandPaletteOpen: false,
       activeView: 'terminal',
       settingsOpen: false,
@@ -38,7 +41,8 @@ export const useUIStore = create<UIState>()(
 
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
-      setSidebarWidth: (width) => set({ sidebarWidth: width }),
+      setSidebarWidth: (width) =>
+        set({ sidebarWidth: Math.min(600, Math.max(180, Math.round(width))) }),
       toggleCommandPalette: () => set((s) => ({ commandPaletteOpen: !s.commandPaletteOpen })),
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
       setActiveView: (view) => set({ activeView: view }),

@@ -12,7 +12,6 @@ import {
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
-  type _Object,
   type CommonPrefix,
 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
@@ -24,6 +23,7 @@ import { AbortError, S3StorageError } from '../../lib/errors';
 import { TimeoutError, withTimeout } from '../../lib/with-timeout';
 import log from '../../lib/logger';
 import { parseS3Path } from './s3-paths';
+import { objectToEntry, prefixToEntry, wrapS3Error } from './s3-helpers';
 
 interface S3Session {
   client: S3Client;
@@ -133,7 +133,7 @@ class S3StorageProvider implements StorageProvider {
             isPrefix: true,
           }));
         } catch (err) {
-          throw this.wrapError('list-buckets', err);
+          throw wrapS3Error('list-buckets', err);
         }
       }
 
@@ -156,7 +156,7 @@ class S3StorageProvider implements StorageProvider {
             // strip the listing prefix and the trailing slash
             const name = full.slice(prefix.length).replace(/\/$/, '');
             if (!name) continue;
-            entries.push(this.prefixToEntry(bucket, full, name));
+            entries.push(prefixToEntry(bucket, full, name));
           }
           for (const obj of out.Contents ?? []) {
             // Skip the folder-marker key itself (matches the listing prefix).
@@ -166,38 +166,15 @@ class S3StorageProvider implements StorageProvider {
             // Treat trailing-slash markers as prefix entries to avoid showing
             // them as zero-byte files alongside the prefix they represent.
             if (name.endsWith('/')) continue;
-            entries.push(this.objectToEntry(bucket, obj, name));
+            entries.push(objectToEntry(bucket, obj, name));
           }
           ContinuationToken = out.IsTruncated ? out.NextContinuationToken : undefined;
         } while (ContinuationToken);
       } catch (err) {
-        throw this.wrapError('list-objects', err);
+        throw wrapS3Error('list-objects', err);
       }
       return entries;
     });
-  }
-
-  private prefixToEntry(bucket: string, fullPrefix: string, name: string): StorageEntry {
-    return {
-      name,
-      path: `/${bucket}/${fullPrefix.replace(/\/$/, '')}`,
-      size: 0,
-      modifiedAt: 0,
-      isDirectory: true,
-      isSymlink: false,
-      isPrefix: true,
-    };
-  }
-
-  private objectToEntry(bucket: string, obj: _Object, name: string): StorageEntry {
-    return {
-      name,
-      path: `/${bucket}/${obj.Key ?? ''}`,
-      size: obj.Size ?? 0,
-      modifiedAt: obj.LastModified ? Math.floor(obj.LastModified.getTime() / 1000) : 0,
-      isDirectory: false,
-      isSymlink: false,
-    };
   }
 
   async stat(sessionId: string, path: string): Promise<StorageStatResult> {
@@ -234,7 +211,7 @@ class S3StorageProvider implements StorageProvider {
         } catch {
           // fall through to throw the original head error
         }
-        throw this.wrapError('stat', err);
+        throw wrapS3Error('stat', err);
       }
     });
   }
@@ -247,7 +224,7 @@ class S3StorageProvider implements StorageProvider {
       const out = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
       return out.ContentLength ?? 0;
     } catch (err) {
-      throw this.wrapError('stat-size', err);
+      throw wrapS3Error('stat-size', err);
     }
   }
 
@@ -262,7 +239,7 @@ class S3StorageProvider implements StorageProvider {
         try {
           await client.send(new CreateBucketCommand({ Bucket: bucket }));
         } catch (err) {
-          throw this.wrapError('create-bucket', err);
+          throw wrapS3Error('create-bucket', err);
         }
         return;
       }
@@ -270,7 +247,7 @@ class S3StorageProvider implements StorageProvider {
       try {
         await client.send(new PutObjectCommand({ Bucket: bucket, Key: markerKey, Body: '' }));
       } catch (err) {
-        throw this.wrapError('mkdir', err);
+        throw wrapS3Error('mkdir', err);
       }
     });
   }
@@ -296,7 +273,7 @@ class S3StorageProvider implements StorageProvider {
         );
         await client.send(new DeleteObjectCommand({ Bucket: a.bucket, Key: a.key }));
       } catch (err) {
-        throw this.wrapError('rename', err);
+        throw wrapS3Error('rename', err);
       }
     });
   }
@@ -311,7 +288,7 @@ class S3StorageProvider implements StorageProvider {
       try {
         await client.send(new DeleteBucketCommand({ Bucket: bucket }));
       } catch (err) {
-        throw this.wrapError('delete-bucket', err);
+        throw wrapS3Error('delete-bucket', err);
       }
       return;
     }
@@ -320,7 +297,7 @@ class S3StorageProvider implements StorageProvider {
       try {
         await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
       } catch (err) {
-        throw this.wrapError('delete-object', err);
+        throw wrapS3Error('delete-object', err);
       }
       return;
     }
@@ -362,7 +339,7 @@ class S3StorageProvider implements StorageProvider {
         ContinuationToken = listed.IsTruncated ? listed.NextContinuationToken : undefined;
       } while (ContinuationToken);
     } catch (err) {
-      throw this.wrapError('delete-prefix', err);
+      throw wrapS3Error('delete-prefix', err);
     }
   }
 
@@ -380,7 +357,7 @@ class S3StorageProvider implements StorageProvider {
       try {
         head = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
       } catch (err) {
-        throw this.wrapError('read-head', err);
+        throw wrapS3Error('read-head', err);
       }
       if ((head.ContentLength ?? 0) > limit) {
         throw new S3StorageError(
@@ -408,7 +385,7 @@ class S3StorageProvider implements StorageProvider {
           encoding: isBinary ? 'base64' : 'utf-8',
         };
       } catch (err) {
-        throw this.wrapError('read-object', err);
+        throw wrapS3Error('read-object', err);
       }
     });
   }
@@ -445,7 +422,7 @@ class S3StorageProvider implements StorageProvider {
       if (!body) throw new S3StorageError('Empty response body');
     } catch (err) {
       if (signal.aborted) throw new AbortError('Transfer cancelled');
-      throw this.wrapError('download-get', err);
+      throw wrapS3Error('download-get', err);
     }
 
     const writeStream = createWriteStream(localPath);
@@ -473,7 +450,7 @@ class S3StorageProvider implements StorageProvider {
       body.on('error', (err) => {
         writeStream.destroy();
         settle(() =>
-          cleanupPartial().finally(() => reject(this.wrapError('download-stream', err))),
+          cleanupPartial().finally(() => reject(wrapS3Error('download-stream', err))),
         );
       });
       writeStream.on('error', (err) => {
@@ -531,28 +508,12 @@ class S3StorageProvider implements StorageProvider {
       await upload.done();
     } catch (err) {
       if (signal.aborted) throw new AbortError('Transfer cancelled');
-      throw this.wrapError('upload', err);
+      throw wrapS3Error('upload', err);
     } finally {
       signal.removeEventListener('abort', onAbort);
     }
   }
 
-  private wrapError(op: string, err: unknown): Error {
-    if (err instanceof S3StorageError || err instanceof AbortError) return err;
-    const msg = err instanceof Error ? err.message : String(err);
-    // STS session tokens silently expire, after which every request fails
-    // with ExpiredToken / 403. Surface that explicitly so users don't chase
-    // network errors when the real issue is a stale temporary credential.
-    const code =
-      (err as { name?: string; Code?: string })?.name ?? (err as { Code?: string })?.Code;
-    if (code === 'ExpiredToken' || code === 'ExpiredTokenException' || /expired token/i.test(msg)) {
-      return new S3StorageError(
-        `S3 ${op} failed: AWS session token has expired. Re-enter credentials and reconnect.`,
-        err,
-      );
-    }
-    return new S3StorageError(`S3 ${op} failed: ${msg}`, err);
-  }
 
   listSessions(): {
     id: string;
