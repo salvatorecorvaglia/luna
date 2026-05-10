@@ -110,5 +110,5 @@ export function useTransferEventListener(): void {
  * Cancel a transfer by ID. Delegates to main process.
  */
 export function cancelTransfer(transferId: string): void {
-  window.api.transfers.cancel(transferId);
+  void window.api.transfers.cancel(transferId);
 }

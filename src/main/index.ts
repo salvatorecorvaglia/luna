@@ -73,7 +73,7 @@ function createWindow(): void {
       // https only — for a credential-handling app we don't want to launch
       // plaintext-http links, custom protocols, file://, data:, etc.
       if (parsed.protocol === 'https:') {
-        shell.openExternal(details.url);
+        void shell.openExternal(details.url);
       } else {
         log.warn('[Main] Blocked openExternal for non-https URL:', details.url);
       }
@@ -85,13 +85,13 @@ function createWindow(): void {
 
   // HMR in dev, file:// in production
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);
+    void mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
+    void mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
   }
 }
 
-app.whenReady().then(() => {
+void app.whenReady().then(() => {
   // Content-Security-Policy: lock the renderer to its own bundle in production.
   // Skipped in dev because Vite's HMR client uses inline scripts + a websocket
   // back to localhost, which a strict policy would block (resulting in a blank
@@ -181,7 +181,7 @@ app.on('before-quit', (event) => {
   }, 3000);
   watchdog.unref();
 
-  (async () => {
+  void (async () => {
     try {
       transferQueue.cancelAll();
       sftpManager.dispose();

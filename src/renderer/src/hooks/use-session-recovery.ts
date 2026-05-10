@@ -67,6 +67,6 @@ export function useSessionRecovery() {
       }
     };
 
-    recover();
+    void recover();
   }, []);
 }

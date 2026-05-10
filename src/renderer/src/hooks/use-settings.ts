@@ -23,7 +23,7 @@ export function useUpdateSetting() {
     mutationFn: ({ key, value }: { key: keyof AppSettings; value: string }) =>
       window.api.settings.set(key, value),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      void queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
   });
 }

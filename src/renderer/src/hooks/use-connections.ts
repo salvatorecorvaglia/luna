@@ -23,7 +23,7 @@ export function useCreateConnection() {
   return useMutation({
     mutationFn: (input: CreateConnectionInput) => window.api.connections.create(input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['connections'] });
+      void queryClient.invalidateQueries({ queryKey: ['connections'] });
     },
   });
 }
@@ -33,7 +33,7 @@ export function useUpdateConnection() {
   return useMutation({
     mutationFn: (input: UpdateConnectionInput) => window.api.connections.update(input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['connections'] });
+      void queryClient.invalidateQueries({ queryKey: ['connections'] });
     },
   });
 }
@@ -43,7 +43,7 @@ export function useDeleteConnection() {
   return useMutation({
     mutationFn: (id: string) => window.api.connections.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['connections'] });
+      void queryClient.invalidateQueries({ queryKey: ['connections'] });
     },
   });
 }
@@ -53,7 +53,7 @@ export function useReorderConnections() {
   return useMutation({
     mutationFn: (ids: string[]) => window.api.connections.reorder(ids),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['connections'] });
+      void queryClient.invalidateQueries({ queryKey: ['connections'] });
     },
   });
 }

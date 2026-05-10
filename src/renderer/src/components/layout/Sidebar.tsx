@@ -418,7 +418,7 @@ function ConnectionItem({
         setSftpSessionId(existing.id);
         return;
       }
-      connectToS3(connection.id);
+      void connectToS3(connection.id);
       return;
     }
 
@@ -436,7 +436,7 @@ function ConnectionItem({
       return;
     }
 
-    connectToHost(connection.id);
+    void connectToHost(connection.id);
   };
 
   const handleDisconnect = async () => {
@@ -492,7 +492,7 @@ function ConnectionItem({
           await window.api.s3.disconnect(sessionId);
           useSftpStore.getState().removeStorageSession(sessionId);
         } else {
-          window.api.ssh.disconnect(sessionId);
+          void window.api.ssh.disconnect(sessionId);
           useTerminalStore.getState().removeSession(sessionId);
         }
       }

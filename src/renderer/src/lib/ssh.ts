@@ -3,11 +3,25 @@ import { toast } from 'sonner';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { useUIStore } from '@/stores/ui-store';
 
+// Tracks connection attempts already in flight so a double-click on the
+// Connect button cannot create two parallel sessions for the same host.
+const inFlight = new Set<string>();
+
 /**
  * Connect to a host by connectionId — creates a new terminal session,
  * adds it to the store, and initiates the SSH connection via IPC.
  */
 export async function connectToHost(connectionId: string): Promise<void> {
+  if (inFlight.has(connectionId)) return;
+  inFlight.add(connectionId);
+  try {
+    await connectToHostImpl(connectionId);
+  } finally {
+    inFlight.delete(connectionId);
+  }
+}
+
+async function connectToHostImpl(connectionId: string): Promise<void> {
   const { sessions, addSession, updateSessionStatus, setActiveTab } = useTerminalStore.getState();
 
   // 1. Check local store

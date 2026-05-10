@@ -77,6 +77,9 @@ export const useSftpStore = create<SftpState>()(
       setSftpSessionId: (id) => set({ sftpSessionId: id }),
       addStorageSession: (session) =>
         set((s) => {
+          // Skip duplicates: a retry/reconnect for the same session id must not
+          // grow the map. Status updates go through updateStorageSessionStatus.
+          if (s.storageSessions.has(session.id)) return s;
           const next = new Map(s.storageSessions);
           next.set(session.id, session);
           return { storageSessions: next };

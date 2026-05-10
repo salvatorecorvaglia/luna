@@ -262,7 +262,7 @@ export function CommandPalette() {
         category: 'Connections',
         action: () => {
           setActiveView('terminal');
-          connectToHost(conn.id);
+          void connectToHost(conn.id);
         },
         keywords: ['ssh', conn.host, conn.username],
       })),

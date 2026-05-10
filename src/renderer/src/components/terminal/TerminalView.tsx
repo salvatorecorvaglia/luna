@@ -21,7 +21,7 @@ export function TerminalView() {
   const handleNewTab = useCallback(() => {
     const { activeConnectionId } = useConnectionStore.getState();
     if (activeConnectionId) {
-      connectToHost(activeConnectionId);
+      void connectToHost(activeConnectionId);
     } else {
       useConnectionStore.getState().openCreateForm();
     }

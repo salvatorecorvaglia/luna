@@ -24,7 +24,7 @@ export function TitleBar() {
 
   useEffect(() => {
     const check = async () => setIsMaximized(await window.api.window.isMaximized());
-    check();
+    void check();
     // Re-check on resize so the icon stays correct after OS window management
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);

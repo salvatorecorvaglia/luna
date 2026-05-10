@@ -395,7 +395,7 @@ export function SftpManager() {
 
   // Copy remote path to clipboard
   const handleRemoteCopyPath = useCallback((entry: FileEntry) => {
-    navigator.clipboard.writeText(entry.path);
+    void navigator.clipboard.writeText(entry.path);
     toast.success('Path copied to clipboard');
   }, []);
 
