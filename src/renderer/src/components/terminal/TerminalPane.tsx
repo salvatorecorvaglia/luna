@@ -176,7 +176,13 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
       }
     }
 
-    fitAddon.fit();
+    try {
+      fitAddon.fit();
+    } catch (err) {
+      // Initial fit can fail if the terminal is not yet attached to the DOM
+      // or is in a hidden tab. handleResize or the activation effect will retry.
+      logger.debug('[TerminalPane] Initial fit failed', { error: err });
+    }
 
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
@@ -459,7 +465,11 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
     const terminal = terminalRef.current;
     if (terminal) {
       terminal.options.fontSize = fontSize;
-      fitAddonRef.current?.fit();
+      try {
+        fitAddonRef.current?.fit();
+      } catch {
+        /* ignore */
+      }
     }
   }, [fontSize]);
 
@@ -469,7 +479,11 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
     if (terminal) {
       terminal.options.scrollback = scrollback;
       // Re-fit so the visible row count picks up the new buffer geometry.
-      fitAddonRef.current?.fit();
+      try {
+        fitAddonRef.current?.fit();
+      } catch {
+        /* ignore */
+      }
     }
   }, [scrollback]);
 
