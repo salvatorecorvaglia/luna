@@ -45,8 +45,7 @@ export function objectToEntry(bucket: string, obj: _Object, name: string): Stora
 export function wrapS3Error(op: string, err: unknown): Error {
   if (err instanceof S3StorageError || err instanceof AbortError) return err;
   const msg = err instanceof Error ? err.message : String(err);
-  const code =
-    (err as { name?: string; Code?: string })?.name ?? (err as { Code?: string })?.Code;
+  const code = (err as { name?: string; Code?: string })?.name ?? (err as { Code?: string })?.Code;
   if (code === 'ExpiredToken' || code === 'ExpiredTokenException' || /expired token/i.test(msg)) {
     return new S3StorageError(
       `S3 ${op} failed: AWS session token has expired. Re-enter credentials and reconnect.`,

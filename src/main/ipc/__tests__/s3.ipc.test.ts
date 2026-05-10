@@ -75,8 +75,10 @@ import { s3StorageProvider } from '../../services/s3/s3-provider';
 import { storageRegistry } from '../../services/storage/registry';
 import * as awsMock from '@aws-sdk/client-s3';
 
-const dbRows = (databaseMock as unknown as { __dbRows: Map<string, Record<string, unknown>> }).__dbRows;
-const credentials = (credentialMock as unknown as { __credentials: Map<string, unknown> }).__credentials;
+const dbRows = (databaseMock as unknown as { __dbRows: Map<string, Record<string, unknown>> })
+  .__dbRows;
+const credentials = (credentialMock as unknown as { __credentials: Map<string, unknown> })
+  .__credentials;
 const openSession = s3StorageProvider.openSession as unknown as ReturnType<typeof vi.fn>;
 const closeSession = s3StorageProvider.closeSession as unknown as ReturnType<typeof vi.fn>;
 const register = storageRegistry.register as unknown as ReturnType<typeof vi.fn>;
@@ -99,11 +101,15 @@ beforeEach(() => {
 
 describe('s3 IPC — connect', () => {
   it('rejects empty sessionId', () => {
-    expect(() => handlers.get(IPC.S3_CONNECT)!({}, { sessionId: '', connectionId: 'c1' })).toThrow();
+    expect(() =>
+      handlers.get(IPC.S3_CONNECT)!({}, { sessionId: '', connectionId: 'c1' }),
+    ).toThrow();
   });
 
   it('rejects empty connectionId', () => {
-    expect(() => handlers.get(IPC.S3_CONNECT)!({}, { sessionId: 's1', connectionId: '' })).toThrow();
+    expect(() =>
+      handlers.get(IPC.S3_CONNECT)!({}, { sessionId: 's1', connectionId: '' }),
+    ).toThrow();
   });
 
   it('rejects unknown connectionId', () => {

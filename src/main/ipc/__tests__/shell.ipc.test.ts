@@ -62,9 +62,9 @@ describe('shell IPC — joinPath', () => {
 
 describe('shell IPC — readFile jail', () => {
   it('refuses paths outside the home directory', async () => {
-    await expect(
-      handlers.get(IPC.SHELL_READ_FILE)!({}, '/etc/passwd'),
-    ).rejects.toThrow(/home directory/);
+    await expect(handlers.get(IPC.SHELL_READ_FILE)!({}, '/etc/passwd')).rejects.toThrow(
+      /home directory/,
+    );
   });
 });
 

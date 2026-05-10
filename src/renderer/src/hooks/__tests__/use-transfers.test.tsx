@@ -34,7 +34,8 @@ vi.mock('@/hooks/use-sftp', () => ({
 
 // Captured IPC subscriptions
 type Cb<T> = (e: T) => void;
-let onProgressCb: Cb<{ transferId: string; transferred: number; bytesPerSec: number }> | null = null;
+let onProgressCb: Cb<{ transferId: string; transferred: number; bytesPerSec: number }> | null =
+  null;
 let onCompleteCb: Cb<{ transferId: string }> | null = null;
 let onErrorCb: Cb<{ transferId: string; error: string }> | null = null;
 let onCancelledCb: Cb<{ transferId: string }> | null = null;

@@ -69,7 +69,9 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
         } catch (err) {
           // Most often the terminal isn't attached yet (initial paint).
           // Log via warn so persistent failures are visible (CQ5).
-          logger.warn('[TerminalPane] resize failed', { error: err instanceof Error ? err.message : String(err) });
+          logger.warn('[TerminalPane] resize failed', {
+            error: err instanceof Error ? err.message : String(err),
+          });
         }
       }
     }, 100);
@@ -189,12 +191,15 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
       if (!text) return;
       const bracketed = (terminal.modes as { bracketedPasteMode?: boolean })?.bracketedPasteMode;
       if (!bracketed && /\r|\n/.test(text)) {
-        toast.warning('Clipboard contains multiple lines — each newline will run as a separate command in this shell.', {
-          action: {
-            label: 'Paste anyway',
-            onClick: () => terminal.paste(text),
+        toast.warning(
+          'Clipboard contains multiple lines — each newline will run as a separate command in this shell.',
+          {
+            action: {
+              label: 'Paste anyway',
+              onClick: () => terminal.paste(text),
+            },
           },
-        });
+        );
         return;
       }
       terminal.paste(text);

@@ -97,9 +97,7 @@ describe('FilePane filter', () => {
   });
 
   it('hides hidden files when showHidden is false', () => {
-    render(
-      <FilePane {...baseProps} path="/home/me" entries={sampleEntries} showHidden={false} />,
-    );
+    render(<FilePane {...baseProps} path="/home/me" entries={sampleEntries} showHidden={false} />);
     expect(screen.queryByText('.bashrc')).not.toBeInTheDocument();
     expect(screen.getByText('notes.txt')).toBeInTheDocument();
   });

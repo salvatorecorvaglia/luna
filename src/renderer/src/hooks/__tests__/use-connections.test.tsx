@@ -25,8 +25,9 @@ beforeEach(() => {
   reorder.mockReset();
   // window.api is set up at module load by the harness; here we just
   // (re-)assign the connections facade so each test starts clean.
-  (globalThis as unknown as { window: Window }).window = (globalThis as unknown as { window: Window })
-    .window || (globalThis as unknown as { window: Window });
+  (globalThis as unknown as { window: Window }).window =
+    (globalThis as unknown as { window: Window }).window ||
+    (globalThis as unknown as { window: Window });
   Object.assign(window, {
     api: {
       connections: { list, get: vi.fn(), create, update, delete: del, reorder },
@@ -56,7 +57,9 @@ describe('useCreateConnection', () => {
   it('invokes connections.create with the input', async () => {
     create.mockResolvedValue({ id: 'new', name: 'X' });
     const { result } = renderHook(() => useCreateConnection(), { wrapper });
-    result.current.mutate({ name: 'X', provider: 'sftp' } as Parameters<typeof result.current.mutate>[0]);
+    result.current.mutate({ name: 'X', provider: 'sftp' } as Parameters<
+      typeof result.current.mutate
+    >[0]);
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(create).toHaveBeenCalledWith({ name: 'X', provider: 'sftp' });
   });

@@ -130,9 +130,7 @@ describe('useSessionRecovery', () => {
     sftpSessionId = 'r1';
     getActiveSessions.mockResolvedValue({
       ssh: [],
-      s3: [
-        { id: 'r1', connectionId: 'c1', connectionName: 'b', initialPath: '/b' },
-      ],
+      s3: [{ id: 'r1', connectionId: 'c1', connectionName: 'b', initialPath: '/b' }],
     });
     await mountAndWait();
     expect(setSftpSessionId).not.toHaveBeenCalled();

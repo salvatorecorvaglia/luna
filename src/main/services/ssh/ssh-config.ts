@@ -87,8 +87,7 @@ export async function buildConnectConfig(
   // If a transient password/passphrase was supplied (test-connection on
   // unsaved settings), use it directly. Otherwise look up the saved
   // credential by connectionId.
-  const password =
-    params.password ?? (connectionId ? retrieveCredential(connectionId) : undefined);
+  const password = params.password ?? (connectionId ? retrieveCredential(connectionId) : undefined);
   const passphrase =
     params.passphrase ?? (connectionId ? retrieveCredential(connectionId) : undefined);
 

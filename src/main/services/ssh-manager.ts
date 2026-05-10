@@ -82,7 +82,6 @@ class SshManager {
     });
   }
 
-
   async connect(
     sessionId: string,
     connectionId: string,

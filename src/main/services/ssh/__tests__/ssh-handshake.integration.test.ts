@@ -80,7 +80,9 @@ beforeAll(async () => {
   // Ephemeral port via the underlying net server.
   await new Promise<void>((resolve, reject) => {
     server.listen(0, '127.0.0.1', () => {
-      const addr = (server as unknown as { _srv: ReturnType<typeof createServer> })._srv.address() as AddressInfo;
+      const addr = (
+        server as unknown as { _srv: ReturnType<typeof createServer> }
+      )._srv.address() as AddressInfo;
       port = addr.port;
       resolve();
     });
