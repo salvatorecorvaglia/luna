@@ -13,6 +13,7 @@ import {
   useSftpDirectory,
 } from '@/hooks/use-sftp';
 import { useSftpDnd } from '@/hooks/use-sftp-dnd';
+import { resolveSftpSession } from './sftp-session-fallback';
 import { type FileEntry, FilePane } from './FilePane';
 import { TransferQueue } from './TransferQueue';
 import { FilePreview } from './FilePreview';
@@ -69,59 +70,16 @@ export function SftpManager() {
   const [resizing, setResizing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Sync sftpSessionId with the active connection if it changes.
+  // Sync sftpSessionId with the active connection if it changes. Resolution
+  // logic lives in sftp-session-fallback.ts so it can be unit-tested in
+  // isolation from this component's other state.
   useEffect(() => {
-    let targetSessionId: string | null = null;
-
-    if (activeConnectionId) {
-      // Prioritize SSH sessions for the active connection
-      const sshSession = Array.from(sessions.values()).find(
-        (s) =>
-          s.connectionId === activeConnectionId &&
-          s.status === 'connected' &&
-          (!s.type || s.type === 'ssh'),
-      );
-      if (sshSession) {
-        targetSessionId = sshSession.id;
-      } else {
-        // If an SSH session for the active connection is mid-handshake,
-        // prefer waiting for it over silently swapping to an S3 session
-        // that happens to belong to a different active connection. Without
-        // this gate the SFTP pane briefly shows the wrong remote tree.
-        const sshConnecting = Array.from(sessions.values()).some(
-          (s) =>
-            s.connectionId === activeConnectionId &&
-            (s.status === 'connecting' || s.status === 'reconnecting') &&
-            (!s.type || s.type === 'ssh'),
-        );
-        if (!sshConnecting) {
-          const storageSession = Array.from(storageSessions.values()).find(
-            (s) => s.connectionId === activeConnectionId && s.status === 'connected',
-          );
-          if (storageSession) {
-            targetSessionId = storageSession.id;
-          }
-        }
-      }
-    }
-
-    // Auto-select first connected session if none found for active connection
-    if (!targetSessionId && !sftpSessionId) {
-      const connectedSsh = Array.from(sessions.values()).find(
-        (s) => s.status === 'connected' && (!s.type || s.type === 'ssh'),
-      );
-      if (connectedSsh) {
-        targetSessionId = connectedSsh.id;
-      } else {
-        const connectedS3 = Array.from(storageSessions.values()).find(
-          (s) => s.status === 'connected',
-        );
-        if (connectedS3) {
-          targetSessionId = connectedS3.id;
-        }
-      }
-    }
-
+    const targetSessionId = resolveSftpSession(
+      sessions,
+      storageSessions,
+      activeConnectionId,
+      sftpSessionId,
+    );
     if (targetSessionId && targetSessionId !== sftpSessionId) {
       setSftpSessionId(targetSessionId);
       // Reset path when switching sessions to avoid "No such file" errors

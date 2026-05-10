@@ -361,7 +361,12 @@ export function FileList({
                 onDragStart={(e) => onDragStart?.(entry, e)}
               >
                 <div
-                  className="flex flex-1 items-center gap-2 truncate px-3 py-[7px]"
+                  // min-w-0 is the canonical fix for "truncate doesn't work
+                  // inside a flex child" — without it the child claims its
+                  // intrinsic content width and the row wraps in Safari/FF,
+                  // which would defeat the virtualizer's fixed-row-height
+                  // assumption.
+                  className="flex min-w-0 flex-1 items-center gap-2 truncate px-3 py-[7px]"
                   title={entry.path}
                 >
                   {getFileIcon(entry)}
