@@ -58,7 +58,7 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
       if (!isActiveRef.current) return;
       const fitAddon = fitAddonRef.current;
       const terminal = terminalRef.current;
-      if (fitAddon && terminal) {
+      if (fitAddon && terminal && (terminal as any)._core?._renderService) {
         try {
           fitAddon.fit();
           void window.api.ssh.resize({
@@ -133,13 +133,14 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
       searchAddon = new SearchAddon();
       const unicode11Addon = new Unicode11Addon();
 
-      terminal.loadAddon(fitAddon);
       terminal.loadAddon(webLinksAddon);
       terminal.loadAddon(searchAddon);
       terminal.loadAddon(unicode11Addon);
       terminal.unicode.activeVersion = '11';
 
+      // Important: open the terminal before loading fitAddon or doing any layout.
       terminal.open(containerRef.current);
+      terminal.loadAddon(fitAddon);
     } catch (err) {
       console.error('[TerminalPane] xterm initialization failed', err);
       toast.error('Failed to initialize terminal — try reopening the tab.');

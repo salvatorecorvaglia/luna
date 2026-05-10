@@ -33,8 +33,16 @@ window.addEventListener('unhandledrejection', (event) => {
 });
 
 window.addEventListener('error', (event) => {
-  const error = event.error ?? event.message;
-  logger.error('[window.error]', { error });
+  const error = event.error;
+  if (error instanceof Error) {
+    logger.error('[window.error]', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    });
+  } else {
+    logger.error('[window.error]', { error: event.message || error });
+  }
 });
 
 const queryClient = new QueryClient({

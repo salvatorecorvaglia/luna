@@ -48,7 +48,7 @@ export function LocalTerminalPane({ sessionId, isActive }: LocalTerminalPaneProp
       if (!isActiveRef.current) return;
       const fitAddon = fitAddonRef.current;
       const terminal = terminalRef.current;
-      if (fitAddon && terminal) {
+      if (fitAddon && terminal && (terminal as any)._core?._renderService) {
         try {
           fitAddon.fit();
           void window.api.localTerminal.resize({
@@ -117,12 +117,14 @@ export function LocalTerminalPane({ sessionId, isActive }: LocalTerminalPaneProp
       searchAddon = new SearchAddon();
       const unicode11Addon = new Unicode11Addon();
 
-      terminal.loadAddon(fitAddon);
       terminal.loadAddon(webLinksAddon);
       terminal.loadAddon(searchAddon);
       terminal.loadAddon(unicode11Addon);
       terminal.unicode.activeVersion = '11';
+
+      // Important: open the terminal before loading fitAddon or doing any layout.
       terminal.open(containerRef.current);
+      terminal.loadAddon(fitAddon);
     } catch (err) {
       console.error('[LocalTerminalPane] xterm initialization failed', err);
       toast.error('Failed to initialize local terminal.');
