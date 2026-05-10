@@ -1,17 +1,14 @@
-import { Client, type ClientChannel, type ConnectConfig } from 'ssh2';
-import { readFile } from 'fs/promises';
+import { Client, type ClientChannel } from 'ssh2';
 import { v4 as uuidv4 } from 'uuid';
 import { IPC, LIMITS } from '@shared/constants';
 import { emitToRenderer } from './emit';
 import type { SessionStatus } from '@shared/types/terminal';
 import type { AuthType } from '@shared/types/connection';
 import { type ConnectionRow, getDatabase, getSetting } from './database';
-import { retrieveCredential } from './credential-store';
-import { fingerprintKey, getStoredHostKey, verifyHostKey } from './host-key-store';
-import { parseHostKeyAlgorithm, PendingHostKeyRegistry } from './ssh/host-key-flow';
+import { PendingHostKeyRegistry } from './ssh/host-key-flow';
+import { buildConnectConfig } from './ssh/ssh-config';
 import { TimeoutError, withTimeout } from '../lib/with-timeout';
 import { describeSshError } from '../lib/error-map';
-import { expandAndConfineToHome } from '../lib/validate';
 import log from '../lib/logger';
 
 interface StreamListeners {
@@ -85,109 +82,6 @@ class SshManager {
     });
   }
 
-  /**
-   * Build a ConnectConfig from raw parameters. Extracted so both
-   * `connect()` and `testConnection()` share the same auth + hostVerifier logic.
-   */
-  private async buildConnectConfig(
-    params: {
-      host: string;
-      port: number;
-      username: string;
-      authType: AuthType;
-      privateKeyPath?: string | null;
-      password?: string;
-      passphrase?: string;
-    },
-    connectionId?: string,
-    sessionId?: string,
-  ): Promise<{ config: ConnectConfig; error?: string }> {
-    const config: ConnectConfig = {
-      host: params.host,
-      port: params.port,
-      username: params.username,
-      keepaliveInterval: getSetting('ssh.keepAliveInterval', 10000),
-      keepaliveCountMax: 3,
-      readyTimeout: getSetting('ssh.readyTimeout', 30000),
-      hostVerifier: (key: Buffer) => {
-        const algorithm = parseHostKeyAlgorithm(key);
-        const result = verifyHostKey(params.host, params.port, key, algorithm);
-        if (result.weakAlgorithm) {
-          // Don't prompt the user — refusing weak algorithms is a hard policy.
-          emitToRenderer(IPC.SSH_ON_ERROR, {
-            sessionId: sessionId ?? '',
-            error: `Refusing weak host-key algorithm "${algorithm}". The server should be reconfigured to advertise ed25519, ecdsa, or rsa-sha2-* host keys.`,
-          });
-          return false;
-        }
-        if (!result.trusted) {
-          const stored = getStoredHostKey(params.host, params.port);
-          this.pendingHostKeys.remember(params.host, params.port, key, algorithm);
-          emitToRenderer(IPC.SSH_ON_HOST_KEY_CHANGE, {
-            sessionId: sessionId ?? '',
-            connectionId: connectionId ?? '',
-            host: params.host,
-            port: params.port,
-            storedFingerprint: stored?.fingerprint ?? '',
-            newFingerprint: fingerprintKey(key),
-            algorithm,
-            isFirst: result.isFirst,
-          });
-          const reason = result.isFirst
-            ? `Unknown host ${params.host}:${params.port}. Verify the ${algorithm} fingerprint before trusting.`
-            : `Host key for ${params.host}:${params.port} has changed. Confirm the new fingerprint before reconnecting.`;
-          emitToRenderer(IPC.SSH_ON_ERROR, { sessionId: sessionId ?? '', error: reason });
-        }
-        return result.trusted;
-      },
-    };
-
-    // Set up auth
-    // If we have a password/passphrase in params, use them directly (testing unsaved)
-    // Otherwise try to retrieve from store if we have a connectionId
-    const password =
-      params.password ?? (connectionId ? retrieveCredential(connectionId) : undefined);
-    const passphrase =
-      params.passphrase ?? (connectionId ? retrieveCredential(connectionId) : undefined);
-
-    if (params.authType === 'password') {
-      config.password = password || undefined;
-    } else if (params.authType === 'key' || params.authType === 'key+passphrase') {
-      if (!params.privateKeyPath) {
-        return { config, error: 'Private key path not configured' };
-      }
-      try {
-        // Expand ~ via os.homedir() (not $HOME, which can be unset/empty and
-        // collapse "~/.." into "/.."), and confine the real (symlink-resolved)
-        // target to the home directory.
-        const keyPath = await expandAndConfineToHome(params.privateKeyPath, 'privateKeyPath', {
-          requireExists: true,
-        });
-        config.privateKey = await readFile(keyPath);
-        if (params.authType === 'key+passphrase' && passphrase) {
-          config.passphrase = passphrase;
-        }
-      } catch (err: unknown) {
-        // Log the underlying details for debugging, but only surface a generic
-        // message to the renderer — fs error strings include the absolute key
-        // path which we never want to leak through IPC.
-        const code = (err as NodeJS.ErrnoException | undefined)?.code;
-        log.warn(`[SSH] Failed to read private key (${code ?? 'unknown'})`);
-        const message = err instanceof Error ? err.message : '';
-        const reason =
-          code === 'ENOENT'
-            ? 'Private key file not found'
-            : code === 'EACCES'
-              ? 'Permission denied reading private key'
-              : message.includes('home directory')
-                ? 'Private key path must be inside the home directory'
-                : 'Failed to read private key';
-        return { config, error: reason };
-      }
-    }
-
-    return { config };
-  }
 
   async connect(
     sessionId: string,
@@ -231,7 +125,7 @@ class SshManager {
     this.sessions.set(sessionId, session);
     this.setStatus(session, 'connecting');
 
-    const { config: connectConfig, error: configError } = await this.buildConnectConfig(
+    const { config: connectConfig, error: configError } = await buildConnectConfig(
       {
         host: row.host,
         port: row.port,
@@ -239,8 +133,7 @@ class SshManager {
         authType: row.auth_type,
         privateKeyPath: row.private_key_path,
       },
-      connectionId,
-      sessionId,
+      { pendingHostKeys: this.pendingHostKeys, connectionId, sessionId },
     );
     if (configError) {
       this.sessions.delete(sessionId);
@@ -610,9 +503,9 @@ class SshManager {
       return { ok: false, error: 'Invalid test parameters' };
     }
 
-    const { config, error: configError } = await this.buildConnectConfig(
+    const { config, error: configError } = await buildConnectConfig(
       { host, port, username, authType, privateKeyPath, password, passphrase },
-      params.connectionId,
+      { pendingHostKeys: this.pendingHostKeys, connectionId: params.connectionId },
     );
     if (configError) return { ok: false, error: configError };
 
