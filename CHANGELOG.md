@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-05-10
+
+### Added
+
+- **S3 & SFTP Infrastructure**: Major refactor of storage providers and connection logic to improve reliability and testability.
+- **Enhanced Testing**: Significant expansion of unit and integration test coverage for IPC handlers, renderer hooks, and host key management.
+
+### Changed
+
+- **Terminal Stability**: Implemented debounced resizing for the terminal to prevent redundant SSH session calls and improve performance.
+- **SSH Security**: Modularized pending host key management and improved session closure logic to resolve potential race conditions.
+- **UI/UX Refinements**: Refined command palette shortcut handling to prevent accidental triggers while focus is in form inputs.
+
 ## [0.4.0] - 2026-05-09
 
 ### Added
