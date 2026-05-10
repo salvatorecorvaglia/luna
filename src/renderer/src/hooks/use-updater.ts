@@ -15,7 +15,7 @@ export function useUpdaterEventListener(): void {
         action: {
           label: 'Download',
           onClick: () => {
-            window.api.app.installUpdate();
+            void window.api.app.installUpdate();
             toast.loading('Downloading update…', {
               id: 'update-progress',
               duration: Infinity,
@@ -41,7 +41,7 @@ export function useUpdaterEventListener(): void {
         action: {
           label: 'Restart now',
           onClick: () => {
-            window.api.app.installUpdate();
+            void window.api.app.installUpdate();
           },
         },
       });

@@ -63,7 +63,7 @@ export function TerminalTabs() {
     (sessionId: string) => {
       const session = sessions.get(sessionId);
       if (!session) return;
-      connectToHost(session.connectionId);
+      void connectToHost(session.connectionId);
     },
     [sessions],
   );

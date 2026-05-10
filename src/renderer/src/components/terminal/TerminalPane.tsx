@@ -10,6 +10,7 @@ import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { ChevronDown, ChevronUp, RefreshCcw, X } from 'lucide-react';
 import '@xterm/xterm/css/xterm.css';
 import { useTerminalStore } from '@/stores/terminal-store';
+import { logger } from '@/lib/logger';
 import { terminalThemes } from '@/themes/terminal';
 import { LIMITS } from '@shared/constants';
 import type { SessionStatus } from '@shared/types/terminal';
@@ -49,7 +50,7 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
       if (fitAddon && terminal) {
         try {
           fitAddon.fit();
-          window.api.ssh.resize({
+          void window.api.ssh.resize({
             sessionId,
             cols: terminal.cols,
             rows: terminal.rows,
@@ -57,7 +58,7 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
         } catch (err) {
           // Most often the terminal isn't attached yet (initial paint).
           // Log via warn so persistent failures are visible (CQ5).
-          console.warn('[TerminalPane] resize failed', err);
+          logger.warn('[TerminalPane] resize failed', { error: err instanceof Error ? err.message : String(err) });
         }
       }
     }, 100);
@@ -350,7 +351,7 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
 
     // Send keystrokes to SSH
     terminal.onData((data) => {
-      window.api.ssh.sendData({ sessionId, data });
+      void window.api.ssh.sendData({ sessionId, data });
     });
 
     // Receive data from SSH
@@ -484,7 +485,7 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
               onClick={() => {
                 if (session?.connectionId) {
                   useTerminalStore.getState().updateSessionStatus(sessionId, 'connecting');
-                  window.api.ssh.connect({ connectionId: session.connectionId, sessionId });
+                  void window.api.ssh.connect({ connectionId: session.connectionId, sessionId });
                 }
               }}
               className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"

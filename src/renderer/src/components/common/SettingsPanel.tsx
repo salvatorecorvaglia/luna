@@ -66,8 +66,8 @@ export function SettingsPanel() {
   // Load settings from DB on open
   useEffect(() => {
     if (!settingsOpen) return;
-    window.api.app.getVersion().then(setAppVersion);
-    window.api.settings.getAll().then((settings: Record<string, unknown>) => {
+    void window.api.app.getVersion().then(setAppVersion);
+    void window.api.settings.getAll().then((settings: Record<string, unknown>) => {
       if (settings['terminal.fontSize'] != null) setFontSize(Number(settings['terminal.fontSize']));
       if (settings['terminal.scrollback'] != null)
         setScrollback(Number(settings['terminal.scrollback']));
@@ -85,7 +85,7 @@ export function SettingsPanel() {
   }, [settingsOpen, setFontSize, setScrollback]);
 
   const persistSetting = useCallback((key: string, value: unknown) => {
-    window.api.settings.set(key, JSON.stringify(value));
+    void window.api.settings.set(key, JSON.stringify(value));
   }, []);
 
   const panelRef = useRef<HTMLDivElement>(null);

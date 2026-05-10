@@ -10,6 +10,7 @@ import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import '@xterm/xterm/css/xterm.css';
 import { useTerminalStore } from '@/stores/terminal-store';
+import { logger } from '@/lib/logger';
 import { terminalThemes } from '@/themes/terminal';
 import { LIMITS } from '@shared/constants';
 
@@ -43,13 +44,13 @@ export function LocalTerminalPane({ sessionId, isActive }: LocalTerminalPaneProp
       if (fitAddon && terminal) {
         try {
           fitAddon.fit();
-          window.api.localTerminal.resize({
+          void window.api.localTerminal.resize({
             sessionId,
             cols: terminal.cols,
             rows: terminal.rows,
           });
         } catch (err) {
-          console.warn('[LocalTerminalPane] resize failed', err);
+          logger.warn('[LocalTerminalPane] resize failed', { error: err instanceof Error ? err.message : String(err) });
         }
       }
     }, 100);
@@ -313,7 +314,7 @@ export function LocalTerminalPane({ sessionId, isActive }: LocalTerminalPaneProp
 
     // Send keystrokes to local PTY
     terminal.onData((data) => {
-      window.api.localTerminal.sendData({ sessionId, data });
+      void window.api.localTerminal.sendData({ sessionId, data });
     });
 
     // Receive data from local PTY

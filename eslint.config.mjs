@@ -20,5 +20,18 @@ export default tseslint.config(
       'prefer-const': 'error'
     }
   },
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/test/**', 'src/**/__tests__/**', 'src/**/*.test.{ts,tsx}'],
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname
+      }
+    },
+    rules: {
+      '@typescript-eslint/no-floating-promises': ['error', { ignoreVoid: true }]
+    }
+  },
   eslintConfigPrettier
 )

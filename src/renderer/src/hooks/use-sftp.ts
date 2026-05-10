@@ -40,9 +40,9 @@ export function useInvalidateSftp() {
   const queryClient = useQueryClient();
   return (sessionId: string, path?: string) => {
     if (path) {
-      queryClient.invalidateQueries({ queryKey: ['storage', sessionId, path] });
+      void queryClient.invalidateQueries({ queryKey: ['storage', sessionId, path] });
     } else {
-      queryClient.invalidateQueries({ queryKey: ['storage', sessionId] });
+      void queryClient.invalidateQueries({ queryKey: ['storage', sessionId] });
     }
   };
 }
@@ -53,9 +53,9 @@ export function useInvalidateLocalDir() {
   const queryClient = useQueryClient();
   return (path?: string) => {
     if (path) {
-      queryClient.invalidateQueries({ queryKey: ['local-dir', path] });
+      void queryClient.invalidateQueries({ queryKey: ['local-dir', path] });
     } else {
-      queryClient.invalidateQueries({ queryKey: ['local-dir'] });
+      void queryClient.invalidateQueries({ queryKey: ['local-dir'] });
     }
   };
 }

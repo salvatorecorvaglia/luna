@@ -133,7 +133,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     } catch {
       // localStorage may be unavailable
     }
-    window.api.settings.set('terminal.theme', JSON.stringify(theme));
+    void window.api.settings.set('terminal.theme', JSON.stringify(theme));
     set({ terminalTheme: theme });
   },
   setFontSize: (size) => {
@@ -159,13 +159,31 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     }),
 
   closeTab: (sessionId) => {
-    const session = get().sessions.get(sessionId);
-    if (session?.type === 'local') {
-      window.api.localTerminal.kill(sessionId);
+    // Atomically remove the session from store state, capturing its type
+    // before mutation. Dispatching disconnect *after* the state update
+    // prevents the IPC `onDisconnect` event from racing back and updating
+    // status on a session we've already torn down (phantom-tab bug).
+    let type: 'ssh' | 'local' | undefined;
+    set((s) => {
+      type = s.sessions.get(sessionId)?.type;
+      const sessions = new Map(s.sessions);
+      sessions.delete(sessionId);
+      const tabOrder = s.tabOrder.filter((id) => id !== sessionId);
+      const activeTabId =
+        s.activeTabId === sessionId ? tabOrder[tabOrder.length - 1] || null : s.activeTabId;
+      const splitTree =
+        tabOrder.length === 0
+          ? null
+          : activeTabId
+            ? { type: 'terminal' as const, sessionId: activeTabId }
+            : null;
+      return { sessions, tabOrder, activeTabId, splitTree };
+    });
+    if (type === 'local') {
+      void window.api.localTerminal.kill(sessionId);
     } else {
-      window.api.ssh.disconnect(sessionId);
+      void window.api.ssh.disconnect(sessionId);
     }
-    get().removeSession(sessionId);
   },
 
   closeOtherTabs: (sessionId) => {
@@ -175,9 +193,9 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     for (const id of toClose) {
       const s = sessions.get(id);
       if (s?.type === 'local') {
-        window.api.localTerminal.kill(id);
+        void window.api.localTerminal.kill(id);
       } else {
-        window.api.ssh.disconnect(id);
+        void window.api.ssh.disconnect(id);
       }
     }
     set((s) => {
@@ -202,9 +220,9 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     for (const id of toClose) {
       const s = sessions.get(id);
       if (s?.type === 'local') {
-        window.api.localTerminal.kill(id);
+        void window.api.localTerminal.kill(id);
       } else {
-        window.api.ssh.disconnect(id);
+        void window.api.ssh.disconnect(id);
       }
     }
     set((s) => {

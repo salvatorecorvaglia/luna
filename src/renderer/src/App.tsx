@@ -65,6 +65,19 @@ export default function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
 
+      // Don't hijack typing in form inputs. Allow xterm's hidden helper
+      // textarea through — that textarea backs the terminal and the user
+      // expects Cmd+K etc. to still work while focused on a terminal.
+      const target = e.target as HTMLElement | null;
+      const active = (document.activeElement as HTMLElement | null) ?? target;
+      if (active) {
+        const tag = active.tagName;
+        const isFormField =
+          (tag === 'INPUT' || tag === 'TEXTAREA' || active.isContentEditable) &&
+          !active.closest('.xterm');
+        if (isFormField) return;
+      }
+
       // Cmd+K: Command palette
       if (mod && e.key === 'k') {
         e.preventDefault();

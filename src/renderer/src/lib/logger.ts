@@ -6,18 +6,18 @@
 export const logger = {
   info: (message: string, context?: Record<string, unknown>) => {
     console.info(`[info] ${message}`, context || '');
-    window.api.log('info', message, context);
+    void window.api.log('info', message, context);
   },
   warn: (message: string, context?: Record<string, unknown>) => {
     console.warn(`[warn] ${message}`, context || '');
-    window.api.log('warn', message, context);
+    void window.api.log('warn', message, context);
   },
   error: (message: string, context?: Record<string, unknown>) => {
     console.error(`[error] ${message}`, context || '');
-    window.api.log('error', message, context);
+    void window.api.log('error', message, context);
   },
   debug: (message: string, context?: Record<string, unknown>) => {
     console.debug(`[debug] ${message}`, context || '');
-    window.api.log('debug', message, context);
+    void window.api.log('debug', message, context);
   },
 };

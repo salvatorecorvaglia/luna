@@ -52,7 +52,7 @@ export function HostKeyDialog() {
         setEvent(null);
         // Auto-reconnect after trusting
         if (event.connectionId) {
-          connectToHost(event.connectionId);
+          void connectToHost(event.connectionId);
         }
       } else {
         toast.error('Failed to trust host key');
