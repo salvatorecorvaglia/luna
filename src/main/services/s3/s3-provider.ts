@@ -449,9 +449,7 @@ class S3StorageProvider implements StorageProvider {
       });
       body.on('error', (err) => {
         writeStream.destroy();
-        settle(() =>
-          cleanupPartial().finally(() => reject(wrapS3Error('download-stream', err))),
-        );
+        settle(() => cleanupPartial().finally(() => reject(wrapS3Error('download-stream', err))));
       });
       writeStream.on('error', (err) => {
         body.destroy();
@@ -513,7 +511,6 @@ class S3StorageProvider implements StorageProvider {
       signal.removeEventListener('abort', onAbort);
     }
   }
-
 
   listSessions(): {
     id: string;

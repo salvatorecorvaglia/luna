@@ -57,7 +57,9 @@ export function LocalTerminalPane({ sessionId, isActive }: LocalTerminalPaneProp
             rows: terminal.rows,
           });
         } catch (err) {
-          logger.warn('[LocalTerminalPane] resize failed', { error: err instanceof Error ? err.message : String(err) });
+          logger.warn('[LocalTerminalPane] resize failed', {
+            error: err instanceof Error ? err.message : String(err),
+          });
         }
       }
     }, 100);

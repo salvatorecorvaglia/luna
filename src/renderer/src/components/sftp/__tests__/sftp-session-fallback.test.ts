@@ -69,12 +69,7 @@ describe('resolveSftpSession — active connection scoped', () => {
   });
 
   it('falls back to a connected S3 session for the active connection when no SSH is in flight', () => {
-    const out = resolveSftpSession(
-      ssh_([]),
-      s3_([s3('r1', 'conn-a')]),
-      'conn-a',
-      null,
-    );
+    const out = resolveSftpSession(ssh_([]), s3_([s3('r1', 'conn-a')]), 'conn-a', null);
     expect(out).toBe('r1');
   });
 
@@ -91,12 +86,7 @@ describe('resolveSftpSession — active connection scoped', () => {
 
 describe('resolveSftpSession — implicit selection', () => {
   it('picks the first connected SSH session when nothing is active and nothing is selected', () => {
-    const out = resolveSftpSession(
-      ssh_([ssh('s1', 'conn-a', 'connected')]),
-      s3_([]),
-      null,
-      null,
-    );
+    const out = resolveSftpSession(ssh_([ssh('s1', 'conn-a', 'connected')]), s3_([]), null, null);
     expect(out).toBe('s1');
   });
 

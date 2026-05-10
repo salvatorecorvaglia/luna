@@ -80,9 +80,7 @@ describe('sftp IPC — input validation', () => {
   });
 
   it('stat rejects an empty path', async () => {
-    await expect(
-      handlers.get(IPC.SFTP_STAT)!({}, { sessionId: 's1', path: '' }),
-    ).rejects.toThrow();
+    await expect(handlers.get(IPC.SFTP_STAT)!({}, { sessionId: 's1', path: '' })).rejects.toThrow();
     expect(stat).not.toHaveBeenCalled();
   });
 
@@ -126,10 +124,7 @@ describe('sftp IPC — happy paths delegate to manager', () => {
 
   it('rename forwards both paths', async () => {
     rename.mockResolvedValue(undefined);
-    await handlers.get(IPC.SFTP_RENAME)!(
-      {},
-      { sessionId: 's1', oldPath: '/a', newPath: '/b' },
-    );
+    await handlers.get(IPC.SFTP_RENAME)!({}, { sessionId: 's1', oldPath: '/a', newPath: '/b' });
     expect(rename).toHaveBeenCalledWith('s1', '/a', '/b');
   });
 
@@ -144,10 +139,7 @@ describe('sftp IPC — happy paths delegate to manager', () => {
 
   it('readFile forwards maxSize when provided', async () => {
     readFile.mockResolvedValue({ content: 'aGk=', size: 2 });
-    await handlers.get(IPC.SFTP_READ_FILE)!(
-      {},
-      { sessionId: 's1', path: '/x', maxSize: 1024 },
-    );
+    await handlers.get(IPC.SFTP_READ_FILE)!({}, { sessionId: 's1', path: '/x', maxSize: 1024 });
     expect(readFile).toHaveBeenCalledWith('s1', '/x', 1024);
   });
 });

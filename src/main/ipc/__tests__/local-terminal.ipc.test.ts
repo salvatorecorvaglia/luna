@@ -71,10 +71,7 @@ beforeEach(() => {
 
 describe('local-terminal IPC — spawn', () => {
   it('spawns a PTY with the requested cols/rows', async () => {
-    await handlers.get(IPC.LOCAL_TERMINAL_SPAWN)!(
-      {},
-      { sessionId: 's1', cols: 100, rows: 30 },
-    );
+    await handlers.get(IPC.LOCAL_TERMINAL_SPAWN)!({}, { sessionId: 's1', cols: 100, rows: 30 });
     expect(spawn).toHaveBeenCalledTimes(1);
     expect(spawn.mock.calls[0][2]).toMatchObject({ cols: 100, rows: 30 });
   });
@@ -118,10 +115,7 @@ describe('local-terminal IPC — send/resize/kill', () => {
   });
 
   it('resizes the PTY', async () => {
-    await handlers.get(IPC.LOCAL_TERMINAL_RESIZE)!(
-      {},
-      { sessionId: 's1', cols: 120, rows: 40 },
-    );
+    await handlers.get(IPC.LOCAL_TERMINAL_RESIZE)!({}, { sessionId: 's1', cols: 120, rows: 40 });
     expect(ptyInstances[0].resize).toHaveBeenCalledWith(120, 40);
   });
 

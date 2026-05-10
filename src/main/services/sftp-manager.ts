@@ -21,7 +21,6 @@ const IDLE_CHECK_INTERVAL_MS = 60 * 1000;
  * write stream time to flush its destroy ack so unlink doesn't race with it. */
 const ABORT_CLEANUP_DELAY_MS = 50;
 
-
 class SftpManager {
   private sftpSessions = new Map<string, SFTPWrapper>();
   private lastAccess = new Map<string, number>();
@@ -570,7 +569,6 @@ class SftpManager {
     this.lastAccess.delete(sessionId);
     this.leases.delete(sessionId);
   }
-
 }
 
 export const sftpManager = new SftpManager();

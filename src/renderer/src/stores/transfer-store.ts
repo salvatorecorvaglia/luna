@@ -41,10 +41,7 @@ const TERMINAL_RETENTION_MS = 5 * 60 * 1000;
 /** Hard cap on retained terminal-state transfers — guards against bursts. */
 const MAX_RETAINED_TERMINAL = 200;
 
-function scheduleAutoRemove(
-  transferId: string,
-  remove: (id: string) => void,
-): void {
+function scheduleAutoRemove(transferId: string, remove: (id: string) => void): void {
   setTimeout(() => remove(transferId), TERMINAL_RETENTION_MS);
 }
 
