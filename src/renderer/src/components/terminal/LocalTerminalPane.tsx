@@ -36,9 +36,16 @@ export function LocalTerminalPane({ sessionId, isActive }: LocalTerminalPaneProp
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  const isActiveRef = useRef<boolean>(isActive ?? true);
+  useEffect(() => {
+    isActiveRef.current = isActive ?? true;
+  }, [isActive]);
+
   const handleResize = useCallback(() => {
     if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
     resizeTimeoutRef.current = setTimeout(() => {
+      resizeTimeoutRef.current = null;
+      if (!isActiveRef.current) return;
       const fitAddon = fitAddonRef.current;
       const terminal = terminalRef.current;
       if (fitAddon && terminal) {
@@ -388,6 +395,9 @@ export function LocalTerminalPane({ sessionId, isActive }: LocalTerminalPaneProp
     if (isActive) {
       handleResize();
       terminalRef.current?.focus();
+    } else if (resizeTimeoutRef.current) {
+      clearTimeout(resizeTimeoutRef.current);
+      resizeTimeoutRef.current = null;
     }
   }, [isActive, handleResize]);
 
