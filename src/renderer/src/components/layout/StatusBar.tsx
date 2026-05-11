@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Activity, Upload, Wifi, WifiOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTerminalStore } from '@/stores/terminal-store';
@@ -10,12 +11,18 @@ export function StatusBar() {
   const toggleQueueExpanded = useTransferStore((s) => s.toggleQueueExpanded);
 
   const activeSession = activeTabId ? sessions.get(activeTabId) : null;
-  const activeSessions = Array.from(sessions.values()).filter(
-    (s) => s.status === 'connected',
-  ).length;
+  // Memoize the two filter passes. The StatusBar re-renders on any store
+  // mutation (e.g. unrelated transfer progress events at 5 Hz), and these
+  // were rebuilding two arrays per tick.
+  const activeSessions = useMemo(
+    () => Array.from(sessions.values()).filter((s) => s.status === 'connected').length,
+    [sessions],
+  );
 
-  const activeTransfers = Array.from(transfers.values()).filter(
-    (t) => t.status === 'active' || t.status === 'queued',
+  const activeTransfers = useMemo(
+    () =>
+      Array.from(transfers.values()).filter((t) => t.status === 'active' || t.status === 'queued'),
+    [transfers],
   );
 
   return (

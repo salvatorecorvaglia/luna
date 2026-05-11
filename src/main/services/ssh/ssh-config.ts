@@ -81,6 +81,40 @@ export async function buildConnectConfig(
     keepaliveInterval: getSetting('ssh.keepAliveInterval', 10000),
     keepaliveCountMax: 3,
     readyTimeout: getSetting('ssh.readyTimeout', 30000),
+    // Restrict negotiation to modern primitives. ssh2's defaults still include
+    // some legacy options (e.g. sha1 HMACs, diffie-hellman-group14-sha1).
+    // Reject those at the protocol layer so a misconfigured server can't
+    // downgrade us. Order is the offered preference.
+    algorithms: {
+      kex: [
+        'curve25519-sha256',
+        'curve25519-sha256@libssh.org',
+        'ecdh-sha2-nistp256',
+        'ecdh-sha2-nistp384',
+        'ecdh-sha2-nistp521',
+        'diffie-hellman-group-exchange-sha256',
+        'diffie-hellman-group16-sha512',
+        'diffie-hellman-group18-sha512',
+      ],
+      cipher: [
+        'chacha20-poly1305@openssh.com',
+        'aes128-gcm@openssh.com',
+        'aes256-gcm@openssh.com',
+        'aes128-ctr',
+        'aes192-ctr',
+        'aes256-ctr',
+      ],
+      serverHostKey: [
+        'ssh-ed25519',
+        'ecdsa-sha2-nistp256',
+        'ecdsa-sha2-nistp384',
+        'ecdsa-sha2-nistp521',
+        'rsa-sha2-512',
+        'rsa-sha2-256',
+      ],
+      hmac: ['hmac-sha2-256-etm@openssh.com', 'hmac-sha2-512-etm@openssh.com', 'hmac-sha2-256', 'hmac-sha2-512'],
+      compress: ['none', 'zlib@openssh.com'],
+    },
     hostVerifier: (key: Buffer) => {
       const algorithm = parseHostKeyAlgorithm(key);
       const result = verifyHostKey(params.host, params.port, key, algorithm);

@@ -177,6 +177,16 @@ function encrypt(text: string): Buffer {
 }
 
 function decrypt(data: Buffer): string {
+  // Defensive length check: a truncated blob would otherwise hand
+  // createDecipheriv a short IV (silently — IV length is asserted by the
+  // backing OpenSSL call only on some platforms) or hand setAuthTag a tag
+  // that's not exactly 16 bytes. Failing fast here yields a clear error in
+  // the tamper log instead of an opaque "Unsupported state" from OpenSSL.
+  if (data.length < IV_LENGTH + TAG_LENGTH) {
+    throw new Error(
+      `ciphertext too short: ${data.length} bytes (need ≥ ${IV_LENGTH + TAG_LENGTH})`,
+    );
+  }
   const iv = data.subarray(0, IV_LENGTH);
   const tag = data.subarray(IV_LENGTH, IV_LENGTH + TAG_LENGTH);
   const ciphertext = data.subarray(IV_LENGTH + TAG_LENGTH);

@@ -24,9 +24,25 @@ interface QueuedTransfer {
 class TransferQueue {
   private queue: QueuedTransfer[] = [];
   private active = new Map<string, QueuedTransfer>();
+  /**
+   * Dedup index: maps `${type}|${sessionId}|${localPath}|${remotePath}` →
+   * transfer id, populated for both queued and active entries. Replaces a
+   * linear scan across both collections on every enqueue() so a burst of
+   * thousands of identical requests stays O(n) total instead of O(n²).
+   */
+  private dedupIndex = new Map<string, string>();
   private maxConcurrent = 3;
   /** Re-entrancy guard: only one synchronous dispatch loop at a time. */
   private dispatching = false;
+
+  private dedupKey(
+    type: TransferType,
+    sessionId: string,
+    localPath: string,
+    remotePath: string,
+  ): string {
+    return `${type}\0${sessionId}\0${localPath}\0${remotePath}`;
+  }
 
   setMaxConcurrent(max: number): void {
     this.maxConcurrent = Math.max(1, Math.min(LIMITS.MAX_CONCURRENT_TRANSFERS, max));
@@ -39,15 +55,15 @@ class TransferQueue {
     localPath: string,
     remotePath: string,
   ): Promise<string> {
-    const isDuplicate = (t: QueuedTransfer): boolean =>
-      t.type === type &&
-      t.sessionId === sessionId &&
-      t.localPath === localPath &&
-      t.remotePath === remotePath &&
-      !t.controller.signal.aborted;
-    const existing =
-      this.queue.find(isDuplicate) || Array.from(this.active.values()).find(isDuplicate);
-    if (existing) return existing.id;
+    const key = this.dedupKey(type, sessionId, localPath, remotePath);
+    const existingId = this.dedupIndex.get(key);
+    if (existingId) {
+      const existing = this.active.get(existingId) ?? this.queue.find((t) => t.id === existingId);
+      if (existing && !existing.controller.signal.aborted) return existing.id;
+      // Stale entry (e.g. an aborted transfer that didn't clear the index).
+      // Drop it so the new enqueue can take ownership of the key.
+      this.dedupIndex.delete(key);
+    }
 
     if (this.queue.length >= LIMITS.MAX_QUEUED_TRANSFERS) {
       throw new Error(
@@ -85,6 +101,7 @@ class TransferQueue {
     };
 
     this.queue.push(transfer);
+    this.dedupIndex.set(key, transferId);
 
     emitToRenderer(IPC.TRANSFER_PROGRESS, {
       transferId,
@@ -97,11 +114,19 @@ class TransferQueue {
     return transferId;
   }
 
+  private forgetDedup(t: QueuedTransfer): void {
+    const key = this.dedupKey(t.type, t.sessionId, t.localPath, t.remotePath);
+    // Only delete if it still points at this transfer — a later enqueue may
+    // have already claimed the key after we marked this one aborted.
+    if (this.dedupIndex.get(key) === t.id) this.dedupIndex.delete(key);
+  }
+
   cancel(transferId: string): void {
     const queueIndex = this.queue.findIndex((t) => t.id === transferId);
     if (queueIndex !== -1) {
       const [transfer] = this.queue.splice(queueIndex, 1);
       transfer.controller.abort();
+      this.forgetDedup(transfer);
       emitToRenderer(IPC.TRANSFER_CANCELLED, { transferId });
       return;
     }
@@ -210,6 +235,7 @@ class TransferQueue {
       }
     } finally {
       this.active.delete(id);
+      this.forgetDedup(transfer);
       this.processQueue();
     }
   }
@@ -249,6 +275,7 @@ class TransferQueue {
     }
     this.active.clear();
     this.queue = [];
+    this.dedupIndex.clear();
   }
 
   cancelBySession(sessionId: string): void {

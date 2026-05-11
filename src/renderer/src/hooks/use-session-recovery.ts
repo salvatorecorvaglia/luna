@@ -8,14 +8,20 @@ import { useSftpStore } from '@/stores/sftp-store';
  */
 export function useSessionRecovery() {
   useEffect(() => {
+    // StrictMode runs effects twice in development, and a fast unmount/remount
+    // could otherwise let two recover() promises race writes to the stores.
+    // `cancelled` short-circuits state mutations after teardown.
+    let cancelled = false;
     const recover = async () => {
       try {
         const { ssh, s3 } = await window.api.app.getActiveSessions();
+        if (cancelled) return;
 
         // Recover SSH sessions (Terminal)
         const sshSessionIds = new Set(ssh.map((s) => s.id));
 
         for (const sess of ssh) {
+          if (cancelled) return;
           const existing = useTerminalStore.getState().sessions.get(sess.id);
           if (!existing) {
             let connectionName = 'SSH';
@@ -25,6 +31,7 @@ export function useSessionRecovery() {
             } catch {
               // ignore
             }
+            if (cancelled) return;
 
             useTerminalStore.getState().addSession({
               id: sess.id,
@@ -68,5 +75,8 @@ export function useSessionRecovery() {
     };
 
     void recover();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 }
