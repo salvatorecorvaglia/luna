@@ -98,8 +98,20 @@ export function Sidebar() {
       if (resizingRef.current) return;
       resizingRef.current = true;
       setResizing(true);
+      // Magnetic snap to the default mid-width when the cursor is within
+      // ±SNAP_PX of it — gives the resize a perceptible "click" instead of
+      // sliding through unbounded values, without needing a separate "reset"
+      // affordance.
+      const SNAP_TARGETS = [220, 260, 320];
+      const SNAP_PX = 8;
       const onMouseMove = (e: MouseEvent) => {
-        const width = Math.max(200, Math.min(400, e.clientX));
+        let width = Math.max(200, Math.min(400, e.clientX));
+        for (const t of SNAP_TARGETS) {
+          if (Math.abs(width - t) <= SNAP_PX) {
+            width = t;
+            break;
+          }
+        }
         setSidebarWidth(width);
       };
       const onMouseUp = () => {

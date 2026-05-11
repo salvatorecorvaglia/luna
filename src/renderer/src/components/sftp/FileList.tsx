@@ -142,15 +142,21 @@ export function FileList({
     );
   };
 
-  const ROW_HEIGHT = 32;
+  // Estimate matches the default row geometry. Actual measurement happens via
+  // `measureElement` below, so a CSS row-height tweak no longer silently
+  // miscalculates totalSize. Overscan dropped from 10 → 5 because the small
+  // lists where we previously over-allocated outnumber the giant lists where
+  // 5 vs 10 matters perceptibly.
+  const ROW_HEIGHT_ESTIMATE = 32;
   const parentRef = useRef<HTMLDivElement>(null);
 
   // eslint-disable-next-line react-hooks/incompatible-library -- opted out of memoization via "use no memo"
   const virtualizer = useVirtualizer({
     count: sorted.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => ROW_HEIGHT,
-    overscan: 10,
+    estimateSize: () => ROW_HEIGHT_ESTIMATE,
+    overscan: 5,
+    measureElement: (el) => el.getBoundingClientRect().height,
   });
 
   // Build a per-entry ContextMenuItem array once per (entry, callback)
@@ -362,12 +368,16 @@ export function FileList({
                 key={entry.path}
                 role="option"
                 tabIndex={focusedIndex === virtualRow.index ? 0 : -1}
+                // data-index + ref let the virtualizer's measureElement read
+                // the rendered row height directly, so CSS changes to row
+                // styling don't desync the scroll metrics from layout.
+                data-index={virtualRow.index}
+                ref={virtualizer.measureElement}
                 style={{
                   position: 'absolute',
                   top: 0,
                   left: 0,
                   width: '100%',
-                  height: `${virtualRow.size}px`,
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
                 aria-selected={selection.has(entry.name)}

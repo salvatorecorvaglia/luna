@@ -3,6 +3,20 @@ import { useTransferStore, type ProgressSample } from '@/stores/transfer-store';
 import { useInvalidateLocalDir, useInvalidateSftp } from '@/hooks/use-sftp';
 
 /**
+ * Return the parent directory of a forward-slash path. Handles both POSIX
+ * and Windows-flavored separators since localPath may be either. Returns
+ * `undefined` when there's no meaningful parent (root or empty), so callers
+ * fall back to broad invalidation rather than invalidating bogus paths.
+ */
+function parentDir(p: string | undefined): string | undefined {
+  if (!p) return undefined;
+  const normalized = p.replace(/\\+/g, '/').replace(/\/+$/, '');
+  const slash = normalized.lastIndexOf('/');
+  if (slash <= 0) return slash === 0 ? '/' : undefined;
+  return normalized.slice(0, slash);
+}
+
+/**
  * Subscribes to IPC transfer events (progress, complete, error) and
  * routes them into the Zustand transfer store. Also invalidates
  * SFTP/local directory caches on transfer completion.
@@ -56,16 +70,17 @@ export function useTransferEventListener(): void {
     });
 
     const cleanupComplete = window.api.transfers.onComplete((event) => {
-      // Look up sessionId from the transfer before marking complete
       const transfer = useTransferStore.getState().transfers.get(event.transferId);
       const sessionId = transfer?.sessionId;
       dropPending(event.transferId);
       completeTransfer(event.transferId);
-      // Invalidate both directory caches so the UI refreshes
+      // Only invalidate the directories actually touched by this transfer.
+      // Previously every transfer dropped *all* cached directories for the
+      // session, which forced a fresh `list` on every open pane.
       if (sessionId) {
-        invalidateSftp(sessionId, undefined);
+        invalidateSftp(sessionId, parentDir(transfer?.remotePath));
       }
-      invalidateLocal(undefined);
+      invalidateLocal(parentDir(transfer?.localPath));
     });
 
     const cleanupError = window.api.transfers.onError((event) => {
@@ -78,8 +93,8 @@ export function useTransferEventListener(): void {
       const sessionId = transfer?.sessionId;
       dropPending(event.transferId);
       cancelTransfer(event.transferId);
-      if (sessionId) invalidateSftp(sessionId, undefined);
-      invalidateLocal(undefined);
+      if (sessionId) invalidateSftp(sessionId, parentDir(transfer?.remotePath));
+      invalidateLocal(parentDir(transfer?.localPath));
     });
 
     let disposed = false;

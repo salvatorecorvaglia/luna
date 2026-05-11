@@ -1,4 +1,4 @@
-import { readFile } from 'fs/promises';
+import { readFile, stat } from 'fs/promises';
 import type { ConnectConfig } from 'ssh2';
 import type { AuthType } from '@shared/types/connection';
 import { IPC } from '@shared/constants';
@@ -38,6 +38,36 @@ export interface BuildConfigOptions {
  * failed — the partial `config` is returned so callers can still introspect
  * what was attempted.
  */
+/**
+ * Tiny LRU for parsed private-key buffers, keyed by `path|mtimeMs|size`.
+ * Re-reading and parsing a key on every connect was noticeable on rapid
+ * reconnect storms; mtime+size form a cheap freshness signal so an edited
+ * key file invalidates automatically.
+ */
+const KEY_CACHE_MAX = 8;
+const keyCache = new Map<string, Buffer>();
+
+async function loadPrivateKeyCached(absPath: string): Promise<Buffer> {
+  const st = await stat(absPath);
+  const key = `${absPath}|${st.mtimeMs}|${st.size}`;
+  const hit = keyCache.get(key);
+  if (hit) {
+    // Refresh recency: Map iteration order is insertion order, so re-set
+    // moves the entry to the MRU end of the eviction queue.
+    keyCache.delete(key);
+    keyCache.set(key, hit);
+    return hit;
+  }
+  const buf = await readFile(absPath);
+  keyCache.set(key, buf);
+  while (keyCache.size > KEY_CACHE_MAX) {
+    const oldest = keyCache.keys().next().value;
+    if (oldest === undefined) break;
+    keyCache.delete(oldest);
+  }
+  return buf;
+}
+
 export async function buildConnectConfig(
   params: ConnectParams,
   opts: BuildConfigOptions,
@@ -120,7 +150,7 @@ export async function buildConnectConfig(
       const keyPath = await expandAndConfineToHome(params.privateKeyPath, 'privateKeyPath', {
         requireExists: true,
       });
-      config.privateKey = await readFile(keyPath);
+      config.privateKey = await loadPrivateKeyCached(keyPath);
       if (params.authType === 'key+passphrase' && passphrase) {
         config.passphrase = passphrase;
       }
