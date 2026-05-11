@@ -19,6 +19,12 @@ import type { SshConnectParams, SshResizeParams, SshSendDataParams } from '@shar
 import type { AuthType } from '@shared/types/connection';
 
 export function registerSshHandlers(): void {
+  // Keep the storage registry in sync with reconnects. The initial CONNECT
+  // also fires this — duplicate register() calls are idempotent.
+  sshManager.onSessionConnect((sessionId) => {
+    storageRegistry.register(sessionId, sftpStorageProvider);
+  });
+
   registerHandler(IPC.SSH_CONNECT, async (_event, params: SshConnectParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
     assertNonEmptyString(params.connectionId, 'connectionId');
@@ -28,9 +34,6 @@ export function registerSshHandlers(): void {
       params.cols,
       params.rows,
     );
-    // Register the SFTP backend so storage:* IPC handlers and the transfer
-    // queue can route by sessionId without branching on provider kind.
-    storageRegistry.register(params.sessionId, sftpStorageProvider);
     return result;
   });
 

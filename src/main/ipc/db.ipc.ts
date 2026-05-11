@@ -220,7 +220,17 @@ export function registerDbHandlers(): void {
 
     // Update credentials. SFTP secrets are a plain string; S3 secrets are a
     // JSON blob carrying access key + secret + optional session token.
+    // If the provider changed (e.g. sftp → s3) or the SFTP authType changed
+    // (e.g. password → key), the previously stored credential is no longer
+    // valid for the connection and would otherwise persist until the row is
+    // deleted; clear it before storing the new one.
     const provider = input.provider ?? existing.provider ?? 'sftp';
+    const providerChanged = input.provider != null && input.provider !== existing.provider;
+    const authTypeChanged =
+      provider === 'sftp' && input.authType != null && input.authType !== existing.auth_type;
+    if (providerChanged || authTypeChanged) {
+      deleteCredential(input.id);
+    }
     if (provider === 'sftp') {
       if (input.password) {
         storeCredential(input.id, input.password);
@@ -245,8 +255,14 @@ export function registerDbHandlers(): void {
   });
 
   registerHandler(IPC.CONNECTION_DELETE, (_event, id: string) => {
-    db.prepare('DELETE FROM connections WHERE id = ?').run(id);
-    deleteCredential(id);
+    // Delete the credential first inside a transaction so a failure on either
+    // step rolls back the other — otherwise a thrown deleteCredential() would
+    // leave an orphaned secret with no owning row.
+    const deleteBoth = db.transaction((connId: string) => {
+      deleteCredential(connId);
+      db.prepare('DELETE FROM connections WHERE id = ?').run(connId);
+    });
+    deleteBoth(id);
     logger.info(`Connection deleted: ${id}`);
   });
 
