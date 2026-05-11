@@ -20,6 +20,24 @@ describe('parseS3Path', () => {
   });
 });
 
+describe('parseS3Path defensive bucket validation', () => {
+  it('rejects ".." as a bucket segment', () => {
+    expect(() => parseS3Path('/../etc/passwd')).toThrow(/Invalid S3 bucket segment/);
+  });
+
+  it('rejects "." as a bucket segment', () => {
+    expect(() => parseS3Path('/./foo')).toThrow(/Invalid S3 bucket segment/);
+  });
+
+  it('rejects bucket segments containing control characters', () => {
+    expect(() => parseS3Path('/bad\x01name/key')).toThrow(/Invalid S3 bucket segment/);
+  });
+
+  it('accepts well-formed bucket names', () => {
+    expect(() => parseS3Path('/my.bucket-1/key')).not.toThrow();
+  });
+});
+
 describe('joinS3Path', () => {
   it('returns just the bucket when key is empty', () => {
     expect(joinS3Path('b', '')).toBe('/b');

@@ -63,6 +63,18 @@ describe('credential-store encryption', () => {
     const truncated = sealed.subarray(0, sealed.length - 1);
     expect(() => __test__.decrypt(truncated)).toThrow();
   });
+
+  it('rejects ciphertext shorter than IV+tag with an explicit length error', () => {
+    // 27 bytes — one short of the IV (12) + auth tag (16) prefix. The
+    // defensive length check should fire before OpenSSL surfaces an opaque
+    // "Unsupported state" error.
+    const tooShort = Buffer.alloc(27);
+    expect(() => __test__.decrypt(tooShort)).toThrow(/ciphertext too short/);
+  });
+
+  it('rejects an empty buffer', () => {
+    expect(() => __test__.decrypt(Buffer.alloc(0))).toThrow(/ciphertext too short/);
+  });
 });
 
 // Cleanup tmp dir at end of run.

@@ -2,6 +2,7 @@ import { IPC } from '@shared/constants';
 import { sshManager } from '../services/ssh-manager';
 import { storageRegistry } from '../services/storage/registry';
 import { sftpStorageProvider } from '../services/storage/sftp-storage-provider';
+import { ErrorCode, LunarError } from '@shared/errors';
 import { assertBoundedInt, assertNonEmptyString } from '../lib/validate';
 import { registerHandler } from '../lib/ipc-handler';
 
@@ -46,13 +47,16 @@ export function registerSshHandlers(): void {
   registerHandler(IPC.SSH_SEND_DATA, (_event, params: SshSendDataParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
     if (typeof params.data !== 'string') {
-      throw new Error('data must be a string');
+      throw new LunarError('data must be a string', ErrorCode.VALIDATION_ERROR);
     }
     // Bound by UTF-8 byte length, not character count: a 2-byte char would
     // otherwise let a renderer ship 2× the intended payload.
     const byteLength = Buffer.byteLength(params.data, 'utf8');
     if (byteLength > MAX_SSH_SEND_BYTES) {
-      throw new Error(`SSH input exceeds ${MAX_SSH_SEND_BYTES}-byte cap (got ${byteLength})`);
+      throw new LunarError(
+        `SSH input exceeds ${MAX_SSH_SEND_BYTES}-byte cap (got ${byteLength})`,
+        ErrorCode.VALIDATION_ERROR,
+      );
     }
     sshManager.sendData(params.sessionId, params.data);
   });
@@ -78,7 +82,10 @@ export function registerSshHandlers(): void {
       // forces the renderer to choose one path explicitly so password material
       // can't be silently injected into a flow that should use stored creds.
       if (params.connectionId && params.config) {
-        throw new Error('testConnection accepts either connectionId or config, not both');
+        throw new LunarError(
+          'testConnection accepts either connectionId or config, not both',
+          ErrorCode.VALIDATION_ERROR,
+        );
       }
       if (params.config) {
         const c = params.config;
@@ -86,18 +93,24 @@ export function registerSshHandlers(): void {
         assertBoundedInt(c.port, 'port', 1, 65535);
         assertNonEmptyString(c.username, 'username');
         if (!VALID_AUTH_TYPES.has(c.authType)) {
-          throw new Error(`Unsupported authType "${c.authType}"`);
+          throw new LunarError(`Unsupported authType "${c.authType}"`, ErrorCode.VALIDATION_ERROR);
         }
         for (const [k, v] of Object.entries({ password: c.password, passphrase: c.passphrase })) {
           if (v === undefined) continue;
           if (typeof v !== 'string' || v.length > MAX_SECRET_LEN) {
-            throw new Error(`${k} must be a string up to ${MAX_SECRET_LEN} characters`);
+            throw new LunarError(
+              `${k} must be a string up to ${MAX_SECRET_LEN} characters`,
+              ErrorCode.VALIDATION_ERROR,
+            );
           }
         }
       } else if (params.connectionId) {
         assertNonEmptyString(params.connectionId, 'connectionId');
       } else {
-        throw new Error('testConnection requires connectionId or config');
+        throw new LunarError(
+          'testConnection requires connectionId or config',
+          ErrorCode.VALIDATION_ERROR,
+        );
       }
       return sshManager.testConnection(params);
     },

@@ -6,6 +6,7 @@ import {
 } from '../services/credential-store';
 import { assertNonEmptyString } from '../lib/validate';
 import { registerHandler } from '../lib/ipc-handler';
+import { ErrorCode, LunarError } from '@shared/errors';
 
 /**
  * Sliding-window rate limit on credential retrievals so a compromised renderer
@@ -24,7 +25,7 @@ function checkRetrieveRate(): void {
     retrieveTimestamps.shift();
   }
   if (retrieveTimestamps.length >= RETRIEVE_MAX_PER_WINDOW) {
-    throw new Error('Credential retrieval rate limit exceeded');
+    throw new LunarError('Credential retrieval rate limit exceeded', ErrorCode.FORBIDDEN);
   }
   retrieveTimestamps.push(now);
 }

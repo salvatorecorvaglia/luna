@@ -6,6 +6,7 @@ import { s3StorageProvider } from '../services/s3/s3-provider';
 import { getCredentialBackendStatus } from '../services/credential-store';
 import log from '../lib/logger';
 import { registerHandler } from '../lib/ipc-handler';
+import { ErrorCode, LunarError } from '@shared/errors';
 
 let mainWindowRef: BrowserWindow | null = null;
 
@@ -22,7 +23,10 @@ export function getMainWindow(): BrowserWindow | null {
 function assertFromMainWindow(sender: WebContents): BrowserWindow {
   const win = BrowserWindow.fromWebContents(sender);
   if (!win || !mainWindowRef || win.id !== mainWindowRef.id) {
-    throw new Error('Window control is restricted to the main window');
+    throw new LunarError(
+      'Window control is restricted to the main window',
+      ErrorCode.FORBIDDEN,
+    );
   }
   return win;
 }

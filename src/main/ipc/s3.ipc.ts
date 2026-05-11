@@ -5,6 +5,7 @@ import { type ConnectionRow, getDatabase } from '../services/database';
 import { retrieveS3Credential } from '../services/credential-store';
 import { storageRegistry } from '../services/storage/registry';
 import { s3StorageProvider, type S3SessionOptions } from '../services/s3/s3-provider';
+import { ErrorCode, LunarError } from '@shared/errors';
 import { assertNonEmptyString } from '../lib/validate';
 import type { S3ConnectParams, S3TestConnectionConfig } from '@shared/types/storage-provider';
 import log from '../lib/logger';
@@ -16,13 +17,19 @@ function loadConfig(connectionId: string): S3SessionOptions {
   const row = db.prepare('SELECT * FROM connections WHERE id = ?').get(connectionId) as
     | ConnectionRow
     | undefined;
-  if (!row) throw new Error(`Connection not found: ${connectionId}`);
+  if (!row) throw new LunarError(`Connection not found: ${connectionId}`, ErrorCode.NOT_FOUND);
   if (row.provider !== 's3') {
-    throw new Error(`Connection ${connectionId} is not an S3 connection`);
+    throw new LunarError(
+      `Connection ${connectionId} is not an S3 connection`,
+      ErrorCode.VALIDATION_ERROR,
+    );
   }
   const cred = retrieveS3Credential(connectionId);
   if (!cred) {
-    throw new Error('S3 credentials missing or corrupt — re-enter them in the connection form');
+    throw new LunarError(
+      'S3 credentials missing or corrupt — re-enter them in the connection form',
+      ErrorCode.UNAUTHORIZED,
+    );
   }
   return {
     connectionId,
@@ -62,7 +69,10 @@ export function registerS3Handlers(): void {
       // Match the SSH semantics: don't accept transient secrets alongside a
       // saved connectionId — the renderer must pick one path explicitly.
       if (params.connectionId && params.config) {
-        throw new Error('testConnection accepts either connectionId or config, not both');
+        throw new LunarError(
+          'testConnection accepts either connectionId or config, not both',
+          ErrorCode.VALIDATION_ERROR,
+        );
       }
       let opts: S3SessionOptions;
       if (params.config) {
@@ -76,7 +86,10 @@ export function registerS3Handlers(): void {
         })) {
           if (v === undefined) continue;
           if (typeof v !== 'string' || v.length > MAX_SECRET_LEN) {
-            throw new Error(`${k} must be a string up to ${MAX_SECRET_LEN} characters`);
+            throw new LunarError(
+              `${k} must be a string up to ${MAX_SECRET_LEN} characters`,
+              ErrorCode.VALIDATION_ERROR,
+            );
           }
         }
         opts = {
@@ -93,7 +106,10 @@ export function registerS3Handlers(): void {
         assertNonEmptyString(params.connectionId, 'connectionId');
         opts = loadConfig(params.connectionId);
       } else {
-        throw new Error('testConnection requires connectionId or config');
+        throw new LunarError(
+          'testConnection requires connectionId or config',
+          ErrorCode.VALIDATION_ERROR,
+        );
       }
 
       const client = new S3Client({

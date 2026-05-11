@@ -4,6 +4,7 @@ import { constants as fsConstants } from 'fs';
 import { basename, isAbsolute, join, resolve } from 'path';
 import { homedir } from 'os';
 import { IPC } from '@shared/constants';
+import { ErrorCode, LunarError } from '@shared/errors';
 import { assertSafeAbsolutePath, assertValidPath, isInsideDir } from '../lib/validate';
 import type { LocalFileEntry } from '@shared/types/sftp';
 
@@ -11,7 +12,7 @@ export function registerShellHandlers(): void {
   ipcMain.handle(IPC.SHELL_READDIR, async (_event, dirPath: string) => {
     assertValidPath(dirPath, 'dirPath');
     if (!isAbsolute(dirPath)) {
-      throw new Error('dirPath must be absolute');
+      throw new LunarError('dirPath must be absolute', ErrorCode.VALIDATION_ERROR);
     }
     const normalized = resolve(dirPath);
     // Defense-in-depth — restrict directory listing to the user's home subtree.
@@ -19,7 +20,10 @@ export function registerShellHandlers(): void {
     // can't slip past a naive `startsWith(home + '/')` prefix match.
     const home = homedir();
     if (!isInsideDir(normalized, home)) {
-      throw new Error('Access denied: directory listing is restricted to the home directory');
+      throw new LunarError(
+        'Access denied: directory listing is restricted to the home directory',
+        ErrorCode.FORBIDDEN,
+      );
     }
     const entries = await readdir(normalized, { withFileTypes: true });
     const results: LocalFileEntry[] = [];
@@ -112,10 +116,10 @@ export function registerShellHandlers(): void {
       // Cap content size so a misbehaving renderer can't write arbitrarily large files.
       const MAX_BYTES = 50 * 1024 * 1024; // 50 MB
       if (typeof options.content !== 'string') {
-        throw new Error('content must be a string');
+        throw new LunarError('content must be a string', ErrorCode.VALIDATION_ERROR);
       }
       if (Buffer.byteLength(options.content, 'utf-8') > MAX_BYTES) {
-        throw new Error(`content exceeds ${MAX_BYTES} bytes`);
+        throw new LunarError(`content exceeds ${MAX_BYTES} bytes`, ErrorCode.VALIDATION_ERROR);
       }
       await writeFile(result.filePath, options.content, 'utf-8');
       return result.filePath;
@@ -166,7 +170,10 @@ export function registerShellHandlers(): void {
     // Jail check (path.relative-based — see SHELL_READDIR for rationale).
     const home = homedir();
     if (!isInsideDir(expanded, home)) {
-      throw new Error('Access denied: file reading is restricted to the home directory');
+      throw new LunarError(
+        'Access denied: file reading is restricted to the home directory',
+        ErrorCode.FORBIDDEN,
+      );
     }
     // Reject symlinks pointing outside the home jail. `stat()` would otherwise
     // happily disclose metadata of /etc/passwd via a crafted ~/passwd symlink.
@@ -174,14 +181,20 @@ export function registerShellHandlers(): void {
     if (ls.isSymbolicLink()) {
       const resolvedTarget = await (await import('fs/promises')).realpath(expanded);
       if (!isInsideDir(resolvedTarget, home)) {
-        throw new Error('Access denied: symlink target is outside the home directory');
+        throw new LunarError(
+          'Access denied: symlink target is outside the home directory',
+          ErrorCode.FORBIDDEN,
+        );
       }
     }
 
     const s = await stat(expanded);
     const MAX_BYTES = 50 * 1024 * 1024; // 50 MB
     if (s.size > MAX_BYTES) {
-      throw new Error(`File is too large (${Math.round(s.size / 1024 / 1024)}MB). Max 50MB.`);
+      throw new LunarError(
+        `File is too large (${Math.round(s.size / 1024 / 1024)}MB). Max 50MB.`,
+        ErrorCode.VALIDATION_ERROR,
+      );
     }
 
     const { readFile } = await import('fs/promises');
