@@ -111,6 +111,13 @@ export function SftpManager() {
   const isSessionActive =
     !!sftpSessionId && (sessions.has(sftpSessionId) || storageSessions.has(sftpSessionId));
 
+  // Provider kind for the currently-displayed remote pane. SSH terminal
+  // sessions always back SFTP; an entry in storageSessions carries its own
+  // kind (s3 today, more later).
+  const remoteKind: 'sftp' | 's3' = sftpSessionId
+    ? (storageSessions.get(sftpSessionId)?.provider ?? 'sftp')
+    : 'sftp';
+
   const {
     data: remoteEntries = [],
     isLoading: remoteLoading,
@@ -452,20 +459,33 @@ export function SftpManager() {
 
   // Show warning overlay when session disconnects mid-use. S3 sessions don't
   // disconnect mid-use the way SSH does, so we only check the SSH side.
+  // The overlay auto-dismisses when status flips back to 'connected' because
+  // the derived flag flips with it — no imperative dismiss needed.
   const activeSession = sessions.get(sftpSessionId);
   const isDisconnected = activeSession && activeSession.status !== 'connected';
+  const overlayMessage =
+    activeSession?.status === 'reconnecting'
+      ? 'Reconnecting…'
+      : activeSession?.status === 'connecting'
+        ? 'Connecting…'
+        : activeSession?.status === 'error'
+          ? 'Reconnect attempts exhausted. Reopen the connection to retry.'
+          : 'The SSH session disconnected.';
 
   return (
     <div className="flex h-full flex-col relative">
-      {/* U11: Disconnected overlay */}
+      {/* Disconnected overlay — surfaces the live status (connecting / reconnecting
+          / error) so the user can tell whether to wait or take action. */}
       {isDisconnected && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+        <div
+          className="absolute inset-0 z-20 flex items-center justify-center bg-background/80 backdrop-blur-sm"
+          role="status"
+          aria-live="polite"
+        >
           <div className="text-center">
-            <WifiOff className="h-8 w-8 mx-auto text-destructive/60 mb-2" />
+            <WifiOff className="h-8 w-8 mx-auto text-destructive/60 mb-2" aria-hidden="true" />
             <p className="text-sm font-medium text-foreground/80">Connection lost</p>
-            <p className="mt-1 text-xs text-muted-foreground/60">
-              The SSH session disconnected. Reconnecting…
-            </p>
+            <p className="mt-1 text-xs text-muted-foreground/60">{overlayMessage}</p>
           </div>
         </div>
       )}
@@ -564,6 +584,7 @@ export function SftpManager() {
             onMkdir={handleRemoteMkdir}
             onSelectAll={() => setRemoteSelection(new Set(remoteEntries.map((e) => e.name)))}
             side="remote"
+            remoteKind={remoteKind}
           />
         </div>
       </div>

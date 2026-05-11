@@ -15,7 +15,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useTransferStore } from '@/stores/transfer-store';
 import { cancelTransfer } from '@/hooks/use-transfers';
-import type { TransferItem } from '@shared/types/transfer';
+import type { TransferErrorClass, TransferItem } from '@shared/types/transfer';
 import { toast } from 'sonner';
 import { formatEta, formatSize, formatSpeed } from '@/lib/format';
 
@@ -163,6 +163,31 @@ export function TransferQueue() {
   );
 }
 
+/**
+ * Map a coarse error class to an actionable user-facing hint. Falls back to
+ * the raw error string when the class is missing or generic so we never hide
+ * the original message.
+ */
+function errorHint(
+  errorClass: TransferErrorClass | undefined,
+  fallback: string | undefined,
+): string {
+  switch (errorClass) {
+    case 'permission':
+      return 'Permission denied — check file permissions or credentials.';
+    case 'disk-full':
+      return 'Disk full — free up space and retry.';
+    case 'connection':
+      return 'Connection lost — reconnect and retry.';
+    case 'timeout':
+      return 'Operation timed out — retry or check the network.';
+    case 'cancelled':
+      return 'Cancelled.';
+    default:
+      return fallback || 'Transfer failed.';
+  }
+}
+
 const TransferRow = memo(function TransferRow({
   item,
   onRemove,
@@ -208,14 +233,17 @@ const TransferRow = memo(function TransferRow({
               />
             </div>
           )}
-          <span className="text-[10px] text-muted-foreground flex-shrink-0 tabular-nums">
+          <span
+            className="text-[10px] text-muted-foreground flex-shrink-0 tabular-nums"
+            title={item.status === 'error' ? item.error : undefined}
+          >
             {item.status === 'active'
               ? `${percent}% · ${formatSpeed(item.bytesPerSec)}${eta ? ` · ${eta} left` : ''}`
               : item.status === 'queued'
                 ? 'Queued'
                 : item.status === 'completed'
                   ? formatSize(item.size)
-                  : item.error || 'Error'}
+                  : errorHint(item.errorClass, item.error)}
           </span>
         </div>
       </div>

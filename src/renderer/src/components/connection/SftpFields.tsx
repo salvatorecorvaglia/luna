@@ -89,6 +89,7 @@ export function SftpFields({
           <input
             id={`${fieldId}-port`}
             type="number"
+            inputMode="numeric"
             min={1}
             max={65535}
             value={port}

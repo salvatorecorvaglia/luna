@@ -156,7 +156,10 @@ export function installXtermPointerHandlers(terminal: Terminal, xtermEl: HTMLEle
   // Electron 32+ removed File.path; use text/uri-list (file:// URIs) which
   // works across platforms.
   const onDragOver = (e: DragEvent): void => {
-    if (e.dataTransfer?.types.includes('Files') || e.dataTransfer?.types.includes('text/uri-list')) {
+    if (
+      e.dataTransfer?.types.includes('Files') ||
+      e.dataTransfer?.types.includes('text/uri-list')
+    ) {
       e.preventDefault();
     }
   };

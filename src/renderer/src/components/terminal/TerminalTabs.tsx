@@ -199,18 +199,29 @@ const Tab = memo(function Tab({
 
   if (!session) return null;
 
+  // Wrap the visual indicator in role="img" + aria-label so screen readers
+  // get the status as text — previously the colored dot conveyed state only
+  // via hue, leaving keyboard/AT users to guess.
   const statusIcon = () => {
-    switch (session.status) {
-      case 'connected':
-        return <div className="h-2 w-2 rounded-full bg-emerald-500" />;
-      case 'connecting':
-      case 'reconnecting':
-        return <Loader2 className="h-3 w-3 text-amber-500 animate-spin" />;
-      case 'error':
-        return <WifiOff className="h-3 w-3 text-destructive" />;
-      default:
-        return <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />;
-    }
+    const label = `Status: ${session.status}`;
+    const inner = (() => {
+      switch (session.status) {
+        case 'connected':
+          return <div className="h-2 w-2 rounded-full bg-emerald-500" />;
+        case 'connecting':
+        case 'reconnecting':
+          return <Loader2 className="h-3 w-3 text-amber-500 animate-spin" />;
+        case 'error':
+          return <WifiOff className="h-3 w-3 text-destructive" />;
+        default:
+          return <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />;
+      }
+    })();
+    return (
+      <span role="img" aria-label={label} title={label}>
+        {inner}
+      </span>
+    );
   };
 
   return (

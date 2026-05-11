@@ -1,6 +1,14 @@
 export type TransferType = 'upload' | 'download';
 export type TransferStatus = 'queued' | 'active' | 'completed' | 'error' | 'cancelled';
 
+export type TransferErrorClass =
+  | 'timeout'
+  | 'permission'
+  | 'disk-full'
+  | 'connection'
+  | 'cancelled'
+  | 'unknown';
+
 export interface TransferItem {
   id: string;
   type: TransferType;
@@ -11,6 +19,7 @@ export interface TransferItem {
   transferred: number;
   status: TransferStatus;
   error?: string;
+  errorClass?: TransferErrorClass;
   bytesPerSec: number;
   sessionId: string;
 }
@@ -25,14 +34,6 @@ export interface TransferProgressEvent {
 export interface TransferCompleteEvent {
   transferId: string;
 }
-
-export type TransferErrorClass =
-  | 'timeout'
-  | 'permission'
-  | 'disk-full'
-  | 'connection'
-  | 'cancelled'
-  | 'unknown';
 
 export interface TransferErrorEvent {
   transferId: string;
