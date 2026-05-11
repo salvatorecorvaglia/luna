@@ -112,7 +112,12 @@ export async function buildConnectConfig(
         'rsa-sha2-512',
         'rsa-sha2-256',
       ],
-      hmac: ['hmac-sha2-256-etm@openssh.com', 'hmac-sha2-512-etm@openssh.com', 'hmac-sha2-256', 'hmac-sha2-512'],
+      hmac: [
+        'hmac-sha2-256-etm@openssh.com',
+        'hmac-sha2-512-etm@openssh.com',
+        'hmac-sha2-256',
+        'hmac-sha2-512',
+      ],
       compress: ['none', 'zlib@openssh.com'],
     },
     hostVerifier: (key: Buffer) => {
