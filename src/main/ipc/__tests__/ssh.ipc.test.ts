@@ -24,6 +24,7 @@ vi.mock('../../services/ssh-manager', () => ({
     // sftp-manager is loaded transitively via the storage provider adapter;
     // its constructor wires up a disconnect listener.
     onSessionDisconnect: vi.fn(() => () => {}),
+    onSessionConnect: vi.fn(() => () => {}),
     getSession: vi.fn(),
   },
 }));

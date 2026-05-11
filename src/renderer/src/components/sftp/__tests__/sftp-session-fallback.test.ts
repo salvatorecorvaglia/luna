@@ -48,7 +48,6 @@ describe('resolveSftpSession — active connection scoped', () => {
   });
 
   it('returns null while an SSH session for the active connection is connecting (no silent S3 swap)', () => {
-    // §6.2 audit fix — pin the rule with a test.
     const out = resolveSftpSession(
       ssh_([ssh('s1', 'conn-a', 'connecting')]),
       s3_([s3('r1', 'conn-b')]),

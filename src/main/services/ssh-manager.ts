@@ -46,6 +46,7 @@ const RECONNECT_BASE_DELAY_MS = 1_000;
 class SshManager {
   private sessions = new Map<string, SshSession>();
   private onDisconnectCallbacks: ((sessionId: string) => void)[] = [];
+  private onConnectCallbacks: ((sessionId: string) => void)[] = [];
   /** Candidate host keys captured during a rejected verification, awaiting user trust. */
   private pendingHostKeys = new PendingHostKeyRegistry();
 
@@ -71,6 +72,23 @@ class SshManager {
     return () => {
       const idx = this.onDisconnectCallbacks.indexOf(cb);
       if (idx !== -1) this.onDisconnectCallbacks.splice(idx, 1);
+    };
+  }
+
+  /**
+   * Register a callback fired on every successful (re)connect. Used by the IPC
+   * layer to (re-)register the SFTP storage provider so the storage registry
+   * stays consistent across automatic reconnects — without this, a reconnect
+   * would leave the registry pointing at the original session lifecycle while
+   * `getSession` returns the freshly minted ssh2 Client.
+   */
+  onSessionConnect(cb: (sessionId: string) => void): () => void {
+    if (!this.onConnectCallbacks.includes(cb)) {
+      this.onConnectCallbacks.push(cb);
+    }
+    return () => {
+      const idx = this.onConnectCallbacks.indexOf(cb);
+      if (idx !== -1) this.onConnectCallbacks.splice(idx, 1);
     };
   }
 
@@ -222,6 +240,13 @@ class SshManager {
           // Hand off lifecycle responsibilities from the handshake-only listeners
           // to the long-lived ones below. These survive until disconnect().
           settle({ success: true });
+          for (const cb of this.onConnectCallbacks) {
+            try {
+              cb(sessionId);
+            } catch (cbErr) {
+              log.warn(`[SSH] onConnect callback threw for ${sessionId}:`, cbErr);
+            }
+          }
           client.on('error', (err) => {
             const friendly = describeSshError(err);
             emitToRenderer(IPC.SSH_ON_ERROR, { sessionId, error: friendly });
