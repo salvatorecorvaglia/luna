@@ -70,7 +70,7 @@ export function useTransferEventListener(): void {
 
     const cleanupError = window.api.transfers.onError((event) => {
       dropPending(event.transferId);
-      errorTransfer(event.transferId, event.error);
+      errorTransfer(event.transferId, event.error, event.errorClass);
     });
 
     const cleanupCancelled = window.api.transfers.onCancelled((event) => {

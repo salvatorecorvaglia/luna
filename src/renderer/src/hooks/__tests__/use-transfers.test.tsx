@@ -138,7 +138,7 @@ describe('useTransferEventListener', () => {
     act(() => {
       onErrorCb?.({ transferId: 't1', error: 'boom' });
     });
-    expect(errorTransfer).toHaveBeenCalledWith('t1', 'boom');
+    expect(errorTransfer).toHaveBeenCalledWith('t1', 'boom', undefined);
   });
 
   it('routes cancellations and invalidates caches', () => {

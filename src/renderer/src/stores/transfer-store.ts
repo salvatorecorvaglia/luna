@@ -22,7 +22,11 @@ interface TransferState {
   applyProgressBatch: (samples: Iterable<ProgressSample>) => void;
   completeTransfer: (transferId: string) => void;
   cancelTransfer: (transferId: string) => void;
-  errorTransfer: (transferId: string, error: string) => void;
+  errorTransfer: (
+    transferId: string,
+    error: string,
+    errorClass?: import('@shared/types/transfer').TransferErrorClass,
+  ) => void;
   removeTransfer: (transferId: string) => void;
   clearCompleted: () => void;
   setQueueExpanded: (expanded: boolean) => void;
@@ -146,12 +150,18 @@ export const useTransferStore = create<TransferState>((set, get) => ({
     scheduleAutoRemove(transferId, (id) => get().removeTransfer(id));
   },
 
-  errorTransfer: (transferId, error) => {
+  errorTransfer: (transferId, error, errorClass) => {
     set((s) => {
       const transfers = new Map(s.transfers);
       const item = transfers.get(transferId);
       if (item) {
-        transfers.set(transferId, { ...item, status: 'error', error, bytesPerSec: 0 });
+        transfers.set(transferId, {
+          ...item,
+          status: 'error',
+          error,
+          errorClass,
+          bytesPerSec: 0,
+        });
         evictOldestTerminal(transfers);
       }
       return { transfers };

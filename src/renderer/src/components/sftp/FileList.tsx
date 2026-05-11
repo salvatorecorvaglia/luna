@@ -223,6 +223,39 @@ export function FileList({
           virtualizer.scrollToIndex(prev, { align: 'auto' });
           break;
         }
+        case 'Home': {
+          e.preventDefault();
+          setFocusedIndex(0);
+          onSelect(sorted[0].name, e.metaKey || e.ctrlKey, e.shiftKey);
+          virtualizer.scrollToIndex(0, { align: 'start' });
+          break;
+        }
+        case 'End': {
+          e.preventDefault();
+          const last = sorted.length - 1;
+          setFocusedIndex(last);
+          onSelect(sorted[last].name, e.metaKey || e.ctrlKey, e.shiftKey);
+          virtualizer.scrollToIndex(last, { align: 'end' });
+          break;
+        }
+        case 'PageDown': {
+          e.preventDefault();
+          // 10 rows per page matches roughly one viewport at the default row
+          // height; cheap heuristic, no need to compute against the virtualizer.
+          const next = Math.min(focusedIndex + 10, sorted.length - 1);
+          setFocusedIndex(next);
+          onSelect(sorted[next].name, e.metaKey || e.ctrlKey, e.shiftKey);
+          virtualizer.scrollToIndex(next, { align: 'auto' });
+          break;
+        }
+        case 'PageUp': {
+          e.preventDefault();
+          const prev = Math.max(focusedIndex - 10, 0);
+          setFocusedIndex(prev);
+          onSelect(sorted[prev].name, e.metaKey || e.ctrlKey, e.shiftKey);
+          virtualizer.scrollToIndex(prev, { align: 'auto' });
+          break;
+        }
         case 'Enter': {
           if (focusedIndex >= 0 && focusedIndex < sorted.length) {
             onOpen(sorted[focusedIndex]);

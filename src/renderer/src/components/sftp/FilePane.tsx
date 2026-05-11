@@ -44,6 +44,12 @@ interface FilePaneProps {
   onMkdir?: () => void;
   onSelectAll?: () => void;
   side: 'local' | 'remote';
+  /**
+   * For remote panes, identifies the backing storage kind so the pane can hide
+   * affordances that don't apply (e.g. POSIX permissions on S3 objects).
+   * Local panes ignore this — they always show permissions on POSIX hosts.
+   */
+  remoteKind?: 'sftp' | 's3';
 }
 
 function splitBreadcrumbs(path: string): { name: string; path: string }[] {
@@ -83,7 +89,11 @@ export function FilePane({
   onMkdir,
   onSelectAll,
   side,
+  remoteKind,
 }: FilePaneProps) {
+  // Unix permissions don't exist on S3 objects, so the perms column is
+  // suppressed there. Local panes and SFTP remote panes show it.
+  const showPermissions = side === 'remote' ? remoteKind !== 's3' : true;
   const breadcrumbs = useMemo(() => splitBreadcrumbs(path), [path]);
   const [dragOver, setDragOver] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -345,7 +355,7 @@ export function FilePane({
             </button>
           </div>
         ) : isLoading && entries.length === 0 ? (
-          <FilePaneSkeleton showPermissions={side === 'remote'} />
+          <FilePaneSkeleton showPermissions={showPermissions} />
         ) : (
           <FileList
             entries={visibleEntries}
@@ -359,7 +369,7 @@ export function FilePane({
             onPreview={onPreview}
             onDownload={onDownload}
             downloadLabel={downloadLabel}
-            showPermissions={side === 'remote'}
+            showPermissions={showPermissions}
             onSelectAll={onSelectAll}
             emptyMessage={filterQuery ? `No files match "${filterQuery}"` : 'Empty directory'}
           />

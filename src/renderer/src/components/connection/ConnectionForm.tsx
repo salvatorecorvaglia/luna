@@ -51,6 +51,12 @@ export function ConnectionForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [showGroupsDropdown, setShowGroupsDropdown] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
+  /**
+   * Inline result of the private-key file probe. Validated when the path
+   * field blurs (and the path is non-empty) so the user sees "file not found"
+   * inline instead of only learning at submit-time via a toast.
+   */
+  const [privateKeyProbeError, setPrivateKeyProbeError] = useState<string | undefined>(undefined);
   const [testing, setTesting] = useState(false);
   // Holds the test-connection AbortController so the user can cancel a hung
   // test before the IPC reply (10 s+ for unreachable hosts).
@@ -192,6 +198,8 @@ export function ConnectionForm() {
       if (!username.trim()) out.username = 'Username is required';
       if ((authType === 'key' || authType === 'key+passphrase') && !privateKeyPath.trim()) {
         out.privateKeyPath = 'Private key path is required';
+      } else if (privateKeyProbeError) {
+        out.privateKeyPath = privateKeyProbeError;
       }
     } else {
       // S3 — credentials only required on create. On edit, leaving them
@@ -209,10 +217,49 @@ export function ConnectionForm() {
     username,
     authType,
     privateKeyPath,
+    privateKeyProbeError,
     accessKeyId,
     secretAccessKey,
     isEditing,
   ]);
+
+  // Debounced inline probe of the private-key file. All setState calls happen
+  // inside the deferred timeout callback (asynchronous), so the effect itself
+  // never commits state synchronously — the clear-on-empty path is also
+  // queued through the same timer to keep that property.
+  useEffect(() => {
+    const needsKey = provider === 'sftp' && (authType === 'key' || authType === 'key+passphrase');
+    const path = privateKeyPath.trim();
+    let cancelled = false;
+    const handle = setTimeout(async () => {
+      if (cancelled) return;
+      if (!needsKey || !path) {
+        setPrivateKeyProbeError(undefined);
+        return;
+      }
+      try {
+        const probe = await window.api.shell.checkFile(path);
+        if (cancelled) return;
+        setPrivateKeyProbeError(
+          probe.ok
+            ? undefined
+            : probe.reason === 'missing'
+              ? 'Private key file not found'
+              : probe.reason === 'permission'
+                ? 'Cannot read private key (permission denied)'
+                : probe.reason === 'not-a-file'
+                  ? 'Private key path is not a file'
+                  : 'Could not access private key file',
+        );
+      } catch {
+        if (!cancelled) setPrivateKeyProbeError(undefined);
+      }
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [provider, authType, privateKeyPath]);
 
   const errors = useMemo<Record<string, string>>(
     () => (nameError ? { ...fieldErrors, name: nameError } : fieldErrors),

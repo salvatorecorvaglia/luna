@@ -12,10 +12,7 @@ import '@xterm/xterm/css/xterm.css';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { logger } from '@/lib/logger';
 import { terminalThemes } from '@/themes/terminal';
-import {
-  buildTerminalKeyHandler,
-  installXtermPointerHandlers,
-} from '@/lib/terminal-input';
+import { buildTerminalKeyHandler, installXtermPointerHandlers } from '@/lib/terminal-input';
 import type { SessionStatus } from '@shared/types/terminal';
 
 interface TerminalPaneProps {
