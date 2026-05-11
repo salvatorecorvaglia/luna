@@ -86,129 +86,141 @@ export function LocalTerminalPane({ sessionId, isActive }: LocalTerminalPaneProp
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const {
-      terminalTheme: initialThemeName,
-      fontSize: initialFontSize,
-      scrollback: initialScrollback,
-    } = useTerminalStore.getState();
-    const theme = terminalThemes[initialThemeName];
+    let cancelled = false;
+    let cleanup: (() => void) | null = null;
 
-    let terminal: Terminal;
-    let fitAddon: FitAddon;
-    let searchAddon: SearchAddon;
-    try {
-      terminal = new Terminal({
-        cursorBlink: true,
-        cursorStyle: 'bar',
+    queueMicrotask(() => {
+      if (cancelled || !containerRef.current) return;
+
+      const {
+        terminalTheme: initialThemeName,
         fontSize: initialFontSize,
-        fontFamily: 'JetBrains Mono, Menlo, Consolas, monospace',
-        lineHeight: 1.2,
-        letterSpacing: 0,
         scrollback: initialScrollback,
-        allowProposedApi: true,
-        screenReaderMode: true,
-        theme,
-      });
+      } = useTerminalStore.getState();
+      const theme = terminalThemes[initialThemeName];
 
-      fitAddon = new FitAddon();
-      const webLinksAddon = new WebLinksAddon();
-      searchAddon = new SearchAddon();
-      const unicode11Addon = new Unicode11Addon();
+      let terminal: Terminal;
+      let fitAddon: FitAddon;
+      let searchAddon: SearchAddon;
+      try {
+        terminal = new Terminal({
+          cursorBlink: true,
+          cursorStyle: 'bar',
+          fontSize: initialFontSize,
+          fontFamily: 'JetBrains Mono, Menlo, Consolas, monospace',
+          lineHeight: 1.2,
+          letterSpacing: 0,
+          scrollback: initialScrollback,
+          allowProposedApi: true,
+          screenReaderMode: true,
+          theme,
+        });
 
-      terminal.loadAddon(webLinksAddon);
-      terminal.loadAddon(searchAddon);
-      terminal.loadAddon(unicode11Addon);
-      terminal.unicode.activeVersion = '11';
+        fitAddon = new FitAddon();
+        const webLinksAddon = new WebLinksAddon();
+        searchAddon = new SearchAddon();
+        const unicode11Addon = new Unicode11Addon();
 
-      // Important: open the terminal before loading fitAddon or doing any layout.
-      terminal.open(containerRef.current);
-      terminal.loadAddon(fitAddon);
-    } catch (err) {
-      console.error('[LocalTerminalPane] xterm initialization failed', err);
-      toast.error('Failed to initialize local terminal.');
-      return;
-    }
+        terminal.loadAddon(webLinksAddon);
+        terminal.loadAddon(searchAddon);
+        terminal.loadAddon(unicode11Addon);
+        terminal.unicode.activeVersion = '11';
 
-    try {
-      const webglAddon = new WebglAddon();
-      webglAddon.onContextLoss(() => {
-        webglAddon.dispose();
+        // Important: open the terminal before loading fitAddon or doing any layout.
+        terminal.open(containerRef.current);
+        terminal.loadAddon(fitAddon);
+      } catch (err) {
+        console.error('[LocalTerminalPane] xterm initialization failed', err);
+        toast.error('Failed to initialize local terminal.');
+        return;
+      }
+
+      try {
+        const webglAddon = new WebglAddon();
+        webglAddon.onContextLoss(() => {
+          webglAddon.dispose();
+          try {
+            terminal.loadAddon(new CanvasAddon());
+          } catch {
+            // DOM fallback
+          }
+        });
+        terminal.loadAddon(webglAddon);
+      } catch {
         try {
           terminal.loadAddon(new CanvasAddon());
         } catch {
           // DOM fallback
         }
-      });
-      terminal.loadAddon(webglAddon);
-    } catch {
+      }
+
       try {
-        terminal.loadAddon(new CanvasAddon());
-      } catch {
-        // DOM fallback
+        fitAddon.fit();
+      } catch (err) {
+        // Best-effort fit on initial mount. If it fails (e.g. terminal hidden),
+        // it will be retried when the tab becomes active or resized.
+        logger.debug('[LocalTerminalPane] Initial fit failed', { error: err });
       }
-    }
 
-    try {
-      fitAddon.fit();
-    } catch (err) {
-      // Best-effort fit on initial mount. If it fails (e.g. terminal hidden),
-      // it will be retried when the tab becomes active or resized.
-      logger.debug('[LocalTerminalPane] Initial fit failed', { error: err });
-    }
+      terminalRef.current = terminal;
+      fitAddonRef.current = fitAddon;
+      searchAddonRef.current = searchAddon;
 
-    terminalRef.current = terminal;
-    fitAddonRef.current = fitAddon;
-    searchAddonRef.current = searchAddon;
-
-    // Spawn the PTY in main
-    if (!spawnedRef.current) {
-      spawnedRef.current = true;
-      window.api.localTerminal
-        .spawn({ sessionId, cols: terminal.cols, rows: terminal.rows })
-        .catch((err: unknown) => {
-          console.error('[LocalTerminalPane] spawn failed', err);
-          toast.error('Failed to start local terminal.');
-        });
-    }
-
-    terminal.attachCustomKeyEventHandler(buildTerminalKeyHandler(terminal, openSearch));
-
-    const xtermEl = containerRef.current;
-    const teardownPointer = installXtermPointerHandlers(terminal, xtermEl);
-
-    // Send keystrokes to local PTY
-    terminal.onData((data) => {
-      void window.api.localTerminal.sendData({ sessionId, data });
-    });
-
-    // Receive data from local PTY
-    const cleanupData = window.api.localTerminal.onData((event) => {
-      if (event.sessionId === sessionId) {
-        terminal.write(event.data);
+      // Spawn the PTY in main
+      if (!spawnedRef.current) {
+        spawnedRef.current = true;
+        window.api.localTerminal
+          .spawn({ sessionId, cols: terminal.cols, rows: terminal.rows })
+          .catch((err: unknown) => {
+            console.error('[LocalTerminalPane] spawn failed', err);
+            toast.error('Failed to start local terminal.');
+          });
       }
-    });
 
-    // Handle PTY exit
-    const cleanupExit = window.api.localTerminal.onExit((event) => {
-      if (event.sessionId === sessionId) {
-        terminal.write(`\r\n\x1b[33m--- Shell exited (code ${event.exitCode}) ---\x1b[0m\r\n`);
-        useTerminalStore.getState().updateSessionStatus(sessionId, 'disconnected');
-      }
-    });
+      terminal.attachCustomKeyEventHandler(buildTerminalKeyHandler(terminal, openSearch));
 
-    const observer = new ResizeObserver(handleResize);
-    observer.observe(containerRef.current);
+      const xtermEl = containerRef.current;
+      const teardownPointer = installXtermPointerHandlers(terminal, xtermEl);
+
+      // Send keystrokes to local PTY
+      terminal.onData((data) => {
+        void window.api.localTerminal.sendData({ sessionId, data });
+      });
+
+      // Receive data from local PTY
+      const cleanupData = window.api.localTerminal.onData((event) => {
+        if (event.sessionId === sessionId) {
+          terminal.write(event.data);
+        }
+      });
+
+      // Handle PTY exit
+      const cleanupExit = window.api.localTerminal.onExit((event) => {
+        if (event.sessionId === sessionId) {
+          terminal.write(`\r\n\x1b[33m--- Shell exited (code ${event.exitCode}) ---\x1b[0m\r\n`);
+          useTerminalStore.getState().updateSessionStatus(sessionId, 'disconnected');
+        }
+      });
+
+      const observer = new ResizeObserver(handleResize);
+      observer.observe(containerRef.current);
+
+      cleanup = () => {
+        cleanupData();
+        cleanupExit();
+        observer.disconnect();
+        teardownPointer();
+        if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
+        terminal.dispose();
+        terminalRef.current = null;
+        fitAddonRef.current = null;
+        searchAddonRef.current = null;
+      };
+    });
 
     return () => {
-      cleanupData();
-      cleanupExit();
-      observer.disconnect();
-      teardownPointer();
-      if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
-      terminal.dispose();
-      terminalRef.current = null;
-      fitAddonRef.current = null;
-      searchAddonRef.current = null;
+      cancelled = true;
+      cleanup?.();
     };
   }, [sessionId, handleResize, openSearch]);
 

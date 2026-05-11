@@ -98,166 +98,179 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const {
-      terminalTheme: initialThemeName,
-      fontSize: initialFontSize,
-      scrollback: initialScrollback,
-    } = useTerminalStore.getState();
-    const theme = terminalThemes[initialThemeName];
+    let cancelled = false;
+    let cleanup: (() => void) | null = null;
 
-    // Construct xterm + addons inside a try/catch so a thrower (typically
-    // happens when running headless or when a node addon fails to load)
-    // doesn't leave half-initialized state behind. On failure, dispose
-    // anything that did get created and bail out of the effect.
-    let terminal: Terminal;
-    let fitAddon: FitAddon;
-    let searchAddon: SearchAddon;
-    try {
-      terminal = new Terminal({
-        cursorBlink: true,
-        cursorStyle: 'bar',
+    queueMicrotask(() => {
+      if (cancelled || !containerRef.current) return;
+
+      const {
+        terminalTheme: initialThemeName,
         fontSize: initialFontSize,
-        fontFamily: 'JetBrains Mono, Menlo, Consolas, monospace',
-        lineHeight: 1.2,
-        letterSpacing: 0,
         scrollback: initialScrollback,
-        allowProposedApi: true,
-        screenReaderMode: true,
-        theme,
-      });
+      } = useTerminalStore.getState();
+      const theme = terminalThemes[initialThemeName];
 
-      fitAddon = new FitAddon();
-      const webLinksAddon = new WebLinksAddon();
-      searchAddon = new SearchAddon();
-      const unicode11Addon = new Unicode11Addon();
+      // Construct xterm + addons inside a try/catch so a thrower (typically
+      // happens when running headless or when a node addon fails to load)
+      // doesn't leave half-initialized state behind. On failure, dispose
+      // anything that did get created and bail out of the effect.
+      let terminal: Terminal;
+      let fitAddon: FitAddon;
+      let searchAddon: SearchAddon;
+      try {
+        terminal = new Terminal({
+          cursorBlink: true,
+          cursorStyle: 'bar',
+          fontSize: initialFontSize,
+          fontFamily: 'JetBrains Mono, Menlo, Consolas, monospace',
+          lineHeight: 1.2,
+          letterSpacing: 0,
+          scrollback: initialScrollback,
+          allowProposedApi: true,
+          screenReaderMode: true,
+          theme,
+        });
 
-      terminal.loadAddon(webLinksAddon);
-      terminal.loadAddon(searchAddon);
-      terminal.loadAddon(unicode11Addon);
-      terminal.unicode.activeVersion = '11';
+        fitAddon = new FitAddon();
+        const webLinksAddon = new WebLinksAddon();
+        searchAddon = new SearchAddon();
+        const unicode11Addon = new Unicode11Addon();
 
-      // Important: open the terminal before loading fitAddon or doing any layout.
-      terminal.open(containerRef.current);
-      terminal.loadAddon(fitAddon);
-    } catch (err) {
-      console.error('[TerminalPane] xterm initialization failed', err);
-      toast.error('Failed to initialize terminal — try reopening the tab.');
-      return;
-    }
+        terminal.loadAddon(webLinksAddon);
+        terminal.loadAddon(searchAddon);
+        terminal.loadAddon(unicode11Addon);
+        terminal.unicode.activeVersion = '11';
 
-    // Try WebGL; on context loss dispose it and load the Canvas addon so we
-    // don't drop all the way down to xterm's DOM renderer (which is much
-    // slower). Notify the user once so a sudden loss isn't mysterious.
-    try {
-      const webglAddon = new WebglAddon();
-      let webglNoticeShown = false;
-      webglAddon.onContextLoss(() => {
-        webglAddon.dispose();
+        // Important: open the terminal before loading fitAddon or doing any layout.
+        terminal.open(containerRef.current);
+        terminal.loadAddon(fitAddon);
+      } catch (err) {
+        console.error('[TerminalPane] xterm initialization failed', err);
+        toast.error('Failed to initialize terminal — try reopening the tab.');
+        return;
+      }
+
+      // Try WebGL; on context loss dispose it and load the Canvas addon so we
+      // don't drop all the way down to xterm's DOM renderer (which is much
+      // slower). Notify the user once so a sudden loss isn't mysterious.
+      try {
+        const webglAddon = new WebglAddon();
+        let webglNoticeShown = false;
+        webglAddon.onContextLoss(() => {
+          webglAddon.dispose();
+          try {
+            terminal.loadAddon(new CanvasAddon());
+          } catch {
+            // DOM renderer is the last-resort fallback.
+          }
+          if (!webglNoticeShown) {
+            webglNoticeShown = true;
+            toast.warning('Terminal GPU acceleration was lost — switched to software rendering.', {
+              id: `webgl-loss-${sessionId}`,
+            });
+          }
+        });
+        terminal.loadAddon(webglAddon);
+      } catch {
+        // WebGL itself failed to initialize — try Canvas, then fall through to DOM.
         try {
           terminal.loadAddon(new CanvasAddon());
         } catch {
           // DOM renderer is the last-resort fallback.
         }
-        if (!webglNoticeShown) {
-          webglNoticeShown = true;
-          toast.warning('Terminal GPU acceleration was lost — switched to software rendering.', {
-            id: `webgl-loss-${sessionId}`,
-          });
+      }
+
+      try {
+        fitAddon.fit();
+      } catch (err) {
+        // Initial fit can fail if the terminal is not yet attached to the DOM
+        // or is in a hidden tab. handleResize or the activation effect will retry.
+        logger.debug('[TerminalPane] Initial fit failed', { error: err });
+      }
+
+      terminalRef.current = terminal;
+      fitAddonRef.current = fitAddon;
+      searchAddonRef.current = searchAddon;
+
+      terminal.attachCustomKeyEventHandler(buildTerminalKeyHandler(terminal, openSearch));
+
+      const xtermEl = containerRef.current;
+      const teardownPointer = installXtermPointerHandlers(terminal, xtermEl);
+
+      // Send keystrokes to SSH
+      terminal.onData((data) => {
+        void window.api.ssh.sendData({ sessionId, data });
+      });
+
+      // Receive data from SSH
+      const cleanupData = window.api.ssh.onData((event) => {
+        if (event.sessionId === sessionId) {
+          terminal.write(event.data);
         }
       });
-      terminal.loadAddon(webglAddon);
-    } catch {
-      // WebGL itself failed to initialize — try Canvas, then fall through to DOM.
-      try {
-        terminal.loadAddon(new CanvasAddon());
-      } catch {
-        // DOM renderer is the last-resort fallback.
-      }
-    }
 
-    try {
-      fitAddon.fit();
-    } catch (err) {
-      // Initial fit can fail if the terminal is not yet attached to the DOM
-      // or is in a hidden tab. handleResize or the activation effect will retry.
-      logger.debug('[TerminalPane] Initial fit failed', { error: err });
-    }
-
-    terminalRef.current = terminal;
-    fitAddonRef.current = fitAddon;
-    searchAddonRef.current = searchAddon;
-
-    terminal.attachCustomKeyEventHandler(buildTerminalKeyHandler(terminal, openSearch));
-
-    const xtermEl = containerRef.current;
-    const teardownPointer = installXtermPointerHandlers(terminal, xtermEl);
-
-    // Send keystrokes to SSH
-    terminal.onData((data) => {
-      void window.api.ssh.sendData({ sessionId, data });
-    });
-
-    // Receive data from SSH
-    const cleanupData = window.api.ssh.onData((event) => {
-      if (event.sessionId === sessionId) {
-        terminal.write(event.data);
-      }
-    });
-
-    // Handle close
-    const cleanupClose = window.api.ssh.onClose((event) => {
-      if (event.sessionId === sessionId) {
-        terminal.write('\r\n\x1b[31m--- Connection closed ---\x1b[0m\r\n');
-      }
-    });
-
-    // Handle error — strip control chars (incl. ESC) so server-side messages can't
-    // smuggle ANSI sequences into the local terminal buffer.
-    const sanitize = (s: string): string => {
-      let out = '';
-      for (let i = 0; i < s.length; i++) {
-        const code = s.charCodeAt(i);
-        const printable = code === 9 || code === 10 || code === 13 || (code >= 32 && code !== 127);
-        out += printable ? s[i] : '?';
-      }
-      return out;
-    };
-    const cleanupError = window.api.ssh.onError((event) => {
-      if (event.sessionId === sessionId) {
-        terminal.write(`\r\n\x1b[31m--- Error: ${sanitize(event.error)} ---\x1b[0m\r\n`);
-      }
-    });
-
-    // Sync session status from main process
-    const { updateSessionStatus } = useTerminalStore.getState();
-    const cleanupStatus = window.api.ssh.onStatus(
-      (event: { sessionId: string; status: SessionStatus }) => {
+      // Handle close
+      const cleanupClose = window.api.ssh.onClose((event) => {
         if (event.sessionId === sessionId) {
-          updateSessionStatus(sessionId, event.status);
+          terminal.write('\r\n\x1b[31m--- Connection closed ---\x1b[0m\r\n');
         }
-      },
-    );
+      });
 
-    // ResizeObserver delivers an initial entry on .observe() once layout
-    // is ready, which is what we want for the first fit — rely on that
-    // instead of a setTimeout race against the paint cycle.
-    const observer = new ResizeObserver(handleResize);
-    observer.observe(containerRef.current);
+      // Handle error — strip control chars (incl. ESC) so server-side messages can't
+      // smuggle ANSI sequences into the local terminal buffer.
+      const sanitize = (s: string): string => {
+        let out = '';
+        for (let i = 0; i < s.length; i++) {
+          const code = s.charCodeAt(i);
+          const printable =
+            code === 9 || code === 10 || code === 13 || (code >= 32 && code !== 127);
+          out += printable ? s[i] : '?';
+        }
+        return out;
+      };
+      const cleanupError = window.api.ssh.onError((event) => {
+        if (event.sessionId === sessionId) {
+          terminal.write(`\r\n\x1b[31m--- Error: ${sanitize(event.error)} ---\x1b[0m\r\n`);
+        }
+      });
+
+      // Sync session status from main process
+      const { updateSessionStatus } = useTerminalStore.getState();
+      const cleanupStatus = window.api.ssh.onStatus(
+        (event: { sessionId: string; status: SessionStatus }) => {
+          if (event.sessionId === sessionId) {
+            updateSessionStatus(sessionId, event.status);
+          }
+        },
+      );
+
+      // ResizeObserver delivers an initial entry on .observe() once layout
+      // is ready, which is what we want for the first fit — rely on that
+      // instead of a setTimeout race against the paint cycle.
+      const observer = new ResizeObserver(handleResize);
+      observer.observe(containerRef.current);
+
+      cleanup = () => {
+        cleanupData();
+        cleanupClose();
+        cleanupError();
+        cleanupStatus();
+        observer.disconnect();
+        teardownPointer();
+        if (resizeTimeoutRef.current) {
+          clearTimeout(resizeTimeoutRef.current);
+        }
+        terminal.dispose();
+        terminalRef.current = null;
+        fitAddonRef.current = null;
+        searchAddonRef.current = null;
+      };
+    });
 
     return () => {
-      cleanupData();
-      cleanupClose();
-      cleanupError();
-      cleanupStatus();
-      observer.disconnect();
-      teardownPointer();
-      if (resizeTimeoutRef.current) {
-        clearTimeout(resizeTimeoutRef.current);
-      }
-      terminal.dispose();
-      terminalRef.current = null;
-      fitAddonRef.current = null;
-      searchAddonRef.current = null;
+      cancelled = true;
+      cleanup?.();
     };
   }, [sessionId, handleResize, openSearch]);
 
