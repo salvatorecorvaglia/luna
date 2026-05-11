@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Toaster, toast } from 'sonner';
 import { ShieldAlert } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
@@ -125,10 +125,14 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [setCommandPaletteOpen]);
 
-  const hasTerminals = tabOrder.some((id) => {
-    const s = sessions.get(id);
-    return !s || !s.type || s.type === 'ssh';
-  });
+  const hasTerminals = useMemo(
+    () =>
+      tabOrder.some((id) => {
+        const s = sessions.get(id);
+        return !s || !s.type || s.type === 'ssh';
+      }),
+    [tabOrder, sessions],
+  );
 
   const showTerminal = activeView === 'terminal' && hasTerminals;
   const showSftp = activeView === 'sftp';

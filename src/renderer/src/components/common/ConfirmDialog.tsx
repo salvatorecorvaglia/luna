@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertTriangle } from 'lucide-react';
+import { attachFocusTrap } from '@/lib/focus-trap';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -42,42 +43,20 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
 
-  // Focus trap + Escape
+  // Focus trap + Escape — uses the shared util so the trap logic (including
+  // contenteditable/textarea/select coverage and trigger-focus restoration)
+  // matches the rest of the app's dialogs.
   useEffect(() => {
     if (!open) return;
     const dialog = dialogRef.current;
     if (!dialog) return;
 
-    // Auto-focus cancel button
     requestAnimationFrame(() => {
       const cancelBtn = dialog.querySelector<HTMLElement>('[data-cancel]');
       cancelBtn?.focus();
     });
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onCancel();
-        return;
-      }
-      if (e.key === 'Tab') {
-        const focusable = dialog.querySelectorAll<HTMLElement>(
-          'button, [tabindex]:not([tabindex="-1"])',
-        );
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last?.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first?.focus();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return attachFocusTrap(dialog, { onEscape: onCancel });
   }, [open, onCancel]);
 
   return (

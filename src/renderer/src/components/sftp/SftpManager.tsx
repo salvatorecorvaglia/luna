@@ -20,6 +20,57 @@ import { FilePreview } from './FilePreview';
 import { PromptDialog } from '@/components/common/PromptDialog';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 
+// Pulled to module scope so they're allocated once at module load instead of
+// rebuilt on every preview-open render. Both lists are immutable and shared
+// between the remote and local file-preview handlers.
+const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp'] as const;
+const TEXT_EXTS = [
+  'txt',
+  'md',
+  'json',
+  'yaml',
+  'yml',
+  'xml',
+  'csv',
+  'log',
+  'sh',
+  'bash',
+  'zsh',
+  'py',
+  'js',
+  'ts',
+  'tsx',
+  'jsx',
+  'html',
+  'css',
+  'scss',
+  'conf',
+  'cfg',
+  'ini',
+  'toml',
+  'env',
+  'gitignore',
+  'editorconfig',
+  'Makefile',
+  'Dockerfile',
+  'rs',
+  'go',
+  'rb',
+  'php',
+  'java',
+  'c',
+  'h',
+  'cpp',
+] as const;
+
+function mimeForExt(ext: string, isPdf: boolean): string {
+  if ((IMAGE_EXTS as readonly string[]).includes(ext)) {
+    return `image/${ext === 'jpg' ? 'jpeg' : ext === 'svg' ? 'svg+xml' : ext}`;
+  }
+  if (isPdf) return 'application/pdf';
+  return 'text/plain';
+}
+
 export function SftpManager() {
   // Collapse 13 separate selectors into a single shallow-equality
   // subscription. Each `useSftpStore(s => s.X)` call previously installed
@@ -234,13 +285,7 @@ export function SftpManager() {
           path: entry.path,
         });
         const ext = entry.name.split('.').pop()?.toLowerCase() || '';
-        const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp'];
-        let type = 'text/plain';
-        if (imageExts.includes(ext)) {
-          type = `image/${ext === 'jpg' ? 'jpeg' : ext === 'svg' ? 'svg+xml' : ext}`;
-        } else if (ext === 'pdf') {
-          type = 'application/pdf';
-        }
+        const type = mimeForExt(ext, ext === 'pdf');
         setPreviewFile({ name: entry.name, content, type });
       } catch (err: unknown) {
         toast.error(`Preview failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -254,48 +299,13 @@ export function SftpManager() {
     async (entry: FileEntry) => {
       try {
         const ext = entry.name.split('.').pop()?.toLowerCase() || '';
-        const textExts = [
-          'txt',
-          'md',
-          'json',
-          'yaml',
-          'yml',
-          'xml',
-          'csv',
-          'log',
-          'sh',
-          'bash',
-          'zsh',
-          'py',
-          'js',
-          'ts',
-          'tsx',
-          'jsx',
-          'html',
-          'css',
-          'scss',
-          'conf',
-          'cfg',
-          'ini',
-          'toml',
-          'env',
-          'gitignore',
-          'editorconfig',
-          'Makefile',
-          'Dockerfile',
-          'rs',
-          'go',
-          'rb',
-          'php',
-          'java',
-          'c',
-          'h',
-          'cpp',
-        ];
-        const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp'];
         const isPdf = ext === 'pdf';
 
-        if (!textExts.includes(ext) && !imageExts.includes(ext) && !isPdf) {
+        if (
+          !(TEXT_EXTS as readonly string[]).includes(ext) &&
+          !(IMAGE_EXTS as readonly string[]).includes(ext) &&
+          !isPdf
+        ) {
           toast.info(`Cannot preview .${ext} files. Use your system file manager to open.`);
           return;
         }
@@ -303,12 +313,7 @@ export function SftpManager() {
         const { content } = (await window.api.shell.readFile(entry.path)) as {
           content: string;
         };
-        let type = 'text/plain';
-        if (imageExts.includes(ext)) {
-          type = `image/${ext === 'jpg' ? 'jpeg' : ext === 'svg' ? 'svg+xml' : ext}`;
-        } else if (isPdf) {
-          type = 'application/pdf';
-        }
+        const type = mimeForExt(ext, isPdf);
 
         setPreviewFile({ name: entry.name, content, type });
       } catch (err: unknown) {
