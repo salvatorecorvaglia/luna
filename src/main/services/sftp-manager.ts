@@ -164,7 +164,13 @@ class SftpManager {
             const isLink = fileType === 0o120000;
             return {
               name: item.filename,
-              path: remotePath === '/' ? `/${item.filename}` : `${remotePath}/${item.filename}`,
+              // Strip any trailing separators on remotePath before joining so
+              // a caller-supplied `/home/user/` doesn't yield `//file`, which
+              // downstream rename/delete then sees as a different entry.
+              path:
+                remotePath === '/'
+                  ? `/${item.filename}`
+                  : `${remotePath.replace(/\/+$/, '')}/${item.filename}`,
               size: item.attrs.size,
               modifiedAt: item.attrs.mtime,
               isDirectory: isDir,

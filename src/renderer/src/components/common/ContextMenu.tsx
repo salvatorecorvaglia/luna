@@ -100,7 +100,10 @@ export function ContextMenu({ items, children }: ContextMenuProps) {
             style={{ left: position.x, top: position.y }}
           >
             {items.map((item, i) => (
-              <div key={i}>
+              // Prefer the label as the stable key — context menus are short
+              // lists with unique labels in practice. Array index is the
+              // fallback for the rare unlabeled separator-only entry.
+              <div key={item.label ? `${item.label}-${i}` : `sep-${i}`}>
                 {item.separator && <div className="my-1 h-px bg-border/60" role="separator" />}
                 <button
                   role="menuitem"

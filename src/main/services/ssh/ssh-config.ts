@@ -56,6 +56,11 @@ export async function buildConnectConfig(
       const result = verifyHostKey(params.host, params.port, key, algorithm);
       if (result.weakAlgorithm) {
         // Don't prompt the user — refusing weak algorithms is a hard policy.
+        // Log to the audit trail so a series of weak-algo rejections is
+        // diagnosable (server misconfig vs MITM downgrade attempt).
+        log.warn(
+          `[host-key] refused weak algorithm "${algorithm}" for ${params.host}:${params.port} (fingerprint ${fingerprintKey(key)})`,
+        );
         emitToRenderer(IPC.SSH_ON_ERROR, {
           sessionId: sessionId ?? '',
           error: `Refusing weak host-key algorithm "${algorithm}". The server should be reconfigured to advertise ed25519, ecdsa, or rsa-sha2-* host keys.`,
@@ -64,6 +69,14 @@ export async function buildConnectConfig(
       }
       if (!result.trusted) {
         const stored = getStoredHostKey(params.host, params.port);
+        // Audit trail: log every rejection with the fingerprint + algorithm.
+        // A "changed" event is what an MITM downgrade looks like in practice,
+        // so it's the most important signal to capture for forensics.
+        log.warn(
+          `[host-key] verification failed for ${params.host}:${params.port} ` +
+            `(algorithm=${algorithm}, fingerprint=${fingerprintKey(key)}, ` +
+            `stored=${stored?.fingerprint ?? 'none'}, isFirst=${result.isFirst})`,
+        );
         pendingHostKeys.remember(params.host, params.port, key, algorithm);
         emitToRenderer(IPC.SSH_ON_HOST_KEY_CHANGE, {
           sessionId: sessionId ?? '',

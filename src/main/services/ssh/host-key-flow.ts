@@ -1,4 +1,9 @@
-import { fingerprintKey, formatHostKey, updateHostKey } from '../host-key-store';
+import {
+  fingerprintKey,
+  formatHostKey,
+  isAllowedHostKeyAlgorithm,
+  updateHostKey,
+} from '../host-key-store';
 
 /**
  * Extract the SSH host-key algorithm from the wire-format key buffer.
@@ -39,12 +44,19 @@ export class PendingHostKeyRegistry {
 
   /**
    * Trust a captured host key so the next connect succeeds. Returns the
-   * fingerprint that was stored, or null if no candidate is pending.
+   * fingerprint that was stored, or null if no candidate is pending OR if
+   * the captured algorithm is no longer on the allowlist. Re-checking the
+   * algorithm here is defense-in-depth: even if a future refactor lets a
+   * weak-algo key reach `remember()`, `trust()` will refuse to commit it.
    */
   trust(host: string, port: number): string | null {
     const k = formatHostKey(host, port);
     const pending = this.map.get(k);
     if (!pending) return null;
+    if (!isAllowedHostKeyAlgorithm(pending.algorithm)) {
+      this.map.delete(k);
+      return null;
+    }
     updateHostKey(host, port, pending.key, pending.algorithm);
     this.map.delete(k);
     return fingerprintKey(pending.key);

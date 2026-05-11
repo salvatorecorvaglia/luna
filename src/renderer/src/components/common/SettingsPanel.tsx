@@ -292,7 +292,12 @@ export function SettingsPanel() {
                           toast.info('No connections to export');
                           return;
                         }
-                        const content = JSON.stringify(connections, null, 2);
+                        // Stamp a format version so future schema changes can
+                        // be detected on import instead of silently dropping
+                        // unknown fields. Importer also accepts bare arrays
+                        // (legacy exports) for backward compatibility.
+                        const envelope = { version: 1, connections };
+                        const content = JSON.stringify(envelope, null, 2);
                         const saved = await window.api.shell.saveFileDialog({
                           defaultPath: 'lunar-connections.json',
                           filters: [{ name: 'JSON', extensions: ['json'] }],

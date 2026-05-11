@@ -431,6 +431,10 @@ class SshManager {
   disconnect(sessionId: string): void {
     const session = this.sessions.get(sessionId);
     if (!session) return;
+    // Idempotent: a double-disconnect (e.g. user clicked Close while a
+    // 'close' event from ssh2 was already in flight) would otherwise double-
+    // write the history row and call client.end() twice.
+    if (session.status === 'disconnected') return;
 
     if (session.reconnectTimer) {
       clearTimeout(session.reconnectTimer);
