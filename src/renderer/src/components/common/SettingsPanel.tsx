@@ -347,9 +347,6 @@ export function SettingsPanel() {
                     Import
                   </button>
                 </div>
-                <p className="text-[11px] text-muted-foreground/60">
-                  Export and import connections (credentials are not included)
-                </p>
               </Section>
 
               {/* Logs */}

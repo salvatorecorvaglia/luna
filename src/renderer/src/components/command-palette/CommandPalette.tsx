@@ -360,6 +360,7 @@ export function CommandPalette() {
             initial="initial"
             animate="animate"
             exit="exit"
+            onClick={() => setCommandPaletteOpen(false)}
             className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
           />
           <motion.div

@@ -21,6 +21,7 @@ import type { AppSettings } from '@shared/types/settings';
 import { registerHandler } from '../lib/ipc-handler';
 
 import { logger } from '../lib/logger';
+import { detectAndImport } from '../lib/importers';
 
 const VALID_AUTH_TYPES = ['password', 'key', 'key+passphrase'] as const;
 
@@ -521,7 +522,12 @@ export function registerDbHandlers(): void {
   registerHandler(IPC.CONNECTION_IMPORT_FROM_FILE, async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
-      filters: [{ name: 'JSON', extensions: ['json'] }],
+      filters: [
+        { name: 'Connection Exports', extensions: ['json', 'ini', 'reg', 'mxtpro'] },
+        { name: 'JSON', extensions: ['json'] },
+        { name: 'INI/Configuration', extensions: ['ini', 'mxtpro'] },
+        { name: 'Registry', extensions: ['reg'] },
+      ],
     });
     if (result.canceled || result.filePaths.length === 0) {
       return { imported: -1, skipped: [] as { name: string; reason: string }[] };
@@ -538,11 +544,15 @@ export function registerDbHandlers(): void {
     let parsed: unknown;
     try {
       parsed = JSON.parse(content);
+      return importConnections(parsed);
     } catch {
-      // Don't surface raw file content (which may include arbitrary bytes) to the renderer.
-      throw validation('Import file is not valid JSON');
+      // Not JSON, try third-party importers (INI/REG)
+      const thirdParty = detectAndImport(content, path);
+      if (thirdParty.length > 0) {
+        return importConnections(thirdParty);
+      }
+      throw validation('Import file is not valid JSON or supported third-party format');
     }
-    return importConnections(parsed);
   });
 
   // Settings
