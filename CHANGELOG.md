@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-05-11
+
+### Added
+
+- **Storage Improvements**: Implemented SSH key caching and directory invalidation logic for faster storage navigation.
+- **UI/UX Refinements**: Added sidebar snapping and a new reusable `ContextMenu` component.
+- **Security & Validation**: Introduced private key validation and improved SSH host-key auditing.
+
+### Changed
+
+- **Performance Optimization**: Enhanced virtual list rendering for large file directories and storage providers.
+- **Reliability Hardening**: Improved transfer queue error classification and progress finalization logic.
+- **Process Management**: Strengthened security for local terminal PTY spawning and sanitized credential storage.
+
+### Fixed
+
+- **Terminal Stability**: Resolved crashes during terminal resizing and initialization by wrapping `fitAddon` calls in error handlers.
+- **Code Quality**: Suppressed explicit `any` lint warnings in terminal logic and improved IPC error logging.
+
 ## [0.5.0] - 2026-05-10
 
 ### Added
