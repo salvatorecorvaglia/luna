@@ -456,7 +456,7 @@ export function ConnectionForm() {
 
   async function handleBrowseKey() {
     const path = await window.api.shell.openFileDialog({
-      filters: [{ name: 'SSH Keys', extensions: ['pem', 'key', 'pub', ''] }],
+      filters: [{ name: 'SSH Keys', extensions: ['pem', 'key', 'ppk', 'pub', 'p8', 'p8e', 'ssh2', ''] }],
     });
     if (path) {
       setPrivateKeyPath(path);
