@@ -15,6 +15,14 @@ const sessions = new Map<string, LocalPtySession>();
 
 /** Upper bound on a single PTY write from the renderer. Matches the SSH cap. */
 const MAX_PTY_SEND_BYTES = 65536;
+/**
+ * Upper bound on a single PTY → renderer emit. A misbehaving child process
+ * (e.g. `yes > /dev/tty`) can produce arbitrarily large chunks; if we hand
+ * the entire chunk to xterm in one IPC message, the renderer can stall
+ * parsing for seconds. 1 MiB is well above what any well-behaved program
+ * emits in a single read but small enough to keep the UI responsive.
+ */
+const MAX_PTY_EMIT_BYTES = 1024 * 1024;
 
 /**
  * Whitelist of POSIX shells we're willing to spawn. process.env.SHELL is
@@ -80,8 +88,21 @@ export function registerLocalTerminalHandlers(): void {
 
       ptyProcess.onData((data: string) => {
         const win = getMainWindow();
-        if (win && !win.isDestroyed()) {
+        if (!win || win.isDestroyed()) return;
+        // Chunk pathologically large emits so a single 100 MB line can't
+        // freeze the renderer's xterm parser. Slice on byte length so we
+        // never split a code point — Buffer/string lengths are byte-equal
+        // for ASCII and the worst-case (UTF-8) just means slightly smaller
+        // chunks, not corruption.
+        if (Buffer.byteLength(data, 'utf8') <= MAX_PTY_EMIT_BYTES) {
           win.webContents.send(IPC.LOCAL_TERMINAL_ON_DATA, { sessionId, data });
+          return;
+        }
+        for (let offset = 0; offset < data.length; offset += MAX_PTY_EMIT_BYTES) {
+          win.webContents.send(IPC.LOCAL_TERMINAL_ON_DATA, {
+            sessionId,
+            data: data.slice(offset, offset + MAX_PTY_EMIT_BYTES),
+          });
         }
       });
 

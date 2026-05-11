@@ -13,6 +13,10 @@ import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/ui-store';
 import lunarLogo from '../../../../../resources/lunar.png';
 
+// Resolved once at module load — navigator.userAgent doesn't change at runtime
+// and the regex was re-running on every TitleBar render.
+const IS_MAC = /Mac|iPhone|iPad/.test(navigator.userAgent);
+
 export function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false);
   const activeView = useUIStore((s) => s.activeView);
@@ -20,7 +24,7 @@ export function TitleBar() {
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
 
-  const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
+  const isMac = IS_MAC;
 
   useEffect(() => {
     const check = async () => setIsMaximized(await window.api.window.isMaximized());
