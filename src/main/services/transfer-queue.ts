@@ -183,6 +183,19 @@ class TransferQueue {
         await provider.streamUpload(sessionId, localPath, remotePath, onStep, controller.signal);
       }
 
+      // Flush a final 100% progress event so the UI lands on full before
+      // TRANSFER_COMPLETE — the 200ms throttle in onStep frequently swallows
+      // the last chunk, leaving the bar stuck just below total.
+      const finalTotal = transfer.size || transfer.lastTransferred;
+      if (finalTotal > 0) {
+        emitToRenderer(IPC.TRANSFER_PROGRESS, {
+          transferId: id,
+          transferred: finalTotal,
+          total: finalTotal,
+          bytesPerSec: 0,
+        });
+      }
+
       emitToRenderer(IPC.TRANSFER_COMPLETE, { transferId: id });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Transfer failed';

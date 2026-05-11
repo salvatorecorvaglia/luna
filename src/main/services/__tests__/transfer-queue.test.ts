@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { LIMITS } from '@shared/constants';
+import { IPC, LIMITS } from '@shared/constants';
 import { transferQueue } from '../transfer-queue';
+import { emitToRenderer } from '../emit';
 
 // Mock peers before importing the module under test. We make stream operations
 // hang forever so transfers stay either queued or active for the duration of a
@@ -52,9 +53,20 @@ function resetQueue(): void {
 
 beforeEach(() => {
   resetQueue();
+  // Reset every stub so the per-test mockImplementation overrides start clean.
+  stubProvider.streamUpload.mockReset().mockImplementation(() => new Promise(() => {}));
+  stubProvider.streamDownload.mockReset().mockImplementation(() => new Promise(() => {}));
+  stubProvider.statSize.mockReset().mockResolvedValue(0);
+  (emitToRenderer as unknown as { mockClear?: () => void }).mockClear?.();
   // Concurrency 1 so only one moves to active and the rest pile up in queue.
   transferQueue.setMaxConcurrent(1);
 });
+
+/** Pull all emits matching a channel out of the emitToRenderer mock call log. */
+function emitsOf(channel: string): unknown[] {
+  const mock = emitToRenderer as unknown as { mock: { calls: unknown[][] } };
+  return mock.mock.calls.filter((c) => c[0] === channel).map((c) => c[1]);
+}
 
 describe('transferQueue', () => {
   it('returns the same id for duplicate enqueues', async () => {
@@ -114,6 +126,91 @@ describe('transferQueue', () => {
 
     expect(transferQueue.getActiveCount()).toBe(0);
     expect(transferQueue.getQueuedCount()).toBe(0);
+  });
+
+  describe('error path classification', () => {
+    function permissionError(): NodeJS.ErrnoException {
+      const e = new Error('open /target: permission denied') as NodeJS.ErrnoException;
+      e.code = 'EACCES';
+      return e;
+    }
+    function diskFullError(): NodeJS.ErrnoException {
+      const e = new Error('write: no space left on device') as NodeJS.ErrnoException;
+      e.code = 'ENOSPC';
+      return e;
+    }
+    function connectionResetError(): NodeJS.ErrnoException {
+      const e = new Error('read ECONNRESET') as NodeJS.ErrnoException;
+      e.code = 'ECONNRESET';
+      return e;
+    }
+
+    it('emits TRANSFER_ERROR with errorClass=permission on EACCES', async () => {
+      stubProvider.streamUpload.mockRejectedValueOnce(permissionError());
+      await transferQueue.enqueue('upload', 'sess', '/l', '/r');
+      await new Promise((r) => setTimeout(r, 0));
+      const errs = emitsOf(IPC.TRANSFER_ERROR) as { errorClass: string }[];
+      expect(errs).toHaveLength(1);
+      expect(errs[0].errorClass).toBe('permission');
+    });
+
+    it('emits TRANSFER_ERROR with errorClass=disk-full on ENOSPC', async () => {
+      stubProvider.streamDownload.mockRejectedValueOnce(diskFullError());
+      await transferQueue.enqueue('download', 'sess', '/l', '/r');
+      await new Promise((r) => setTimeout(r, 0));
+      const errs = emitsOf(IPC.TRANSFER_ERROR) as { errorClass: string }[];
+      expect(errs).toHaveLength(1);
+      expect(errs[0].errorClass).toBe('disk-full');
+    });
+
+    it('emits TRANSFER_ERROR with errorClass=connection on ECONNRESET', async () => {
+      stubProvider.streamDownload.mockRejectedValueOnce(connectionResetError());
+      await transferQueue.enqueue('download', 'sess', '/l', '/r');
+      await new Promise((r) => setTimeout(r, 0));
+      const errs = emitsOf(IPC.TRANSFER_ERROR) as { errorClass: string }[];
+      expect(errs).toHaveLength(1);
+      expect(errs[0].errorClass).toBe('connection');
+    });
+
+    it('cancel during active transfer emits TRANSFER_CANCELLED (not TRANSFER_ERROR)', async () => {
+      // Provider sees the abort signal and rejects with AbortError-like behavior.
+      stubProvider.streamUpload.mockImplementation(
+        (_s: string, _l: string, _r: string, _onStep: unknown, signal: AbortSignal) =>
+          new Promise((_resolve, reject) => {
+            signal.addEventListener('abort', () => {
+              const e = new Error('aborted');
+              reject(e);
+            });
+          }),
+      );
+      const id = await transferQueue.enqueue('upload', 'sess', '/l', '/r');
+      transferQueue.cancel(id);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(emitsOf(IPC.TRANSFER_CANCELLED)).toHaveLength(1);
+      expect(emitsOf(IPC.TRANSFER_ERROR)).toHaveLength(0);
+    });
+
+    it('emits a final 100% TRANSFER_PROGRESS before TRANSFER_COMPLETE', async () => {
+      // Report a known size from statSize so the final flush has a value to use.
+      stubProvider.statSize.mockResolvedValue(1000);
+      stubProvider.streamDownload.mockImplementation(
+        async (
+          _s: string,
+          _r: string,
+          _l: string,
+          onStep: (transferred: number, chunk: number, total: number) => void,
+        ) => {
+          onStep(500, 500, 1000);
+        },
+      );
+      await transferQueue.enqueue('download', 'sess', '/l', '/r');
+      await new Promise((r) => setTimeout(r, 0));
+      const progress = emitsOf(IPC.TRANSFER_PROGRESS) as { transferred: number; total: number }[];
+      const last = progress[progress.length - 1];
+      expect(last.transferred).toBe(1000);
+      expect(last.total).toBe(1000);
+      expect(emitsOf(IPC.TRANSFER_COMPLETE)).toHaveLength(1);
+    });
   });
 
   it('adjusting max concurrency processes the queue', async () => {
