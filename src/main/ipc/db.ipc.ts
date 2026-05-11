@@ -3,6 +3,11 @@ import { readFile } from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
 import { expandAndConfineToHomeSync } from '../lib/validate';
 import { IPC, LIMITS } from '@shared/constants';
+import { ErrorCode, LunarError } from '@shared/errors';
+
+function validation(message: string): LunarError {
+  return new LunarError(message, ErrorCode.VALIDATION_ERROR);
+}
 import { type ConnectionRow, getDatabase } from '../services/database';
 import { transferQueue } from '../services/transfer-queue';
 import type {
@@ -107,19 +112,19 @@ export function registerDbHandlers(): void {
   });
 
   registerHandler(IPC.CONNECTION_CREATE, (_event, input: CreateConnectionInput) => {
-    if (!input.name?.trim()) throw new Error('Connection name is required');
+    if (!input.name?.trim()) throw validation('Connection name is required');
     const provider = input.provider ?? 'sftp';
 
     if (provider === 'sftp') {
-      if (!input.host?.trim()) throw new Error('Host is required');
-      if (!input.username?.trim()) throw new Error('Username is required');
+      if (!input.host?.trim()) throw validation('Host is required');
+      if (!input.username?.trim()) throw validation('Username is required');
       if (typeof input.port !== 'number' || input.port < 1 || input.port > 65535) {
-        throw new Error('Port must be between 1 and 65535');
+        throw validation('Port must be between 1 and 65535');
       }
-      if (!input.authType) throw new Error('authType is required');
+      if (!input.authType) throw validation('authType is required');
     } else if (provider === 's3') {
-      if (!input.accessKeyId?.trim()) throw new Error('Access Key ID is required');
-      if (!input.secretAccessKey?.trim()) throw new Error('Secret Access Key is required');
+      if (!input.accessKeyId?.trim()) throw validation('Access Key ID is required');
+      if (!input.secretAccessKey?.trim()) throw validation('Secret Access Key is required');
     }
 
     const id = uuidv4();
@@ -208,7 +213,7 @@ export function registerDbHandlers(): void {
       | undefined;
 
     if (!existing) {
-      throw new Error(`Connection not found: ${input.id}`);
+      throw new LunarError(`Connection not found: ${input.id}`, ErrorCode.NOT_FOUND);
     }
 
     const assignments: string[] = ['updated_at = ?'];
@@ -329,7 +334,7 @@ export function registerDbHandlers(): void {
   function sanitizeImportedKeyPath(input: string | undefined | null): string | null {
     if (!input) return null;
     if (typeof input !== 'string') {
-      throw new Error('privateKeyPath must be a string');
+      throw validation('privateKeyPath must be a string');
     }
     return expandAndConfineToHomeSync(input, 'privateKeyPath');
   }
@@ -345,7 +350,7 @@ export function registerDbHandlers(): void {
     max = MAX_IMPORT_FIELD_LEN,
   ): void {
     if (typeof val === 'string' && val.length > max) {
-      throw new Error(`${label} exceeds ${max} characters`);
+      throw validation(`${label} exceeds ${max} characters`);
     }
   }
 
@@ -369,14 +374,14 @@ export function registerDbHandlers(): void {
       const env = input as { version?: unknown; connections?: unknown };
       if (env.version !== undefined) {
         if (env.version !== LUNAR_EXPORT_FORMAT_VERSION) {
-          throw new Error(
+          throw validation(
             `Unsupported export format version ${String(env.version)} (expected ${LUNAR_EXPORT_FORMAT_VERSION})`,
           );
         }
       }
       if (Array.isArray(env.connections)) return env.connections as ExportedConnection[];
     }
-    throw new Error('Expected an array of connections or { version, connections } envelope');
+    throw validation('Expected an array of connections or { version, connections } envelope');
   }
 
   function importConnections(payload: ExportedConnection[] | unknown): {
@@ -384,9 +389,9 @@ export function registerDbHandlers(): void {
     skipped: { name: string; reason: string }[];
   } {
     const connections = unwrapImportPayload(payload);
-    if (!Array.isArray(connections)) throw new Error('Expected an array of connections');
+    if (!Array.isArray(connections)) throw validation('Expected an array of connections');
     if (connections.length > MAX_IMPORT_CONNECTIONS) {
-      throw new Error(
+      throw validation(
         `Import contains ${connections.length} connections (max ${MAX_IMPORT_CONNECTIONS})`,
       );
     }
@@ -527,7 +532,7 @@ export function registerDbHandlers(): void {
     const stats = await stat(path);
     const MAX_IMPORT_BYTES = 5 * 1024 * 1024; // 5 MB — large enough for thousands of records
     if (stats.size > MAX_IMPORT_BYTES) {
-      throw new Error(`Import file is too large: ${stats.size} bytes (max ${MAX_IMPORT_BYTES})`);
+      throw validation(`Import file is too large: ${stats.size} bytes (max ${MAX_IMPORT_BYTES})`);
     }
     const content = await readFile(path, 'utf-8');
     let parsed: unknown;
@@ -535,7 +540,7 @@ export function registerDbHandlers(): void {
       parsed = JSON.parse(content);
     } catch {
       // Don't surface raw file content (which may include arbitrary bytes) to the renderer.
-      throw new Error('Import file is not valid JSON');
+      throw validation('Import file is not valid JSON');
     }
     return importConnections(parsed);
   });
@@ -543,7 +548,7 @@ export function registerDbHandlers(): void {
   // Settings
   registerHandler(IPC.SETTINGS_GET, (_event, key: string) => {
     if (!VALID_SETTINGS_KEYS.has(key)) {
-      throw new Error(`Unknown setting key: ${key}`);
+      throw validation(`Unknown setting key: ${key}`);
     }
     const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
       | { value: string }
@@ -553,16 +558,16 @@ export function registerDbHandlers(): void {
 
   registerHandler(IPC.SETTINGS_SET, (_event, { key, value }: { key: string; value: string }) => {
     if (!VALID_SETTINGS_KEYS.has(key)) {
-      throw new Error(`Unknown setting key: ${key}`);
+      throw validation(`Unknown setting key: ${key}`);
     }
     let parsed: unknown;
     try {
       parsed = JSON.parse(value);
     } catch {
-      throw new Error(`Setting ${key} must be JSON-encoded`);
+      throw validation(`Setting ${key} must be JSON-encoded`);
     }
     if (!checkSettingType(key, parsed)) {
-      throw new Error(`Setting ${key} has wrong type`);
+      throw validation(`Setting ${key} has wrong type`);
     }
     let v = value;
     if (key === 'terminal.scrollback') {

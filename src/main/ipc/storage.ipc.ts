@@ -8,6 +8,7 @@ import {
   assertSafeRealAbsolutePath,
   assertValidPath,
 } from '../lib/validate';
+import { ErrorCode, LunarError } from '@shared/errors';
 
 /**
  * Token-bucket rate limiter per session for non-transfer storage ops
@@ -41,8 +42,9 @@ function takeToken(sessionId: string): void {
     bucket.lastRefill = now;
   }
   if (bucket.tokens < 1) {
-    throw new Error(
+    throw new LunarError(
       `Storage rate limit exceeded for session ${sessionId}. Slow down or wait a moment.`,
+      ErrorCode.FORBIDDEN,
     );
   }
   bucket.tokens -= 1;

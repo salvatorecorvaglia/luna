@@ -46,9 +46,11 @@ function resetQueue(): void {
   const q = transferQueue as unknown as {
     queue: unknown[];
     active: Map<string, unknown>;
+    dedupIndex?: Map<string, string>;
   };
   q.queue.length = 0;
   q.active.clear();
+  q.dedupIndex?.clear();
 }
 
 beforeEach(() => {
@@ -73,6 +75,27 @@ describe('transferQueue', () => {
     const a = await transferQueue.enqueue('upload', 'sess', '/local/x', '/remote/x');
     const b = await transferQueue.enqueue('upload', 'sess', '/local/x', '/remote/x');
     expect(a).toBe(b);
+  });
+
+  it('distinguishes by type/session/localPath/remotePath', async () => {
+    // The four-tuple is the dedup key; varying any one of them must produce
+    // a fresh transfer id rather than collapsing onto the first.
+    const upload = await transferQueue.enqueue('upload', 'sess', '/l', '/r');
+    const download = await transferQueue.enqueue('download', 'sess', '/l', '/r');
+    const otherSession = await transferQueue.enqueue('upload', 'sess2', '/l', '/r');
+    const otherLocal = await transferQueue.enqueue('upload', 'sess', '/l2', '/r');
+    const otherRemote = await transferQueue.enqueue('upload', 'sess', '/l', '/r2');
+    const ids = new Set([upload, download, otherSession, otherLocal, otherRemote]);
+    expect(ids.size).toBe(5);
+  });
+
+  it('frees the dedup slot after cancel so a re-enqueue is a fresh transfer', async () => {
+    // Active-slot transfer; the second enqueue must hit the same key.
+    await transferQueue.enqueue('upload', 'sess', '/l', '/r');
+    const queued = await transferQueue.enqueue('upload', 'sess', '/queued-l', '/queued-r');
+    transferQueue.cancel(queued);
+    const fresh = await transferQueue.enqueue('upload', 'sess', '/queued-l', '/queued-r');
+    expect(fresh).not.toBe(queued);
   });
 
   it('rejects new transfers when the queue is saturated', async () => {

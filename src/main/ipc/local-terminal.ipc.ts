@@ -3,6 +3,7 @@ import { homedir } from 'os';
 import { IPC } from '@shared/constants';
 import { getMainWindow } from './app.ipc';
 import { assertBoundedInt, assertNonEmptyString } from '../lib/validate';
+import { ErrorCode, LunarError } from '@shared/errors';
 import log from '../lib/logger';
 
 import * as pty from 'node-pty';
@@ -138,11 +139,14 @@ export function registerLocalTerminalHandlers(): void {
     (_event, { sessionId, data }: { sessionId: string; data: string }) => {
       assertNonEmptyString(sessionId, 'sessionId');
       if (typeof data !== 'string') {
-        throw new Error('data must be a string');
+        throw new LunarError('data must be a string', ErrorCode.VALIDATION_ERROR);
       }
       const byteLength = Buffer.byteLength(data, 'utf8');
       if (byteLength > MAX_PTY_SEND_BYTES) {
-        throw new Error(`PTY input exceeds ${MAX_PTY_SEND_BYTES}-byte cap (got ${byteLength})`);
+        throw new LunarError(
+          `PTY input exceeds ${MAX_PTY_SEND_BYTES}-byte cap (got ${byteLength})`,
+          ErrorCode.VALIDATION_ERROR,
+        );
       }
       const session = sessions.get(sessionId);
       if (!session) return;

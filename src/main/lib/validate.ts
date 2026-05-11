@@ -1,13 +1,25 @@
 import { dirname, isAbsolute, normalize, relative, resolve as resolvePath, sep } from 'path';
 import { homedir } from 'os';
 import { realpath } from 'fs/promises';
+import { ErrorCode, LunarError } from '@shared/errors';
+
+/**
+ * Validation throws a `LunarError(VALIDATION_ERROR)` so the renderer receives
+ * a structured code instead of the catch-all INTERNAL_ERROR that `new Error`
+ * decays to inside `registerHandler`. Callers that pre-date this change
+ * already caught the same message text, so the upgrade is backwards-
+ * compatible.
+ */
+function validationError(message: string): LunarError {
+  return new LunarError(message, ErrorCode.VALIDATION_ERROR);
+}
 
 export function assertNonEmptyString(value: unknown, name: string): asserts value is string {
   if (typeof value !== 'string' || value.trim().length === 0) {
-    throw new Error(`${name} must be a non-empty string`);
+    throw validationError(`${name} must be a non-empty string`);
   }
   if (value.includes('\0')) {
-    throw new Error(`${name} must not contain null bytes`);
+    throw validationError(`${name} must not contain null bytes`);
   }
 }
 
@@ -18,7 +30,7 @@ export function assertBoundedInt(
   max: number,
 ): asserts value is number {
   if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > max) {
-    throw new Error(`${name} must be an integer between ${min} and ${max}`);
+    throw validationError(`${name} must be an integer between ${min} and ${max}`);
   }
 }
 
@@ -61,17 +73,17 @@ function stripTrailingSep(p: string): string {
 export function assertSafeAbsolutePath(value: unknown, name: string): asserts value is string {
   assertNonEmptyString(value, name);
   if (!isAbsolute(value)) {
-    throw new Error(`${name} must be an absolute path`);
+    throw validationError(`${name} must be an absolute path`);
   }
   // Compare to path.normalize (cross-platform) rather than resolve(), which
   // would silently rewrite a non-canonical input into a valid-looking one.
   if (stripTrailingSep(value) !== stripTrailingSep(normalize(value))) {
-    throw new Error(`${name} must be canonical (no '..' or redundant separators)`);
+    throw validationError(`${name} must be canonical (no '..' or redundant separators)`);
   }
   const resolved = resolvePath(value);
   const home = homedir();
   if (!isInsideDir(resolved, home)) {
-    throw new Error(`${name} must be inside the home directory`);
+    throw new LunarError(`${name} must be inside the home directory`, ErrorCode.FORBIDDEN);
   }
 }
 
@@ -97,16 +109,19 @@ export async function expandAndConfineToHome(
         ? `${home}${sep}${rawPath.slice(2)}`
         : rawPath;
   if (!isAbsolute(expanded)) {
-    throw new Error(`${name} must be absolute or start with ~`);
+    throw validationError(`${name} must be absolute or start with ~`);
   }
   const resolved = resolvePath(expanded);
   if (!isInsideDir(resolved, home)) {
-    throw new Error(`${name} must be inside the home directory`);
+    throw new LunarError(`${name} must be inside the home directory`, ErrorCode.FORBIDDEN);
   }
   if (options.requireExists) {
     const real = await realpath(resolved);
     if (!isInsideDir(real, home)) {
-      throw new Error(`${name} resolves outside the home directory via symlink`);
+      throw new LunarError(
+        `${name} resolves outside the home directory via symlink`,
+        ErrorCode.FORBIDDEN,
+      );
     }
     return real;
   }
@@ -130,11 +145,11 @@ export function expandAndConfineToHomeSync(rawPath: string, name: string): strin
         ? `${home}${sep}${rawPath.slice(2)}`
         : rawPath;
   if (!isAbsolute(expanded)) {
-    throw new Error(`${name} must be absolute or start with ~`);
+    throw validationError(`${name} must be absolute or start with ~`);
   }
   const resolved = resolvePath(expanded);
   if (!isInsideDir(resolved, home)) {
-    throw new Error(`${name} must be inside the home directory`);
+    throw new LunarError(`${name} must be inside the home directory`, ErrorCode.FORBIDDEN);
   }
   return resolved;
 }
@@ -151,7 +166,10 @@ export async function assertSafeRealAbsolutePath(value: unknown, name: string): 
   try {
     const real = await realpath(value);
     if (!isInsideDir(real, home)) {
-      throw new Error(`${name} resolves outside the home directory via symlink`);
+      throw new LunarError(
+        `${name} resolves outside the home directory via symlink`,
+        ErrorCode.FORBIDDEN,
+      );
     }
     return real;
   } catch (err: unknown) {
@@ -160,7 +178,11 @@ export async function assertSafeRealAbsolutePath(value: unknown, name: string): 
     const parent = dirname(value);
     const realParent = await realpath(parent);
     if (!isInsideDir(realParent, home)) {
-      throw new Error(`${name} resolves outside the home directory via symlink`, { cause: err });
+      throw new LunarError(
+        `${name} resolves outside the home directory via symlink`,
+        ErrorCode.FORBIDDEN,
+        { cause: String(err) },
+      );
     }
     return value;
   }
