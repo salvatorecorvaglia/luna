@@ -12,10 +12,10 @@ import '@xterm/xterm/css/xterm.css';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { logger } from '@/lib/logger';
 import { terminalThemes } from '@/themes/terminal';
-import { LIMITS } from '@shared/constants';
-
-const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
-const isLinux = typeof navigator !== 'undefined' && /Linux/.test(navigator.platform);
+import {
+  buildTerminalKeyHandler,
+  installXtermPointerHandlers,
+} from '@/lib/terminal-input';
 
 interface LocalTerminalPaneProps {
   sessionId: string;
@@ -174,162 +174,10 @@ export function LocalTerminalPane({ sessionId, isActive }: LocalTerminalPaneProp
         });
     }
 
-    // Paste helpers
-    const pasteText = (text: string) => {
-      if (!text) return;
-      const bracketed = (terminal.modes as { bracketedPasteMode?: boolean })?.bracketedPasteMode;
-      if (!bracketed && /\r|\n/.test(text)) {
-        toast.warning('Clipboard contains multiple lines — pasting may execute commands.', {
-          action: {
-            label: 'Paste anyway',
-            onClick: () => terminal.paste(text),
-          },
-        });
-        return;
-      }
-      terminal.paste(text);
-    };
-
-    const copySelection = () => {
-      if (!terminal.hasSelection()) return false;
-      const sel = terminal.getSelection();
-      if (!sel) return false;
-      void navigator.clipboard.writeText(sel).catch(() => {
-        toast.error('Failed to copy to clipboard.');
-      });
-      terminal.clearSelection();
-      return true;
-    };
-
-    const readClipboardAndPaste = () => {
-      navigator.clipboard
-        .readText()
-        .then((text) => pasteText(text))
-        .catch(() => toast.error('Failed to read from clipboard.'));
-    };
-
-    // Keyboard shortcuts
-    terminal.attachCustomKeyEventHandler((e) => {
-      if (e.type !== 'keydown') return true;
-      const meta = isMac ? e.metaKey : e.ctrlKey && e.shiftKey;
-      const mod = isMac ? e.metaKey : e.ctrlKey;
-
-      if (meta && (e.key === 'c' || e.key === 'C')) {
-        if (copySelection()) {
-          e.preventDefault();
-          return false;
-        }
-        if (!isMac) return false;
-        return true;
-      }
-      if (meta && (e.key === 'v' || e.key === 'V')) {
-        e.preventDefault();
-        readClipboardAndPaste();
-        return false;
-      }
-      if (meta && (e.key === 'f' || e.key === 'F')) {
-        e.preventDefault();
-        openSearch();
-        return false;
-      }
-      if (mod && (e.key === 'k' || e.key === 'K')) {
-        e.preventDefault();
-        terminal.clear();
-        return false;
-      }
-      if (mod && (e.key === '=' || e.key === '+')) {
-        e.preventDefault();
-        const { fontSize: cur, setFontSize } = useTerminalStore.getState();
-        setFontSize(cur + 1);
-        return false;
-      }
-      if (mod && e.key === '-') {
-        e.preventDefault();
-        const { fontSize: cur, setFontSize } = useTerminalStore.getState();
-        setFontSize(cur - 1);
-        return false;
-      }
-      if (mod && e.key === '0') {
-        e.preventDefault();
-        useTerminalStore.getState().setFontSize(LIMITS.DEFAULT_FONT_SIZE);
-        return false;
-      }
-      return true;
-    });
+    terminal.attachCustomKeyEventHandler(buildTerminalKeyHandler(terminal, openSearch));
 
     const xtermEl = containerRef.current;
-
-    // Wheel zoom
-    let wheelPending = false;
-    let wheelDelta = 0;
-    const onWheel = (e: WheelEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
-      e.preventDefault();
-      wheelDelta += e.deltaY;
-      if (wheelPending) return;
-      wheelPending = true;
-      requestAnimationFrame(() => {
-        wheelPending = false;
-        const step = -Math.sign(wheelDelta);
-        wheelDelta = 0;
-        if (step === 0) return;
-        const { fontSize: cur, setFontSize } = useTerminalStore.getState();
-        setFontSize(cur + step);
-      });
-    };
-    xtermEl.addEventListener('wheel', onWheel, { passive: false });
-
-    const onContextMenu = (e: MouseEvent) => {
-      e.preventDefault();
-      readClipboardAndPaste();
-    };
-    xtermEl.addEventListener('contextmenu', onContextMenu);
-
-    const onMouseDown = (e: MouseEvent) => {
-      if (e.button !== 1 || !isLinux) return;
-      e.preventDefault();
-      readClipboardAndPaste();
-    };
-    xtermEl.addEventListener('mousedown', onMouseDown);
-
-    // Drag & drop
-    const onDragOver = (e: DragEvent) => {
-      if (
-        e.dataTransfer?.types.includes('Files') ||
-        e.dataTransfer?.types.includes('text/uri-list')
-      ) {
-        e.preventDefault();
-      }
-    };
-    const onDrop = (e: DragEvent) => {
-      const dt = e.dataTransfer;
-      if (!dt) return;
-      e.preventDefault();
-      const uriList = dt.getData('text/uri-list');
-      if (uriList) {
-        const paths = uriList
-          .split(/\r?\n/)
-          .filter((line) => line && !line.startsWith('#'))
-          .map((uri) => {
-            try {
-              const u = new URL(uri);
-              if (u.protocol === 'file:') return decodeURIComponent(u.pathname);
-            } catch {
-              // Not a URL
-            }
-            return uri;
-          });
-        if (paths.length > 0) {
-          const quoted = paths.map((p) => `'${p.replace(/'/g, `'\\''`)}'`).join(' ');
-          pasteText(quoted);
-          return;
-        }
-      }
-      const text = dt.getData('text/plain');
-      if (text) pasteText(text);
-    };
-    xtermEl.addEventListener('dragover', onDragOver);
-    xtermEl.addEventListener('drop', onDrop);
+    const teardownPointer = installXtermPointerHandlers(terminal, xtermEl);
 
     // Send keystrokes to local PTY
     terminal.onData((data) => {
@@ -358,11 +206,7 @@ export function LocalTerminalPane({ sessionId, isActive }: LocalTerminalPaneProp
       cleanupData();
       cleanupExit();
       observer.disconnect();
-      xtermEl.removeEventListener('wheel', onWheel);
-      xtermEl.removeEventListener('contextmenu', onContextMenu);
-      xtermEl.removeEventListener('mousedown', onMouseDown);
-      xtermEl.removeEventListener('dragover', onDragOver);
-      xtermEl.removeEventListener('drop', onDrop);
+      teardownPointer();
       if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
       terminal.dispose();
       terminalRef.current = null;
