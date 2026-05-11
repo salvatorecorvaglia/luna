@@ -23,10 +23,7 @@ export function getMainWindow(): BrowserWindow | null {
 function assertFromMainWindow(sender: WebContents): BrowserWindow {
   const win = BrowserWindow.fromWebContents(sender);
   if (!win || !mainWindowRef || win.id !== mainWindowRef.id) {
-    throw new LunarError(
-      'Window control is restricted to the main window',
-      ErrorCode.FORBIDDEN,
-    );
+    throw new LunarError('Window control is restricted to the main window', ErrorCode.FORBIDDEN);
   }
   return win;
 }
