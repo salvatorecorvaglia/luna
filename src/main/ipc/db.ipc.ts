@@ -38,10 +38,31 @@ const SETTING_TYPES: Record<keyof AppSettings, SettingTypeName> = {
 };
 const VALID_SETTINGS_KEYS = new Set(Object.keys(SETTING_TYPES));
 
+/**
+ * Inclusive bounds for numeric settings. Anything outside this range will be
+ * rejected during SETTING_SET. Without these, a renderer could write
+ * `Number.MAX_SAFE_INTEGER` or `0` and put the consumer (e.g. transfer queue
+ * concurrency) into a wedged state. `Number.isFinite` in `checkSettingType`
+ * already strips NaN/Infinity, but doesn't bound the magnitude.
+ */
+const SETTING_NUMERIC_BOUNDS: Partial<Record<keyof AppSettings, { min: number; max: number }>> = {
+  'terminal.fontSize': { min: 8, max: 72 },
+  'terminal.scrollback': { min: 0, max: 1_000_000 },
+  'transfer.concurrency': { min: 1, max: LIMITS.MAX_CONCURRENT_TRANSFERS },
+  'ssh.keepAliveInterval': { min: 0, max: 600_000 },
+  'ssh.maxReconnectAttempts': { min: 0, max: 100 },
+  'ssh.readyTimeout': { min: 1_000, max: 600_000 },
+};
+
 function checkSettingType(key: string, parsed: unknown): boolean {
   const expected = SETTING_TYPES[key as keyof AppSettings];
   if (!expected) return false;
-  if (expected === 'number') return typeof parsed === 'number' && Number.isFinite(parsed);
+  if (expected === 'number') {
+    if (typeof parsed !== 'number' || !Number.isFinite(parsed)) return false;
+    const bounds = SETTING_NUMERIC_BOUNDS[key as keyof AppSettings];
+    if (bounds && (parsed < bounds.min || parsed > bounds.max)) return false;
+    return true;
+  }
   return typeof parsed === expected;
 }
 
@@ -328,10 +349,41 @@ export function registerDbHandlers(): void {
     }
   }
 
-  function importConnections(connections: ExportedConnection[]): {
+  /**
+   * Current on-disk export format version. Bumped when the schema changes in
+   * a breaking way; importers reject unknown versions instead of silently
+   * dropping fields they don't understand.
+   */
+  const LUNAR_EXPORT_FORMAT_VERSION = 1;
+
+  /**
+   * Normalize an imported payload into a `ExportedConnection[]`. Accepts:
+   *   - bare array (legacy, pre-version-stamp exports)
+   *   - `{ version, connections }` envelope (current)
+   * Throws on unknown envelope versions so we don't silently mis-parse a
+   * future format with renamed / re-typed fields.
+   */
+  function unwrapImportPayload(input: unknown): ExportedConnection[] {
+    if (Array.isArray(input)) return input as ExportedConnection[];
+    if (input && typeof input === 'object') {
+      const env = input as { version?: unknown; connections?: unknown };
+      if (env.version !== undefined) {
+        if (env.version !== LUNAR_EXPORT_FORMAT_VERSION) {
+          throw new Error(
+            `Unsupported export format version ${String(env.version)} (expected ${LUNAR_EXPORT_FORMAT_VERSION})`,
+          );
+        }
+      }
+      if (Array.isArray(env.connections)) return env.connections as ExportedConnection[];
+    }
+    throw new Error('Expected an array of connections or { version, connections } envelope');
+  }
+
+  function importConnections(payload: ExportedConnection[] | unknown): {
     imported: number;
     skipped: { name: string; reason: string }[];
   } {
+    const connections = unwrapImportPayload(payload);
     if (!Array.isArray(connections)) throw new Error('Expected an array of connections');
     if (connections.length > MAX_IMPORT_CONNECTIONS) {
       throw new Error(
@@ -478,9 +530,9 @@ export function registerDbHandlers(): void {
       throw new Error(`Import file is too large: ${stats.size} bytes (max ${MAX_IMPORT_BYTES})`);
     }
     const content = await readFile(path, 'utf-8');
-    let parsed: ExportedConnection[];
+    let parsed: unknown;
     try {
-      parsed = JSON.parse(content) as ExportedConnection[];
+      parsed = JSON.parse(content);
     } catch {
       // Don't surface raw file content (which may include arbitrary bytes) to the renderer.
       throw new Error('Import file is not valid JSON');

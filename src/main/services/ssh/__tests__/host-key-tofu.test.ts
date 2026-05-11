@@ -38,6 +38,7 @@ vi.mock('../../host-key-store', () => ({
   getStoredHostKey: () => null,
   fingerprintKey: (key: Buffer) => `SHA256:${key.toString('hex').slice(0, 12)}`,
   formatHostKey: (host: string, port: number) => `${host}:${port}`,
+  isAllowedHostKeyAlgorithm: (algo: string) => algo !== 'ssh-dss',
   updateHostKey: (host: string, port: number, key: Buffer, algorithm: string) => {
     stored.push({ host, port, key, algorithm });
   },

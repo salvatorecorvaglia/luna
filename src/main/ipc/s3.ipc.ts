@@ -100,6 +100,12 @@ export function registerS3Handlers(): void {
         region: opts.region || 'us-east-1',
         endpoint: opts.endpoint || undefined,
         forcePathStyle: opts.forcePathStyle ?? false,
+        // Cap connect/request time so an unreachable endpoint surfaces a
+        // quick error instead of hanging on the default ~30s TCP timeout.
+        requestHandler: { requestTimeout: 10_000, connectionTimeout: 5_000 },
+        // Don't retry — the user is testing the connection; a failure should
+        // be returned immediately, not amplified into 3× 10s waits.
+        maxAttempts: 1,
         credentials: {
           accessKeyId: opts.accessKeyId,
           secretAccessKey: opts.secretAccessKey,

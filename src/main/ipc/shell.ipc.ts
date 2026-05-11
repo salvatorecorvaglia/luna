@@ -4,7 +4,7 @@ import { constants as fsConstants } from 'fs';
 import { basename, isAbsolute, join, resolve } from 'path';
 import { homedir } from 'os';
 import { IPC } from '@shared/constants';
-import { assertValidPath } from '../lib/validate';
+import { assertSafeAbsolutePath, assertValidPath } from '../lib/validate';
 import type { LocalFileEntry } from '@shared/types/sftp';
 
 export function registerShellHandlers(): void {
@@ -146,11 +146,14 @@ export function registerShellHandlers(): void {
   ipcMain.handle(
     IPC.SHELL_JOIN_PATH,
     (_event, { base, fileName }: { base: string; fileName: string }) => {
-      assertValidPath(base, 'base');
+      // base must be an absolute, canonical, home-confined path. Otherwise a
+      // relative `../../etc` would join with basename(fileName) into a path
+      // that escapes the user's home — `resolve()` alone wouldn't catch it
+      // because resolve makes any relative input absolute against cwd.
+      assertSafeAbsolutePath(base, 'base');
       assertValidPath(fileName, 'fileName');
       // Sanitize: use only the basename to prevent path traversal
       const safeName = basename(fileName);
-      // Resolve guarantees we stay under `base` after joining since safeName has no separators.
       return resolve(join(base, safeName));
     },
   );

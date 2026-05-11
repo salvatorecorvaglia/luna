@@ -5,6 +5,7 @@ const updates: { host: string; port: number; key: Buffer; algorithm: string }[] 
 vi.mock('../../host-key-store', () => ({
   formatHostKey: (host: string, port: number) => `${host}:${port}`,
   fingerprintKey: (key: Buffer) => `sha256:${key.toString('hex').slice(0, 8)}`,
+  isAllowedHostKeyAlgorithm: (algo: string) => algo !== 'ssh-dss' && algo !== 'unknown',
   updateHostKey: (host: string, port: number, key: Buffer, algorithm: string) => {
     updates.push({ host, port, key, algorithm });
   },
@@ -97,6 +98,15 @@ describe('PendingHostKeyRegistry', () => {
     expect(reg.trust('h0', 22)).not.toBeNull();
     expect(reg.trust('h1', 22)).toBeNull();
     expect(reg.trust('h64', 22)).not.toBeNull();
+  });
+
+  it('trust() refuses to commit a candidate with a disallowed algorithm', () => {
+    const reg = new PendingHostKeyRegistry();
+    reg.remember('host', 22, Buffer.from('aa', 'hex'), 'ssh-dss');
+    expect(reg.trust('host', 22)).toBeNull();
+    expect(updates).toEqual([]);
+    // candidate is dropped so a retry can't paper over the rejection
+    expect(reg.trust('host', 22)).toBeNull();
   });
 
   it('forget() drops a candidate without trusting it', () => {
