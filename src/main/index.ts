@@ -53,7 +53,8 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      plugins: true,
+      plugins: false,
+      webviewTag: false,
     },
   });
 
@@ -92,6 +93,38 @@ function createWindow(): void {
 }
 
 void app.whenReady().then(() => {
+  // Deny all renderer permission requests by default. Lunar is a desktop tool
+  // for SSH/SFTP/S3 and never needs camera, microphone, geolocation, MIDI,
+  // notifications, etc. — silently denying these closes a class of
+  // social-engineering / compromised-renderer attacks.
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    log.warn(`[Main] Denied renderer permission request: ${permission}`);
+    callback(false);
+  });
+  session.defaultSession.setPermissionCheckHandler(() => false);
+
+  // Hard-block navigation away from the bundled renderer. An attacker who
+  // managed to inject a link or auto-navigate the WebContents would otherwise
+  // bypass setWindowOpenHandler entirely via top-level navigation.
+  app.on('web-contents-created', (_event, contents) => {
+    contents.on('will-navigate', (event, url) => {
+      try {
+        const u = new URL(url);
+        const isDevRenderer =
+          is.dev && process.env['ELECTRON_RENDERER_URL']?.startsWith(`${u.protocol}//${u.host}`);
+        if (u.protocol !== 'file:' && !isDevRenderer) {
+          log.warn(`[Main] Blocked navigation to ${url}`);
+          event.preventDefault();
+        }
+      } catch {
+        event.preventDefault();
+      }
+    });
+    contents.on('will-attach-webview', (event) => {
+      event.preventDefault();
+    });
+  });
+
   // Content-Security-Policy: lock the renderer to its own bundle in production.
   // Skipped in dev because Vite's HMR client uses inline scripts + a websocket
   // back to localhost, which a strict policy would block (resulting in a blank

@@ -4,7 +4,7 @@ import { constants as fsConstants } from 'fs';
 import { basename, isAbsolute, join, resolve } from 'path';
 import { homedir } from 'os';
 import { IPC } from '@shared/constants';
-import { assertSafeAbsolutePath, assertValidPath } from '../lib/validate';
+import { assertSafeAbsolutePath, assertValidPath, isInsideDir } from '../lib/validate';
 import type { LocalFileEntry } from '@shared/types/sftp';
 
 export function registerShellHandlers(): void {
@@ -15,8 +15,10 @@ export function registerShellHandlers(): void {
     }
     const normalized = resolve(dirPath);
     // Defense-in-depth — restrict directory listing to the user's home subtree.
+    // Use path.relative-based check so look-alike names like `/home/user-other`
+    // can't slip past a naive `startsWith(home + '/')` prefix match.
     const home = homedir();
-    if (!normalized.startsWith(home + '/') && normalized !== home) {
+    if (!isInsideDir(normalized, home)) {
       throw new Error('Access denied: directory listing is restricted to the home directory');
     }
     const entries = await readdir(normalized, { withFileTypes: true });
@@ -37,7 +39,7 @@ export function registerShellHandlers(): void {
           try {
             const target = await stat(fullPath);
             const targetPath = resolve(fullPath);
-            const stillUnderHome = targetPath.startsWith(home + '/') || targetPath === home;
+            const stillUnderHome = isInsideDir(targetPath, home);
             if (stillUnderHome) {
               targetIsDirectory = target.isDirectory();
               size = target.size;
@@ -161,10 +163,19 @@ export function registerShellHandlers(): void {
     assertValidPath(filePath, 'filePath');
     const expanded = resolve(filePath.replace(/^~/, homedir()));
 
-    // Jail check
+    // Jail check (path.relative-based — see SHELL_READDIR for rationale).
     const home = homedir();
-    if (!expanded.startsWith(home + '/') && expanded !== home) {
+    if (!isInsideDir(expanded, home)) {
       throw new Error('Access denied: file reading is restricted to the home directory');
+    }
+    // Reject symlinks pointing outside the home jail. `stat()` would otherwise
+    // happily disclose metadata of /etc/passwd via a crafted ~/passwd symlink.
+    const ls = await lstat(expanded);
+    if (ls.isSymbolicLink()) {
+      const resolvedTarget = await (await import('fs/promises')).realpath(expanded);
+      if (!isInsideDir(resolvedTarget, home)) {
+        throw new Error('Access denied: symlink target is outside the home directory');
+      }
     }
 
     const s = await stat(expanded);

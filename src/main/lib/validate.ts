@@ -33,7 +33,7 @@ export function assertValidPath(value: unknown, name: string): asserts value is 
  * — naive `startsWith(parent + '/')` checks miss Windows separators and let
  * sibling-prefix paths like `/home/foo-attacker` slip through.
  */
-function isInsideDir(child: string, parent: string): boolean {
+export function isInsideDir(child: string, parent: string): boolean {
   if (child === parent) return true;
   const rel = relative(parent, child);
   if (rel.length === 0) return true;
