@@ -1,5 +1,5 @@
 import { readFile, stat } from 'fs/promises';
-import type { ConnectConfig } from 'ssh2';
+import { type ConnectConfig, type CipherAlgorithm } from 'ssh2';
 import type { AuthType } from '@shared/types/connection';
 import { IPC } from '@shared/constants';
 import { emitToRenderer } from '../emit';
@@ -7,8 +7,29 @@ import { fingerprintKey, getStoredHostKey, verifyHostKey } from '../host-key-sto
 import { getSetting } from '../database';
 import { retrieveCredential } from '../credential-store';
 import { expandAndConfineToHome } from '../../lib/validate';
+import { getCiphers } from 'crypto';
 import log from '../../lib/logger';
 import { parseHostKeyAlgorithm, type PendingHostKeyRegistry } from './host-key-flow';
+
+/**
+ * Filter a list of SSH algorithms against what the current Node.js crypto
+ * implementation actually supports. Prevents "Unsupported algorithm" errors
+ * when a modern primitive (like chacha20-poly1305) is missing from the
+ * underlying OpenSSL build.
+ */
+function filterSupportedCiphers(requested: CipherAlgorithm[]): CipherAlgorithm[] {
+  const supported = new Set(getCiphers());
+  return requested.filter((c) => {
+    // Map SSH cipher names to OpenSSL names used by Node's crypto.getCiphers()
+    if (c === 'chacha20-poly1305@openssh.com') return supported.has('chacha20-poly1305');
+    if (c === 'aes128-gcm@openssh.com') return supported.has('aes-128-gcm');
+    if (c === 'aes256-gcm@openssh.com') return supported.has('aes-256-gcm');
+    if (c === 'aes128-ctr') return supported.has('aes-128-ctr');
+    if (c === 'aes192-ctr') return supported.has('aes-192-ctr');
+    if (c === 'aes256-ctr') return supported.has('aes-256-ctr');
+    return true;
+  });
+}
 
 export interface ConnectParams {
   host: string;
@@ -96,14 +117,14 @@ export async function buildConnectConfig(
         'diffie-hellman-group16-sha512',
         'diffie-hellman-group18-sha512',
       ],
-      cipher: [
+      cipher: filterSupportedCiphers([
         'chacha20-poly1305@openssh.com',
         'aes128-gcm@openssh.com',
         'aes256-gcm@openssh.com',
         'aes128-ctr',
         'aes192-ctr',
         'aes256-ctr',
-      ],
+      ]),
       serverHostKey: [
         'ssh-ed25519',
         'ecdsa-sha2-nistp256',
