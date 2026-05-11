@@ -24,7 +24,7 @@ export function ConnectionForm() {
     useConnectionStore();
   const { data: editingConnection } = useConnection(editingConnectionId);
   const { data: duplicatingConnection } = useConnection(duplicatingConnectionId);
-  const { data: existingConnections } = useConnections();
+  const { data: existingConnections, isLoading: connectionsLoading } = useConnections();
   const createMutation = useCreateConnection();
   const updateMutation = useUpdateConnection();
 
@@ -805,12 +805,25 @@ export function ConnectionForm() {
                     </button>
                     <button
                       type="submit"
-                      disabled={isSaving}
-                      aria-busy={isSaving}
+                      // Block submit while the existing-connections query is
+                      // still loading: the duplicate-name check needs the list
+                      // to be definitive, otherwise a save could silently
+                      // collide with an existing record.
+                      disabled={isSaving || connectionsLoading}
+                      aria-busy={isSaving || connectionsLoading}
                       className="btn-primary"
+                      title={connectionsLoading ? 'Loading connections…' : undefined}
                     >
-                      {isSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                      {isSaving ? 'Saving...' : isEditing ? 'Update' : 'Create'}
+                      {(isSaving || connectionsLoading) && (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      )}
+                      {isSaving
+                        ? 'Saving...'
+                        : connectionsLoading
+                          ? 'Loading…'
+                          : isEditing
+                            ? 'Update'
+                            : 'Create'}
                     </button>
                   </div>
                 </div>
