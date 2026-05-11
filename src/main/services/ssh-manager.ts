@@ -239,7 +239,6 @@ class SshManager {
 
           // Hand off lifecycle responsibilities from the handshake-only listeners
           // to the long-lived ones below. These survive until disconnect().
-          settle({ success: true });
           for (const cb of this.onConnectCallbacks) {
             try {
               cb(sessionId);
@@ -247,6 +246,9 @@ class SshManager {
               log.warn(`[SSH] onConnect callback threw for ${sessionId}:`, cbErr);
             }
           }
+
+          settle({ success: true });
+
           client.on('error', (err) => {
             const friendly = describeSshError(err);
             emitToRenderer(IPC.SSH_ON_ERROR, { sessionId, error: friendly });
