@@ -69,6 +69,12 @@ export function TitleBar() {
         {/* View Switcher */}
         <div className="ml-1 flex items-center rounded-lg bg-muted/60 p-[3px]">
           <ViewTab
+            active={activeView === 'local'}
+            onClick={() => setActiveView('local')}
+            icon={<Monitor className="h-3.5 w-3.5" />}
+            label="Local"
+          />
+          <ViewTab
             active={activeView === 'terminal'}
             onClick={() => setActiveView('terminal')}
             icon={<Terminal className="h-3.5 w-3.5" />}
@@ -79,12 +85,6 @@ export function TitleBar() {
             onClick={() => setActiveView('sftp')}
             icon={<FolderOpen className="h-3.5 w-3.5" />}
             label="SFTP"
-          />
-          <ViewTab
-            active={activeView === 'local'}
-            onClick={() => setActiveView('local')}
-            icon={<Monitor className="h-3.5 w-3.5" />}
-            label="Local"
           />
         </div>
       </div>
