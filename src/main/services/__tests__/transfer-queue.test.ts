@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { stat as fsStat } from 'fs/promises';
 import { IPC, LIMITS } from '@shared/constants';
 import { transferQueue } from '../transfer-queue';
 import { emitToRenderer } from '../emit';
@@ -47,10 +48,12 @@ function resetQueue(): void {
     queue: unknown[];
     active: Map<string, unknown>;
     dedupIndex?: Map<string, string>;
+    reserved?: Set<string>;
   };
   q.queue.length = 0;
   q.active.clear();
   q.dedupIndex?.clear();
+  q.reserved?.clear();
 }
 
 beforeEach(() => {
@@ -87,6 +90,29 @@ describe('transferQueue', () => {
     const otherRemote = await transferQueue.enqueue('upload', 'sess', '/l', '/r2');
     const ids = new Set([upload, download, otherSession, otherLocal, otherRemote]);
     expect(ids.size).toBe(5);
+  });
+
+  it('dedups concurrent enqueues that race through the stat() await', async () => {
+    // Regression: enqueue() reserves the dedup key synchronously before the
+    // stat() await. Without that reservation, two concurrent calls both pass
+    // the dedup check, both await stat, and both push duplicate transfers.
+    let releaseStat: ((value: { size: number }) => void) | undefined;
+    const pendingStat = new Promise<{ size: number }>((resolve) => {
+      releaseStat = resolve;
+    });
+    (fsStat as unknown as { mockReturnValueOnce: (v: unknown) => void }).mockReturnValueOnce(
+      pendingStat,
+    );
+
+    const first = transferQueue.enqueue('upload', 'sess', '/dup', '/dup-r');
+    // Yield so the first call enters stat() and reserves the dedup key.
+    await Promise.resolve();
+    const second = transferQueue.enqueue('upload', 'sess', '/dup', '/dup-r');
+
+    releaseStat!({ size: 0 });
+    const [a, b] = await Promise.all([first, second]);
+    expect(a).toBe(b);
+    expect(transferQueue.getActiveCount() + transferQueue.getQueuedCount()).toBe(1);
   });
 
   it('frees the dedup slot after cancel so a re-enqueue is a fresh transfer', async () => {
