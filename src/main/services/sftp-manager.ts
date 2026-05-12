@@ -24,6 +24,14 @@ const ABORT_CLEANUP_DELAY_MS = 50;
 
 class SftpManager {
   private sftpSessions = new Map<string, SFTPWrapper>();
+  /**
+   * In-flight SFTP-subsystem open promises, keyed by sessionId. Concurrent
+   * callers of getSftp() for the same session share one open instead of each
+   * opening a fresh subsystem and discarding all but the last — which leaks
+   * the SFTPWrapper instances we drop on the floor when `sftpSessions.set`
+   * overwrites them.
+   */
+  private opening = new Map<string, Promise<SFTPWrapper>>();
   private lastAccess = new Map<string, number>();
   /** Number of in-flight ops per session — idle sweep skips sessions with leases > 0. */
   private leases = new Map<string, number>();
@@ -38,6 +46,7 @@ class SftpManager {
   constructor() {
     sshManager.onSessionDisconnect((sessionId) => {
       this.sftpSessions.delete(sessionId);
+      this.opening.delete(sessionId);
       this.lastAccess.delete(sessionId);
       this.leases.delete(sessionId);
       this.closing.delete(sessionId);
@@ -111,12 +120,19 @@ class SftpManager {
     const existing = this.sftpSessions.get(sessionId);
     if (existing) return existing;
 
+    // Coalesce concurrent opens. Without this, two callers entering getSftp()
+    // before either has installed the wrapper would both call client.sftp(),
+    // each get a fresh SFTPWrapper, and the second sftpSessions.set() would
+    // strand the first (no end() call, no close listener attached → leak).
+    const inFlight = this.opening.get(sessionId);
+    if (inFlight) return inFlight;
+
     const session = sshManager.getSession(sessionId);
     if (!session) {
       throw new SshConnectionError('SSH session not found');
     }
 
-    return new Promise<SFTPWrapper>((resolve, reject) => {
+    const open = new Promise<SFTPWrapper>((resolve, reject) => {
       session.client.sftp((err, sftp) => {
         if (err) return reject(err);
         this.sftpSessions.set(sessionId, sftp);
@@ -127,7 +143,13 @@ class SftpManager {
 
         resolve(sftp);
       });
+    }).finally(() => {
+      // Clear the reservation once the open settles so a later disconnect →
+      // reconnect cycle can open a fresh subsystem.
+      if (this.opening.get(sessionId) === open) this.opening.delete(sessionId);
     });
+    this.opening.set(sessionId, open);
+    return open;
   }
 
   /** Run an SFTP operation with timeout + auto-invalidate the session on fatal errors. */

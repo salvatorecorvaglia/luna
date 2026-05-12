@@ -88,6 +88,44 @@ describe('sshManager', () => {
     expect(seen.sort()).toEqual(ids);
   });
 
+  it('cleans up the prior client when connect() reuses a sessionId', async () => {
+    // Regression: a renderer-initiated double-connect for the same sessionId
+    // used to overwrite the session entry without destroying the prior Client,
+    // leaking its handshake listeners and socket and letting a delayed 'close'
+    // from the abandoned client mark the new session disconnected.
+    const removeAllListeners = vi.fn();
+    const destroy = vi.fn();
+    const shellClose = vi.fn();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const m = sshManager as any as { sessions: Map<string, unknown> };
+    m.sessions.set('dup-session', {
+      id: 'dup-session',
+      connectionId: 'conn-id-1',
+      client: { removeAllListeners, destroy, end: vi.fn() },
+      shell: { close: shellClose },
+      status: 'connected',
+      reconnectAttempts: 0,
+      reconnectTimer: null,
+      reconnecting: false,
+      reconnectGen: 7,
+    });
+
+    // Fire connect; the cleanup branch runs synchronously before the first
+    // await, so we can inspect the spies immediately without waiting for the
+    // connect promise (which won't resolve in this minimal mock setup).
+    void sshManager.connect('dup-session', 'conn-id-1');
+    await Promise.resolve();
+
+    expect(removeAllListeners).toHaveBeenCalledTimes(1);
+    expect(destroy).toHaveBeenCalledTimes(1);
+    expect(shellClose).toHaveBeenCalledTimes(1);
+    // The new session should carry an incremented generation so any timers
+    // captured from the prior session bail on stale state.
+    const fresh = (m.sessions.get('dup-session') as { reconnectGen: number } | undefined)
+      ?.reconnectGen;
+    expect(fresh).toBe(8);
+  });
+
   it('testConnection should return error if connection not found', async () => {
     vi.mocked(getDatabase).mockReturnValueOnce({
       prepare: vi.fn().mockReturnValue({

@@ -124,7 +124,32 @@ class SshManager {
 
     // Preserve any in-flight reconnect generation so stale timers from a prior
     // session-with-the-same-id don't fire against this fresh client.
-    const prevGen = this.sessions.get(sessionId)?.reconnectGen ?? 0;
+    const existing = this.sessions.get(sessionId);
+    const prevGen = existing?.reconnectGen ?? 0;
+
+    if (existing) {
+      // The internal reconnect path calls client.end() + sessions.delete()
+      // before reaching connect(), so this branch only fires when a renderer
+      // invokes ssh.connect twice for the same sessionId. Without the cleanup
+      // the prior Client's socket + handshake listeners stay alive past the
+      // overwrite below and a 'close' event on the abandoned client would
+      // call handleDisconnect() against the new session entry.
+      this.cleanupStreamListeners(existing);
+      if (existing.reconnectTimer) {
+        clearTimeout(existing.reconnectTimer);
+        existing.reconnectTimer = null;
+      }
+      try {
+        // Drop listeners before destroying so the synthetic 'close'/'error'
+        // from teardown can't reach the soon-to-be-replaced session entry.
+        existing.client.removeAllListeners();
+        existing.shell?.close();
+        existing.client.destroy();
+      } catch (err) {
+        log.warn(`[SSH] Failed to clean up prior client for ${sessionId}:`, err);
+      }
+    }
+
     const session: SshSession = {
       id: sessionId,
       connectionId,
