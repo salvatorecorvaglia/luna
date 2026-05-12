@@ -119,22 +119,22 @@ export default function App() {
         useConnectionStore.getState().openCreateForm();
       }
 
-      // Cmd+Shift+1 — Switch to Terminal view
+      // Cmd+Shift+1 — Switch to Local view
       if (mod && e.shiftKey && (e.code === 'Digit1' || e.key === '!')) {
+        e.preventDefault();
+        useUIStore.getState().setActiveView('local');
+      }
+
+      // Cmd+Shift+2 — Switch to Terminal view
+      if (mod && e.shiftKey && (e.code === 'Digit2' || e.key === '"' || e.key === '@')) {
         e.preventDefault();
         useUIStore.getState().setActiveView('terminal');
       }
 
-      // Cmd+Shift+2 — Switch to SFTP view
-      if (mod && e.shiftKey && (e.code === 'Digit2' || e.key === '@')) {
+      // Cmd+Shift+3 — Switch to SFTP view
+      if (mod && e.shiftKey && (e.code === 'Digit3' || e.key === '£' || e.key === '#')) {
         e.preventDefault();
         useUIStore.getState().setActiveView('sftp');
-      }
-
-      // Cmd+Shift+3 — Switch to Local Terminal view
-      if (mod && e.shiftKey && (e.code === 'Digit3' || e.key === '#')) {
-        e.preventDefault();
-        useUIStore.getState().setActiveView('local');
       }
     };
 
