@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.5] - 2026-05-12
+
+### Added
+
+- **Security**: Implemented credential tamper notifications to detect unauthorized modifications to stored connection data.
+- **SFTP Infrastructure**: Introduced dedicated IPC support for SFTP operations to improve process isolation and reliability.
+
+### Changed
+
+- **Performance Optimization**: Extracted and centralized the storage rate limiter to ensure consistent throughput across S3 and SFTP providers.
+
+
 ## [0.5.4] - 2026-05-11
 
 ### Added
