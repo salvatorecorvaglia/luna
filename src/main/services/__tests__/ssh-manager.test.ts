@@ -19,6 +19,7 @@ vi.mock('ssh2', () => {
       end = vi.fn();
       destroy = vi.fn();
       removeAllListeners = vi.fn();
+      shell = vi.fn();
     },
   };
 });
