@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron';
 import { homedir } from 'os';
+import { StringDecoder } from 'string_decoder';
 import { IPC } from '@shared/constants';
 import { getMainWindow } from './app.ipc';
 import { assertBoundedInt, assertNonEmptyString } from '../lib/validate';
@@ -87,23 +88,29 @@ export function registerLocalTerminalHandlers(): void {
 
       sessions.set(sessionId, { pty: ptyProcess });
 
+      // StringDecoder buffers incomplete UTF-8 sequences across emits so we
+      // never hand a half-multibyte character to the renderer.
+      const decoder = new StringDecoder('utf8');
       ptyProcess.onData((data: string) => {
         const win = getMainWindow();
         if (!win || win.isDestroyed()) return;
-        // Chunk pathologically large emits so a single 100 MB line can't
-        // freeze the renderer's xterm parser. Slice on byte length so we
-        // never split a code point — Buffer/string lengths are byte-equal
-        // for ASCII and the worst-case (UTF-8) just means slightly smaller
-        // chunks, not corruption.
-        if (Buffer.byteLength(data, 'utf8') <= MAX_PTY_EMIT_BYTES) {
+        const buf = Buffer.from(data, 'utf8');
+        if (buf.byteLength <= MAX_PTY_EMIT_BYTES) {
           win.webContents.send(IPC.LOCAL_TERMINAL_ON_DATA, { sessionId, data });
           return;
         }
-        for (let offset = 0; offset < data.length; offset += MAX_PTY_EMIT_BYTES) {
-          win.webContents.send(IPC.LOCAL_TERMINAL_ON_DATA, {
-            sessionId,
-            data: data.slice(offset, offset + MAX_PTY_EMIT_BYTES),
-          });
+        // Chunk on byte boundaries; StringDecoder reassembles UTF-8 sequences
+        // straddling chunk edges so a 4-byte emoji can't be corrupted.
+        for (let offset = 0; offset < buf.byteLength; offset += MAX_PTY_EMIT_BYTES) {
+          const slice = buf.subarray(offset, offset + MAX_PTY_EMIT_BYTES);
+          const chunk = decoder.write(slice);
+          if (chunk.length > 0) {
+            win.webContents.send(IPC.LOCAL_TERMINAL_ON_DATA, { sessionId, data: chunk });
+          }
+        }
+        const tail = decoder.end();
+        if (tail.length > 0) {
+          win.webContents.send(IPC.LOCAL_TERMINAL_ON_DATA, { sessionId, data: tail });
         }
       });
 

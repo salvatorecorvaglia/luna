@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowUp,
   ChevronRight,
@@ -113,12 +113,16 @@ export function FilePane({
     if (filterOpen) filterInputRef.current?.focus();
   }, [filterOpen]);
 
+  // useDeferredValue defers the heavy filter pass on the previous query so
+  // typing in a 10k-file pane doesn't block keystroke commits. React keeps
+  // the old filtered list visible until the new pass is ready.
+  const deferredFilterQuery = useDeferredValue(filterQuery);
   const visibleEntries = useMemo(() => {
     let list = showHidden ? entries : entries.filter((e) => !e.name.startsWith('.'));
-    const q = filterQuery.trim().toLowerCase();
+    const q = deferredFilterQuery.trim().toLowerCase();
     if (q) list = list.filter((e) => e.name.toLowerCase().includes(q));
     return list;
-  }, [entries, showHidden, filterQuery]);
+  }, [entries, showHidden, deferredFilterQuery]);
 
   const navigateUp = useCallback(() => {
     const parent = path.split('/').slice(0, -1).join('/') || '/';

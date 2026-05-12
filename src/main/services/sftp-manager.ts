@@ -7,6 +7,7 @@ import { LIMITS } from '@shared/constants';
 import { withTimeout } from '../lib/with-timeout';
 import log from '../lib/logger';
 import { AbortError, SftpTransferError, SshConnectionError } from '../lib/errors';
+import { releaseStorageBucket } from '../lib/rate-limiter';
 import { formatPermissions, isSessionFatal } from './sftp/sftp-helpers';
 
 // Deliberately do NOT import transferQueue here — that created a cycle
@@ -40,6 +41,8 @@ class SftpManager {
       this.lastAccess.delete(sessionId);
       this.leases.delete(sessionId);
       this.closing.delete(sessionId);
+      // Free the rate-limiter bucket so disconnected sessions don't accumulate.
+      releaseStorageBucket(sessionId);
     });
 
     this.idleCheckTimer = setInterval(() => this.cleanupIdle(), IDLE_CHECK_INTERVAL_MS);

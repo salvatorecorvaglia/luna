@@ -1,9 +1,11 @@
 import { IPC } from '@shared/constants';
 import {
   deleteCredential,
+  onCredentialTamper,
   retrieveCredential,
   storeCredential,
 } from '../services/credential-store';
+import { getMainWindow } from './app.ipc';
 import { assertNonEmptyString } from '../lib/validate';
 import { registerHandler } from '../lib/ipc-handler';
 import { ErrorCode, LunarError } from '@shared/errors';
@@ -31,6 +33,15 @@ function checkRetrieveRate(): void {
 }
 
 export function registerCredentialHandlers(): void {
+  // Forward decrypt-failure events to the renderer so it can surface a
+  // security banner. The renderer subscribes via window.api.credentials.onTamper.
+  onCredentialTamper((event) => {
+    const win = getMainWindow();
+    if (win && !win.isDestroyed()) {
+      win.webContents.send(IPC.CREDENTIAL_ON_TAMPER, event);
+    }
+  });
+
   registerHandler(
     IPC.CREDENTIAL_STORE,
     (_event, payload: { connectionId: string; secret: string }) => {

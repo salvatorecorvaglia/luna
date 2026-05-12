@@ -7,6 +7,7 @@ import { storageRegistry } from '../services/storage/registry';
 import { s3StorageProvider, type S3SessionOptions } from '../services/s3/s3-provider';
 import { ErrorCode, LunarError } from '@shared/errors';
 import { assertNonEmptyString } from '../lib/validate';
+import { releaseStorageBucket } from '../lib/rate-limiter';
 import type { S3ConnectParams, S3TestConnectionConfig } from '@shared/types/storage-provider';
 import log from '../lib/logger';
 
@@ -58,6 +59,7 @@ export function registerS3Handlers(): void {
     assertNonEmptyString(sessionId, 'sessionId');
     s3StorageProvider.closeSession(sessionId);
     storageRegistry.unregister(sessionId);
+    releaseStorageBucket(sessionId);
   });
 
   ipcMain.handle(

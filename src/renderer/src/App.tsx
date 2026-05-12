@@ -60,6 +60,23 @@ export default function App() {
     };
   }, [warnedAboutBackend]);
 
+  // Surface credential-tamper events as a security toast so an operator sees
+  // a corrupted or attacker-modified credential row immediately rather than
+  // discovering it via a broken connection attempt.
+  useEffect(() => {
+    const cleanup = window.api.credentials.onTamper((event) => {
+      toast.error(
+        `Stored credential for ${event.connectionId.slice(0, 8)}… could not be decrypted and was dropped. Re-enter it in the connection form.`,
+        {
+          duration: 16000,
+          icon: <ShieldAlert className="h-4 w-4" aria-hidden="true" />,
+          description: event.reason,
+        },
+      );
+    });
+    return cleanup;
+  }, []);
+
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

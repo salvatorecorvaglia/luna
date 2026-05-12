@@ -128,6 +128,34 @@ const TAMPER_LOG_DEDUP_MS = 60_000;
 const TAMPER_LOG_DEDUP_MAX = 1_024;
 const tamperLogSeen = new Map<string, number>();
 
+export interface CredentialTamperEvent {
+  connectionId: string;
+  reason: string;
+  at: number;
+}
+
+type TamperListener = (event: CredentialTamperEvent) => void;
+const tamperListeners = new Set<TamperListener>();
+
+/**
+ * Subscribe to credential-tamper events. The main process wires this to a
+ * webContents.send() so the renderer can show a security banner.
+ */
+export function onCredentialTamper(listener: TamperListener): () => void {
+  tamperListeners.add(listener);
+  return () => tamperListeners.delete(listener);
+}
+
+function emitTamper(event: CredentialTamperEvent): void {
+  for (const listener of tamperListeners) {
+    try {
+      listener(event);
+    } catch (err) {
+      log.warn('[Credentials] tamper listener threw', err);
+    }
+  }
+}
+
 function appendTamperLog(message: string): void {
   const now = Date.now();
   const last = tamperLogSeen.get(message);
@@ -232,6 +260,7 @@ export function retrieveCredential(connectionId: string): string | null {
       `[Credentials] Failed to decrypt credential for ${connectionId}; dropping entry: ${message}`,
     );
     appendTamperLog(`decrypt-failure connectionId=${connectionId} reason="${message}"`);
+    emitTamper({ connectionId, reason: message, at: Date.now() });
     try {
       db.prepare('DELETE FROM credentials WHERE connection_id = ?').run(connectionId);
     } catch (deleteErr) {

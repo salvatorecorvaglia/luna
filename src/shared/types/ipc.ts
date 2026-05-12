@@ -150,7 +150,10 @@ export interface IpcHandlerMap {
     request: string;
     response:
       | { ok: true }
-      | { ok: false; reason: 'empty' | 'missing' | 'permission' | 'not-a-file' | 'unknown' };
+      | {
+          ok: false;
+          reason: 'empty' | 'missing' | 'permission' | 'not-a-file' | 'forbidden' | 'unknown';
+        };
   };
   'shell:read-file': { request: string; response: { content: string; size: number } };
 
@@ -231,6 +234,7 @@ export interface IpcEventMap {
   'transfer:complete': TransferCompleteEvent;
   'transfer:error': TransferErrorEvent;
   'transfer:cancelled': TransferCompleteEvent;
+  'credential:on-tamper': { connectionId: string; reason: string; at: number };
   'app:update-available': { version: string };
   'app:update-download-progress': { percent: number; bytesPerSecond: number };
   'app:update-downloaded': Record<string, never>;

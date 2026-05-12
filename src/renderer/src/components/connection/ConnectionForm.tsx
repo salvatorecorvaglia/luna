@@ -154,6 +154,22 @@ export function ConnectionForm() {
     setDirty(false);
   }, [editingConnection, duplicatingConnection, connectionFormOpen, resetForm]);
 
+  // Defence-in-depth: whenever the form transitions to closed (cancel,
+  // escape, X button, discard, *or* submit), wipe transient secrets from
+  // React state. Submit also clears them inline before closeForm() so the
+  // window is short, but this effect catches every other close path so a
+  // cleartext password can't linger across the close animation.
+  useEffect(() => {
+    if (connectionFormOpen) return;
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setPassword('');
+    setPassphrase('');
+    setSecretAccessKey('');
+    setSessionToken('');
+    setAccessKeyId('');
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [connectionFormOpen]);
+
   // Guarded close: prompt to confirm discard if the user has typed anything.
   const requestClose = useCallback(() => {
     if (dirty && !isSaving) {
