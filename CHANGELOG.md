@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.6] - 2026-05-12
+
+### Added
+
+- **Navigation UX**: Reordered the main view switcher tabs (Local, Terminal, SFTP) and updated global keyboard shortcuts to align with the new layout for a more intuitive workflow.
+
+### Changed
+
+- **Branding**: Updated the application tagline to "Your place in one calm workspace" across documentation and settings.
+
+### Fixed
+
+- **SSH & SFTP Stability**: Implemented session cleanup on SSH reconnection and coalesced concurrent SFTP subsystem requests to prevent connection leaks.
+- **Transfer Reliability**: Resolved potential duplicate transfers by implementing synchronous reservation of deduplication keys.
+- **Test Infrastructure**: Added shell mocks to the SSH manager test helpers to improve test isolation and reliability.
+
 ## [0.5.5] - 2026-05-12
 
 ### Added
