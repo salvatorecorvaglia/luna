@@ -8,6 +8,7 @@ import {
   assertSafeRealAbsolutePath,
   assertValidPath,
 } from '../lib/validate';
+import { takeStorageToken } from '../lib/rate-limiter';
 import type {
   SftpDeleteParams,
   SftpListParams,
@@ -22,18 +23,21 @@ export function registerSftpHandlers(): void {
   ipcMain.handle(IPC.SFTP_LIST, async (_event, params: SftpListParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
     assertValidPath(params.path, 'path');
+    takeStorageToken(params.sessionId);
     return sftpManager.list(params.sessionId, params.path);
   });
 
   ipcMain.handle(IPC.SFTP_STAT, async (_event, params: SftpStatParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
     assertValidPath(params.path, 'path');
+    takeStorageToken(params.sessionId);
     return sftpManager.stat(params.sessionId, params.path);
   });
 
   ipcMain.handle(IPC.SFTP_MKDIR, async (_event, params: SftpMkdirParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
     assertValidPath(params.path, 'path');
+    takeStorageToken(params.sessionId);
     return sftpManager.mkdir(params.sessionId, params.path);
   });
 
@@ -41,12 +45,14 @@ export function registerSftpHandlers(): void {
     assertNonEmptyString(params.sessionId, 'sessionId');
     assertValidPath(params.oldPath, 'oldPath');
     assertValidPath(params.newPath, 'newPath');
+    takeStorageToken(params.sessionId);
     return sftpManager.rename(params.sessionId, params.oldPath, params.newPath);
   });
 
   ipcMain.handle(IPC.SFTP_DELETE, async (_event, params: SftpDeleteParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
     assertValidPath(params.path, 'path');
+    takeStorageToken(params.sessionId);
     return sftpManager.remove(params.sessionId, params.path, params.isDirectory);
   });
 
@@ -56,6 +62,7 @@ export function registerSftpHandlers(): void {
     if (params.maxSize !== undefined) {
       assertBoundedInt(params.maxSize, 'maxSize', 1, LIMITS.MAX_PREVIEW_BYTES);
     }
+    takeStorageToken(params.sessionId);
     return sftpManager.readFile(params.sessionId, params.path, params.maxSize);
   });
 

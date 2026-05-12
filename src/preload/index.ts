@@ -240,6 +240,7 @@ const api = {
       invoke(IPC.CREDENTIAL_STORE, { connectionId, secret }),
     retrieve: (connectionId: string) => invoke(IPC.CREDENTIAL_RETRIEVE, connectionId),
     delete: (connectionId: string) => invoke(IPC.CREDENTIAL_DELETE, connectionId),
+    onTamper: createEventListener(IPC.CREDENTIAL_ON_TAMPER),
   },
 
   // Settings

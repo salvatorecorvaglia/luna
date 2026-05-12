@@ -19,6 +19,11 @@ vi.mock('../../services/credential-store', () => ({
   storeCredential: (...a: unknown[]) => store(...a),
   retrieveCredential: (...a: unknown[]) => retrieve(...a),
   deleteCredential: (...a: unknown[]) => del(...a),
+  onCredentialTamper: () => () => {},
+}));
+
+vi.mock('../app.ipc', () => ({
+  getMainWindow: () => null,
 }));
 
 vi.mock('../../lib/logger', () => ({

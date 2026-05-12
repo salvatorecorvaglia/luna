@@ -79,6 +79,7 @@ export const IPC = {
   CREDENTIAL_STORE: 'credential:store',
   CREDENTIAL_RETRIEVE: 'credential:retrieve',
   CREDENTIAL_DELETE: 'credential:delete',
+  CREDENTIAL_ON_TAMPER: 'credential:on-tamper',
 
   // Settings
   SETTINGS_GET: 'settings:get',

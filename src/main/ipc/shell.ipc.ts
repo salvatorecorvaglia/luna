@@ -1,11 +1,16 @@
 import { dialog, ipcMain } from 'electron';
-import { access, lstat, readdir, stat, writeFile } from 'fs/promises';
+import { access, lstat, readdir, readFile, realpath, stat, writeFile } from 'fs/promises';
 import { constants as fsConstants } from 'fs';
 import { basename, isAbsolute, join, resolve } from 'path';
 import { homedir } from 'os';
 import { IPC } from '@shared/constants';
 import { ErrorCode, LunarError } from '@shared/errors';
-import { assertSafeAbsolutePath, assertValidPath, isInsideDir } from '../lib/validate';
+import {
+  assertSafeAbsolutePath,
+  assertValidPath,
+  expandAndConfineToHome,
+  isInsideDir,
+} from '../lib/validate';
 import type { LocalFileEntry } from '@shared/types/sftp';
 
 export function registerShellHandlers(): void {
@@ -42,7 +47,10 @@ export function registerShellHandlers(): void {
         if (ls.isSymbolicLink()) {
           try {
             const target = await stat(fullPath);
-            const targetPath = resolve(fullPath);
+            // realpath dereferences symlinks; resolve() only canonicalises the
+            // path string, so a symlink targeting /etc would slip past the
+            // home-jail check.
+            const targetPath = await realpath(fullPath);
             const stillUnderHome = isInsideDir(targetPath, home);
             if (stillUnderHome) {
               targetIsDirectory = target.isDirectory();
@@ -133,11 +141,24 @@ export function registerShellHandlers(): void {
     if (typeof filePath !== 'string' || filePath.length === 0) {
       return { ok: false, reason: 'empty' as const };
     }
-    const expanded = filePath.replace(/^~/, homedir());
+    let expanded: string;
+    try {
+      // Confines `~`/absolute paths to home and rejects `..` traversal.
+      expanded = await expandAndConfineToHome(filePath, 'filePath');
+    } catch {
+      return { ok: false, reason: 'forbidden' as const };
+    }
     try {
       const ls = await lstat(expanded);
       if (!ls.isFile() && !ls.isSymbolicLink()) {
         return { ok: false, reason: 'not-a-file' as const };
+      }
+      if (ls.isSymbolicLink()) {
+        // Ensure the symlink target also stays inside home.
+        const real = await realpath(expanded);
+        if (!isInsideDir(real, homedir())) {
+          return { ok: false, reason: 'forbidden' as const };
+        }
       }
       await access(expanded, fsConstants.R_OK);
       return { ok: true as const };
@@ -165,30 +186,23 @@ export function registerShellHandlers(): void {
   );
   ipcMain.handle(IPC.SHELL_READ_FILE, async (_event, filePath: string) => {
     assertValidPath(filePath, 'filePath');
-    const expanded = resolve(filePath.replace(/^~/, homedir()));
-
-    // Jail check (path.relative-based — see SHELL_READDIR for rationale).
+    // expandAndConfineToHome handles ~ expansion, absolute-path enforcement,
+    // and home-jail confinement consistently with the rest of the IPC layer.
+    const expanded = await expandAndConfineToHome(filePath, 'filePath');
     const home = homedir();
-    if (!isInsideDir(expanded, home)) {
+
+    // Resolve symlinks to their real target *before* reading so we cannot be
+    // TOCTOU'd between the jail check and readFile().
+    const ls = await lstat(expanded);
+    const target = ls.isSymbolicLink() ? await realpath(expanded) : expanded;
+    if (!isInsideDir(target, home)) {
       throw new LunarError(
-        'Access denied: file reading is restricted to the home directory',
+        'Access denied: symlink target is outside the home directory',
         ErrorCode.FORBIDDEN,
       );
     }
-    // Reject symlinks pointing outside the home jail. `stat()` would otherwise
-    // happily disclose metadata of /etc/passwd via a crafted ~/passwd symlink.
-    const ls = await lstat(expanded);
-    if (ls.isSymbolicLink()) {
-      const resolvedTarget = await (await import('fs/promises')).realpath(expanded);
-      if (!isInsideDir(resolvedTarget, home)) {
-        throw new LunarError(
-          'Access denied: symlink target is outside the home directory',
-          ErrorCode.FORBIDDEN,
-        );
-      }
-    }
 
-    const s = await stat(expanded);
+    const s = await stat(target);
     const MAX_BYTES = 50 * 1024 * 1024; // 50 MB
     if (s.size > MAX_BYTES) {
       throw new LunarError(
@@ -197,8 +211,7 @@ export function registerShellHandlers(): void {
       );
     }
 
-    const { readFile } = await import('fs/promises');
-    const data = await readFile(expanded);
+    const data = await readFile(target);
     return {
       content: data.toString('base64'),
       size: s.size,
