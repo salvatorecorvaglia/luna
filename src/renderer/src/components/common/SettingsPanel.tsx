@@ -372,7 +372,7 @@ export function SettingsPanel() {
                   </div>
                   <p className="text-sm font-semibold text-foreground">Lunar</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    SSH Terminal & SFTP File Manager
+                    Your place in one calm workspace.
                   </p>
                   <p className="mt-1 text-[11px] text-muted-foreground/60">v{appVersion}</p>
                 </div>
