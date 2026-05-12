@@ -31,6 +31,13 @@ class TransferQueue {
    * thousands of identical requests stays O(n) total instead of O(n²).
    */
   private dedupIndex = new Map<string, string>();
+  /**
+   * Transfer ids that have reserved a dedup key but haven't been pushed to
+   * `queue` yet (because enqueue() is awaiting stat()). A concurrent enqueue()
+   * with the same key must treat these as live, not stale — otherwise both
+   * callers race past the dedup check and create duplicate transfers.
+   */
+  private reserved = new Set<string>();
   private maxConcurrent = 3;
   /** Re-entrancy guard: only one synchronous dispatch loop at a time. */
   private dispatching = false;
@@ -58,6 +65,11 @@ class TransferQueue {
     const key = this.dedupKey(type, sessionId, localPath, remotePath);
     const existingId = this.dedupIndex.get(key);
     if (existingId) {
+      // A concurrent enqueue may have reserved this key and not yet pushed to
+      // `queue` (still awaiting stat). Treat that as live so we return its id
+      // and let the caller wire up to the same transfer, instead of racing
+      // past the dedup check and creating a duplicate.
+      if (this.reserved.has(existingId)) return existingId;
       const existing = this.active.get(existingId) ?? this.queue.find((t) => t.id === existingId);
       if (existing && !existing.controller.signal.aborted) return existing.id;
       // Stale entry (e.g. an aborted transfer that didn't clear the index).
@@ -71,47 +83,60 @@ class TransferQueue {
       );
     }
 
+    // Reserve the dedup key synchronously, *before* the first await, so a
+    // concurrent enqueue() with the same key short-circuits via dedupIndex
+    // instead of also racing through stat() and pushing a duplicate.
     const transferId = uuidv4();
-    const fileName = basename(type === 'upload' ? localPath : remotePath);
-
-    let size = 0;
-    try {
-      if (type === 'upload') {
-        const stats = await stat(localPath);
-        size = stats.size;
-      } else {
-        const provider = storageRegistry.require(sessionId);
-        size = await provider.statSize(sessionId, remotePath);
-      }
-    } catch {
-      // size will be reported by progress callback
-    }
-
-    const transfer: QueuedTransfer = {
-      id: transferId,
-      type,
-      sessionId,
-      localPath,
-      remotePath,
-      fileName,
-      size,
-      controller: new AbortController(),
-      lastEmitTime: Date.now(),
-      lastTransferred: 0,
-    };
-
-    this.queue.push(transfer);
     this.dedupIndex.set(key, transferId);
+    this.reserved.add(transferId);
 
-    emitToRenderer(IPC.TRANSFER_PROGRESS, {
-      transferId,
-      transferred: 0,
-      total: size,
-      bytesPerSec: 0,
-    });
+    try {
+      let size = 0;
+      try {
+        if (type === 'upload') {
+          const stats = await stat(localPath);
+          size = stats.size;
+        } else {
+          const provider = storageRegistry.require(sessionId);
+          size = await provider.statSize(sessionId, remotePath);
+        }
+      } catch {
+        // size will be reported by progress callback
+      }
 
-    this.processQueue();
-    return transferId;
+      const fileName = basename(type === 'upload' ? localPath : remotePath);
+      const transfer: QueuedTransfer = {
+        id: transferId,
+        type,
+        sessionId,
+        localPath,
+        remotePath,
+        fileName,
+        size,
+        controller: new AbortController(),
+        lastEmitTime: Date.now(),
+        lastTransferred: 0,
+      };
+
+      this.queue.push(transfer);
+
+      emitToRenderer(IPC.TRANSFER_PROGRESS, {
+        transferId,
+        transferred: 0,
+        total: size,
+        bytesPerSec: 0,
+      });
+
+      this.processQueue();
+      return transferId;
+    } catch (err) {
+      // Roll back the dedup reservation so a future enqueue with the same key
+      // isn't permanently blocked by a ghost entry.
+      if (this.dedupIndex.get(key) === transferId) this.dedupIndex.delete(key);
+      throw err;
+    } finally {
+      this.reserved.delete(transferId);
+    }
   }
 
   private forgetDedup(t: QueuedTransfer): void {
@@ -276,6 +301,7 @@ class TransferQueue {
     this.active.clear();
     this.queue = [];
     this.dedupIndex.clear();
+    this.reserved.clear();
   }
 
   cancelBySession(sessionId: string): void {
