@@ -60,6 +60,7 @@ npm install
 | `npm run test:coverage` | Run tests with coverage report                      |
 | `npm run typecheck`     | Run TypeScript type checking (main + renderer)      |
 | `npm run lint`          | Run ESLint                                          |
+| `npm run format`        | Format code with Prettier                           |
 
 ## 🏛️ Project Architecture
 

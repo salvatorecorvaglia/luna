@@ -15,6 +15,7 @@ Lunar is a high-performance, cross-platform desktop application designed to stre
 - **Multi-Session Management**: Organize your work with tabs and multi-pane splits (horizontal/vertical).
 - **Professional Theming**: Built-in themes including Dracula, Nord, Tokyo Night, Gruvbox, Monokai, and One Dark.
 - **Unicode 11 Support**: Robust character rendering for modern CLI tools and emojis.
+- **Jump Host Support**: Securely connect to remote servers through intermediate gateway hosts (SSH tunneling).
 - **Resilient Connectivity**: Automatic reconnection with exponential backoff and configurable retry limits for SSH.
 
 ### 📁 Integrated SFTP Browser
@@ -35,7 +36,7 @@ Lunar is a high-performance, cross-platform desktop application designed to stre
 ### 🛠️ Developer-First Tools
 
 - **Command Palette**: Access every action instantly with `Cmd+K` (macOS) or `Ctrl+K` (Linux/Windows).
-- **Connection Manager**: Securely store SSH/SFTP and S3 connections. Organize via folders, tags, and reorderable sections.
+- **Connection Manager**: Securely store SSH/SFTP and S3 connections. Organize via folders, tags, and reorderable sections with advanced SSH tunnel (jump host) support.
 - **Customizable Sidebar**: Reorderable connection sections with persistent drag-and-drop state.
 - **Auto-Update**: Stay current with integrated GitHub-based updates and interactive notifications.
 
