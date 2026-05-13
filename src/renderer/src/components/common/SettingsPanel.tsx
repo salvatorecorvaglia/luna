@@ -8,12 +8,15 @@ import {
   Minus,
   Plus,
   Terminal,
+  Trash2,
   Upload,
   Wifi,
   X,
 } from 'lucide-react';
+import { ConfirmDialog } from './ConfirmDialog';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useQueryClient } from '@tanstack/react-query';
 import { useUIStore } from '@/stores/ui-store';
 import { useTerminalStore } from '@/stores/terminal-store';
 import type { TerminalThemeName } from '@shared/types/terminal';
@@ -48,6 +51,7 @@ const panelVariants = {
 };
 
 export function SettingsPanel() {
+  const queryClient = useQueryClient();
   const settingsOpen = useUIStore((s) => s.settingsOpen);
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
   const { terminalTheme, setTerminalTheme, fontSize, setFontSize, scrollback, setScrollback } =
@@ -62,6 +66,7 @@ export function SettingsPanel() {
     DEFAULT_SETTINGS['ssh.maxReconnectAttempts'],
   );
   const [appVersion, setAppVersion] = useState('0.0.0');
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
 
   // Load settings from DB on open
   useEffect(() => {
@@ -321,6 +326,9 @@ export function SettingsPanel() {
                         const { imported, skipped } = await window.api.connections.importFromFile();
                         if (imported === -1) return; // Dialog cancelled
                         if (imported > 0) {
+                          // Invalidate connections query so the sidebar updates
+                          void queryClient.invalidateQueries({ queryKey: ['connections'] });
+
                           toast.success(
                             `Imported ${imported} connection${imported > 1 ? 's' : ''}` +
                               (skipped.length > 0 ? ` — ${skipped.length} skipped` : ''),
@@ -347,6 +355,13 @@ export function SettingsPanel() {
                     Import
                   </button>
                 </div>
+                <button
+                  onClick={() => setConfirmDeleteAll(true)}
+                  className="btn-outline w-full text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30 hover:border-destructive/60"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete all connections
+                </button>
               </Section>
 
               {/* Logs */}
@@ -379,6 +394,27 @@ export function SettingsPanel() {
               </Section>
             </div>
           </motion.div>
+
+          <ConfirmDialog
+            open={confirmDeleteAll}
+            title="Delete all connections?"
+            message="This will permanently delete all your saved connections and credentials. This action cannot be undone."
+            confirmLabel="Delete All"
+            destructive
+            onConfirm={async () => {
+              try {
+                await window.api.connections.deleteAll();
+                void queryClient.invalidateQueries({ queryKey: ['connections'] });
+                toast.success('All connections deleted');
+                setConfirmDeleteAll(false);
+              } catch (err: unknown) {
+                toast.error(
+                  `Failed to delete connections: ${err instanceof Error ? err.message : String(err)}`,
+                );
+              }
+            }}
+            onCancel={() => setConfirmDeleteAll(false)}
+          />
         </>
       )}
     </AnimatePresence>

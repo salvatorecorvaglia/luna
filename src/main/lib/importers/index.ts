@@ -7,7 +7,7 @@ export function detectAndImport(content: string, fileName: string): ExportedConn
   const lowerName = fileName.toLowerCase();
 
   // Try to detect by content or extension
-  if (content.includes('#109#') || lowerName.endsWith('.mxtpro')) {
+  if (content.includes('#109#') || lowerName.endsWith('.mxtpro') || lowerName.endsWith('.mxtsessions')) {
     return importFromMobaXterm(content);
   }
 

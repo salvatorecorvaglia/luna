@@ -5,6 +5,7 @@ export const IPC = {
   CONNECTION_CREATE: 'connection:create',
   CONNECTION_UPDATE: 'connection:update',
   CONNECTION_DELETE: 'connection:delete',
+  CONNECTION_DELETE_ALL: 'connection:delete-all',
   CONNECTION_REORDER: 'connection:reorder',
   CONNECTION_EXPORT: 'connection:export',
   CONNECTION_IMPORT: 'connection:import',
