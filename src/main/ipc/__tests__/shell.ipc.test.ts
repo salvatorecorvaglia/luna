@@ -54,11 +54,10 @@ describe('shell IPC — joinPath', () => {
     expect(result).toBe(`${home}/passwd`);
   });
 
-  it('rejects an empty base path via assertValidPath', () => {
-    // SHELL_JOIN_PATH is registered as a sync handler; the throw propagates synchronously.
-    expect(() => handlers.get(IPC.SHELL_JOIN_PATH)!({}, { base: '', fileName: 'x' })).toThrow(
-      /non-empty string/,
-    );
+  it('rejects an empty base path via assertValidPath', async () => {
+    await expect(
+      handlers.get(IPC.SHELL_JOIN_PATH)!({}, { base: '', fileName: 'x' }),
+    ).rejects.toThrow(/non-empty string/);
   });
 });
 

@@ -1,4 +1,4 @@
-import { dialog, ipcMain } from 'electron';
+import { dialog } from 'electron';
 import { access, lstat, readdir, readFile, realpath, stat, writeFile } from 'fs/promises';
 import { constants as fsConstants } from 'fs';
 import { basename, isAbsolute, join, resolve } from 'path';
@@ -11,10 +11,11 @@ import {
   expandAndConfineToHome,
   isInsideDir,
 } from '../lib/validate';
+import { registerHandler } from '../lib/ipc-handler';
 import type { LocalFileEntry } from '@shared/types/sftp';
 
 export function registerShellHandlers(): void {
-  ipcMain.handle(IPC.SHELL_READDIR, async (_event, dirPath: string) => {
+  registerHandler(IPC.SHELL_READDIR, async (_event, dirPath: string) => {
     assertValidPath(dirPath, 'dirPath');
     if (!isAbsolute(dirPath)) {
       throw new LunarError('dirPath must be absolute', ErrorCode.VALIDATION_ERROR);
@@ -84,11 +85,11 @@ export function registerShellHandlers(): void {
     });
   });
 
-  ipcMain.handle(IPC.SHELL_HOME_DIR, () => {
+  registerHandler(IPC.SHELL_HOME_DIR, () => {
     return homedir();
   });
 
-  ipcMain.handle(
+  registerHandler(
     IPC.SHELL_OPEN_FILE_DIALOG,
     async (_event, options?: { filters?: { name: string; extensions: string[] }[] }) => {
       const result = await dialog.showOpenDialog({
@@ -104,7 +105,7 @@ export function registerShellHandlers(): void {
     },
   );
 
-  ipcMain.handle(
+  registerHandler(
     IPC.SHELL_SAVE_FILE_DIALOG,
     async (
       _event,
@@ -134,7 +135,7 @@ export function registerShellHandlers(): void {
     },
   );
 
-  ipcMain.handle(IPC.SHELL_CHECK_FILE, async (_event, filePath: string) => {
+  registerHandler(IPC.SHELL_CHECK_FILE, async (_event, filePath: string) => {
     // Best-effort readability probe used by the connection form to validate a
     // private-key path before submission. Returns a structured result
     // rather than throwing so the renderer can surface a precise error.
@@ -170,7 +171,7 @@ export function registerShellHandlers(): void {
     }
   });
 
-  ipcMain.handle(
+  registerHandler(
     IPC.SHELL_JOIN_PATH,
     (_event, { base, fileName }: { base: string; fileName: string }) => {
       // base must be an absolute, canonical, home-confined path. Otherwise a
@@ -184,7 +185,7 @@ export function registerShellHandlers(): void {
       return resolve(join(base, safeName));
     },
   );
-  ipcMain.handle(IPC.SHELL_READ_FILE, async (_event, filePath: string) => {
+  registerHandler(IPC.SHELL_READ_FILE, async (_event, filePath: string) => {
     assertValidPath(filePath, 'filePath');
     // expandAndConfineToHome handles ~ expansion, absolute-path enforcement,
     // and home-jail confinement consistently with the rest of the IPC layer.

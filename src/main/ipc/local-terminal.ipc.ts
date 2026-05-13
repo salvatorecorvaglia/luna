@@ -1,10 +1,10 @@
-import { ipcMain } from 'electron';
 import { homedir } from 'os';
 import { StringDecoder } from 'string_decoder';
 import { IPC } from '@shared/constants';
 import { getMainWindow } from './app.ipc';
 import { assertBoundedInt, assertNonEmptyString } from '../lib/validate';
 import { ErrorCode, LunarError } from '@shared/errors';
+import { registerHandler } from '../lib/ipc-handler';
 import log from '../lib/logger';
 
 import * as pty from 'node-pty';
@@ -62,7 +62,7 @@ function detectShell(): string {
 
 export function registerLocalTerminalHandlers(): void {
   // Spawn a new local PTY session
-  ipcMain.handle(
+  registerHandler(
     IPC.LOCAL_TERMINAL_SPAWN,
     (_event, { sessionId, cols, rows }: { sessionId: string; cols: number; rows: number }) => {
       assertNonEmptyString(sessionId, 'sessionId');
@@ -128,7 +128,7 @@ export function registerLocalTerminalHandlers(): void {
   );
 
   // Kill a session
-  ipcMain.handle(IPC.LOCAL_TERMINAL_KILL, (_event, sessionId: string) => {
+  registerHandler(IPC.LOCAL_TERMINAL_KILL, (_event, sessionId: string) => {
     assertNonEmptyString(sessionId, 'sessionId');
     const session = sessions.get(sessionId);
     if (!session) return;
@@ -141,7 +141,7 @@ export function registerLocalTerminalHandlers(): void {
   });
 
   // Send data to a session
-  ipcMain.handle(
+  registerHandler(
     IPC.LOCAL_TERMINAL_SEND_DATA,
     (_event, { sessionId, data }: { sessionId: string; data: string }) => {
       assertNonEmptyString(sessionId, 'sessionId');
@@ -162,7 +162,7 @@ export function registerLocalTerminalHandlers(): void {
   );
 
   // Resize a session
-  ipcMain.handle(
+  registerHandler(
     IPC.LOCAL_TERMINAL_RESIZE,
     (_event, { sessionId, cols, rows }: { sessionId: string; cols: number; rows: number }) => {
       assertNonEmptyString(sessionId, 'sessionId');

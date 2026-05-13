@@ -1,4 +1,3 @@
-import { ipcMain } from 'electron';
 import { IPC } from '@shared/constants';
 import { ListBucketsCommand, S3Client } from '@aws-sdk/client-s3';
 import { type ConnectionRow, getDatabase } from '../services/database';
@@ -8,6 +7,7 @@ import { s3StorageProvider, type S3SessionOptions } from '../services/s3/s3-prov
 import { ErrorCode, LunarError } from '@shared/errors';
 import { assertNonEmptyString } from '../lib/validate';
 import { releaseStorageBucket } from '../lib/rate-limiter';
+import { registerHandler } from '../lib/ipc-handler';
 import type { S3ConnectParams, S3TestConnectionConfig } from '@shared/types/storage-provider';
 import log from '../lib/logger';
 
@@ -46,7 +46,7 @@ function loadConfig(connectionId: string): S3SessionOptions {
 }
 
 export function registerS3Handlers(): void {
-  ipcMain.handle(IPC.S3_CONNECT, (_event, params: S3ConnectParams) => {
+  registerHandler(IPC.S3_CONNECT, (_event, params: S3ConnectParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
     assertNonEmptyString(params.connectionId, 'connectionId');
     const opts = loadConfig(params.connectionId);
@@ -55,14 +55,14 @@ export function registerS3Handlers(): void {
     return { sessionId: params.sessionId };
   });
 
-  ipcMain.handle(IPC.S3_DISCONNECT, (_event, sessionId: string) => {
+  registerHandler(IPC.S3_DISCONNECT, (_event, sessionId: string) => {
     assertNonEmptyString(sessionId, 'sessionId');
     s3StorageProvider.closeSession(sessionId);
     storageRegistry.unregister(sessionId);
     releaseStorageBucket(sessionId);
   });
 
-  ipcMain.handle(
+  registerHandler(
     IPC.S3_TEST_CONNECTION,
     async (
       _event,
