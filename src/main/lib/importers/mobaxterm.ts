@@ -74,6 +74,7 @@ export function importFromMobaXterm(content: string): ExportedConnection[] {
           !isNaN(candidatePort) &&
           candidatePort > 0 &&
           candidatePort <= 65535 &&
+          !candidateHost.includes('#') && // Exclude font/UI settings like "MobaFont:10"
           (candidateHost.includes('.') || candidateHost.includes(':') || candidateHost.length > 3)
         ) {
           gwHost = candidateHost;
