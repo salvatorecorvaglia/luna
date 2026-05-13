@@ -16,6 +16,7 @@ interface UIState {
   settingsOpen: boolean;
   sidebarSectionOrder: string[];
   shortcutsHelpOpen: boolean;
+  showHiddenConnections: boolean;
 
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
@@ -26,6 +27,7 @@ interface UIState {
   setSettingsOpen: (open: boolean) => void;
   setSidebarSectionOrder: (order: string[]) => void;
   setShortcutsHelpOpen: (open: boolean) => void;
+  toggleShowHiddenConnections: () => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -41,6 +43,7 @@ export const useUIStore = create<UIState>()(
       settingsOpen: false,
       sidebarSectionOrder: ['ssh', 's3'],
       shortcutsHelpOpen: false,
+      showHiddenConnections: false,
 
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
@@ -52,6 +55,8 @@ export const useUIStore = create<UIState>()(
       setSettingsOpen: (open) => set({ settingsOpen: open }),
       setSidebarSectionOrder: (order) => set({ sidebarSectionOrder: order }),
       setShortcutsHelpOpen: (open) => set({ shortcutsHelpOpen: open }),
+      toggleShowHiddenConnections: () =>
+        set((s) => ({ showHiddenConnections: !s.showHiddenConnections })),
     }),
     {
       name: 'lunar-ui-storage',
@@ -60,6 +65,7 @@ export const useUIStore = create<UIState>()(
         sidebarWidth: state.sidebarWidth,
         activeView: state.activeView,
         sidebarSectionOrder: state.sidebarSectionOrder,
+        showHiddenConnections: state.showHiddenConnections,
       }),
     },
   ),

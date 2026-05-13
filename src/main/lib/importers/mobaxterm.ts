@@ -69,12 +69,15 @@ export function importFromMobaXterm(content: string): ExportedConnection[] {
         const candidateHost = parts[i]?.trim();
         if (!candidateHost || candidateHost === '0' || candidateHost === '1') continue;
 
-        const candidatePort = parseInt(parts[i + 1], 10);
+          const candidatePortStr = parts[i + 1]?.trim();
+        const candidatePort = parseInt(candidatePortStr, 10);
         if (
           !isNaN(candidatePort) &&
           candidatePort > 0 &&
           candidatePort <= 65535 &&
+          /^[0-9]+$/.test(candidatePortStr) && // Ensure port is a pure number, not a color list like "236,236,236"
           !candidateHost.includes('#') && // Exclude font/UI settings like "MobaFont:10"
+          !candidateHost.includes(',') && // Exclude color settings like "180,180,192"
           (candidateHost.includes('.') || candidateHost.includes(':') || candidateHost.length > 3)
         ) {
           gwHost = candidateHost;
