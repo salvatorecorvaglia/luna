@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-05-13
+
+### Added
+
+- **Infrastructure**: Introduced a centralized IPC registration wrapper to standardize handler lifecycle and error propagation.
+- **File Management**: Added a new file preview component for the storage browser.
+- **Testing**: Expanded integration test suite for the connection flow and refactored IPC handlers to async for better testability.
+
+### Changed
+
+- **Storage Architecture**: Migrated SFTP and S3 state management to a unified `storage-store` and transitioned to transfer-based IPC handlers.
+- **Security & Validation**: Hardened shell IPC operations with strict path safety enforcement and updated Content Security Policies (CSP).
+- **Optimization**: Implemented S3 list limits and improved validation logic for storage providers.
+
 ## [0.6.0] - 2026-05-13
 
 ### Added
