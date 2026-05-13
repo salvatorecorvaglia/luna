@@ -25,16 +25,6 @@ export const IPC = {
   SSH_ON_HOST_KEY_CHANGE: 'ssh:on-host-key-change',
   SSH_TRUST_HOST_KEY: 'ssh:trust-host-key',
 
-  // SFTP
-  SFTP_LIST: 'sftp:list',
-  SFTP_STAT: 'sftp:stat',
-  SFTP_MKDIR: 'sftp:mkdir',
-  SFTP_RENAME: 'sftp:rename',
-  SFTP_DELETE: 'sftp:delete',
-  SFTP_DOWNLOAD: 'sftp:download',
-  SFTP_UPLOAD: 'sftp:upload',
-  SFTP_READ_FILE: 'sftp:read-file',
-
   // Storage (provider-agnostic — works for both SFTP and S3 sessions via the registry)
   STORAGE_LIST: 'storage:list',
   STORAGE_STAT: 'storage:stat',
@@ -130,8 +120,8 @@ export const LIMITS = {
   DEFAULT_FONT_SIZE: 14,
   /** Hard cap on concurrent SFTP transfers. */
   MAX_CONCURRENT_TRANSFERS: 10,
-  /** Per-op SFTP timeout (ms). list/stat/mkdir/rename/delete/read all use this. */
-  SFTP_OP_TIMEOUT_MS: 30_000,
+  /** Per-op storage timeout (ms). list/stat/mkdir/rename/delete/read all use this. */
+  STORAGE_OP_TIMEOUT_MS: 30_000,
   /** Hard cap on transfers waiting in the queue (excluding in-flight). Protects main process from OOM. */
   MAX_QUEUED_TRANSFERS: 1_000,
   /** Per-op SSH connect timeout (ms). Wraps the entire connect promise so renderers never hang. */

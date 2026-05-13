@@ -101,7 +101,7 @@ class S3StorageProvider implements StorageProvider {
     sessionId: string,
     op: string,
     fn: (client: S3Client) => Promise<T>,
-    timeoutMs: number = LIMITS.SFTP_OP_TIMEOUT_MS,
+    timeoutMs: number = LIMITS.STORAGE_OP_TIMEOUT_MS,
   ): Promise<T> {
     const client = this.requireClient(sessionId);
     try {

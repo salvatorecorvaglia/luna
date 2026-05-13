@@ -20,15 +20,6 @@ import type {
 } from './terminal';
 import type {
   LocalFileEntry,
-  SftpDeleteParams,
-  SftpEntry,
-  SftpListParams,
-  SftpMkdirParams,
-  SftpReadFileParams,
-  SftpRenameParams,
-  SftpStatParams,
-  SftpStatResult,
-  SftpTransferParams,
 } from './sftp';
 import type {
   S3ConnectParams,
@@ -99,19 +90,6 @@ export interface IpcHandlerMap {
     request: { host: string; port: number };
     response: { trusted: boolean; fingerprint?: string };
   };
-
-  // SFTP
-  'sftp:list': { request: SftpListParams; response: SftpEntry[] };
-  'sftp:stat': { request: SftpStatParams; response: SftpStatResult };
-  'sftp:mkdir': { request: SftpMkdirParams; response: void };
-  'sftp:rename': { request: SftpRenameParams; response: void };
-  'sftp:delete': { request: SftpDeleteParams; response: void };
-  'sftp:read-file': {
-    request: SftpReadFileParams;
-    response: { content: string; encoding: 'utf-8' | 'base64' };
-  };
-  'sftp:download': { request: SftpTransferParams; response: string };
-  'sftp:upload': { request: SftpTransferParams; response: string };
 
   // Storage (provider-agnostic)
   'storage:list': { request: StorageListParams; response: StorageEntry[] };

@@ -195,16 +195,7 @@ class SshManager {
             authType: row.jump_host_auth_type as import('@shared/types/connection').AuthType,
             privateKeyPath: row.jump_host_private_key_path || undefined,
           };
-          // Retrieve credentials for manual jump host
-          const { retrieveCredential } = await import('./credential-store');
-          const secret = retrieveCredential(`jumphost:${connectionId}`);
-          if (secret) {
-            if (manualConfig.authType === 'password') {
-              manualConfig.password = secret;
-            } else if (manualConfig.authType === 'key+passphrase') {
-              manualConfig.passphrase = secret;
-            }
-          }
+          await this.resolveJumpHostCredentials(connectionId, manualConfig);
         }
 
         const channel = await openJumpChannel({
@@ -646,15 +637,7 @@ class SshManager {
           authType: row.jump_host_auth_type as import('@shared/types/connection').AuthType,
           privateKeyPath: row.jump_host_private_key_path || undefined,
         };
-        const { retrieveCredential } = await import('./credential-store');
-        const secret = retrieveCredential(`jumphost:${params.connectionId}`);
-        if (secret) {
-          if (jumpHostConfig.authType === 'password') {
-            jumpHostConfig.password = secret;
-          } else if (jumpHostConfig.authType === 'key+passphrase') {
-            jumpHostConfig.passphrase = secret;
-          }
-        }
+        await this.resolveJumpHostCredentials(params.connectionId, jumpHostConfig);
       }
     } else {
       return { ok: false, error: 'Invalid test parameters' };
@@ -759,6 +742,25 @@ class SshManager {
     const ids = Array.from(this.sessions.keys());
     for (const id of ids) {
       this.disconnect(id);
+    }
+  }
+
+  /**
+   * Retrieve and attach credentials (password or key passphrase) to a manual
+   * jump-host configuration from the secure store.
+   */
+  private async resolveJumpHostCredentials(
+    connectionId: string,
+    config: import('@shared/types/connection').ManualJumpHostConfig,
+  ): Promise<void> {
+    const { retrieveCredential } = await import('./credential-store');
+    const secret = retrieveCredential(`jumphost:${connectionId}`);
+    if (secret) {
+      if (config.authType === 'password') {
+        config.password = secret;
+      } else if (config.authType === 'key+passphrase') {
+        config.passphrase = secret;
+      }
     }
   }
 }

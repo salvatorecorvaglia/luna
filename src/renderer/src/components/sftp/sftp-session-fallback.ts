@@ -1,5 +1,5 @@
 import type { TerminalSession } from '@/stores/terminal-store';
-import type { StorageSession } from '@/stores/sftp-store';
+import type { StorageSession } from '@/stores/storage-store';
 
 /**
  * Resolve which session id the SFTP pane should attach to, given the

@@ -15,15 +15,7 @@ import type {
   ManualJumpHostConfig,
   UpdateConnectionInput,
 } from '@shared/types/connection';
-import type {
-  SftpDeleteParams,
-  SftpListParams,
-  SftpMkdirParams,
-  SftpReadFileParams,
-  SftpRenameParams,
-  SftpStatParams,
-  SftpTransferParams,
-} from '@shared/types/sftp';
+// No sftp imports needed here anymore
 import type {
   S3ConnectParams,
   S3TestConnectionConfig,
@@ -163,19 +155,6 @@ const api = {
     onHostKeyChange: createEventListener(IPC.SSH_ON_HOST_KEY_CHANGE),
     trustHostKey: (params: { host: string; port: number }) =>
       invoke(IPC.SSH_TRUST_HOST_KEY, params),
-  },
-
-  // SFTP operations (legacy — prefer `api.storage.*` going forward; both routes
-  // hit the same SftpManager, so this stays safe to call.)
-  sftp: {
-    list: (params: SftpListParams) => invoke(IPC.SFTP_LIST, params),
-    stat: (params: SftpStatParams) => invoke(IPC.SFTP_STAT, params),
-    mkdir: (params: SftpMkdirParams) => invoke(IPC.SFTP_MKDIR, params),
-    rename: (params: SftpRenameParams) => invoke(IPC.SFTP_RENAME, params),
-    delete: (params: SftpDeleteParams) => invoke(IPC.SFTP_DELETE, params),
-    readFile: (params: SftpReadFileParams) => invoke(IPC.SFTP_READ_FILE, params),
-    download: (params: SftpTransferParams) => invoke(IPC.SFTP_DOWNLOAD, params),
-    upload: (params: SftpTransferParams) => invoke(IPC.SFTP_UPLOAD, params),
   },
 
   // Provider-agnostic storage operations. The main process resolves the

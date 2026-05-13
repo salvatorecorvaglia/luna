@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, Reorder, useDragControls } from 'framer-motion';
 import {
   ChevronRight,
@@ -32,7 +32,7 @@ import type { Connection } from '@shared/types/ipc';
 import type { DragControls } from 'framer-motion';
 import { connectToHost } from '@/lib/ssh';
 import { connectToS3 } from '@/lib/s3';
-import { useSftpStore } from '@/stores/sftp-store';
+import { useStorageStore } from '@/stores/storage-store';
 import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 
@@ -49,7 +49,8 @@ export function Sidebar() {
   const { openCreateForm } = useConnectionStore();
   const { data: connections, isLoading } = useConnections();
   const connectionList = useMemo(() => connections ?? [], [connections]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchInputValue, setSearchInputValue] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const reorderMutation = useReorderConnections();
 
   // Local state for connections to allow smooth reordering
@@ -57,16 +58,24 @@ export function Sidebar() {
   const [localS3Connections, setLocalS3Connections] = useState<typeof connectionList>([]);
   const [isDraggingConnection, setIsDraggingConnection] = useState(false);
 
+  // Debounce search input to avoid heavy filtering on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchInputValue);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [searchInputValue]);
+
   const filteredConnections = useMemo(() => {
-    if (!searchQuery.trim()) return connectionList;
-    const q = searchQuery.toLowerCase();
+    if (!debouncedSearchQuery.trim()) return connectionList;
+    const q = debouncedSearchQuery.toLowerCase();
     return connectionList.filter(
       (c) =>
         c.name.toLowerCase().includes(q) ||
         c.host.toLowerCase().includes(q) ||
         c.username.toLowerCase().includes(q),
     );
-  }, [connectionList, searchQuery]);
+  }, [connectionList, debouncedSearchQuery]);
 
   const groupedByProvider = useMemo(() => {
     const sftp = filteredConnections.filter((c) => !c.provider || c.provider === 'sftp');
@@ -166,15 +175,15 @@ export function Sidebar() {
                 />
                 <input
                   type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  value={searchInputValue}
+                  onChange={(e) => setSearchInputValue(e.target.value)}
                   placeholder="Filter connections..."
                   aria-label="Filter connections"
                   className="form-input !py-1 !pl-7 !pr-7 !text-xs"
                 />
-                {searchQuery && (
+                {searchInputValue && (
                   <button
-                    onClick={() => setSearchQuery('')}
+                    onClick={() => setSearchInputValue('')}
                     className="input-clear-btn"
                     aria-label="Clear search"
                   >
@@ -203,9 +212,9 @@ export function Sidebar() {
               <div className="px-3 py-10 text-center">
                 <Server className="mx-auto h-8 w-8 text-muted-foreground/30" />
                 <p className="mt-3 text-xs font-medium text-muted-foreground/70">
-                  {searchQuery ? 'No matching connections' : 'No connections yet'}
+                  {debouncedSearchQuery ? 'No matching connections' : 'No connections yet'}
                 </p>
-                {!searchQuery && (
+                {!debouncedSearchQuery && (
                   <button
                     onClick={() => openCreateForm()}
                     className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-sidebar-primary hover:underline cursor-pointer"
@@ -505,8 +514,8 @@ function ConnectionItem({
   const jumpHostName = connection.jumpHostConnectionId
     ? allConnections?.find((c) => c.id === connection.jumpHostConnectionId)?.name
     : undefined;
-  const storageSessions = useSftpStore((s) => s.storageSessions);
-  const setSftpSessionId = useSftpStore((s) => s.setSftpSessionId);
+  const storageSessions = useStorageStore((s) => s.storageSessions);
+  const setActiveSessionId = useStorageStore((s) => s.setActiveSessionId);
   const deleteMutation = useDeleteConnection();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const isS3 = connection.provider === 's3';
@@ -535,12 +544,12 @@ function ConnectionItem({
     if (isS3) {
       // S3 connections have no terminal — open the file browser directly.
       setActiveView('sftp');
-      const latestStorageSessions = useSftpStore.getState().storageSessions;
+      const latestStorageSessions = useStorageStore.getState().storageSessions;
       const existing = Array.from(latestStorageSessions.values()).find(
         (s) => s.connectionId === connection.id && s.status !== 'error',
       );
       if (existing) {
-        setSftpSessionId(existing.id);
+        setActiveSessionId(existing.id);
         return;
       }
       void connectToS3(connection.id);
@@ -567,15 +576,15 @@ function ConnectionItem({
   const handleDisconnect = async () => {
     try {
       if (isS3) {
-        const existing = Array.from(useSftpStore.getState().storageSessions.values()).find(
+        const existing = Array.from(useStorageStore.getState().storageSessions.values()).find(
           (s) => s.connectionId === connection.id,
         );
         if (existing) {
           window.api.transfers?.cancelBySession?.(existing.id).catch(() => {});
           await window.api.s3.disconnect(existing.id);
-          useSftpStore.getState().removeStorageSession(existing.id);
-          if (useSftpStore.getState().sftpSessionId === existing.id) {
-            useSftpStore.getState().setSftpSessionId(null);
+          useStorageStore.getState().removeStorageSession(existing.id);
+          if (useStorageStore.getState().activeSessionId === existing.id) {
+            useStorageStore.getState().setActiveSessionId(null);
             useUIStore.getState().setActiveView('welcome');
           }
           toast.success('S3 session closed');
@@ -604,7 +613,7 @@ function ConnectionItem({
   const handleReconnect = async () => {
     try {
       const sessionId = isS3
-        ? Array.from(useSftpStore.getState().storageSessions.values()).find(
+        ? Array.from(useStorageStore.getState().storageSessions.values()).find(
             (s) => s.connectionId === connection.id,
           )?.id
         : Array.from(useTerminalStore.getState().sessions.values()).find(
@@ -615,7 +624,7 @@ function ConnectionItem({
         window.api.transfers?.cancelBySession?.(sessionId).catch(() => {});
         if (isS3) {
           await window.api.s3.disconnect(sessionId);
-          useSftpStore.getState().removeStorageSession(sessionId);
+          useStorageStore.getState().removeStorageSession(sessionId);
         } else {
           void window.api.ssh.disconnect(sessionId);
           useTerminalStore.getState().removeSession(sessionId);

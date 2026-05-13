@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { FileCode, FileImage, FileText, X } from 'lucide-react';
-import { useSftpStore } from '@/stores/sftp-store';
+import { useStorageStore } from '@/stores/storage-store';
 
 function detectLanguage(name: string): string {
   const ext = name.split('.').pop()?.toLowerCase();
@@ -48,8 +48,8 @@ const dialogVariants = {
 };
 
 export function FilePreview() {
-  const previewFile = useSftpStore((s) => s.previewFile);
-  const setPreviewFile = useSftpStore((s) => s.setPreviewFile);
+  const previewFile = useStorageStore((s) => s.previewFile);
+  const setPreviewFile = useStorageStore((s) => s.setPreviewFile);
 
   // Close on Escape
   useEffect(() => {

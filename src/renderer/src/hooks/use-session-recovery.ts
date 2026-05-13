@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useTerminalStore } from '@/stores/terminal-store';
-import { useSftpStore } from '@/stores/sftp-store';
+import { useStorageStore } from '@/stores/storage-store';
 
 /**
  * Syncs the renderer stores with the active sessions in the main process.
@@ -47,9 +47,9 @@ export function useSessionRecovery() {
         const s3SessionIds = new Set(s3.map((s) => s.id));
 
         for (const sess of s3) {
-          const existing = useSftpStore.getState().storageSessions.get(sess.id);
+          const existing = useStorageStore.getState().storageSessions.get(sess.id);
           if (!existing) {
-            useSftpStore.getState().addStorageSession({
+            useStorageStore.getState().addStorageSession({
               id: sess.id,
               connectionId: sess.connectionId,
               connectionName: sess.connectionName,
@@ -60,14 +60,14 @@ export function useSessionRecovery() {
           }
         }
 
-        // Cleanup: Clear sftpSessionId if it's no longer valid
-        const currentSftpSessionId = useSftpStore.getState().sftpSessionId;
+        // Cleanup: Clear activeSessionId if it's no longer valid
+        const currentSftpSessionId = useStorageStore.getState().activeSessionId;
         if (
           currentSftpSessionId &&
           !sshSessionIds.has(currentSftpSessionId) &&
           !s3SessionIds.has(currentSftpSessionId)
         ) {
-          useSftpStore.getState().setSftpSessionId(null);
+          useStorageStore.getState().setActiveSessionId(null);
         }
       } catch (err) {
         console.error('Failed to recover sessions:', err);

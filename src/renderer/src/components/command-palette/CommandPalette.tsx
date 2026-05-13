@@ -16,14 +16,19 @@ import {
   Settings,
   Terminal,
   X,
+  Keyboard,
+  Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/ui-store';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { useConnectionStore } from '@/stores/connection-store';
-import { useSftpStore } from '@/stores/sftp-store';
+import { useStorageStore } from '@/stores/storage-store';
 import { useConnections } from '@/hooks/use-connections';
 import { connectToHost } from '@/lib/ssh';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 interface Command {
   id: string;
@@ -63,13 +68,16 @@ export function CommandPalette() {
     setActiveView,
     toggleSidebar,
     setSettingsOpen,
+    setShortcutsHelpOpen,
   } = useUIStore();
   const { setTerminalTheme, activeTabId, tabOrder, setActiveTab, closeTab } = useTerminalStore();
   const { openCreateForm } = useConnectionStore();
-  const { toggleHiddenFiles, showHiddenFiles } = useSftpStore();
+  const { toggleHiddenFiles, showHiddenFiles } = useStorageStore();
   const { data: connections = [] } = useConnections();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
+  const queryClient = useQueryClient();
   const listRef = useRef<HTMLDivElement>(null);
   // Capture the element that owned focus before the palette opened so we
   // can return focus there on close (important for keyboard-only users).
@@ -115,6 +123,15 @@ export function CommandPalette() {
         action: () => openCreateForm(),
         keywords: ['add', 'create', 'ssh'],
         shortcut: [MOD, 'N'],
+      },
+      {
+        id: 'delete-all-connections',
+        label: 'Delete All Connections',
+        description: 'Permanently remove all connections and credentials',
+        icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
+        category: 'Connections',
+        action: () => setConfirmDeleteAll(true),
+        keywords: ['purge', 'clear', 'reset', 'delete'],
       },
       {
         id: 'view-local',
@@ -186,6 +203,15 @@ export function CommandPalette() {
         shortcut: [MOD, ','],
       },
       {
+        id: 'keyboard-shortcuts',
+        label: 'Keyboard Shortcuts',
+        icon: <Keyboard className="h-4 w-4" aria-hidden="true" />,
+        category: 'Interface',
+        action: () => setShortcutsHelpOpen(true),
+        keywords: ['help', 'keys', 'shortcuts'],
+        shortcut: ['?'],
+      },
+      {
         id: 'sftp-toggle-hidden',
         label: showHiddenFiles ? 'Hide Hidden Files' : 'Show Hidden Files',
         icon: showHiddenFiles ? (
@@ -193,7 +219,7 @@ export function CommandPalette() {
         ) : (
           <Eye className="h-4 w-4" aria-hidden="true" />
         ),
-        category: 'SFTP',
+        category: 'Storage',
         action: () => {
           setActiveView('sftp');
           toggleHiddenFiles();
@@ -204,11 +230,11 @@ export function CommandPalette() {
         id: 'sftp-refresh',
         label: 'Refresh File Browser',
         icon: <RefreshCw className="h-4 w-4" aria-hidden="true" />,
-        category: 'SFTP',
+        category: 'Storage',
         action: () => {
           setActiveView('sftp');
           // FilePane re-fetches via useSftp hook keyed by path; nudge by re-setting same path
-          const { remotePath, setRemotePath, localPath, setLocalPath } = useSftpStore.getState();
+          const { remotePath, setRemotePath, localPath, setLocalPath } = useStorageStore.getState();
           setRemotePath(remotePath);
           setLocalPath(localPath);
         },
@@ -494,6 +520,27 @@ export function CommandPalette() {
           </motion.div>
         </>
       )}
+      <ConfirmDialog
+        open={confirmDeleteAll}
+        title="Delete all connections?"
+        message="This will permanently delete all your saved connections and credentials. This action cannot be undone."
+        confirmLabel="Delete All"
+        destructive
+        onConfirm={async () => {
+          try {
+            await window.api.connections.deleteAll();
+            void queryClient.invalidateQueries({ queryKey: ['connections'] });
+            toast.success('All connections deleted');
+            setConfirmDeleteAll(false);
+            setCommandPaletteOpen(false);
+          } catch (err: unknown) {
+            toast.error(
+              `Failed to delete connections: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          }
+        }}
+        onCancel={() => setConfirmDeleteAll(false)}
+      />
     </AnimatePresence>
   );
 }

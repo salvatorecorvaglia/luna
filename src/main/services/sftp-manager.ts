@@ -157,7 +157,7 @@ class SftpManager {
     sessionId: string,
     op: string,
     fn: (sftp: SFTPWrapper) => Promise<T>,
-    timeoutMs: number = LIMITS.SFTP_OP_TIMEOUT_MS,
+    timeoutMs: number = LIMITS.STORAGE_OP_TIMEOUT_MS,
   ): Promise<T> {
     this.acquireLease(sessionId);
     let releasedInCatch = false;
@@ -233,7 +233,7 @@ class SftpManager {
         sessionId,
         'rmdir',
         (sftp) => this.removeDir(sftp, remotePath),
-        LIMITS.SFTP_OP_TIMEOUT_MS * 4, // recursive ops can be slow
+        LIMITS.STORAGE_OP_TIMEOUT_MS * 4, // recursive ops can be slow
       );
     }
     return this.runOp(sessionId, 'unlink', (sftp) => {
