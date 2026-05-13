@@ -101,7 +101,7 @@ export function importFromMobaXterm(content: string): ExportedConnection[] {
             port: gwPort || 22,
             username: gwUser || username,
             authType: 'password',
-            folder: 'Infrastructure',
+            folder: 'Internaò',
             isHidden: true, // Hide from sidebar
           });
         }
