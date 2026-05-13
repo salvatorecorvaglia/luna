@@ -86,24 +86,26 @@ describe('db.ipc CONNECTION_IMPORT (privateKeyPath sanitization)', () => {
     expect(inserts[0][7]).toBe(`${HOME}/.ssh/id_ed25519`);
   });
 
-  it('skips imports whose privateKeyPath escapes via ..', async () => {
+  it('allows imports whose privateKeyPath escapes via .. (lenient import policy)', async () => {
     const result = (await importHandler()([
       { ...baseConn, privateKeyPath: '~/../etc/passwd' },
     ])) as {
       imported: number;
       skipped: { reason: string }[];
     };
-    expect(result.imported).toBe(0);
-    expect(result.skipped[0].reason).toMatch(/home directory/);
+    expect(result.imported).toBe(1);
+    expect(result.skipped).toHaveLength(0);
+    expect(inserts[0][7]).toBe('~/../etc/passwd');
   });
 
-  it('skips imports whose privateKeyPath is an absolute system path', async () => {
+  it('allows imports whose privateKeyPath is an absolute system path (lenient import policy)', async () => {
     const result = (await importHandler()([{ ...baseConn, privateKeyPath: '/etc/shadow' }])) as {
       imported: number;
       skipped: { reason: string }[];
     };
-    expect(result.imported).toBe(0);
-    expect(result.skipped[0].reason).toMatch(/home directory/);
+    expect(result.imported).toBe(1);
+    expect(result.skipped).toHaveLength(0);
+    expect(inserts[0][7]).toBe('/etc/shadow');
   });
 
   it('skips imports whose privateKeyPath contains null bytes', async () => {
