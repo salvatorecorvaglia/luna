@@ -306,6 +306,40 @@ function SidebarSection({
 
   if (!hasConnections) return null;
 
+  // Group connections by folder
+  const folders = useMemo(() => {
+    const groups: Record<string, Connection[]> = {};
+    for (const conn of connections) {
+      const folder = conn.folder || 'default';
+      if (!groups[folder]) groups[folder] = [];
+      groups[folder].push(conn);
+    }
+    return groups;
+  }, [connections]);
+
+  const sortedFolderNames = useMemo(() => {
+    return Object.keys(folders).sort((a, b) => {
+      if (a === 'default') return 1;
+      if (b === 'default') return -1;
+      return a.localeCompare(b);
+    });
+  }, [folders]);
+
+  const handleReorderFolder = (folderName: string, newOrder: Connection[]) => {
+    // Find the range in the original connections array and replace it
+    const folderItems = folders[folderName];
+    if (!folderItems) return;
+
+    // Preserve the relative order of items in other folders while updating this one
+    const updatedConnections = [...connections];
+    const firstIndex = connections.findIndex((c) => (c.folder || 'default') === folderName);
+
+    if (firstIndex !== -1) {
+      updatedConnections.splice(firstIndex, folderItems.length, ...newOrder);
+      setConnections(updatedConnections);
+    }
+  };
+
   return (
     <Reorder.Item
       value={sectionId}
@@ -326,28 +360,97 @@ function SidebarSection({
         <GripVertical className="h-3 w-3 text-muted-foreground/20 opacity-0 group-hover/section:opacity-100 transition-opacity" />
       </div>
 
-      <Reorder.Group
-        axis="y"
-        values={connections}
-        onReorder={(newOrder) => {
-          setConnections(newOrder);
-        }}
-        className="space-y-0.5"
-      >
-        {connections.map((conn) => (
-          <DraggableConnectionItem
-            key={conn.id}
-            connection={conn}
-            disabled={!!draggingSection}
-            onDragStart={() => setIsDraggingConnection(true)}
-            onDragEnd={() => {
-              setIsDraggingConnection(false);
-              reorderMutation.mutate(connections.map((c: Connection) => c.id));
-            }}
+      <div className="space-y-1">
+        {sortedFolderNames.map((folderName) => (
+          <FolderGroup
+            key={folderName}
+            name={folderName}
+            connections={folders[folderName]}
+            onReorder={(newOrder) => handleReorderFolder(folderName, newOrder)}
+            setIsDraggingConnection={setIsDraggingConnection}
+            draggingSection={draggingSection}
+            reorderMutation={reorderMutation}
+            allConnectionsInSection={connections}
           />
         ))}
-      </Reorder.Group>
+      </div>
     </Reorder.Item>
+  );
+}
+
+function FolderGroup({
+  name,
+  connections,
+  onReorder,
+  setIsDraggingConnection,
+  draggingSection,
+  reorderMutation,
+  allConnectionsInSection,
+}: {
+  name: string;
+  connections: Connection[];
+  onReorder: (newOrder: Connection[]) => void;
+  setIsDraggingConnection: (v: boolean) => void;
+  draggingSection: string | null;
+  reorderMutation: UseMutationResult<void, Error, string[], unknown>;
+  allConnectionsInSection: Connection[];
+}) {
+  const [isOpen, setIsOpen] = useState(true);
+  const isDefault = name === 'default';
+
+  return (
+    <div className="space-y-0.5">
+      {!isDefault && (
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="group/folder flex w-full items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium text-muted-foreground/60 hover:text-muted-foreground transition-colors cursor-pointer"
+        >
+          <ChevronRight
+            className={cn(
+              'h-3 w-3 text-muted-foreground/30 group-hover/folder:text-muted-foreground/60 transition-transform',
+              isOpen && 'rotate-90',
+            )}
+          />
+          <FolderClosed className="h-3 w-3 text-muted-foreground/40 group-hover/folder:text-muted-foreground/70" />
+          <span className="truncate">{name}</span>
+          <span className="ml-auto text-[10px] text-muted-foreground/20 group-hover/folder:text-muted-foreground/50 tabular-nums">
+            {connections.length}
+          </span>
+        </button>
+      )}
+
+      <AnimatePresence initial={false}>
+        {(isDefault || isOpen) && (
+          <motion.div
+            initial={isDefault ? false : { height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+            className="overflow-hidden"
+          >
+            <Reorder.Group
+              axis="y"
+              values={connections}
+              onReorder={onReorder}
+              className={cn('space-y-0.5', !isDefault && 'pl-2 ml-3.5 border-l border-border/30')}
+            >
+              {connections.map((conn) => (
+                <DraggableConnectionItem
+                  key={conn.id}
+                  connection={conn}
+                  disabled={!!draggingSection}
+                  onDragStart={() => setIsDraggingConnection(true)}
+                  onDragEnd={() => {
+                    setIsDraggingConnection(false);
+                    reorderMutation.mutate(allConnectionsInSection.map((c) => c.id));
+                  }}
+                />
+              ))}
+            </Reorder.Group>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
