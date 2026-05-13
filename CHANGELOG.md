@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-05-13
+
+### Added
+
+- **SSH Infrastructure**: Implemented manual SSH tunnel support (jump hosts), enabling secure connections to remote servers through intermediate gateway hosts.
+- **Connection Management**: Enhanced the connection form with a dedicated "Advanced" section for configuring jump host parameters, including authentication and port settings.
+
+### Changed
+
+- **CI/CD Maintenance**: Proactively updated GitHub Action workflows to prepare for the Visual Studio 2026 runner migration.
+
 ## [0.5.6] - 2026-05-12
 
 ### Added
