@@ -65,7 +65,6 @@ export const useUIStore = create<UIState>()(
         sidebarWidth: state.sidebarWidth,
         activeView: state.activeView,
         sidebarSectionOrder: state.sidebarSectionOrder,
-        showHiddenConnections: state.showHiddenConnections,
       }),
     },
   ),
