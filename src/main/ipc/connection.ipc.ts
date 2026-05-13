@@ -397,7 +397,18 @@ export function registerConnectionHandlers(): void {
     if (typeof input !== 'string') {
       throw validation('privateKeyPath must be a string');
     }
-    return expandAndConfineToHomeSync(input, 'privateKeyPath');
+    try {
+      return expandAndConfineToHomeSync(input, 'privateKeyPath');
+    } catch (err) {
+      // If the path is outside home, we still allow importing the raw string
+      // so the connection isn't lost. The security check will still trigger
+      // at connection time via buildConnectConfig, prompting the user to
+      // move their key then.
+      if (err instanceof LunarError && err.code === ErrorCode.FORBIDDEN) {
+        return input;
+      }
+      throw err;
+    }
   }
 
   const MAX_IMPORT_CONNECTIONS = 5_000;
@@ -445,8 +456,11 @@ export function registerConnectionHandlers(): void {
       `INSERT INTO connections (
         id, name, provider, host, port, username, auth_type, private_key_path,
         endpoint, region, default_bucket, force_path_style,
-        folder, color_tag, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        folder, color_tag,
+        jump_host_host, jump_host_port, jump_host_username,
+        jump_host_auth_type, jump_host_private_key_path,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const importedSftpByName = new Map<string, string>();
     const pendingJumpHostLinks: { targetId: string; name: string; targetLabel: string }[] = [];
@@ -508,6 +522,15 @@ export function registerConnectionHandlers(): void {
             });
             continue;
           }
+          let jumpHostKeyPath: string | null = null;
+          if (conn.jumpHostConfig?.privateKeyPath) {
+            try {
+              jumpHostKeyPath = sanitizeImportedKeyPath(conn.jumpHostConfig.privateKeyPath);
+            } catch {
+              // ignore jump host key path error, just null it out
+            }
+          }
+
           insert.run(
             id,
             conn.name,
@@ -523,6 +546,11 @@ export function registerConnectionHandlers(): void {
             null,
             conn.folder || 'default',
             conn.colorTag || null,
+            conn.jumpHostConfig?.host || null,
+            conn.jumpHostConfig?.port || null,
+            conn.jumpHostConfig?.username || null,
+            conn.jumpHostConfig?.authType || null,
+            jumpHostKeyPath,
             now,
             now,
           );
@@ -555,6 +583,11 @@ export function registerConnectionHandlers(): void {
             conn.forcePathStyle ? 1 : 0,
             conn.folder || 'default',
             conn.colorTag || null,
+            null, // jump_host_host
+            null, // jump_host_port
+            null, // jump_host_username
+            null, // jump_host_auth_type
+            null, // jump_host_private_key_path
             now,
             now,
           );

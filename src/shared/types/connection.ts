@@ -100,6 +100,10 @@ export interface ExportedConnection {
    * (not the id) so importers can re-link by name on the destination machine.
    */
   jumpHostName?: string;
+  /**
+   * Optional manual jump host configuration. Used when jumpHostName is not set.
+   */
+  jumpHostConfig?: ManualJumpHostConfig;
 }
 
 export interface ConnectionHistory {
