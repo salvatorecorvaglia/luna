@@ -75,6 +75,7 @@ export function registerSshHandlers(): void {
           privateKeyPath?: string;
           password?: string;
           passphrase?: string;
+          jumpHostConnectionId?: string;
         };
       },
     ) => {
@@ -100,6 +101,14 @@ export function registerSshHandlers(): void {
           if (typeof v !== 'string' || v.length > MAX_SECRET_LEN) {
             throw new LunarError(
               `${k} must be a string up to ${MAX_SECRET_LEN} characters`,
+              ErrorCode.VALIDATION_ERROR,
+            );
+          }
+        }
+        if (c.jumpHostConnectionId !== undefined) {
+          if (typeof c.jumpHostConnectionId !== 'string' || c.jumpHostConnectionId.length === 0) {
+            throw new LunarError(
+              'jumpHostConnectionId must be a non-empty string',
               ErrorCode.VALIDATION_ERROR,
             );
           }

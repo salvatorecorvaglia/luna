@@ -48,6 +48,12 @@ export function ConnectionForm() {
   const [showSecretKey, setShowSecretKey] = useState(false);
   const [folder, setFolder] = useState('default');
   const [colorTag, setColorTag] = useState<string>(COLOR_OPTIONS[0].hex);
+  /**
+   * Empty string = "None (direct connection)". We deliberately don't use
+   * `null/undefined` in form state so the controlled <select> never goes
+   * uncontrolled when the user clears the field.
+   */
+  const [jumpHostConnectionId, setJumpHostConnectionId] = useState<string>('');
   const [showPassword, setShowPassword] = useState(false);
   const [showGroupsDropdown, setShowGroupsDropdown] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -72,6 +78,15 @@ export function ConnectionForm() {
   const [dirty, setDirty] = useState(false);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
   const markDirty = useCallback(() => setDirty(true), []);
+
+  // Eligible jump-host targets: SFTP only, never the connection being edited,
+  // never a connection that itself chains through another bastion (single-hop).
+  const jumpHostOptions = useMemo(() => {
+    if (!existingConnections) return [];
+    return existingConnections.filter(
+      (c) => c.provider === 'sftp' && c.id !== editingConnectionId && !c.jumpHostConnectionId,
+    );
+  }, [existingConnections, editingConnectionId]);
 
   const uniqueFolders = useMemo(() => {
     if (!existingConnections) return [];
@@ -117,6 +132,7 @@ export function ConnectionForm() {
     setFolder('default');
     setColorTag(COLOR_OPTIONS[0].hex);
     setShowPassword(false);
+    setJumpHostConnectionId('');
     setTouched({});
   }, []);
 
@@ -142,6 +158,7 @@ export function ConnectionForm() {
       setSessionToken('');
       setFolder(source.folder);
       setColorTag(source.colorTag || COLOR_OPTIONS[0].hex);
+      setJumpHostConnectionId(source.jumpHostConnectionId || '');
       setPassword('');
       setPassphrase('');
       /* eslint-enable react-hooks/set-state-in-effect */
@@ -334,6 +351,13 @@ export function ConnectionForm() {
             privateKeyPath: privateKeyPath || undefined,
             password: password || undefined,
             passphrase: passphrase || undefined,
+            // Send explicit null on edit so an unselect actually clears the
+            // FK. New connections only carry the value when set.
+            jumpHostConnectionId: jumpHostConnectionId
+              ? jumpHostConnectionId
+              : isEditing
+                ? null
+                : undefined,
             folder: folder.trim() || 'default',
             colorTag,
           }
@@ -417,6 +441,7 @@ export function ConnectionForm() {
             privateKeyPath: privateKeyPath || undefined,
             password: password || undefined,
             passphrase: passphrase || undefined,
+            jumpHostConnectionId: jumpHostConnectionId || undefined,
           },
         });
         if (!isStillCurrent()) return;
@@ -626,6 +651,9 @@ export function ConnectionForm() {
                     setPassphrase={setPassphrase}
                     showPassword={showPassword}
                     setShowPassword={setShowPassword}
+                    jumpHostOptions={jumpHostOptions}
+                    jumpHostConnectionId={jumpHostConnectionId}
+                    setJumpHostConnectionId={setJumpHostConnectionId}
                     visibleError={visibleError}
                     markTouched={markTouched}
                     onBrowseKey={handleBrowseKey}

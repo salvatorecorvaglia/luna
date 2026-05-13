@@ -21,6 +21,14 @@ export interface Connection {
   folder: string;
   colorTag?: string;
   sortOrder?: number;
+  /**
+   * Optional reference to another SFTP connection that should be used as a
+   * jump host (bastion). When set, the SSH client tunnels through the
+   * referenced connection's session via ssh2's `forwardOut` channel.
+   * Single-hop only: a chained-through connection cannot itself have a
+   * `jumpHostConnectionId` set.
+   */
+  jumpHostConnectionId?: string;
   lastConnectedAt?: number;
   createdAt: number;
   updatedAt: number;
@@ -48,6 +56,8 @@ export interface CreateConnectionInput {
   // Common
   folder?: string;
   colorTag?: string;
+  /** Optional id of another SFTP connection to use as a jump host. */
+  jumpHostConnectionId?: string | null;
 }
 
 export interface UpdateConnectionInput extends Partial<CreateConnectionInput> {
@@ -69,6 +79,11 @@ export interface ExportedConnection {
   forcePathStyle?: boolean;
   folder?: string;
   colorTag?: string;
+  /**
+   * Name of the referenced jump host connection. Exports carry the *name*
+   * (not the id) so importers can re-link by name on the destination machine.
+   */
+  jumpHostName?: string;
 }
 
 export interface ConnectionHistory {
