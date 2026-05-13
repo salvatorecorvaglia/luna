@@ -3,6 +3,8 @@ import { AnimatePresence, motion, Reorder, useDragControls } from 'framer-motion
 import {
   ChevronRight,
   Copy,
+  Eye,
+  EyeOff,
   FolderClosed,
   Loader2,
   LogOut,
@@ -25,6 +27,7 @@ import { useTerminalStore } from '@/stores/terminal-store';
 import {
   useConnections,
   useDeleteConnection,
+  useUpdateConnection,
   useReorderConnections,
 } from '@/hooks/use-connections';
 import type { UseMutationResult } from '@tanstack/react-query';
@@ -43,6 +46,8 @@ export function Sidebar() {
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
   const sidebarSectionOrder = useUIStore((s) => s.sidebarSectionOrder);
   const setSidebarSectionOrder = useUIStore((s) => s.setSidebarSectionOrder);
+  const showHiddenConnections = useUIStore((s) => s.showHiddenConnections);
+  const toggleShowHiddenConnections = useUIStore((s) => s.toggleShowHiddenConnections);
 
   const [draggingSection, setDraggingSection] = useState<string | null>(null);
 
@@ -68,7 +73,8 @@ export function Sidebar() {
 
   const filteredConnections = useMemo(() => {
     // Filter out hidden connections (like jump hosts) from the sidebar
-    const visible = connectionList.filter((c) => !c.isHidden);
+    // unless the global "show hidden" toggle is ON.
+    const visible = connectionList.filter((c) => showHiddenConnections || !c.isHidden);
 
     if (!debouncedSearchQuery.trim()) return visible;
     const q = debouncedSearchQuery.toLowerCase();
@@ -78,7 +84,7 @@ export function Sidebar() {
         c.host.toLowerCase().includes(q) ||
         c.username.toLowerCase().includes(q),
     );
-  }, [connectionList, debouncedSearchQuery]);
+  }, [connectionList, debouncedSearchQuery, showHiddenConnections]);
 
   const groupedByProvider = useMemo(() => {
     const sftp = filteredConnections.filter((c) => !c.provider || c.provider === 'sftp');
@@ -158,14 +164,39 @@ export function Sidebar() {
             <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
               Connections
             </span>
-            <button
-              onClick={() => openCreateForm()}
-              className="btn-icon !p-1"
-              title="New connection"
-              aria-label="New connection"
-            >
-              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => toggleShowHiddenConnections()}
+                className={cn(
+                  'btn-icon !p-1',
+                  showHiddenConnections ? 'text-primary' : 'text-muted-foreground/50',
+                )}
+                title={
+                  showHiddenConnections
+                    ? 'Hide background connections'
+                    : 'Show background connections'
+                }
+                aria-label={
+                  showHiddenConnections
+                    ? 'Hide background connections'
+                    : 'Show background connections'
+                }
+              >
+                {showHiddenConnections ? (
+                  <Eye className="h-3.5 w-3.5" />
+                ) : (
+                  <EyeOff className="h-3.5 w-3.5" />
+                )}
+              </button>
+              <button
+                onClick={() => openCreateForm()}
+                className="btn-icon !p-1"
+                title="New connection"
+                aria-label="New connection"
+              >
+                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            </div>
           </div>
 
           {/* Search */}
@@ -520,6 +551,7 @@ function ConnectionItem({
   const storageSessions = useStorageStore((s) => s.storageSessions);
   const setActiveSessionId = useStorageStore((s) => s.setActiveSessionId);
   const deleteMutation = useDeleteConnection();
+  const updateMutation = useUpdateConnection();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const isS3 = connection.provider === 's3';
   const isConnected = isS3
@@ -677,6 +709,20 @@ function ConnectionItem({
       label: 'Duplicate',
       icon: <Copy className="h-3.5 w-3.5" />,
       onClick: () => openDuplicateForm(connection.id),
+    },
+    {
+      label: connection.isHidden ? 'Show in Sidebar' : 'Hide from Sidebar',
+      icon: connection.isHidden ? (
+        <Eye className="h-3.5 w-3.5" />
+      ) : (
+        <EyeOff className="h-3.5 w-3.5" />
+      ),
+      onClick: () => {
+        updateMutation.mutate({
+          id: connection.id,
+          isHidden: !connection.isHidden,
+        });
+      },
     },
     {
       label: 'Delete',

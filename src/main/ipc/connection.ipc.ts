@@ -52,6 +52,7 @@ function rowToConnection(row: ConnectionRow): Connection {
           }
         : undefined,
     lastConnectedAt: row.last_connected_at || undefined,
+    isHidden: row.is_hidden === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -111,6 +112,7 @@ const UPDATE_FIELD_MAP: Record<string, string> = {
   colorTag: 'color_tag',
   jumpHostConnectionId: 'jump_host_connection_id',
   jumpHostConfig: 'jump_host_config', // Synthetic key for loop handling
+  isHidden: 'is_hidden',
 };
 
 export function registerConnectionHandlers(): void {
@@ -161,9 +163,10 @@ export function registerConnectionHandlers(): void {
         folder, color_tag, jump_host_connection_id,
         jump_host_host, jump_host_port, jump_host_username,
         jump_host_auth_type, jump_host_private_key_path,
+        is_hidden,
         created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     ).run(
       id,
@@ -186,6 +189,7 @@ export function registerConnectionHandlers(): void {
       input.jumpHostConfig?.username || null,
       input.jumpHostConfig?.authType || null,
       input.jumpHostConfig?.privateKeyPath || null,
+      input.isHidden ? 1 : 0,
       now,
       now,
     );
@@ -251,7 +255,7 @@ export function registerConnectionHandlers(): void {
         key === 'defaultBucket'
       ) {
         value = (raw as string) || null;
-      } else if (key === 'forcePathStyle') {
+      } else if (key === 'forcePathStyle' || key === 'isHidden') {
         value = raw ? 1 : 0;
       } else if (key === 'jumpHostConnectionId') {
         const v = raw === null || raw === '' ? null : (raw as string);

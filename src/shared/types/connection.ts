@@ -75,6 +75,7 @@ export interface CreateConnectionInput {
   jumpHostConnectionId?: string | null;
   /** Optional manual jump host configuration. */
   jumpHostConfig?: ManualJumpHostConfig | null;
+  isHidden?: boolean;
 }
 
 export interface UpdateConnectionInput extends Partial<CreateConnectionInput> {

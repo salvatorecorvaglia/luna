@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, Cloud, FolderClosed, Loader2, Palette, Server, Wifi, X } from 'lucide-react';
+import { Check, Cloud, EyeOff, FolderClosed, Loader2, Palette, Server, Wifi, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { useConnectionStore } from '@/stores/connection-store';
@@ -48,6 +48,7 @@ export function ConnectionForm() {
   const [showSecretKey, setShowSecretKey] = useState(false);
   const [folder, setFolder] = useState('default');
   const [colorTag, setColorTag] = useState<string>(COLOR_OPTIONS[0].hex);
+  const [isHidden, setIsHidden] = useState(false);
   /**
    * Empty string = "None (direct connection)". We deliberately don't use
    * `null/undefined` in form state so the controlled <select> never goes
@@ -151,6 +152,7 @@ export function ConnectionForm() {
     setJumpHostPrivateKeyPath('');
     setJumpHostPassphrase('');
     setShowJumpHostPassword(false);
+    setIsHidden(false);
     setTouched({});
   }, []);
 
@@ -176,6 +178,7 @@ export function ConnectionForm() {
       setSessionToken('');
       setFolder(source.folder);
       setColorTag(source.colorTag || COLOR_OPTIONS[0].hex);
+      setIsHidden(source.isHidden ?? false);
       setJumpHostConnectionId(source.jumpHostConnectionId || '');
       if (source.jumpHostConfig) {
         setJumpHostMode('manual');
@@ -424,6 +427,7 @@ export function ConnectionForm() {
                 : undefined,
             folder: folder.trim() || 'default',
             colorTag,
+            isHidden,
           }
         : {
             name: name.trim(),
@@ -437,6 +441,7 @@ export function ConnectionForm() {
             sessionToken: sessionToken || undefined,
             folder: folder.trim() || 'default',
             colorTag,
+            isHidden,
             jumpHostConfig:
               jumpHostMode === 'manual'
                 ? {
