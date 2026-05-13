@@ -69,7 +69,7 @@ export function importFromMobaXterm(content: string): ExportedConnection[] {
         const candidateHost = parts[i]?.trim();
         if (!candidateHost || candidateHost === '0' || candidateHost === '1') continue;
 
-          const candidatePortStr = parts[i + 1]?.trim();
+        const candidatePortStr = parts[i + 1]?.trim();
         const candidatePort = parseInt(candidatePortStr, 10);
         if (
           !isNaN(candidatePort) &&
