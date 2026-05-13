@@ -15,7 +15,7 @@ vi.mock('electron', () => ({
   dialog: { showOpenDialog: vi.fn() },
 }));
 
-// Lightweight DB shim: enough surface for registerDbHandlers + importConnections.
+// Lightweight DB shim: enough surface for registration + importConnections.
 // The transaction helper just runs the function synchronously.
 type RunFn = (...args: unknown[]) => void;
 type GetFn = (...args: unknown[]) => unknown;
@@ -48,12 +48,14 @@ vi.mock('../../services/transfer-queue', () => ({
   transferQueue: { setMaxConcurrent: vi.fn() },
 }));
 
-import { registerDbHandlers } from '../db.ipc';
+import { registerConnectionHandlers } from '../connection.ipc';
+import { registerSettingsHandlers } from '../settings.ipc';
 
 beforeEach(() => {
   handlers.clear();
   inserts.length = 0;
-  registerDbHandlers();
+  registerConnectionHandlers();
+  registerSettingsHandlers();
 });
 
 describe('db.ipc CONNECTION_IMPORT (privateKeyPath sanitization)', () => {

@@ -62,6 +62,7 @@ export function S3Fields({
             type="text"
             value={endpoint}
             onChange={(e) => setEndpoint(e.target.value)}
+            onBlur={() => markTouched('endpoint')}
             placeholder="(blank for AWS)"
             className="form-input"
           />
@@ -72,6 +73,7 @@ export function S3Fields({
             type="text"
             value={region}
             onChange={(e) => setRegion(e.target.value)}
+            onBlur={() => markTouched('region')}
             placeholder="Region (e.g. us-east-1)"
             className="form-input"
           />
@@ -141,6 +143,7 @@ export function S3Fields({
           type="password"
           value={sessionToken}
           onChange={(e) => setSessionToken(e.target.value)}
+          onBlur={() => markTouched('sessionToken')}
           placeholder="(STS only)"
           className="form-input"
         />
@@ -159,6 +162,7 @@ export function S3Fields({
               type="text"
               value={defaultBucket}
               onChange={(e) => setDefaultBucket(e.target.value)}
+              onBlur={() => markTouched('defaultBucket')}
               placeholder="my-bucket"
               className="form-input"
             />

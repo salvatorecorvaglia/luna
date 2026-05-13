@@ -1,4 +1,5 @@
-import { registerDbHandlers } from './db.ipc';
+import { registerConnectionHandlers } from './connection.ipc';
+import { registerSettingsHandlers } from './settings.ipc';
 import { registerCredentialHandlers } from './credentials.ipc';
 import { registerShellHandlers } from './shell.ipc';
 import { registerSshHandlers } from './ssh.ipc';
@@ -10,7 +11,8 @@ import { registerLocalTerminalHandlers } from './local-terminal.ipc';
 import { registerLogHandlers } from './log.ipc';
 
 export function registerAllHandlers(): void {
-  registerDbHandlers();
+  registerConnectionHandlers();
+  registerSettingsHandlers();
   registerCredentialHandlers();
   registerShellHandlers();
   registerSshHandlers();

@@ -2,14 +2,13 @@ import { dialog } from 'electron';
 import { readFile } from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
 import { expandAndConfineToHomeSync } from '../lib/validate';
-import { IPC, LIMITS } from '@shared/constants';
+import { IPC } from '@shared/constants';
 import { ErrorCode, LunarError } from '@shared/errors';
-
-function validation(message: string): LunarError {
-  return new LunarError(message, ErrorCode.VALIDATION_ERROR);
-}
 import { type ConnectionRow, getDatabase } from '../services/database';
-import { transferQueue } from '../services/transfer-queue';
+import { logger } from '../lib/logger';
+import { detectAndImport } from '../lib/importers';
+import { deleteCredential, storeCredential } from '../services/credential-store';
+import { registerHandler } from '../lib/ipc-handler';
 import type {
   AuthType,
   Connection,
@@ -17,61 +16,12 @@ import type {
   ExportedConnection,
   UpdateConnectionInput,
 } from '@shared/types/connection';
-import { deleteCredential, storeCredential } from '../services/credential-store';
-import type { AppSettings } from '@shared/types/settings';
-import { registerHandler } from '../lib/ipc-handler';
 
-import { logger } from '../lib/logger';
-import { detectAndImport } from '../lib/importers';
+function validation(message: string): LunarError {
+  return new LunarError(message, ErrorCode.VALIDATION_ERROR);
+}
 
 const VALID_AUTH_TYPES = ['password', 'key', 'key+passphrase'] as const;
-
-/** Per-key value type guards. Values arrive from the renderer as JSON-encoded
- * strings (`'14'`, `'"dracula"'`, `'true'`); after parsing we enforce shape so
- * a misbehaving renderer can't poison the settings table with a type the rest
- * of the app doesn't expect. */
-type SettingTypeName = 'string' | 'number' | 'boolean';
-const SETTING_TYPES: Record<keyof AppSettings, SettingTypeName> = {
-  'terminal.fontFamily': 'string',
-  'terminal.fontSize': 'number',
-  'terminal.theme': 'string',
-  'terminal.scrollback': 'number',
-  'transfer.concurrency': 'number',
-  'ssh.autoReconnect': 'boolean',
-  'ssh.keepAliveInterval': 'number',
-  'ssh.maxReconnectAttempts': 'number',
-  'ssh.readyTimeout': 'number',
-  'ui.applyTerminalTheme': 'boolean',
-};
-const VALID_SETTINGS_KEYS = new Set(Object.keys(SETTING_TYPES));
-
-/**
- * Inclusive bounds for numeric settings. Anything outside this range will be
- * rejected during SETTING_SET. Without these, a renderer could write
- * `Number.MAX_SAFE_INTEGER` or `0` and put the consumer (e.g. transfer queue
- * concurrency) into a wedged state. `Number.isFinite` in `checkSettingType`
- * already strips NaN/Infinity, but doesn't bound the magnitude.
- */
-const SETTING_NUMERIC_BOUNDS: Partial<Record<keyof AppSettings, { min: number; max: number }>> = {
-  'terminal.fontSize': { min: 8, max: 72 },
-  'terminal.scrollback': { min: 0, max: 1_000_000 },
-  'transfer.concurrency': { min: 1, max: LIMITS.MAX_CONCURRENT_TRANSFERS },
-  'ssh.keepAliveInterval': { min: 0, max: 600_000 },
-  'ssh.maxReconnectAttempts': { min: 0, max: 100 },
-  'ssh.readyTimeout': { min: 1_000, max: 600_000 },
-};
-
-function checkSettingType(key: string, parsed: unknown): boolean {
-  const expected = SETTING_TYPES[key as keyof AppSettings];
-  if (!expected) return false;
-  if (expected === 'number') {
-    if (typeof parsed !== 'number' || !Number.isFinite(parsed)) return false;
-    const bounds = SETTING_NUMERIC_BOUNDS[key as keyof AppSettings];
-    if (bounds && (parsed < bounds.min || parsed > bounds.max)) return false;
-    return true;
-  }
-  return typeof parsed === expected;
-}
 
 function rowToConnection(row: ConnectionRow): Connection {
   return {
@@ -130,18 +80,40 @@ function assertValidJumpHost(
     .get(jumpId) as
     | { id: string; provider: string; jump_host_connection_id: string | null }
     | undefined;
-  if (!row) throw validation('Jump host connection not found');
+
+  if (!row) {
+    throw validation('Jump host connection not found');
+  }
   if (row.provider !== 'sftp') {
-    throw validation('Jump host must be an SSH/SFTP connection');
+    throw validation('Only SFTP connections can be used as jump hosts');
   }
   if (row.jump_host_connection_id) {
-    throw validation(
-      'Jump host already chains through another bastion; multi-hop is not supported',
-    );
+    throw validation('Multi-hop jump host chains are not yet supported');
   }
 }
 
-export function registerDbHandlers(): void {
+// Whitelist of UpdateConnectionInput keys → DB column names. Only fields listed
+// here may be passed to the dynamic UPDATE; an explicit allow-list is safer than
+// trusting future contributors to keep the if-chain in sync with the SQL.
+const UPDATE_FIELD_MAP: Record<string, string> = {
+  name: 'name',
+  provider: 'provider',
+  host: 'host',
+  port: 'port',
+  username: 'username',
+  authType: 'auth_type',
+  privateKeyPath: 'private_key_path',
+  endpoint: 'endpoint',
+  region: 'region',
+  defaultBucket: 'default_bucket',
+  forcePathStyle: 'force_path_style',
+  folder: 'folder',
+  colorTag: 'color_tag',
+  jumpHostConnectionId: 'jump_host_connection_id',
+  jumpHostConfig: 'jump_host_config', // Synthetic key for loop handling
+};
+
+export function registerConnectionHandlers(): void {
   const db = getDatabase();
 
   registerHandler(IPC.CONNECTION_LIST, () => {
@@ -219,8 +191,6 @@ export function registerDbHandlers(): void {
     );
 
     // Store credentials.
-    // SFTP: a single secret string (password or passphrase).
-    // S3: a JSON blob {accessKeyId, secretAccessKey, sessionToken?}.
     if (provider === 'sftp') {
       if (input.password) {
         storeCredential(id, input.password);
@@ -256,27 +226,6 @@ export function registerDbHandlers(): void {
     return connection;
   });
 
-  // Whitelist of UpdateConnectionInput keys → DB column names. Only fields listed
-  // here may be passed to the dynamic UPDATE; an explicit allow-list is safer than
-  // trusting future contributors to keep the if-chain in sync with the SQL.
-  const UPDATE_FIELD_MAP: Record<string, string> = {
-    name: 'name',
-    provider: 'provider',
-    host: 'host',
-    port: 'port',
-    username: 'username',
-    authType: 'auth_type',
-    privateKeyPath: 'private_key_path',
-    endpoint: 'endpoint',
-    region: 'region',
-    defaultBucket: 'default_bucket',
-    forcePathStyle: 'force_path_style',
-    folder: 'folder',
-    colorTag: 'color_tag',
-    jumpHostConnectionId: 'jump_host_connection_id',
-    jumpHostConfig: 'jump_host_config', // Synthetic key for loop handling
-  };
-
   registerHandler(IPC.CONNECTION_UPDATE, (_event, input: UpdateConnectionInput) => {
     const now = Math.floor(Date.now() / 1000);
     const existing = db.prepare('SELECT * FROM connections WHERE id = ?').get(input.id) as
@@ -305,9 +254,6 @@ export function registerDbHandlers(): void {
       } else if (key === 'forcePathStyle') {
         value = raw ? 1 : 0;
       } else if (key === 'jumpHostConnectionId') {
-        // Explicit null clears the reference; non-empty string sets it.
-        // Empty-string is treated as null so a cleared form field doesn't
-        // try to assertValidJumpHost('') and produce a "not found" error.
         const v = raw === null || raw === '' ? null : (raw as string);
         if (v !== null) assertValidJumpHost(db, v, input.id);
         value = v;
@@ -343,12 +289,6 @@ export function registerDbHandlers(): void {
 
     db.prepare(`UPDATE connections SET ${assignments.join(', ')} WHERE id = ?`).run(...values);
 
-    // Update credentials. SFTP secrets are a plain string; S3 secrets are a
-    // JSON blob carrying access key + secret + optional session token.
-    // If the provider changed (e.g. sftp → s3) or the SFTP authType changed
-    // (e.g. password → key), the previously stored credential is no longer
-    // valid for the connection and would otherwise persist until the row is
-    // deleted; clear it before storing the new one.
     const provider = input.provider ?? existing.provider ?? 'sftp';
     const providerChanged = input.provider != null && input.provider !== existing.provider;
     const authTypeChanged =
@@ -391,9 +331,6 @@ export function registerDbHandlers(): void {
   });
 
   registerHandler(IPC.CONNECTION_DELETE, (_event, id: string) => {
-    // Delete the credential first inside a transaction so a failure on either
-    // step rolls back the other — otherwise a thrown deleteCredential() would
-    // leave an orphaned secret with no owning row.
     const deleteBoth = db.transaction((connId: string) => {
       deleteCredential(connId);
       deleteCredential(`jumphost:${connId}`);
@@ -405,7 +342,6 @@ export function registerDbHandlers(): void {
 
   registerHandler(IPC.CONNECTION_DELETE_ALL, () => {
     const deleteAll = db.transaction(() => {
-      // First get all IDs to clear credentials from the secure store
       const rows = db.prepare('SELECT id FROM connections').all() as { id: string }[];
       for (const row of rows) {
         deleteCredential(row.id);
@@ -431,8 +367,6 @@ export function registerDbHandlers(): void {
     const rows = db
       .prepare('SELECT * FROM connections ORDER BY sort_order ASC, name ASC')
       .all() as ConnectionRow[];
-    // Build an id → name map up-front so the per-row export can resolve the
-    // jump host name without an N+1 SELECT.
     const idToName = new Map(rows.map((r) => [r.id, r.name]));
     return rows.map((row) => {
       const out: ExportedConnection = { name: row.name, provider: row.provider ?? 'sftp' };
@@ -457,11 +391,6 @@ export function registerDbHandlers(): void {
 
   /**
    * Confine a privateKeyPath from an imported file to the user's home subtree.
-   * Imports may originate from another machine — accept ~ expansion but reject
-   * anything that resolves outside home. Returns null when the path can be
-   * stored as-is (after canonicalization), or throws to signal "skip this row".
-   * Cross-platform: uses validate.ts's home-confinement helper so a Windows
-   * import from a macOS export doesn't slip past a POSIX-only prefix check.
    */
   function sanitizeImportedKeyPath(input: string | undefined | null): string | null {
     if (!input) return null;
@@ -471,9 +400,6 @@ export function registerDbHandlers(): void {
     return expandAndConfineToHomeSync(input, 'privateKeyPath');
   }
 
-  // Caps on import payloads. The renderer-side IPC channel accepts an arbitrary
-  // array, so without these a misbehaving renderer (or a poisoned import file)
-  // could insert millions of rows or megabyte-long names.
   const MAX_IMPORT_CONNECTIONS = 5_000;
   const MAX_IMPORT_FIELD_LEN = 1_024;
   function assertImportFieldLen(
@@ -486,20 +412,8 @@ export function registerDbHandlers(): void {
     }
   }
 
-  /**
-   * Current on-disk export format version. Bumped when the schema changes in
-   * a breaking way; importers reject unknown versions instead of silently
-   * dropping fields they don't understand.
-   */
   const LUNAR_EXPORT_FORMAT_VERSION = 1;
 
-  /**
-   * Normalize an imported payload into a `ExportedConnection[]`. Accepts:
-   *   - bare array (legacy, pre-version-stamp exports)
-   *   - `{ version, connections }` envelope (current)
-   * Throws on unknown envelope versions so we don't silently mis-parse a
-   * future format with renamed / re-typed fields.
-   */
   function unwrapImportPayload(input: unknown): ExportedConnection[] {
     if (Array.isArray(input)) return input as ExportedConnection[];
     if (input && typeof input === 'object') {
@@ -534,19 +448,7 @@ export function registerDbHandlers(): void {
         folder, color_tag, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
-    /**
-     * Track imported SFTP rows by name → id so a second pass can wire up
-     * `jumpHostConnectionId` by matching `jumpHostName` from the export.
-     * We resolve in two passes (instead of one with `findExistingByName`)
-     * because the bastion row may appear *after* a target in the import
-     * file — single-pass would miss the link in that case.
-     */
     const importedSftpByName = new Map<string, string>();
-    /**
-     * Queued jump-host links: targetId → bastion name. Resolved after the
-     * insert pass, against both `importedSftpByName` and any preexisting
-     * SFTP rows in the database with that name.
-     */
     const pendingJumpHostLinks: { targetId: string; name: string; targetLabel: string }[] = [];
     const findExistingSftp = db.prepare(
       'SELECT id FROM connections WHERE name = ? AND host = ? AND username = ?',
@@ -554,8 +456,6 @@ export function registerDbHandlers(): void {
     const findExistingByName = db.prepare('SELECT id FROM connections WHERE name = ?');
     let imported = 0;
     const skipped: { name: string; reason: string }[] = [];
-    // Wrap the whole batch in a transaction so a malformed record at row N
-    // doesn't leave 0..N-1 partially imported.
     const importAll = db.transaction((rows: ExportedConnection[]) => {
       for (const conn of rows) {
         const label = conn?.name ?? '(unnamed)';
@@ -666,9 +566,6 @@ export function registerDbHandlers(): void {
     });
     importAll(connections);
 
-    // Second pass: resolve jumpHostName references. Run outside the import
-    // transaction so a single bad link doesn't roll back all imported rows —
-    // unmatched references just get reported in `skipped`.
     if (pendingJumpHostLinks.length > 0) {
       const findSftpByName = db.prepare(
         "SELECT id, jump_host_connection_id FROM connections WHERE name = ? AND provider = 'sftp' LIMIT 1",
@@ -697,7 +594,6 @@ export function registerDbHandlers(): void {
             });
             continue;
           }
-          // Re-check single-hop invariant against the resolved bastion row.
           const bastionRow = dbRow ??
             (db
               .prepare('SELECT jump_host_connection_id FROM connections WHERE id = ?')
@@ -743,79 +639,20 @@ export function registerDbHandlers(): void {
     const path = result.filePaths[0];
     const { stat } = await import('fs/promises');
     const stats = await stat(path);
-    const MAX_IMPORT_BYTES = 5 * 1024 * 1024; // 5 MB — large enough for thousands of records
+    const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
     if (stats.size > MAX_IMPORT_BYTES) {
       throw validation(`Import file is too large: ${stats.size} bytes (max ${MAX_IMPORT_BYTES})`);
     }
     const content = await readFile(path, 'utf-8');
-    let parsed: unknown;
     try {
-      parsed = JSON.parse(content);
+      const parsed = JSON.parse(content);
       return importConnections(parsed);
     } catch {
-      // Not JSON, try third-party importers (INI/REG)
       const thirdParty = detectAndImport(content, path);
       if (thirdParty.length > 0) {
         return importConnections(thirdParty);
       }
       throw validation('Import file is not valid JSON or supported third-party format');
     }
-  });
-
-  // Settings
-  registerHandler(IPC.SETTINGS_GET, (_event, key: string) => {
-    if (!VALID_SETTINGS_KEYS.has(key)) {
-      throw validation(`Unknown setting key: ${key}`);
-    }
-    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
-      | { value: string }
-      | undefined;
-    return row?.value ?? null;
-  });
-
-  registerHandler(IPC.SETTINGS_SET, (_event, { key, value }: { key: string; value: string }) => {
-    if (!VALID_SETTINGS_KEYS.has(key)) {
-      throw validation(`Unknown setting key: ${key}`);
-    }
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(value);
-    } catch {
-      throw validation(`Setting ${key} must be JSON-encoded`);
-    }
-    if (!checkSettingType(key, parsed)) {
-      throw validation(`Setting ${key} has wrong type`);
-    }
-    let v = value;
-    if (key === 'terminal.scrollback') {
-      const n = Math.max(1000, Math.min(LIMITS.MAX_SCROLLBACK, (parsed as number) || 10000));
-      v = JSON.stringify(n);
-    } else if (key === 'transfer.concurrency') {
-      const n = Math.max(1, Math.min(LIMITS.MAX_CONCURRENT_TRANSFERS, (parsed as number) || 3));
-      v = JSON.stringify(n);
-      transferQueue.setMaxConcurrent(n);
-    }
-    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, v);
-  });
-
-  registerHandler(IPC.SETTINGS_GET_ALL, () => {
-    const rows = db.prepare('SELECT key, value FROM settings').all() as {
-      key: string;
-      value: string;
-    }[];
-    const settings: Record<string, unknown> = {};
-    for (const row of rows) {
-      // Skip stored rows that don't match the expected schema — a stale row
-      // from a previous install must not break the renderer.
-      try {
-        const parsed = JSON.parse(row.value);
-        if (checkSettingType(row.key, parsed)) {
-          settings[row.key] = parsed;
-        }
-      } catch {
-        // Drop unparseable rows silently.
-      }
-    }
-    return settings;
   });
 }

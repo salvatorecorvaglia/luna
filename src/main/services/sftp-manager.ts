@@ -3,7 +3,7 @@ import { createReadStream, createWriteStream } from 'fs';
 import { stat as fsStat, unlink } from 'fs/promises';
 import { sshManager } from './ssh-manager';
 import type { SftpEntry } from '@shared/types/sftp';
-import { LIMITS } from '@shared/constants';
+import { BINARY_PREVIEW_EXTENSIONS, LIMITS } from '@shared/constants';
 import { withTimeout } from '../lib/with-timeout';
 import log from '../lib/logger';
 import { AbortError, SftpTransferError, SshConnectionError } from '../lib/errors';
@@ -352,8 +352,7 @@ class SftpManager {
             settle(() => {
               const buffer = Buffer.concat(chunks);
               const ext = remotePath.split('.').pop()?.toLowerCase() || '';
-              const binaryExts = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp', 'pdf'];
-              const isBinary = binaryExts.includes(ext);
+              const isBinary = BINARY_PREVIEW_EXTENSIONS.has(ext);
               resolve({
                 content: buffer.toString(isBinary ? 'base64' : 'utf-8'),
                 encoding: isBinary ? 'base64' : 'utf-8',

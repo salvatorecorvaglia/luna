@@ -261,6 +261,9 @@ export function ConnectionForm() {
         out.port = 'Port must be between 1 and 65535';
       }
       if (!username.trim()) out.username = 'Username is required';
+      if (authType === 'password' && !isEditing && !password.trim()) {
+        out.password = 'Password is required';
+      }
       if ((authType === 'key' || authType === 'key+passphrase') && !privateKeyPath.trim()) {
         out.privateKeyPath = 'Private key path is required';
       } else if (privateKeyProbeError) {
@@ -367,7 +370,9 @@ export function ConnectionForm() {
       host: true,
       port: true,
       username: true,
+      password: true,
       privateKeyPath: true,
+      passphrase: true,
       accessKeyId: true,
       secretAccessKey: true,
     });
@@ -944,14 +949,19 @@ export function ConnectionForm() {
                     onClick={handleTest}
                     aria-busy={testing}
                     title={testing ? 'Click to cancel the running test' : undefined}
-                    className="btn-ghost"
+                    className={cn(
+                      'btn-outline',
+                      testing && 'bg-primary/5 border-primary/30 text-primary shadow-sm ring-1 ring-primary/20'
+                    )}
                   >
                     {testing ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
                     ) : (
                       <Wifi className="h-3.5 w-3.5" />
                     )}
-                    {testing ? 'Testing…' : 'Test connection'}
+                    <span className={cn(testing && "font-semibold")}>
+                      {testing ? 'Testing…' : 'Test connection'}
+                    </span>
                   </button>
 
                   <div className="flex gap-2">

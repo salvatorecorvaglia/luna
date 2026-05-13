@@ -120,6 +120,8 @@ export const LIMITS = {
   MAX_PREVIEW_BYTES: 50 * 1024 * 1024,
   /** Hard cap on terminal scrollback lines (settings UI clamps to this). */
   MAX_SCROLLBACK: 100_000,
+  /** Minimum terminal scrollback lines. Must match the clamp in SETTINGS_SET. */
+  MIN_SCROLLBACK: 1_000,
   /** Minimum terminal font size (px). */
   MIN_FONT_SIZE: 8,
   /** Maximum terminal font size (px). */
@@ -134,4 +136,14 @@ export const LIMITS = {
   MAX_QUEUED_TRANSFERS: 1_000,
   /** Per-op SSH connect timeout (ms). Wraps the entire connect promise so renderers never hang. */
   SSH_CONNECT_TIMEOUT_MS: 60_000,
+  /** Maximum total entries returned by a single S3 list call. Prevents OOM on huge buckets. */
+  MAX_S3_LIST_ENTRIES: 50_000,
 } as const;
+
+/**
+ * File extensions treated as binary for preview purposes. Shared between
+ * SFTP and S3 readFile implementations to avoid drift.
+ */
+export const BINARY_PREVIEW_EXTENSIONS = new Set([
+  'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp', 'pdf',
+]);
