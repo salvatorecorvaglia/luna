@@ -16,7 +16,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import type { Readable } from 'stream';
-import { LIMITS } from '@shared/constants';
+import { BINARY_PREVIEW_EXTENSIONS, LIMITS } from '@shared/constants';
 import type { StorageEntry, StorageStatResult } from '@shared/types/storage-provider';
 import type { StepCallback, StorageProvider } from '../storage/types';
 import { AbortError, S3StorageError } from '../../lib/errors';
@@ -169,6 +169,11 @@ class S3StorageProvider implements StorageProvider {
             entries.push(objectToEntry(bucket, obj, name));
           }
           ContinuationToken = out.IsTruncated ? out.NextContinuationToken : undefined;
+          // Safety cap: stop pagination if we've accumulated too many entries
+          // to prevent OOM on buckets with millions of keys at a given prefix.
+          if (entries.length >= LIMITS.MAX_S3_LIST_ENTRIES) {
+            ContinuationToken = undefined;
+          }
         } while (ContinuationToken);
       } catch (err) {
         throw wrapS3Error('list-objects', err);
@@ -377,8 +382,7 @@ class S3StorageProvider implements StorageProvider {
         }
         const buffer = Buffer.concat(chunks);
         const ext = key.split('.').pop()?.toLowerCase() || '';
-        const binaryExts = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp', 'pdf'];
-        const isBinary = binaryExts.includes(ext);
+        const isBinary = BINARY_PREVIEW_EXTENSIONS.has(ext);
 
         return {
           content: buffer.toString(isBinary ? 'base64' : 'utf-8'),

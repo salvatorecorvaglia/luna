@@ -226,8 +226,12 @@ export function SftpFields({
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  onBlur={() => markTouched('password')}
                   placeholder={isEditing ? '(unchanged)' : 'Enter password'}
-                  className="form-input pr-9"
+                  className={cn(
+                    'form-input pr-9',
+                    visibleError('password') && 'border-destructive/60 focus:border-destructive'
+                  )}
                 />
                 <button
                   type="button"
@@ -297,6 +301,7 @@ export function SftpFields({
                   type="password"
                   value={passphrase}
                   onChange={(e) => setPassphrase(e.target.value)}
+                  onBlur={() => markTouched('passphrase')}
                   placeholder={isEditing ? '(unchanged)' : 'Key passphrase'}
                   className="form-input"
                 />
@@ -473,6 +478,7 @@ export function SftpFields({
                           type={showJumpHostPassword ? 'text' : 'password'}
                           value={jumpHostPassword}
                           onChange={(e) => setJumpHostPassword(e.target.value)}
+                          onBlur={() => markTouched('jumpHostPassword')}
                           placeholder="Jump host password"
                           className="form-input text-xs pr-9"
                         />
