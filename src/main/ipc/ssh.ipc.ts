@@ -20,15 +20,25 @@ import type { SshConnectParams, SshResizeParams, SshSendDataParams } from '@shar
 import type { AuthType } from '@shared/types/connection';
 
 export function registerSshHandlers(): void {
-  // Keep the storage registry in sync with reconnects. The initial CONNECT
-  // also fires this — duplicate register() calls are idempotent.
   sshManager.onSessionConnect((sessionId) => {
     storageRegistry.register(sessionId, sftpStorageProvider);
+  });
+
+  sshManager.onSessionDisconnect((sessionId) => {
+    storageRegistry.unregister(sessionId);
   });
 
   registerHandler(IPC.SSH_CONNECT, async (_event, params: SshConnectParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
     assertNonEmptyString(params.connectionId, 'connectionId');
+
+    // Register the storage provider as soon as we start connecting. This ensures
+    // that if the renderer (e.g. the SFTP view) tries to list files while the
+    // connection is still in progress, the registry won't throw "No storage
+    // provider registered". The subsequent list() call will either wait for the
+    // connection or fail with a more descriptive SSH error.
+    storageRegistry.register(params.sessionId, sftpStorageProvider);
+
     const result = await sshManager.connect(
       params.sessionId,
       params.connectionId,
