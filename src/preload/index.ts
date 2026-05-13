@@ -128,6 +128,7 @@ const api = {
     create: (input: CreateConnectionInput) => invoke(IPC.CONNECTION_CREATE, input),
     update: (input: UpdateConnectionInput) => invoke(IPC.CONNECTION_UPDATE, input),
     delete: (id: string) => invoke(IPC.CONNECTION_DELETE, id),
+    deleteAll: () => invoke(IPC.CONNECTION_DELETE_ALL),
     reorder: (ids: string[]) => invoke(IPC.CONNECTION_REORDER, ids),
     export: () => invoke(IPC.CONNECTION_EXPORT),
     import: (connections: ExportedConnection[]) => invoke(IPC.CONNECTION_IMPORT, connections),

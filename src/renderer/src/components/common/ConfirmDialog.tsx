@@ -68,14 +68,14 @@ export function ConfirmDialog({
             initial="initial"
             animate="animate"
             exit="exit"
-            className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-[1100] bg-black/60 backdrop-blur-sm"
           />
           <motion.div
             variants={dialogVariants}
             initial="initial"
             animate="animate"
             exit="exit"
-            className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+            className="fixed inset-0 z-[1100] flex items-center justify-center p-4"
           >
             <div
               ref={dialogRef}

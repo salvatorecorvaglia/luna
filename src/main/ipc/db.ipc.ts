@@ -293,6 +293,19 @@ export function registerDbHandlers(): void {
     logger.info(`Connection deleted: ${id}`);
   });
 
+  registerHandler(IPC.CONNECTION_DELETE_ALL, () => {
+    const deleteAll = db.transaction(() => {
+      // First get all IDs to clear credentials from the secure store
+      const rows = db.prepare('SELECT id FROM connections').all() as { id: string }[];
+      for (const row of rows) {
+        deleteCredential(row.id);
+      }
+      db.prepare('DELETE FROM connections').run();
+    });
+    deleteAll();
+    logger.info('All connections deleted');
+  });
+
   registerHandler(IPC.CONNECTION_REORDER, (_event, ids: string[]) => {
     const update = db.prepare('UPDATE connections SET sort_order = ? WHERE id = ?');
     const transaction = db.transaction((idList: string[]) => {
@@ -520,13 +533,16 @@ export function registerDbHandlers(): void {
   );
 
   registerHandler(IPC.CONNECTION_IMPORT_FROM_FILE, async () => {
+    console.log('Opening import dialog with filters...');
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: [
-        { name: 'Connection Exports', extensions: ['json', 'ini', 'reg', 'mxtpro'] },
+        { name: 'Connection Exports', extensions: ['json', 'ini', 'reg', 'mxtpro', 'mxtsessions'] },
+        { name: 'MobaXterm Sessions', extensions: ['mxtsessions'] },
+        { name: 'INI/Configuration', extensions: ['ini', 'mxtpro', 'mxtsessions'] },
         { name: 'JSON', extensions: ['json'] },
-        { name: 'INI/Configuration', extensions: ['ini', 'mxtpro'] },
         { name: 'Registry', extensions: ['reg'] },
+        { name: 'All Files', extensions: ['*'] },
       ],
     });
     if (result.canceled || result.filePaths.length === 0) {

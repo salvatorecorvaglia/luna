@@ -14,8 +14,10 @@ export function importFromMobaXterm(content: string): ExportedConnection[] {
     if (!sectionName.toLowerCase().startsWith('bookmarks')) continue;
 
     const section = ini[sectionName];
+    const folder = section.SubRep || (sectionName.includes('_') ? sectionName : 'MobaXterm');
+
     for (const [name, value] of Object.entries(section)) {
-      if (name === 'SubPath') continue;
+      if (['SubRep', 'ImgNum', 'SubPath'].includes(name)) continue;
 
       // SSH/SFTP sessions start with #109#
       if (value.startsWith('#109#')) {
@@ -25,6 +27,18 @@ export function importFromMobaXterm(content: string): ExportedConnection[] {
         const host = parts[1];
         const port = parseInt(parts[2], 10) || 22;
         const username = parts[3];
+        
+        // Key path is usually at index 14
+        let privateKeyPath = parts[14];
+        if (privateKeyPath) {
+          // Translate MobaXterm internal variables
+          // _ProfileDir_ is often where .ssh folder is kept
+          privateKeyPath = privateKeyPath.replace(/_ProfileDir_\\\.ssh\\/gi, '~/.ssh/');
+          privateKeyPath = privateKeyPath.replace(/_ProfileDir_/gi, '~');
+          privateKeyPath = privateKeyPath.replace(/_CurrentDrive_:/gi, '');
+          // Convert backslashes to forward slashes for cross-platform compatibility
+          privateKeyPath = privateKeyPath.replace(/\\/g, '/');
+        }
 
         connections.push({
           name,
@@ -32,8 +46,9 @@ export function importFromMobaXterm(content: string): ExportedConnection[] {
           host,
           port,
           username,
-          authType: 'password', // Default, user will have to enter password
-          folder: sectionName.includes('_') ? sectionName : 'MobaXterm',
+          authType: privateKeyPath ? 'key' : 'password',
+          privateKeyPath: privateKeyPath || undefined,
+          folder,
         });
       }
     }
