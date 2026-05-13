@@ -1,4 +1,5 @@
 import { readFile, stat } from 'fs/promises';
+import type { Duplex } from 'stream';
 import { type ConnectConfig, type CipherAlgorithm } from 'ssh2';
 import type { AuthType } from '@shared/types/connection';
 import { IPC } from '@shared/constants';
@@ -48,6 +49,13 @@ export interface BuildConfigOptions {
   connectionId?: string;
   /** Stable id for the open session, used for emit metadata. */
   sessionId?: string;
+  /**
+   * Optional already-established Duplex (e.g. a `forwardOut` channel from a
+   * jump host's SSH client). When provided, ssh2 uses this stream as the
+   * underlying socket instead of opening a TCP connection — implements
+   * single-hop ProxyJump.
+   */
+  sock?: Duplex;
 }
 
 /**
@@ -93,11 +101,15 @@ export async function buildConnectConfig(
   params: ConnectParams,
   opts: BuildConfigOptions,
 ): Promise<{ config: ConnectConfig; error?: string }> {
-  const { pendingHostKeys, connectionId, sessionId } = opts;
+  const { pendingHostKeys, connectionId, sessionId, sock } = opts;
 
   const config: ConnectConfig = {
     host: params.host,
     port: params.port,
+    // When a tunneled socket is supplied, ssh2 still validates the *target*
+    // host key via `hostVerifier` below — the channel is transparent. The
+    // bastion's host key was validated when its own client connected.
+    ...(sock ? { sock } : {}),
     username: params.username,
     keepaliveInterval: getSetting('ssh.keepAliveInterval', 10000),
     keepaliveCountMax: 3,

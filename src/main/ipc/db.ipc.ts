@@ -89,10 +89,45 @@ function rowToConnection(row: ConnectionRow): Connection {
     folder: row.folder,
     colorTag: row.color_tag || undefined,
     sortOrder: row.sort_order,
+    jumpHostConnectionId: row.jump_host_connection_id || undefined,
     lastConnectedAt: row.last_connected_at || undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+/**
+ * Validate that `jumpHostConnectionId` points to a usable bastion row.
+ * Throws a VALIDATION_ERROR with a user-friendly message on any violation.
+ * Rules:
+ *  - The id must exist.
+ *  - The target row must be an SFTP connection (S3 has no notion of SSH).
+ *  - It must not equal `selfId` (would create a 1-node cycle).
+ *  - It must not itself have `jump_host_connection_id` set (single-hop only,
+ *    until/unless multi-hop chains are added).
+ */
+function assertValidJumpHost(
+  db: ReturnType<typeof getDatabase>,
+  jumpId: string,
+  selfId: string | null,
+): void {
+  if (selfId && jumpId === selfId) {
+    throw validation('A connection cannot use itself as a jump host');
+  }
+  const row = db
+    .prepare('SELECT id, provider, jump_host_connection_id FROM connections WHERE id = ?')
+    .get(jumpId) as
+    | { id: string; provider: string; jump_host_connection_id: string | null }
+    | undefined;
+  if (!row) throw validation('Jump host connection not found');
+  if (row.provider !== 'sftp') {
+    throw validation('Jump host must be an SSH/SFTP connection');
+  }
+  if (row.jump_host_connection_id) {
+    throw validation(
+      'Jump host already chains through another bastion; multi-hop is not supported',
+    );
+  }
 }
 
 export function registerDbHandlers(): void {
@@ -131,14 +166,18 @@ export function registerDbHandlers(): void {
     const id = uuidv4();
     const now = Math.floor(Date.now() / 1000);
 
+    const jumpHostId =
+      provider === 'sftp' && input.jumpHostConnectionId ? input.jumpHostConnectionId : null;
+    if (jumpHostId) assertValidJumpHost(db, jumpHostId, null);
+
     db.prepare(
       `
       INSERT INTO connections (
         id, name, provider, host, port, username, auth_type, private_key_path,
         endpoint, region, default_bucket, force_path_style,
-        folder, color_tag, created_at, updated_at
+        folder, color_tag, jump_host_connection_id, created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     ).run(
       id,
@@ -155,6 +194,7 @@ export function registerDbHandlers(): void {
       provider === 's3' ? (input.forcePathStyle ? 1 : 0) : null,
       input.folder || 'default',
       input.colorTag || null,
+      jumpHostId,
       now,
       now,
     );
@@ -205,6 +245,7 @@ export function registerDbHandlers(): void {
     forcePathStyle: 'force_path_style',
     folder: 'folder',
     colorTag: 'color_tag',
+    jumpHostConnectionId: 'jump_host_connection_id',
   };
 
   registerHandler(IPC.CONNECTION_UPDATE, (_event, input: UpdateConnectionInput) => {
@@ -234,6 +275,13 @@ export function registerDbHandlers(): void {
         value = (raw as string) || null;
       } else if (key === 'forcePathStyle') {
         value = raw ? 1 : 0;
+      } else if (key === 'jumpHostConnectionId') {
+        // Explicit null clears the reference; non-empty string sets it.
+        // Empty-string is treated as null so a cleared form field doesn't
+        // try to assertValidJumpHost('') and produce a "not found" error.
+        const v = raw === null || raw === '' ? null : (raw as string);
+        if (v !== null) assertValidJumpHost(db, v, input.id);
+        value = v;
       } else {
         value = raw as string | number;
       }
@@ -320,6 +368,9 @@ export function registerDbHandlers(): void {
     const rows = db
       .prepare('SELECT * FROM connections ORDER BY sort_order ASC, name ASC')
       .all() as ConnectionRow[];
+    // Build an id → name map up-front so the per-row export can resolve the
+    // jump host name without an N+1 SELECT.
+    const idToName = new Map(rows.map((r) => [r.id, r.name]));
     return rows.map((row) => {
       const out: ExportedConnection = { name: row.name, provider: row.provider ?? 'sftp' };
       if (row.host) out.host = row.host;
@@ -333,6 +384,10 @@ export function registerDbHandlers(): void {
       if (row.force_path_style != null) out.forcePathStyle = row.force_path_style === 1;
       if (row.folder && row.folder !== 'default') out.folder = row.folder;
       if (row.color_tag) out.colorTag = row.color_tag;
+      if (row.jump_host_connection_id) {
+        const name = idToName.get(row.jump_host_connection_id);
+        if (name) out.jumpHostName = name;
+      }
       return out;
     });
   });
@@ -416,6 +471,20 @@ export function registerDbHandlers(): void {
         folder, color_tag, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
+    /**
+     * Track imported SFTP rows by name → id so a second pass can wire up
+     * `jumpHostConnectionId` by matching `jumpHostName` from the export.
+     * We resolve in two passes (instead of one with `findExistingByName`)
+     * because the bastion row may appear *after* a target in the import
+     * file — single-pass would miss the link in that case.
+     */
+    const importedSftpByName = new Map<string, string>();
+    /**
+     * Queued jump-host links: targetId → bastion name. Resolved after the
+     * insert pass, against both `importedSftpByName` and any preexisting
+     * SFTP rows in the database with that name.
+     */
+    const pendingJumpHostLinks: { targetId: string; name: string; targetLabel: string }[] = [];
     const findExistingSftp = db.prepare(
       'SELECT id FROM connections WHERE name = ? AND host = ? AND username = ?',
     );
@@ -494,6 +563,14 @@ export function registerDbHandlers(): void {
             now,
             now,
           );
+          importedSftpByName.set(conn.name, id);
+          if (conn.jumpHostName) {
+            pendingJumpHostLinks.push({
+              targetId: id,
+              name: conn.jumpHostName,
+              targetLabel: label,
+            });
+          }
           imported++;
         } else if (provider === 's3') {
           if (findExistingByName.get(conn.name)) {
@@ -525,6 +602,58 @@ export function registerDbHandlers(): void {
       }
     });
     importAll(connections);
+
+    // Second pass: resolve jumpHostName references. Run outside the import
+    // transaction so a single bad link doesn't roll back all imported rows —
+    // unmatched references just get reported in `skipped`.
+    if (pendingJumpHostLinks.length > 0) {
+      const findSftpByName = db.prepare(
+        "SELECT id, jump_host_connection_id FROM connections WHERE name = ? AND provider = 'sftp' LIMIT 1",
+      );
+      const updateLink = db.prepare(
+        'UPDATE connections SET jump_host_connection_id = ? WHERE id = ?',
+      );
+      const linkAll = db.transaction(() => {
+        for (const link of pendingJumpHostLinks) {
+          if (link.name === link.targetLabel) {
+            skipped.push({
+              name: link.targetLabel,
+              reason: 'jump host references itself',
+            });
+            continue;
+          }
+          const inBatchId = importedSftpByName.get(link.name);
+          const dbRow = findSftpByName.get(link.name) as
+            | { id: string; jump_host_connection_id: string | null }
+            | undefined;
+          const bastionId = inBatchId ?? dbRow?.id;
+          if (!bastionId) {
+            skipped.push({
+              name: link.targetLabel,
+              reason: `jump host "${link.name}" not found (imported without bastion link)`,
+            });
+            continue;
+          }
+          // Re-check single-hop invariant against the resolved bastion row.
+          const bastionRow = dbRow ??
+            (db
+              .prepare('SELECT jump_host_connection_id FROM connections WHERE id = ?')
+              .get(bastionId) as { jump_host_connection_id: string | null } | undefined) ?? {
+              jump_host_connection_id: null,
+            };
+          if (bastionRow.jump_host_connection_id) {
+            skipped.push({
+              name: link.targetLabel,
+              reason: `jump host "${link.name}" itself chains through another bastion`,
+            });
+            continue;
+          }
+          updateLink.run(bastionId, link.targetId);
+        }
+      });
+      linkAll();
+    }
+
     return { imported, skipped };
   }
 
@@ -533,7 +662,6 @@ export function registerDbHandlers(): void {
   );
 
   registerHandler(IPC.CONNECTION_IMPORT_FROM_FILE, async () => {
-    console.log('Opening import dialog with filters...');
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: [

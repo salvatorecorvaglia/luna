@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { Eye, EyeOff, FileKey, Globe, Hash, Key, Lock, User } from 'lucide-react';
+import { Eye, EyeOff, FileKey, Globe, Hash, Key, Lock, User, Waypoints } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { AuthType } from '@shared/types/connection';
+import type { AuthType, Connection } from '@shared/types/connection';
 import { AUTH_TYPES } from './connection-form.constants';
 import { FormField } from './FormField';
 
@@ -24,6 +24,14 @@ interface SftpFieldsProps {
   setPassphrase(v: string): void;
   showPassword: boolean;
   setShowPassword(v: boolean): void;
+  /**
+   * Connections eligible to act as a jump host. The parent filters out the
+   * current connection (no self-reference) and any already-chained
+   * connection (single-hop only) before passing the list in.
+   */
+  jumpHostOptions: Connection[];
+  jumpHostConnectionId: string;
+  setJumpHostConnectionId(v: string): void;
   visibleError(field: string): string | undefined;
   markTouched(field: string): void;
   onBrowseKey(): void;
@@ -48,6 +56,9 @@ export function SftpFields({
   setPassphrase,
   showPassword,
   setShowPassword,
+  jumpHostOptions,
+  jumpHostConnectionId,
+  setJumpHostConnectionId,
   visibleError,
   markTouched,
   onBrowseKey,
@@ -258,6 +269,29 @@ export function SftpFields({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Jump Host (single-hop ProxyJump). Optional, native <select> for
+          a11y + zero extra component cost. "None" is the no-jump default. */}
+      <FormField
+        label="Jump host"
+        icon={<Waypoints className="h-3.5 w-3.5" aria-hidden="true" />}
+        optional
+        id={`${fieldId}-jump`}
+      >
+        <select
+          id={`${fieldId}-jump`}
+          value={jumpHostConnectionId}
+          onChange={(e) => setJumpHostConnectionId(e.target.value)}
+          className="form-input"
+        >
+          <option value="">None (direct connection)</option>
+          {jumpHostOptions.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name} — {c.username}@{c.host}:{c.port}
+            </option>
+          ))}
+        </select>
+      </FormField>
     </>
   );
 }

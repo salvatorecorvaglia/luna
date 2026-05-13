@@ -83,6 +83,16 @@ describe('database migrations', () => {
     expect(m?.sql).toMatch(/DROP TABLE connections/);
   });
 
+  it('includes the jump-host migration with FK + index', () => {
+    const m = __test__.getMigrations().find((x) => x.name === '010_jump_host_connection_id');
+    expect(m).toBeDefined();
+    // FK with ON DELETE SET NULL keeps target rows valid when bastion is
+    // deleted; the index speeds up the "who jumps through X?" lookup.
+    expect(m?.sql).toMatch(/jump_host_connection_id TEXT/);
+    expect(m?.sql).toMatch(/REFERENCES connections\(id\) ON DELETE SET NULL/);
+    expect(m?.sql).toMatch(/idx_connections_jump_host/);
+  });
+
   it('throws MigrationError if integrity_check fails after a migration', () => {
     const db = makeFakeDb();
     // Override pragma to report corruption so the post-apply check trips.

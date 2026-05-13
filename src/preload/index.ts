@@ -148,6 +148,7 @@ const api = {
         privateKeyPath?: string;
         password?: string;
         passphrase?: string;
+        jumpHostConnectionId?: string;
       };
     }) => invoke(IPC.SSH_TEST_CONNECTION, params),
     disconnect: (sessionId: string) => invoke(IPC.SSH_DISCONNECT, sessionId),

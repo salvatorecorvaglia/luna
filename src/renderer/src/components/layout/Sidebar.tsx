@@ -304,9 +304,9 @@ function SidebarSection({
     ? groupedByProvider.sftp.length > 0
     : groupedByProvider.s3.length > 0;
 
-  if (!hasConnections) return null;
-
-  // Group connections by folder
+  // Hooks must run in the same order every render — group/sort *before*
+  // the early return so React's hook accounting stays stable when a
+  // section transitions empty ↔ non-empty.
   const folders = useMemo(() => {
     const groups: Record<string, Connection[]> = {};
     for (const conn of connections) {
@@ -324,6 +324,8 @@ function SidebarSection({
       return a.localeCompare(b);
     });
   }, [folders]);
+
+  if (!hasConnections) return null;
 
   const handleReorderFolder = (folderName: string, newOrder: Connection[]) => {
     // Find the range in the original connections array and replace it
@@ -495,6 +497,14 @@ function ConnectionItem({
     useConnectionStore();
   const { setActiveView } = useUIStore();
   const { sessions } = useTerminalStore();
+  const { data: allConnections } = useConnections();
+  // The bastion may have been deleted (FK is ON DELETE SET NULL on the
+  // server, but the renderer's cached row can briefly out-pace that) — fall
+  // back to a generic "via jump host" label so the badge still signals the
+  // chain even when the lookup misses.
+  const jumpHostName = connection.jumpHostConnectionId
+    ? allConnections?.find((c) => c.id === connection.jumpHostConnectionId)?.name
+    : undefined;
   const storageSessions = useSftpStore((s) => s.storageSessions);
   const setSftpSessionId = useSftpStore((s) => s.setSftpSessionId);
   const deleteMutation = useDeleteConnection();
@@ -742,6 +752,14 @@ function ConnectionItem({
                   <>
                     {connection.username}@{connection.host}
                     {connection.port !== 22 && `:${connection.port}`}
+                    {connection.jumpHostConnectionId && (
+                      <span
+                        className="ml-1.5 inline-flex items-center rounded border border-border/50 bg-muted/40 px-1 py-px text-[9px] uppercase tracking-wide text-muted-foreground/80"
+                        title={`Tunneled via jump host${jumpHostName ? ` "${jumpHostName}"` : ''}`}
+                      >
+                        via {jumpHostName ?? 'jump'}
+                      </span>
+                    )}
                   </>
                 )}
               </div>
