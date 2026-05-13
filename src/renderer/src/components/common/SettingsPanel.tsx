@@ -102,6 +102,10 @@ export function SettingsPanel() {
     if (!panel) return;
 
     const handler = (e: KeyboardEvent) => {
+      // If a nested dialog (like Delete All) is open, let its own focus trap
+      // handle Escape. Otherwise, we'd close both at once.
+      if (confirmDeleteAll) return;
+
       if (e.key === 'Escape') {
         setSettingsOpen(false);
         return;
@@ -124,7 +128,7 @@ export function SettingsPanel() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [settingsOpen, setSettingsOpen]);
+  }, [settingsOpen, setSettingsOpen, confirmDeleteAll]);
 
   return (
     <AnimatePresence>
@@ -357,9 +361,9 @@ export function SettingsPanel() {
                 </div>
                 <button
                   onClick={() => setConfirmDeleteAll(true)}
-                  className="btn-outline w-full text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30 hover:border-destructive/60"
+                  className="btn-outline w-full !text-[#C41E3A] !border-[#C41E3A]/40 hover:!bg-[#C41E3A]/10 hover:!border-[#C41E3A]/80 transition-colors"
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  <Trash2 className="h-3.5 w-3.5 !text-[#C41E3A]" />
                   Delete all connections
                 </button>
               </Section>

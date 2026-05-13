@@ -11,49 +11,14 @@ import { parseIni } from './ini-parser';
  *   parts[1]  host
  *   parts[2]  port
  *   parts[3]  username
- *   parts[14] private key path (already in use by this importer)
+ *   parts[14] private key path
  *   parts[18] gateway/jump host
  *   parts[19] gateway port
  *   parts[20] gateway username
- *
- * When a gateway is present, the importer synthesizes a separate
- * ExportedConnection for the bastion (deduped across targets that share the
- * same gateway tuple) and links the target via `jumpHostName`. The db.ipc
- * import path's second pass then turns that name into a real FK on insert.
  */
 export function importFromMobaXterm(content: string): ExportedConnection[] {
   const ini = parseIni(content);
   const connections: ExportedConnection[] = [];
-
-  /**
-   * gateway tuple → synthetic-bastion connection name. Lets multiple targets
-   * pointing at the same `(host, port, user)` gateway share one bastion row.
-   */
-  const gatewayNames = new Map<string, string>();
-  /** Synthesized bastion connections, emitted *before* their dependents. */
-  const gatewayConnections: ExportedConnection[] = [];
-  /** Names already taken in the import payload (existing bookmark names +
-   *  previously-synthesized gateways) so we can resolve collisions. */
-  const takenNames = new Set<string>();
-
-  // Pre-scan bookmark names so synthetic gateway labels won't collide.
-  for (const sectionName of Object.keys(ini)) {
-    if (!sectionName.toLowerCase().startsWith('bookmarks')) continue;
-    for (const name of Object.keys(ini[sectionName])) {
-      if (!['SubRep', 'ImgNum', 'SubPath'].includes(name)) takenNames.add(name);
-    }
-  }
-
-  function uniqueGatewayName(base: string): string {
-    let candidate = base;
-    let n = 2;
-    while (takenNames.has(candidate)) {
-      candidate = `${base} (${n})`;
-      n++;
-    }
-    takenNames.add(candidate);
-    return candidate;
-  }
 
   function translateMobaPath(input: string): string {
     return input
@@ -83,36 +48,41 @@ export function importFromMobaXterm(content: string): ExportedConnection[] {
       const rawKey = parts[14];
       const privateKeyPath = rawKey ? translateMobaPath(rawKey) : undefined;
 
-      // Gateway / jump host. MobaXterm leaves these empty when no jump is
-      // configured, so we treat empty / missing as "no gateway".
-      const gwHostRaw = parts[18];
-      const gwPortRaw = parts[19];
-      const gwUserRaw = parts[20];
-      let jumpHostName: string | undefined;
-      if (gwHostRaw && gwHostRaw.trim() !== '') {
-        const gwHost = gwHostRaw.trim();
-        const gwPort = parseInt(gwPortRaw, 10) || 22;
-        const gwUser = (gwUserRaw && gwUserRaw.trim()) || username;
-        const tupleKey = `${gwUser}@${gwHost}:${gwPort}`;
-        let synthName = gatewayNames.get(tupleKey);
-        if (!synthName) {
-          synthName = uniqueGatewayName(`Jump: ${tupleKey}`);
-          gatewayNames.set(tupleKey, synthName);
-          gatewayConnections.push({
-            name: synthName,
-            provider: 'sftp',
-            host: gwHost,
-            port: gwPort,
-            username: gwUser,
-            // Mobaxterm doesn't surface the gateway's auth config in this
-            // string. Default to password — users will need to fill in
-            // credentials post-import. The import summary makes this
-            // obvious because the bastion appears as its own connection.
-            authType: 'password',
-            folder,
-          });
+      // Gateway / jump host. Positional indices drift between MobaXterm versions
+      // (often 17-19 or 19-21). We use a heuristic: scan from index 17 for a
+      // non-empty field that looks like a host (contains dot/colon or length > 3)
+      // followed by a valid port number.
+      let gwHost: string | undefined;
+      let gwPort: number | undefined;
+      let gwUser: string | undefined;
+
+      for (let i = 17; i < parts.length - 2; i++) {
+        const candidateHost = parts[i]?.trim();
+        if (!candidateHost || candidateHost === '0' || candidateHost === '1') continue;
+
+        const candidatePort = parseInt(parts[i + 1], 10);
+        if (
+          !isNaN(candidatePort) &&
+          candidatePort > 0 &&
+          candidatePort <= 65535 &&
+          (candidateHost.includes('.') || candidateHost.includes(':') || candidateHost.length > 3)
+        ) {
+          gwHost = candidateHost;
+          gwPort = candidatePort;
+          gwUser = parts[i + 2]?.trim() || username;
+          break;
         }
-        jumpHostName = synthName;
+      }
+
+      let jumpHostConfig: ExportedConnection['jumpHostConfig'];
+
+      if (gwHost) {
+        jumpHostConfig = {
+          host: gwHost,
+          port: gwPort || 22,
+          username: gwUser || username,
+          authType: 'password',
+        };
       }
 
       connections.push({
@@ -124,12 +94,10 @@ export function importFromMobaXterm(content: string): ExportedConnection[] {
         authType: privateKeyPath ? 'key' : 'password',
         privateKeyPath: privateKeyPath || undefined,
         folder,
-        jumpHostName,
+        jumpHostConfig,
       });
     }
   }
 
-  // Emit gateways first so the in-batch link resolver finds them when it
-  // processes targets in source order.
-  return [...gatewayConnections, ...connections];
+  return connections;
 }
