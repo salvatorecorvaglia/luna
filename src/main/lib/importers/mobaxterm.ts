@@ -4,21 +4,33 @@ import { parseIni } from './ini-parser';
 /**
  * MobaXterm session string format (SSH = `#109#`):
  *   #109#0%host%port%username%...%key_path%...%gw_host%gw_port%gw_user%...
- *
- * The exact indices drift between MobaXterm versions, but the slice we care
- * about is stable enough for the common cases:
- *
- *   parts[1]  host
- *   parts[2]  port
- *   parts[3]  username
- *   parts[14] private key path
- *   parts[18] gateway/jump host
- *   parts[19] gateway port
- *   parts[20] gateway username
  */
 export function importFromMobaXterm(content: string): ExportedConnection[] {
   const ini = parseIni(content);
   const connections: ExportedConnection[] = [];
+
+  const gatewayNames = new Map<string, string>();
+  const gatewayConnections: ExportedConnection[] = [];
+  const takenNames = new Set<string>();
+
+  // Pre-scan bookmark names
+  for (const sectionName of Object.keys(ini)) {
+    if (!sectionName.toLowerCase().startsWith('bookmarks')) continue;
+    for (const name of Object.keys(ini[sectionName])) {
+      if (!['SubRep', 'ImgNum', 'SubPath'].includes(name)) takenNames.add(name);
+    }
+  }
+
+  function uniqueGatewayName(base: string): string {
+    let candidate = base;
+    let n = 2;
+    while (takenNames.has(candidate)) {
+      candidate = `${base} (${n})`;
+      n++;
+    }
+    takenNames.add(candidate);
+    return candidate;
+  }
 
   function translateMobaPath(input: string): string {
     return input
@@ -48,10 +60,7 @@ export function importFromMobaXterm(content: string): ExportedConnection[] {
       const rawKey = parts[14];
       const privateKeyPath = rawKey ? translateMobaPath(rawKey) : undefined;
 
-      // Gateway / jump host. Positional indices drift between MobaXterm versions
-      // (often 17-19 or 19-21). We use a heuristic: scan from index 17 for a
-      // non-empty field that looks like a host (contains dot/colon or length > 3)
-      // followed by a valid port number.
+      // Gateway / jump host heuristic search
       let gwHost: string | undefined;
       let gwPort: number | undefined;
       let gwUser: string | undefined;
@@ -74,15 +83,24 @@ export function importFromMobaXterm(content: string): ExportedConnection[] {
         }
       }
 
-      let jumpHostConfig: ExportedConnection['jumpHostConfig'];
-
+      let jumpHostName: string | undefined;
       if (gwHost) {
-        jumpHostConfig = {
-          host: gwHost,
-          port: gwPort || 22,
-          username: gwUser || username,
-          authType: 'password',
-        };
+        const tupleKey = `${gwUser}@${gwHost}:${gwPort}`;
+        jumpHostName = gatewayNames.get(tupleKey);
+        if (!jumpHostName) {
+          jumpHostName = uniqueGatewayName(`Jump: ${tupleKey}`);
+          gatewayNames.set(tupleKey, jumpHostName);
+          gatewayConnections.push({
+            name: jumpHostName,
+            provider: 'sftp',
+            host: gwHost,
+            port: gwPort || 22,
+            username: gwUser || username,
+            authType: 'password',
+            folder: 'Infrastructure',
+            isHidden: true, // Hide from sidebar
+          });
+        }
       }
 
       connections.push({
@@ -94,10 +112,10 @@ export function importFromMobaXterm(content: string): ExportedConnection[] {
         authType: privateKeyPath ? 'key' : 'password',
         privateKeyPath: privateKeyPath || undefined,
         folder,
-        jumpHostConfig,
+        jumpHostName,
       });
     }
   }
 
-  return connections;
+  return [...gatewayConnections, ...connections];
 }

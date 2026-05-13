@@ -43,6 +43,7 @@ export interface Connection {
    * Manual jump host configuration. Used when jumpHostConnectionId is not set.
    */
   jumpHostConfig?: ManualJumpHostConfig;
+  isHidden?: boolean;
   lastConnectedAt?: number;
   createdAt: number;
   updatedAt: number;
@@ -104,6 +105,7 @@ export interface ExportedConnection {
    * Optional manual jump host configuration. Used when jumpHostName is not set.
    */
   jumpHostConfig?: ManualJumpHostConfig;
+  isHidden?: boolean;
 }
 
 export interface ConnectionHistory {
