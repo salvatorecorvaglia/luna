@@ -159,8 +159,10 @@ export function SftpManager() {
     }
   }, [localPath, setLocalPath]);
 
-  const isSessionActive =
-    !!activeSessionId && (sessions.has(activeSessionId) || storageSessions.has(activeSessionId));
+  const currentSession = activeSessionId
+    ? sessions.get(activeSessionId) || storageSessions.get(activeSessionId)
+    : null;
+  const isSessionActive = currentSession?.status === 'connected';
 
   // Provider kind for the currently-displayed remote pane. SSH terminal
   // sessions always back SFTP; an entry in storageSessions carries its own
