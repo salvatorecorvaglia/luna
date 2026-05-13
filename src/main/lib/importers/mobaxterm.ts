@@ -60,12 +60,14 @@ export function importFromMobaXterm(content: string): ExportedConnection[] {
       const rawKey = parts[14];
       const privateKeyPath = rawKey ? translateMobaPath(rawKey) : undefined;
 
-      // Gateway / jump host heuristic search
       let gwHost: string | undefined;
       let gwPort: number | undefined;
       let gwUser: string | undefined;
 
-      for (let i = 17; i < parts.length - 2; i++) {
+      // Gateway / jump host heuristic search. Modern MobaXterm usually stores
+      // SSH gateway info at indices 18 (host), 19 (port), and 20 (user).
+      // We start at 18 and check a small range to account for minor version diffs.
+      for (let i = 18; i < Math.min(parts.length - 2, 24); i++) {
         const candidateHost = parts[i]?.trim();
         if (!candidateHost || candidateHost === '0' || candidateHost === '1') continue;
 
@@ -78,6 +80,7 @@ export function importFromMobaXterm(content: string): ExportedConnection[] {
           /^[0-9]+$/.test(candidatePortStr) && // Ensure port is a pure number, not a color list like "236,236,236"
           !candidateHost.includes('#') && // Exclude font/UI settings like "MobaFont:10"
           !candidateHost.includes(',') && // Exclude color settings like "180,180,192"
+          !candidateHost.includes('_') && // Exclude internal variables like "_Std_Colors_0_"
           (candidateHost.includes('.') || candidateHost.includes(':') || candidateHost.length > 3)
         ) {
           gwHost = candidateHost;
@@ -101,7 +104,7 @@ export function importFromMobaXterm(content: string): ExportedConnection[] {
             port: gwPort || 22,
             username: gwUser || username,
             authType: 'password',
-            folder: 'Internaò',
+            folder: 'Infrastructure',
             isHidden: true, // Hide from sidebar
           });
         }

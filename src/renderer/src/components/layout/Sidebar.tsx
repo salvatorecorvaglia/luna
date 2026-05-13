@@ -246,7 +246,7 @@ export function Sidebar() {
               <div className="px-3 py-10 text-center">
                 <Server className="mx-auto h-8 w-8 text-muted-foreground/30" />
                 <p className="mt-3 text-xs font-medium text-muted-foreground/70">
-                  {debouncedSearchQuery ? 'No matching connections' : 'No connections yet'}
+                  {debouncedSearchQuery ? 'No matching connections' : 'No connections'}
                 </p>
                 {!debouncedSearchQuery && (
                   <button
