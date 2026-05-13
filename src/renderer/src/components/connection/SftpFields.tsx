@@ -230,7 +230,7 @@ export function SftpFields({
                   placeholder={isEditing ? '(unchanged)' : 'Enter password'}
                   className={cn(
                     'form-input pr-9',
-                    visibleError('password') && 'border-destructive/60 focus:border-destructive'
+                    visibleError('password') && 'border-destructive/60 focus:border-destructive',
                   )}
                 />
                 <button

@@ -327,6 +327,22 @@ export function getCredentialBackendStatus(): {
 }
 
 /**
+ * Force-initializes the encryption key. Should be called at startup so the
+ * renderer correctly identifies the backend (especially plaintext fallbacks
+ * on Linux) before the first credential access.
+ */
+export function initializeCredentialStore(): void {
+  try {
+    getEncryptionKey();
+  } catch (err) {
+    // Initialization failure (e.g. fresh install on Linux without libsecret)
+    // is logged but not re-thrown here; the specific error will propagate
+    // when a store/retrieve operation is actually attempted.
+    log.warn('[Credentials] Eager initialization failed:', err);
+  }
+}
+
+/**
  * Test-only: exposes the AES-GCM helpers so the round-trip and tamper-detection
  * paths can be exercised without a database. Production callers should always
  * go through store/retrieve so the SQLite layer stays authoritative.

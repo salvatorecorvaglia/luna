@@ -6,6 +6,7 @@ import { registerAllHandlers } from './ipc';
 import { setMainWindow } from './ipc/app.ipc';
 import { disposeLocalTerminals } from './ipc/local-terminal.ipc';
 import { closeDatabase, getDatabase, MigrationError } from './services/database';
+import { initializeCredentialStore } from './services/credential-store';
 import { sshManager } from './services/ssh-manager';
 import { sftpManager } from './services/sftp-manager';
 import { transferQueue } from './services/transfer-queue';
@@ -144,7 +145,7 @@ void app.whenReady().then(() => {
               "frame-ancestors 'none'; " +
               "base-uri 'self'; " +
               "form-action 'none'; " +
-              "frame-src 'self'; " +
+              "frame-src 'self' data:; " +
               "object-src 'none'",
           ],
         },
@@ -156,8 +157,9 @@ void app.whenReady().then(() => {
   // friendly dialog instead of a hard crash inside the first IPC call.
   try {
     getDatabase();
+    initializeCredentialStore();
   } catch (err) {
-    log.error('[Main] Database initialization failed:', err);
+    log.error('[Main] Service initialization failed:', err);
     const detail =
       err instanceof MigrationError
         ? `${err.message}\n\nYou can recover by either:\n` +

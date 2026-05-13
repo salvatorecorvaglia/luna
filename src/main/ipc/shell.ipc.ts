@@ -7,6 +7,7 @@ import { IPC } from '@shared/constants';
 import { ErrorCode, LunarError } from '@shared/errors';
 import {
   assertSafeAbsolutePath,
+  assertSafeRealAbsolutePath,
   assertValidPath,
   expandAndConfineToHome,
   isInsideDir,
@@ -101,7 +102,7 @@ export function registerShellHandlers(): void {
         return null;
       }
 
-      return result.filePaths[0];
+      return assertSafeRealAbsolutePath(result.filePaths[0], 'filePath');
     },
   );
 
@@ -130,8 +131,9 @@ export function registerShellHandlers(): void {
       if (Buffer.byteLength(options.content, 'utf-8') > MAX_BYTES) {
         throw new LunarError(`content exceeds ${MAX_BYTES} bytes`, ErrorCode.VALIDATION_ERROR);
       }
-      await writeFile(result.filePath, options.content, 'utf-8');
-      return result.filePath;
+      const safePath = await assertSafeRealAbsolutePath(result.filePath, 'filePath');
+      await writeFile(safePath, options.content, 'utf-8');
+      return safePath;
     },
   );
 

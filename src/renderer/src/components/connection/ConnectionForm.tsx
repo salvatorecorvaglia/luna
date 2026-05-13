@@ -315,6 +315,7 @@ export function ConnectionForm() {
     jumpHostUsername,
     jumpHostAuthType,
     jumpHostPrivateKeyPath,
+    password,
   ]);
 
   // Debounced inline probe of the private-key file. All setState calls happen
@@ -951,7 +952,8 @@ export function ConnectionForm() {
                     title={testing ? 'Click to cancel the running test' : undefined}
                     className={cn(
                       'btn-outline',
-                      testing && 'bg-primary/5 border-primary/30 text-primary shadow-sm ring-1 ring-primary/20'
+                      testing &&
+                        'bg-primary/5 border-primary/30 text-primary shadow-sm ring-1 ring-primary/20',
                     )}
                   >
                     {testing ? (
@@ -959,7 +961,7 @@ export function ConnectionForm() {
                     ) : (
                       <Wifi className="h-3.5 w-3.5" />
                     )}
-                    <span className={cn(testing && "font-semibold")}>
+                    <span className={cn(testing && 'font-semibold')}>
                       {testing ? 'Testing…' : 'Test connection'}
                     </span>
                   </button>

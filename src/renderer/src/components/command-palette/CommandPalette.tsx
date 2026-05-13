@@ -288,6 +288,7 @@ export function CommandPalette() {
     tabOrder,
     setActiveTab,
     closeTab,
+    setShortcutsHelpOpen,
   ]);
 
   const connectionCommands: Command[] = useMemo(

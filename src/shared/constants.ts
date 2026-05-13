@@ -135,5 +135,13 @@ export const LIMITS = {
  * SFTP and S3 readFile implementations to avoid drift.
  */
 export const BINARY_PREVIEW_EXTENSIONS = new Set([
-  'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp', 'pdf',
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'svg',
+  'webp',
+  'ico',
+  'bmp',
+  'pdf',
 ]);
