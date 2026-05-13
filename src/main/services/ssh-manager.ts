@@ -179,10 +179,37 @@ class SshManager {
     // bastion failure short-circuits without spinning up a target Client.
     // The resulting Duplex becomes the target's `sock`.
     let jumpSock: import('stream').Duplex | undefined;
-    if (row.jump_host_connection_id) {
+    if (row.jump_host_connection_id || row.jump_host_host) {
       try {
+        let manualConfig: import('@shared/types/connection').ManualJumpHostConfig | undefined;
+        if (
+          row.jump_host_host &&
+          row.jump_host_username &&
+          row.jump_host_auth_type &&
+          row.jump_host_port
+        ) {
+          manualConfig = {
+            host: row.jump_host_host,
+            port: row.jump_host_port,
+            username: row.jump_host_username,
+            authType: row.jump_host_auth_type as import('@shared/types/connection').AuthType,
+            privateKeyPath: row.jump_host_private_key_path || undefined,
+          };
+          // Retrieve credentials for manual jump host
+          const { retrieveCredential } = await import('./credential-store');
+          const secret = retrieveCredential(`jumphost:${connectionId}`);
+          if (secret) {
+            if (manualConfig.authType === 'password') {
+              manualConfig.password = secret;
+            } else if (manualConfig.authType === 'key+passphrase') {
+              manualConfig.passphrase = secret;
+            }
+          }
+        }
+
         const channel = await openJumpChannel({
-          jumpConnectionId: row.jump_host_connection_id,
+          jumpConnectionId: row.jump_host_connection_id || undefined,
+          jumpHostConfig: manualConfig,
           targetHost: row.host,
           targetPort: row.port,
           pendingHostKeys: this.pendingHostKeys,
@@ -567,6 +594,7 @@ class SshManager {
       password?: string;
       passphrase?: string;
       jumpHostConnectionId?: string;
+      jumpHostConfig?: import('@shared/types/connection').ManualJumpHostConfig;
     };
   }): Promise<{ ok: boolean; error?: string }> {
     let host: string, port: number, username: string, authType: AuthType;
@@ -574,6 +602,7 @@ class SshManager {
     let password: string | undefined;
     let passphrase: string | undefined;
     let jumpHostConnectionId: string | undefined;
+    let jumpHostConfig: import('@shared/types/connection').ManualJumpHostConfig | undefined;
 
     if (params.config) {
       host = params.config.host;
@@ -584,6 +613,7 @@ class SshManager {
       password = params.config.password;
       passphrase = params.config.passphrase;
       jumpHostConnectionId = params.config.jumpHostConnectionId;
+      jumpHostConfig = params.config.jumpHostConfig;
     } else if (params.connectionId) {
       const db = getDatabase();
       const row = db.prepare('SELECT * FROM connections WHERE id = ?').get(params.connectionId) as
@@ -603,6 +633,29 @@ class SshManager {
       authType = row.auth_type;
       privateKeyPath = row.private_key_path || undefined;
       jumpHostConnectionId = row.jump_host_connection_id || undefined;
+      if (
+        row.jump_host_host &&
+        row.jump_host_username &&
+        row.jump_host_auth_type &&
+        row.jump_host_port
+      ) {
+        jumpHostConfig = {
+          host: row.jump_host_host,
+          port: row.jump_host_port,
+          username: row.jump_host_username,
+          authType: row.jump_host_auth_type as import('@shared/types/connection').AuthType,
+          privateKeyPath: row.jump_host_private_key_path || undefined,
+        };
+        const { retrieveCredential } = await import('./credential-store');
+        const secret = retrieveCredential(`jumphost:${params.connectionId}`);
+        if (secret) {
+          if (jumpHostConfig.authType === 'password') {
+            jumpHostConfig.password = secret;
+          } else if (jumpHostConfig.authType === 'key+passphrase') {
+            jumpHostConfig.passphrase = secret;
+          }
+        }
+      }
     } else {
       return { ok: false, error: 'Invalid test parameters' };
     }
@@ -612,10 +665,11 @@ class SshManager {
     // socket errors.
     let jumpDispose: (() => void) | undefined;
     let jumpSock: import('stream').Duplex | undefined;
-    if (jumpHostConnectionId) {
+    if (jumpHostConnectionId || jumpHostConfig) {
       try {
         const channel = await openJumpChannel({
           jumpConnectionId: jumpHostConnectionId,
+          jumpHostConfig,
           targetHost: host,
           targetPort: port,
           pendingHostKeys: this.pendingHostKeys,

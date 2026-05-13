@@ -3,6 +3,7 @@ import type {
   Connection,
   CreateConnectionInput,
   ExportedConnection,
+  ManualJumpHostConfig,
   UpdateConnectionInput,
 } from './connection';
 import type {
@@ -88,6 +89,8 @@ export interface IpcHandlerMap {
         privateKeyPath?: string;
         password?: string;
         passphrase?: string;
+        jumpHostConnectionId?: string;
+        jumpHostConfig?: ManualJumpHostConfig;
       };
     };
     response: { ok: boolean; error?: string };
