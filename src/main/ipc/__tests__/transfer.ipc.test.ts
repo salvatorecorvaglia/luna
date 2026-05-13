@@ -27,21 +27,23 @@ beforeEach(() => {
 });
 
 describe('transfer IPC', () => {
-  it('transfer:cancel rejects empty transferId', () => {
-    expect(() => handlers.get(IPC.TRANSFER_CANCEL)!({}, '')).toThrow(/transferId/);
+  it('transfer:cancel rejects empty transferId', async () => {
+    await expect(handlers.get(IPC.TRANSFER_CANCEL)!({}, '')).rejects.toThrow(/transferId/);
   });
 
-  it('transfer:cancel forwards transferId to queue', () => {
-    handlers.get(IPC.TRANSFER_CANCEL)!({}, 't1');
+  it('transfer:cancel forwards transferId to queue', async () => {
+    await handlers.get(IPC.TRANSFER_CANCEL)!({}, 't1');
     expect(transferQueue.cancel).toHaveBeenCalledWith('t1');
   });
 
-  it('transfer:cancel-by-session rejects empty sessionId', () => {
-    expect(() => handlers.get(IPC.TRANSFER_CANCEL_BY_SESSION)!({}, '')).toThrow(/sessionId/);
+  it('transfer:cancel-by-session rejects empty sessionId', async () => {
+    await expect(handlers.get(IPC.TRANSFER_CANCEL_BY_SESSION)!({}, '')).rejects.toThrow(
+      /sessionId/,
+    );
   });
 
-  it('transfer:cancel-by-session forwards sessionId to queue', () => {
-    handlers.get(IPC.TRANSFER_CANCEL_BY_SESSION)!({}, 's1');
+  it('transfer:cancel-by-session forwards sessionId to queue', async () => {
+    await handlers.get(IPC.TRANSFER_CANCEL_BY_SESSION)!({}, 's1');
     expect(transferQueue.cancelBySession).toHaveBeenCalledWith('s1');
   });
 });
