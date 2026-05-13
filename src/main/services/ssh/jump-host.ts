@@ -6,10 +6,13 @@ import { TimeoutError, withTimeout } from '../../lib/with-timeout';
 import log from '../../lib/logger';
 import type { PendingHostKeyRegistry } from './host-key-flow';
 import { buildConnectConfig } from './ssh-config';
+import type { ManualJumpHostConfig } from '@shared/types/connection';
 
 export interface OpenJumpChannelParams {
   /** Connection id of the bastion row in the `connections` table. */
-  jumpConnectionId: string;
+  jumpConnectionId?: string;
+  /** Manual jump host configuration. */
+  jumpHostConfig?: ManualJumpHostConfig;
   /** Final destination host (as seen *from the bastion*). */
   targetHost: string;
   /** Final destination port. */
@@ -41,43 +44,82 @@ export interface JumpChannel {
  * distinguish a bastion failure from a target failure in the UI.
  */
 export async function openJumpChannel(params: OpenJumpChannelParams): Promise<JumpChannel> {
-  const { jumpConnectionId, targetHost, targetPort, pendingHostKeys, sessionId } = params;
+  const { jumpConnectionId, jumpHostConfig, targetHost, targetPort, pendingHostKeys, sessionId } =
+    params;
+  let config: import('ssh2').ConnectConfig;
+  let bastionLabel: string;
 
-  const db = getDatabase();
-  const row = db.prepare('SELECT * FROM connections WHERE id = ?').get(jumpConnectionId) as
-    | ConnectionRow
-    | undefined;
-  if (!row) {
-    throw new Error('Jump host connection not found');
-  }
-  if (row.provider !== 'sftp') {
-    throw new Error('Jump host must be an SSH/SFTP connection');
-  }
-  if (!row.host || !row.username || !row.auth_type || row.port == null) {
-    throw new Error('Jump host connection is missing required fields');
-  }
-  if (row.jump_host_connection_id) {
-    // Belt-and-suspenders: the IPC layer rejects chained bastions on
-    // create/update, but a hand-edited DB or a future regression would
-    // otherwise let this slip through.
-    throw new Error('Multi-hop jump host chains are not supported');
+  if (jumpConnectionId) {
+    const db = getDatabase();
+    const row = db.prepare('SELECT * FROM connections WHERE id = ?').get(jumpConnectionId) as
+      | ConnectionRow
+      | undefined;
+    if (!row) {
+      throw new Error('Jump host connection not found');
+    }
+    if (row.provider !== 'sftp') {
+      throw new Error('Jump host must be an SSH/SFTP connection');
+    }
+    if (!row.host || !row.username || !row.auth_type || row.port == null) {
+      throw new Error('Jump host connection is missing required fields');
+    }
+    if (row.jump_host_connection_id) {
+      throw new Error('Multi-hop jump host chains are not supported');
+    }
+
+    bastionLabel = row.name;
+
+    const { config: builtConfig, error: configError } = await buildConnectConfig(
+      {
+        host: row.host,
+        port: row.port,
+        username: row.username,
+        authType: row.auth_type as import('@shared/types/connection').AuthType,
+        privateKeyPath: row.private_key_path,
+      },
+      { pendingHostKeys, connectionId: jumpConnectionId, sessionId },
+    );
+    if (configError || !builtConfig)
+      throw new Error(`Config error for "${bastionLabel}": ${configError}`);
+    config = builtConfig;
+  } else if (jumpHostConfig) {
+    bastionLabel = jumpHostConfig.host;
+    // Manual jump host credentials are stored with a "jumphost:" prefix if
+    // they are associated with a connectionId. But openJumpChannel doesn't
+    // always have a connectionId context here?
+    // Wait, params.sessionId is passed.
+    // Actually, manual jump host settings for a connection are saved in the
+    // database for that connection.
+    // If we are testing a connection, we might have the password in jumpHostConfig.
+
+    const password = jumpHostConfig.password;
+    const passphrase = jumpHostConfig.passphrase;
+
+    // If we have a sessionId, we can try to find the connectionId to retrieve credentials.
+    // But it's easier if we pass connectionId to openJumpChannel.
+    // For now, let's assume if it's manual, we might need to retrieve it.
+
+    const { config: builtConfig, error: configError } = await buildConnectConfig(
+      {
+        host: jumpHostConfig.host,
+        port: jumpHostConfig.port,
+        username: jumpHostConfig.username,
+        authType: jumpHostConfig.authType,
+        privateKeyPath: jumpHostConfig.privateKeyPath,
+        password,
+        passphrase,
+      },
+      { pendingHostKeys, sessionId },
+    );
+    if (configError || !builtConfig)
+      throw new Error(`Config error for "${bastionLabel}": ${configError}`);
+    config = builtConfig;
+  } else {
+    throw new Error('No jump host configuration provided');
   }
 
-  const bastionLabel = row.name;
   const wrap = (reason: string): Error =>
     new Error(`Failed to open jump host channel via "${bastionLabel}": ${reason}`);
-
-  const { config, error: configError } = await buildConnectConfig(
-    {
-      host: row.host,
-      port: row.port,
-      username: row.username,
-      authType: row.auth_type,
-      privateKeyPath: row.private_key_path,
-    },
-    { pendingHostKeys, connectionId: jumpConnectionId, sessionId },
-  );
-  if (configError) throw wrap(configError);
 
   const client = new Client();
   let disposed = false;

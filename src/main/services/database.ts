@@ -31,6 +31,12 @@ export interface ConnectionRow {
    * clears the reference instead of leaving a dangling pointer.
    */
   jump_host_connection_id: string | null;
+  /** Manual jump host fields */
+  jump_host_host: string | null;
+  jump_host_port: number | null;
+  jump_host_username: string | null;
+  jump_host_auth_type: string | null;
+  jump_host_private_key_path: string | null;
   last_connected_at: number | null;
   created_at: number;
   updated_at: number;
@@ -287,6 +293,17 @@ function getMigrations(): { name: string; sql: string }[] {
           REFERENCES connections(id) ON DELETE SET NULL;
         CREATE INDEX IF NOT EXISTS idx_connections_jump_host
           ON connections(jump_host_connection_id);
+      `,
+    },
+    {
+      name: '011_manual_jump_host_columns',
+      sql: `
+        ALTER TABLE connections ADD COLUMN jump_host_host TEXT;
+        ALTER TABLE connections ADD COLUMN jump_host_port INTEGER;
+        ALTER TABLE connections ADD COLUMN jump_host_username TEXT;
+        ALTER TABLE connections ADD COLUMN jump_host_auth_type TEXT
+          CHECK (jump_host_auth_type IN ('password', 'key', 'key+passphrase'));
+        ALTER TABLE connections ADD COLUMN jump_host_private_key_path TEXT;
       `,
     },
   ];

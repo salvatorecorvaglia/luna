@@ -12,6 +12,7 @@ import type {
   AuthType,
   CreateConnectionInput,
   ExportedConnection,
+  ManualJumpHostConfig,
   UpdateConnectionInput,
 } from '@shared/types/connection';
 import type {
@@ -149,6 +150,7 @@ const api = {
         password?: string;
         passphrase?: string;
         jumpHostConnectionId?: string;
+        jumpHostConfig?: ManualJumpHostConfig;
       };
     }) => invoke(IPC.SSH_TEST_CONNECTION, params),
     disconnect: (sessionId: string) => invoke(IPC.SSH_DISCONNECT, sessionId),

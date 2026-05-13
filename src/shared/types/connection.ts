@@ -2,6 +2,16 @@ import type { StorageProviderKind } from './storage-provider';
 
 export type AuthType = 'password' | 'key' | 'key+passphrase';
 
+export interface ManualJumpHostConfig {
+  host: string;
+  port: number;
+  username: string;
+  authType: AuthType;
+  privateKeyPath?: string;
+  password?: string;
+  passphrase?: string;
+}
+
 export interface Connection {
   id: string;
   name: string;
@@ -29,6 +39,10 @@ export interface Connection {
    * `jumpHostConnectionId` set.
    */
   jumpHostConnectionId?: string;
+  /**
+   * Manual jump host configuration. Used when jumpHostConnectionId is not set.
+   */
+  jumpHostConfig?: ManualJumpHostConfig;
   lastConnectedAt?: number;
   createdAt: number;
   updatedAt: number;
@@ -58,6 +72,8 @@ export interface CreateConnectionInput {
   colorTag?: string;
   /** Optional id of another SFTP connection to use as a jump host. */
   jumpHostConnectionId?: string | null;
+  /** Optional manual jump host configuration. */
+  jumpHostConfig?: ManualJumpHostConfig | null;
 }
 
 export interface UpdateConnectionInput extends Partial<CreateConnectionInput> {

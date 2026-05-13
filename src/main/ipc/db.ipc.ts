@@ -11,6 +11,7 @@ function validation(message: string): LunarError {
 import { type ConnectionRow, getDatabase } from '../services/database';
 import { transferQueue } from '../services/transfer-queue';
 import type {
+  AuthType,
   Connection,
   CreateConnectionInput,
   ExportedConnection,
@@ -90,6 +91,16 @@ function rowToConnection(row: ConnectionRow): Connection {
     colorTag: row.color_tag || undefined,
     sortOrder: row.sort_order,
     jumpHostConnectionId: row.jump_host_connection_id || undefined,
+    jumpHostConfig:
+      row.jump_host_host && row.jump_host_username && row.jump_host_auth_type && row.jump_host_port
+        ? {
+            host: row.jump_host_host,
+            port: row.jump_host_port,
+            username: row.jump_host_username,
+            authType: row.jump_host_auth_type as AuthType,
+            privateKeyPath: row.jump_host_private_key_path || undefined,
+          }
+        : undefined,
     lastConnectedAt: row.last_connected_at || undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -175,9 +186,12 @@ export function registerDbHandlers(): void {
       INSERT INTO connections (
         id, name, provider, host, port, username, auth_type, private_key_path,
         endpoint, region, default_bucket, force_path_style,
-        folder, color_tag, jump_host_connection_id, created_at, updated_at
+        folder, color_tag, jump_host_connection_id,
+        jump_host_host, jump_host_port, jump_host_username,
+        jump_host_auth_type, jump_host_private_key_path,
+        created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     ).run(
       id,
@@ -195,6 +209,11 @@ export function registerDbHandlers(): void {
       input.folder || 'default',
       input.colorTag || null,
       jumpHostId,
+      input.jumpHostConfig?.host || null,
+      input.jumpHostConfig?.port || null,
+      input.jumpHostConfig?.username || null,
+      input.jumpHostConfig?.authType || null,
+      input.jumpHostConfig?.privateKeyPath || null,
       now,
       now,
     );
@@ -207,6 +226,15 @@ export function registerDbHandlers(): void {
         storeCredential(id, input.password);
       } else if (input.passphrase) {
         storeCredential(id, input.passphrase);
+      }
+
+      if (input.jumpHostConfig) {
+        const { password, passphrase } = input.jumpHostConfig;
+        if (password) {
+          storeCredential(`jumphost:${id}`, password);
+        } else if (passphrase) {
+          storeCredential(`jumphost:${id}`, passphrase);
+        }
       }
     } else if (provider === 's3') {
       storeCredential(
@@ -246,6 +274,7 @@ export function registerDbHandlers(): void {
     folder: 'folder',
     colorTag: 'color_tag',
     jumpHostConnectionId: 'jump_host_connection_id',
+    jumpHostConfig: 'jump_host_config', // Synthetic key for loop handling
   };
 
   registerHandler(IPC.CONNECTION_UPDATE, (_event, input: UpdateConnectionInput) => {
@@ -282,6 +311,27 @@ export function registerDbHandlers(): void {
         const v = raw === null || raw === '' ? null : (raw as string);
         if (v !== null) assertValidJumpHost(db, v, input.id);
         value = v;
+      } else if (key === 'jumpHostConfig') {
+        const config = raw as CreateConnectionInput['jumpHostConfig'];
+        if (!config) {
+          assignments.push('jump_host_host = NULL');
+          assignments.push('jump_host_port = NULL');
+          assignments.push('jump_host_username = NULL');
+          assignments.push('jump_host_auth_type = NULL');
+          assignments.push('jump_host_private_key_path = NULL');
+        } else {
+          assignments.push('jump_host_host = ?');
+          values.push(config.host);
+          assignments.push('jump_host_port = ?');
+          values.push(config.port);
+          assignments.push('jump_host_username = ?');
+          values.push(config.username);
+          assignments.push('jump_host_auth_type = ?');
+          values.push(config.authType);
+          assignments.push('jump_host_private_key_path = ?');
+          values.push(config.privateKeyPath || null);
+        }
+        continue;
       } else {
         value = raw as string | number;
       }
@@ -312,6 +362,17 @@ export function registerDbHandlers(): void {
       } else if (input.passphrase) {
         storeCredential(input.id, input.passphrase);
       }
+
+      if (input.jumpHostConfig) {
+        const { password, passphrase } = input.jumpHostConfig;
+        if (password) {
+          storeCredential(`jumphost:${input.id}`, password);
+        } else if (passphrase) {
+          storeCredential(`jumphost:${input.id}`, passphrase);
+        }
+      } else if (input.jumpHostConfig === null) {
+        deleteCredential(`jumphost:${input.id}`);
+      }
     } else if (provider === 's3' && (input.accessKeyId || input.secretAccessKey)) {
       storeCredential(
         input.id,
@@ -335,6 +396,7 @@ export function registerDbHandlers(): void {
     // leave an orphaned secret with no owning row.
     const deleteBoth = db.transaction((connId: string) => {
       deleteCredential(connId);
+      deleteCredential(`jumphost:${connId}`);
       db.prepare('DELETE FROM connections WHERE id = ?').run(connId);
     });
     deleteBoth(id);
@@ -347,6 +409,7 @@ export function registerDbHandlers(): void {
       const rows = db.prepare('SELECT id FROM connections').all() as { id: string }[];
       for (const row of rows) {
         deleteCredential(row.id);
+        deleteCredential(`jumphost:${row.id}`);
       }
       db.prepare('DELETE FROM connections').run();
     });

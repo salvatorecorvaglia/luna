@@ -54,6 +54,15 @@ export function ConnectionForm() {
    * uncontrolled when the user clears the field.
    */
   const [jumpHostConnectionId, setJumpHostConnectionId] = useState<string>('');
+  const [jumpHostMode, setJumpHostMode] = useState<'existing' | 'manual'>('existing');
+  const [jumpHostHost, setJumpHostHost] = useState('');
+  const [jumpHostPort, setJumpHostPort] = useState('22');
+  const [jumpHostUsername, setJumpHostUsername] = useState('');
+  const [jumpHostAuthType, setJumpHostAuthType] = useState<AuthType>('password');
+  const [jumpHostPassword, setJumpHostPassword] = useState('');
+  const [jumpHostPrivateKeyPath, setJumpHostPrivateKeyPath] = useState('');
+  const [jumpHostPassphrase, setJumpHostPassphrase] = useState('');
+  const [showJumpHostPassword, setShowJumpHostPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showGroupsDropdown, setShowGroupsDropdown] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -133,6 +142,15 @@ export function ConnectionForm() {
     setColorTag(COLOR_OPTIONS[0].hex);
     setShowPassword(false);
     setJumpHostConnectionId('');
+    setJumpHostMode('existing');
+    setJumpHostHost('');
+    setJumpHostPort('22');
+    setJumpHostUsername('');
+    setJumpHostAuthType('password');
+    setJumpHostPassword('');
+    setJumpHostPrivateKeyPath('');
+    setJumpHostPassphrase('');
+    setShowJumpHostPassword(false);
     setTouched({});
   }, []);
 
@@ -159,8 +177,20 @@ export function ConnectionForm() {
       setFolder(source.folder);
       setColorTag(source.colorTag || COLOR_OPTIONS[0].hex);
       setJumpHostConnectionId(source.jumpHostConnectionId || '');
+      if (source.jumpHostConfig) {
+        setJumpHostMode('manual');
+        setJumpHostHost(source.jumpHostConfig.host);
+        setJumpHostPort(String(source.jumpHostConfig.port));
+        setJumpHostUsername(source.jumpHostConfig.username);
+        setJumpHostAuthType(source.jumpHostConfig.authType);
+        setJumpHostPrivateKeyPath(source.jumpHostConfig.privateKeyPath || '');
+      } else {
+        setJumpHostMode('existing');
+      }
       setPassword('');
       setPassphrase('');
+      setJumpHostPassword('');
+      setJumpHostPassphrase('');
       /* eslint-enable react-hooks/set-state-in-effect */
     } else {
       resetForm();
@@ -184,6 +214,8 @@ export function ConnectionForm() {
     setSecretAccessKey('');
     setSessionToken('');
     setAccessKeyId('');
+    setJumpHostPassword('');
+    setJumpHostPassphrase('');
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [connectionFormOpen]);
 
@@ -234,6 +266,26 @@ export function ConnectionForm() {
       } else if (privateKeyProbeError) {
         out.privateKeyPath = privateKeyProbeError;
       }
+
+      if (jumpHostMode === 'manual') {
+        if (!jumpHostHost.trim()) out.jumpHostHost = 'Jump host is required';
+        const jhPortNum = parseInt(jumpHostPort, 10);
+        if (
+          jumpHostPort.trim() === '' ||
+          Number.isNaN(jhPortNum) ||
+          jhPortNum < 1 ||
+          jhPortNum > 65535
+        ) {
+          out.jumpHostPort = 'Port must be between 1 and 65535';
+        }
+        if (!jumpHostUsername.trim()) out.jumpHostUsername = 'Username is required';
+        if (
+          (jumpHostAuthType === 'key' || jumpHostAuthType === 'key+passphrase') &&
+          !jumpHostPrivateKeyPath.trim()
+        ) {
+          out.jumpHostPrivateKeyPath = 'Private key path is required';
+        }
+      }
     } else {
       // S3 — credentials only required on create. On edit, leaving them
       // blank means "keep existing" (mirrors the SSH password UX).
@@ -254,6 +306,12 @@ export function ConnectionForm() {
     accessKeyId,
     secretAccessKey,
     isEditing,
+    jumpHostMode,
+    jumpHostHost,
+    jumpHostPort,
+    jumpHostUsername,
+    jumpHostAuthType,
+    jumpHostPrivateKeyPath,
   ]);
 
   // Debounced inline probe of the private-key file. All setState calls happen
@@ -373,6 +431,20 @@ export function ConnectionForm() {
             sessionToken: sessionToken || undefined,
             folder: folder.trim() || 'default',
             colorTag,
+            jumpHostConfig:
+              jumpHostMode === 'manual'
+                ? {
+                    host: jumpHostHost.trim(),
+                    port: parseInt(jumpHostPort) || 22,
+                    username: jumpHostUsername.trim(),
+                    authType: jumpHostAuthType,
+                    privateKeyPath: jumpHostPrivateKeyPath || undefined,
+                    password: jumpHostPassword || undefined,
+                    passphrase: jumpHostPassphrase || undefined,
+                  }
+                : isEditing && !jumpHostConnectionId
+                  ? null
+                  : undefined,
           };
 
     try {
@@ -392,6 +464,8 @@ export function ConnectionForm() {
       setSecretAccessKey('');
       setSessionToken('');
       setAccessKeyId('');
+      setJumpHostPassword('');
+      setJumpHostPassphrase('');
       closeForm();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to save connection');
@@ -441,7 +515,20 @@ export function ConnectionForm() {
             privateKeyPath: privateKeyPath || undefined,
             password: password || undefined,
             passphrase: passphrase || undefined,
-            jumpHostConnectionId: jumpHostConnectionId || undefined,
+            jumpHostConnectionId:
+              jumpHostMode === 'existing' ? jumpHostConnectionId || undefined : undefined,
+            jumpHostConfig:
+              jumpHostMode === 'manual'
+                ? {
+                    host: jumpHostHost.trim(),
+                    port: parseInt(jumpHostPort) || 22,
+                    username: jumpHostUsername.trim(),
+                    authType: jumpHostAuthType,
+                    privateKeyPath: jumpHostPrivateKeyPath || undefined,
+                    password: jumpHostPassword || undefined,
+                    passphrase: jumpHostPassphrase || undefined,
+                  }
+                : undefined,
           },
         });
         if (!isStillCurrent()) return;
@@ -532,11 +619,11 @@ export function ConnectionForm() {
               role="dialog"
               aria-modal="true"
               aria-labelledby="connection-form-title"
-              className="no-drag w-full max-w-lg rounded-xl border border-border/80 bg-card shadow-xl"
+              className="no-drag flex flex-col w-full max-w-lg max-h-[85vh] rounded-xl border border-border/80 bg-card shadow-2xl overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
+              <div className="flex shrink-0 items-center justify-between border-b border-border/60 px-5 py-4">
                 <div className="flex items-center gap-2.5">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
                     <Server className="h-4 w-4 text-primary" />
@@ -563,274 +650,295 @@ export function ConnectionForm() {
                 onSubmit={handleSubmit}
                 onChange={markDirty}
                 onInput={markDirty}
-                className="p-5 space-y-4"
+                className="flex flex-col min-h-0 flex-1"
               >
-                {/* Provider toggle */}
-                <div>
-                  <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                    <Cloud className="h-3.5 w-3.5" />
-                    Provider
-                  </label>
-                  <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Provider">
-                    <button
-                      type="button"
-                      role="radio"
-                      aria-checked={provider === 'sftp'}
-                      onClick={() => setProvider('sftp')}
-                      disabled={isEditing}
-                      className={cn(
-                        'flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed',
-                        provider === 'sftp'
-                          ? 'border-ring bg-accent text-foreground shadow-xs'
-                          : 'border-border text-muted-foreground hover:border-ring/50 hover:bg-accent/50',
-                      )}
-                    >
-                      <Server className="h-4 w-4" />
-                      SSH / SFTP
-                    </button>
-                    <button
-                      type="button"
-                      role="radio"
-                      aria-checked={provider === 's3'}
-                      onClick={() => setProvider('s3')}
-                      disabled={isEditing}
-                      className={cn(
-                        'flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed',
-                        provider === 's3'
-                          ? 'border-ring bg-accent text-foreground shadow-xs'
-                          : 'border-border text-muted-foreground hover:border-ring/50 hover:bg-accent/50',
-                      )}
-                    >
-                      <Cloud className="h-4 w-4" />
-                      S3-compatible
-                    </button>
-                  </div>
-                </div>
-
-                {/* Name */}
-                <FormField
-                  label="Connection Name"
-                  icon={<Server className="h-3.5 w-3.5" aria-hidden="true" />}
-                  required
-                  id={`${fieldId}-name`}
-                  error={visibleError('name')}
-                >
-                  <input
-                    id={`${fieldId}-name`}
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    onBlur={() => markTouched('name')}
-                    placeholder="My Server"
-                    aria-invalid={!!visibleError('name')}
-                    aria-describedby={visibleError('name') ? `${fieldId}-name-error` : undefined}
-                    className={cn(
-                      'form-input',
-                      visibleError('name') && 'border-destructive/60 focus:border-destructive',
-                    )}
-                  />
-                </FormField>
-
-                {provider === 'sftp' && (
-                  <SftpFields
-                    fieldId={fieldId}
-                    isEditing={isEditing}
-                    host={host}
-                    setHost={setHost}
-                    port={port}
-                    setPort={setPort}
-                    username={username}
-                    setUsername={setUsername}
-                    authType={authType}
-                    setAuthType={setAuthType}
-                    password={password}
-                    setPassword={setPassword}
-                    privateKeyPath={privateKeyPath}
-                    setPrivateKeyPath={setPrivateKeyPath}
-                    passphrase={passphrase}
-                    setPassphrase={setPassphrase}
-                    showPassword={showPassword}
-                    setShowPassword={setShowPassword}
-                    jumpHostOptions={jumpHostOptions}
-                    jumpHostConnectionId={jumpHostConnectionId}
-                    setJumpHostConnectionId={setJumpHostConnectionId}
-                    visibleError={visibleError}
-                    markTouched={markTouched}
-                    onBrowseKey={handleBrowseKey}
-                  />
-                )}
-
-                {provider === 's3' && (
-                  <S3Fields
-                    fieldId={fieldId}
-                    isEditing={isEditing}
-                    endpoint={endpoint}
-                    setEndpoint={setEndpoint}
-                    region={region}
-                    setRegion={setRegion}
-                    defaultBucket={defaultBucket}
-                    setDefaultBucket={setDefaultBucket}
-                    forcePathStyle={forcePathStyle}
-                    setForcePathStyle={setForcePathStyle}
-                    accessKeyId={accessKeyId}
-                    setAccessKeyId={setAccessKeyId}
-                    secretAccessKey={secretAccessKey}
-                    setSecretAccessKey={setSecretAccessKey}
-                    sessionToken={sessionToken}
-                    setSessionToken={setSessionToken}
-                    showSecretKey={showSecretKey}
-                    setShowSecretKey={setShowSecretKey}
-                    visibleError={visibleError}
-                    markTouched={markTouched}
-                  />
-                )}
-
-                {/* Color Tag */}
-                <div>
-                  <label className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                    <Palette className="h-3.5 w-3.5" />
-                    Color Tag
-                  </label>
-                  <div className="flex gap-2.5" role="radiogroup" aria-label="Color tag">
-                    {COLOR_OPTIONS.map((color) => (
+                {/* Scrollable Body */}
+                <div className="flex-1 overflow-y-auto p-5 space-y-5">
+                  {/* Provider toggle */}
+                  <div>
+                    <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                      <Cloud className="h-3.5 w-3.5" />
+                      Provider
+                    </label>
+                    <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Provider">
                       <button
-                        key={color.hex}
                         type="button"
                         role="radio"
-                        aria-checked={colorTag === color.hex}
-                        aria-label={color.name}
-                        onClick={() => setColorTag(color.hex)}
+                        aria-checked={provider === 'sftp'}
+                        onClick={() => setProvider('sftp')}
+                        disabled={isEditing}
                         className={cn(
-                          'relative h-7 w-7 rounded-full cursor-pointer',
-                          colorTag === color.hex
-                            ? 'ring-2 ring-ring ring-offset-2 ring-offset-card'
-                            : 'hover:scale-110',
+                          'flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed',
+                          provider === 'sftp'
+                            ? 'border-ring bg-accent text-foreground shadow-xs'
+                            : 'border-border text-muted-foreground hover:border-ring/50 hover:bg-accent/50',
                         )}
-                        style={{ backgroundColor: color.hex }}
                       >
-                        {colorTag === color.hex && (
-                          <Check className="absolute inset-0 m-auto h-3.5 w-3.5 text-white drop-shadow-sm" />
-                        )}
+                        <Server className="h-4 w-4" />
+                        SSH / SFTP
                       </button>
-                    ))}
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={provider === 's3'}
+                        onClick={() => setProvider('s3')}
+                        disabled={isEditing}
+                        className={cn(
+                          'flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed',
+                          provider === 's3'
+                            ? 'border-ring bg-accent text-foreground shadow-xs'
+                            : 'border-border text-muted-foreground hover:border-ring/50 hover:bg-accent/50',
+                        )}
+                      >
+                        <Cloud className="h-4 w-4" />
+                        S3-compatible
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                {/* Folder / Group */}
-                <FormField
-                  label="Group"
-                  icon={<FolderClosed className="h-3.5 w-3.5" />}
-                  optional
-                  id={`${fieldId}-group`}
-                >
-                  <div className="space-y-3">
-                    <div className="relative group/input">
-                      <input
-                        id={`${fieldId}-group`}
-                        type="text"
-                        value={folder === 'default' ? '' : folder}
-                        onChange={(e) => {
-                          setFolder(e.target.value || 'default');
-                          setShowGroupsDropdown(true);
-                        }}
-                        onFocus={() => setShowGroupsDropdown(true)}
-                        onBlur={() => {
-                          // Small delay to allow click on dropdown items
-                          setTimeout(() => setShowGroupsDropdown(false), 200);
-                        }}
-                        placeholder="default"
-                        className="form-input"
-                        style={{ paddingLeft: '2.5rem' }}
-                      />
-                      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/40 group-focus-within/input:text-primary transition-colors pointer-events-none">
-                        <FolderClosed className="h-4 w-4" />
+                  {/* Name */}
+                  <FormField
+                    label="Connection Name"
+                    icon={<Server className="h-3.5 w-3.5" aria-hidden="true" />}
+                    required
+                    id={`${fieldId}-name`}
+                    error={visibleError('name')}
+                  >
+                    <input
+                      id={`${fieldId}-name`}
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      onBlur={() => markTouched('name')}
+                      placeholder="My Server"
+                      aria-invalid={!!visibleError('name')}
+                      aria-describedby={visibleError('name') ? `${fieldId}-name-error` : undefined}
+                      className={cn(
+                        'form-input',
+                        visibleError('name') && 'border-destructive/60 focus:border-destructive',
+                      )}
+                    />
+                  </FormField>
+
+                  {provider === 'sftp' && (
+                    <SftpFields
+                      fieldId={fieldId}
+                      isEditing={isEditing}
+                      host={host}
+                      setHost={setHost}
+                      port={port}
+                      setPort={setPort}
+                      username={username}
+                      setUsername={setUsername}
+                      authType={authType}
+                      setAuthType={setAuthType}
+                      password={password}
+                      setPassword={setPassword}
+                      privateKeyPath={privateKeyPath}
+                      setPrivateKeyPath={setPrivateKeyPath}
+                      passphrase={passphrase}
+                      setPassphrase={setPassphrase}
+                      showPassword={showPassword}
+                      setShowPassword={setShowPassword}
+                      jumpHostOptions={jumpHostOptions}
+                      jumpHostConnectionId={jumpHostConnectionId}
+                      setJumpHostConnectionId={setJumpHostConnectionId}
+                      jumpHostMode={jumpHostMode}
+                      setJumpHostMode={setJumpHostMode}
+                      jumpHostHost={jumpHostHost}
+                      setJumpHostHost={setJumpHostHost}
+                      jumpHostPort={jumpHostPort}
+                      setJumpHostPort={setJumpHostPort}
+                      jumpHostUsername={jumpHostUsername}
+                      setJumpHostUsername={setJumpHostUsername}
+                      jumpHostAuthType={jumpHostAuthType}
+                      setJumpHostAuthType={setJumpHostAuthType}
+                      jumpHostPassword={jumpHostPassword}
+                      setJumpHostPassword={setJumpHostPassword}
+                      jumpHostPrivateKeyPath={jumpHostPrivateKeyPath}
+                      setJumpHostPrivateKeyPath={setJumpHostPrivateKeyPath}
+                      jumpHostPassphrase={jumpHostPassphrase}
+                      setJumpHostPassphrase={setJumpHostPassphrase}
+                      showJumpHostPassword={showJumpHostPassword}
+                      setShowJumpHostPassword={setShowJumpHostPassword}
+                      visibleError={visibleError}
+                      markTouched={markTouched}
+                      onBrowseKey={handleBrowseKey}
+                    />
+                  )}
+
+                  {provider === 's3' && (
+                    <S3Fields
+                      fieldId={fieldId}
+                      isEditing={isEditing}
+                      endpoint={endpoint}
+                      setEndpoint={setEndpoint}
+                      region={region}
+                      setRegion={setRegion}
+                      defaultBucket={defaultBucket}
+                      setDefaultBucket={setDefaultBucket}
+                      forcePathStyle={forcePathStyle}
+                      setForcePathStyle={setForcePathStyle}
+                      accessKeyId={accessKeyId}
+                      setAccessKeyId={setAccessKeyId}
+                      secretAccessKey={secretAccessKey}
+                      setSecretAccessKey={setSecretAccessKey}
+                      sessionToken={sessionToken}
+                      setSessionToken={setSessionToken}
+                      showSecretKey={showSecretKey}
+                      setShowSecretKey={setShowSecretKey}
+                      visibleError={visibleError}
+                      markTouched={markTouched}
+                    />
+                  )}
+
+                  {/* Color Tag */}
+                  <div>
+                    <label className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                      <Palette className="h-3.5 w-3.5" />
+                      Color Tag
+                    </label>
+                    <div className="flex gap-2.5" role="radiogroup" aria-label="Color tag">
+                      {COLOR_OPTIONS.map((color) => (
+                        <button
+                          key={color.hex}
+                          type="button"
+                          role="radio"
+                          aria-checked={colorTag === color.hex}
+                          aria-label={color.name}
+                          onClick={() => setColorTag(color.hex)}
+                          className={cn(
+                            'relative h-7 w-7 rounded-full cursor-pointer',
+                            colorTag === color.hex
+                              ? 'ring-2 ring-ring ring-offset-2 ring-offset-card'
+                              : 'hover:scale-110',
+                          )}
+                          style={{ backgroundColor: color.hex }}
+                        >
+                          {colorTag === color.hex && (
+                            <Check className="absolute inset-0 m-auto h-3.5 w-3.5 text-white drop-shadow-sm" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Folder / Group */}
+                  <FormField
+                    label="Group"
+                    icon={<FolderClosed className="h-3.5 w-3.5" />}
+                    optional
+                    id={`${fieldId}-group`}
+                  >
+                    <div className="space-y-3">
+                      <div className="relative group/input">
+                        <input
+                          id={`${fieldId}-group`}
+                          type="text"
+                          value={folder === 'default' ? '' : folder}
+                          onChange={(e) => {
+                            setFolder(e.target.value || 'default');
+                            setShowGroupsDropdown(true);
+                          }}
+                          onFocus={() => setShowGroupsDropdown(true)}
+                          onBlur={() => {
+                            // Small delay to allow click on dropdown items
+                            setTimeout(() => setShowGroupsDropdown(false), 200);
+                          }}
+                          placeholder="default"
+                          className="form-input"
+                          style={{ paddingLeft: '2.5rem' }}
+                        />
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/40 group-focus-within/input:text-primary transition-colors pointer-events-none">
+                          <FolderClosed className="h-4 w-4" />
+                        </div>
+
+                        {folder !== 'default' && (
+                          <button
+                            type="button"
+                            onClick={() => setFolder('default')}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-foreground transition-colors cursor-pointer"
+                            title="Clear group"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+
+                        <AnimatePresence>
+                          {showGroupsDropdown && filteredFolders.length > 0 && (
+                            <motion.div
+                              initial={{ opacity: 0, y: 4, scale: 0.98 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                              className="absolute top-full left-0 right-0 z-50 mt-1 max-h-48 overflow-auto rounded-lg border border-border bg-popover p-1 shadow-xl backdrop-blur-sm scrollbar-none"
+                            >
+                              {filteredFolders.map((f) => (
+                                <button
+                                  key={f}
+                                  type="button"
+                                  onClick={() => {
+                                    setFolder(f);
+                                    setShowGroupsDropdown(false);
+                                  }}
+                                  className={cn(
+                                    'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs font-medium transition-colors cursor-pointer',
+                                    folder === f
+                                      ? 'bg-primary/10 text-primary'
+                                      : 'text-foreground hover:bg-accent hover:text-accent-foreground',
+                                  )}
+                                >
+                                  <FolderClosed className="h-3.5 w-3.5 opacity-50" />
+                                  {f}
+                                </button>
+                              ))}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
 
-                      {folder !== 'default' && (
-                        <button
-                          type="button"
-                          onClick={() => setFolder('default')}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-foreground transition-colors cursor-pointer"
-                          title="Clear group"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-
-                      <AnimatePresence>
-                        {showGroupsDropdown && filteredFolders.length > 0 && (
-                          <motion.div
-                            initial={{ opacity: 0, y: 4, scale: 0.98 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: 4, scale: 0.98 }}
-                            className="absolute top-full left-0 right-0 z-50 mt-1 max-h-48 overflow-auto rounded-lg border border-border bg-popover p-1 shadow-xl backdrop-blur-sm scrollbar-none"
-                          >
-                            {filteredFolders.map((f) => (
-                              <button
+                      {uniqueFolders.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-semibold text-muted-foreground/40 uppercase tracking-widest">
+                              Existing Groups
+                            </span>
+                            <div className="h-px flex-1 bg-border/30" />
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {uniqueFolders.map((f) => (
+                              <motion.button
                                 key={f}
+                                whileHover={{ y: -1, scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
                                 type="button"
-                                onClick={() => {
-                                  setFolder(f);
-                                  setShowGroupsDropdown(false);
-                                }}
+                                onClick={() => setFolder(folder === f ? 'default' : f)}
                                 className={cn(
-                                  'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs font-medium transition-colors cursor-pointer',
-                                  folder === f
-                                    ? 'bg-primary/10 text-primary'
-                                    : 'text-foreground hover:bg-accent hover:text-accent-foreground',
+                                  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all cursor-pointer border shadow-xs',
+                                  folder === f || (f === 'default' && folder === 'default')
+                                    ? 'bg-primary/5 border-primary/40 text-primary shadow-[0_0_12px_-3px_rgba(99,102,241,0.2)] ring-1 ring-primary/20'
+                                    : 'bg-muted/10 border-border/40 text-muted-foreground hover:bg-muted/20 hover:border-border/60 hover:text-foreground',
                                 )}
                               >
-                                <FolderClosed className="h-3.5 w-3.5 opacity-50" />
+                                <FolderClosed
+                                  className={cn(
+                                    'h-3 w-3 transition-opacity',
+                                    folder === f || (f === 'default' && folder === 'default')
+                                      ? 'opacity-100'
+                                      : 'opacity-40',
+                                  )}
+                                />
                                 {f}
-                              </button>
+                              </motion.button>
                             ))}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                          </div>
+                        </div>
+                      )}
                     </div>
+                  </FormField>
+                </div>
 
-                    {uniqueFolders.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-semibold text-muted-foreground/40 uppercase tracking-widest">
-                            Existing Groups
-                          </span>
-                          <div className="h-px flex-1 bg-border/30" />
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {uniqueFolders.map((f) => (
-                            <motion.button
-                              key={f}
-                              whileHover={{ y: -1, scale: 1.02 }}
-                              whileTap={{ scale: 0.98 }}
-                              type="button"
-                              onClick={() => setFolder(folder === f ? 'default' : f)}
-                              className={cn(
-                                'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all cursor-pointer border shadow-xs',
-                                folder === f || (f === 'default' && folder === 'default')
-                                  ? 'bg-primary/5 border-primary/40 text-primary shadow-[0_0_12px_-3px_rgba(99,102,241,0.2)] ring-1 ring-primary/20'
-                                  : 'bg-muted/10 border-border/40 text-muted-foreground hover:bg-muted/20 hover:border-border/60 hover:text-foreground',
-                              )}
-                            >
-                              <FolderClosed
-                                className={cn(
-                                  'h-3 w-3 transition-opacity',
-                                  folder === f || (f === 'default' && folder === 'default')
-                                    ? 'opacity-100'
-                                    : 'opacity-40',
-                                )}
-                              />
-                              {f}
-                            </motion.button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </FormField>
-
-                {/* Actions */}
-                <div className="flex items-center justify-between gap-2 pt-2">
+                {/* Fixed Footer */}
+                <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border/60 bg-muted/5 px-5 py-4">
                   <button
                     type="button"
                     onClick={handleTest}
@@ -843,33 +951,29 @@ export function ConnectionForm() {
                     ) : (
                       <Wifi className="h-3.5 w-3.5" />
                     )}
-                    {testing ? 'Testing… (click to cancel)' : 'Test connection'}
+                    {testing ? 'Testing…' : 'Test connection'}
                   </button>
+
                   <div className="flex gap-2">
                     <button type="button" onClick={requestClose} className="btn-ghost">
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      // Block submit while the existing-connections query is
-                      // still loading: the duplicate-name check needs the list
-                      // to be definitive, otherwise a save could silently
-                      // collide with an existing record.
                       disabled={isSaving || connectionsLoading}
                       aria-busy={isSaving || connectionsLoading}
                       className="btn-primary"
-                      title={connectionsLoading ? 'Loading connections…' : undefined}
                     >
                       {(isSaving || connectionsLoading) && (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" />
                       )}
                       {isSaving
                         ? 'Saving...'
                         : connectionsLoading
                           ? 'Loading…'
                           : isEditing
-                            ? 'Update'
-                            : 'Create'}
+                            ? 'Update Connection'
+                            : 'Create Connection'}
                     </button>
                   </div>
                 </div>
