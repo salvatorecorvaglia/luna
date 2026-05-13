@@ -100,40 +100,40 @@ beforeEach(() => {
 });
 
 describe('s3 IPC — connect', () => {
-  it('rejects empty sessionId', () => {
-    expect(() =>
+  it('rejects empty sessionId', async () => {
+    await expect(
       handlers.get(IPC.S3_CONNECT)!({}, { sessionId: '', connectionId: 'c1' }),
-    ).toThrow();
+    ).rejects.toThrow();
   });
 
-  it('rejects empty connectionId', () => {
-    expect(() =>
+  it('rejects empty connectionId', async () => {
+    await expect(
       handlers.get(IPC.S3_CONNECT)!({}, { sessionId: 's1', connectionId: '' }),
-    ).toThrow();
+    ).rejects.toThrow();
   });
 
-  it('rejects unknown connectionId', () => {
-    expect(() =>
+  it('rejects unknown connectionId', async () => {
+    await expect(
       handlers.get(IPC.S3_CONNECT)!({}, { sessionId: 's1', connectionId: 'missing' }),
-    ).toThrow(/Connection not found/);
+    ).rejects.toThrow(/Connection not found/);
   });
 
-  it('rejects when the row exists but is not an S3 connection', () => {
+  it('rejects when the row exists but is not an S3 connection', async () => {
     dbRows.set('c1', { id: 'c1', name: 'sftp', provider: 'sftp' });
-    expect(() =>
+    await expect(
       handlers.get(IPC.S3_CONNECT)!({}, { sessionId: 's1', connectionId: 'c1' }),
-    ).toThrow(/not an S3 connection/);
+    ).rejects.toThrow(/not an S3 connection/);
   });
 
-  it('rejects when credentials are missing', () => {
+  it('rejects when credentials are missing', async () => {
     dbRows.set('c1', { id: 'c1', name: 'b', provider: 's3' });
     // no credential entry
-    expect(() =>
+    await expect(
       handlers.get(IPC.S3_CONNECT)!({}, { sessionId: 's1', connectionId: 'c1' }),
-    ).toThrow(/credentials missing/);
+    ).rejects.toThrow(/credentials missing/);
   });
 
-  it('opens a session and registers it with the storage registry', () => {
+  it('opens a session and registers it with the storage registry', async () => {
     dbRows.set('c1', {
       id: 'c1',
       name: 'b',
@@ -144,7 +144,7 @@ describe('s3 IPC — connect', () => {
       force_path_style: 1,
     });
     credentials.set('c1', { accessKeyId: 'AK', secretAccessKey: 'SK' });
-    const result = handlers.get(IPC.S3_CONNECT)!({}, { sessionId: 's1', connectionId: 'c1' });
+    const result = await handlers.get(IPC.S3_CONNECT)!({}, { sessionId: 's1', connectionId: 'c1' });
     expect(result).toEqual({ sessionId: 's1' });
     expect(openSession).toHaveBeenCalledWith(
       's1',
@@ -163,12 +163,12 @@ describe('s3 IPC — connect', () => {
 });
 
 describe('s3 IPC — disconnect', () => {
-  it('rejects empty sessionId', () => {
-    expect(() => handlers.get(IPC.S3_DISCONNECT)!({}, '')).toThrow();
+  it('rejects empty sessionId', async () => {
+    await expect(handlers.get(IPC.S3_DISCONNECT)!({}, '')).rejects.toThrow();
   });
 
-  it('closes the session and unregisters it', () => {
-    handlers.get(IPC.S3_DISCONNECT)!({}, 's1');
+  it('closes the session and unregisters it', async () => {
+    await handlers.get(IPC.S3_DISCONNECT)!({}, 's1');
     expect(closeSession).toHaveBeenCalledWith('s1');
     expect(unregister).toHaveBeenCalledWith('s1');
   });
