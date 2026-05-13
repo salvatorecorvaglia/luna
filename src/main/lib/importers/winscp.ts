@@ -41,7 +41,7 @@ export function importFromWinSCP(content: string): ExportedConnection[] {
           port: gwPort,
           username: gwUser,
           authType: 'password',
-          folder: 'Internal',
+          folder: 'Infrastructure',
           isHidden: true,
         });
       }

@@ -167,7 +167,7 @@ export function SftpFields({
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           onBlur={() => markTouched('username')}
-          placeholder="root"
+          placeholder="Enter username"
           aria-invalid={!!visibleError('username')}
           aria-describedby={visibleError('username') ? `${fieldId}-user-error` : undefined}
           className={cn(

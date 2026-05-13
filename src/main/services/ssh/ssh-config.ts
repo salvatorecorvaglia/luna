@@ -1,6 +1,6 @@
 import { readFile, stat } from 'fs/promises';
 import type { Duplex } from 'stream';
-import { type ConnectConfig, type CipherAlgorithm } from 'ssh2';
+import { utils, type ConnectConfig, type CipherAlgorithm } from 'ssh2';
 import type { AuthType } from '@shared/types/connection';
 import { IPC } from '@shared/constants';
 import { emitToRenderer } from '../emit';
@@ -222,10 +222,28 @@ export async function buildConnectConfig(
       const keyPath = await expandAndConfineToHome(params.privateKeyPath, 'privateKeyPath', {
         requireExists: true,
       });
-      config.privateKey = await loadPrivateKeyCached(keyPath);
-      if (params.authType === 'key+passphrase' && passphrase) {
-        config.passphrase = passphrase;
+      const keyBuf = await loadPrivateKeyCached(keyPath);
+      const parsedKey = utils.parseKey(keyBuf, passphrase || undefined);
+
+      if (parsedKey instanceof Error) {
+        log.warn(`[SSH] Failed to parse private key: ${parsedKey.message}`);
+        // If it's a PuTTY key and we got an unsupported format error, it might
+        // be an encrypted key where the user didn't provide a passphrase, or
+        // a version we truly don't support.
+        if (
+          parsedKey.message.includes('Unsupported key format') &&
+          keyBuf.toString('utf-8').includes('PuTTY-User-Key-File')
+        ) {
+          return {
+            config,
+            error:
+              'Unsupported or encrypted PuTTY key. If the key is encrypted, please use "Key + Passphrase" mode.',
+          };
+        }
+        return { config, error: `Invalid private key: ${parsedKey.message}` };
       }
+
+      config.privateKey = parsedKey.getPrivatePEM();
     } catch (err: unknown) {
       // Log underlying details, but surface only a generic message — fs
       // error strings include the absolute key path which we never want
