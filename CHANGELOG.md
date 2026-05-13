@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] - 2026-05-13
+
+### Added
+
+- **Connection Management**: Introduced a visibility toggle to allow hiding specific sessions from the sidebar for a cleaner workspace.
+
+### Improved
+
+- **Import Infrastructure**: Enhanced MobaXterm import logic with improved jump host detection, bogus record filtering, and support for inline configuration.
+- **Security & Stability**: Hardened SSH key parsing validation and implemented database maintenance routines to automatically clean up legacy or invalid connection records.
+
+### Changed
+
+- **Architecture**: Decoupled jump host management into standalone connections to provide greater flexibility in complex network environments.
+- **State Management**: Refined UI store persistence to exclude transient hidden connection states.
+
+### Fixed
+
+- **Importer Reliability**: Corrected folder naming conventions during connection imports and resolved font/UI configuration line parsing issues.
+
 ## [0.6.1] - 2026-05-13
 
 ### Added
