@@ -86,9 +86,9 @@ describe('storage.ipc rate limiter', () => {
 
 describe('storage IPC — validation', () => {
   it('list rejects empty sessionId', async () => {
-    await expect(
-      handlers.get(IPC.STORAGE_LIST)!({}, { sessionId: '', path: '/' }),
-    ).rejects.toThrow(/sessionId/);
+    await expect(handlers.get(IPC.STORAGE_LIST)!({}, { sessionId: '', path: '/' })).rejects.toThrow(
+      /sessionId/,
+    );
   });
 
   it('stat rejects empty path', async () => {

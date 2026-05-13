@@ -18,9 +18,7 @@ import type {
   SshStatusEvent,
   SessionStatus,
 } from './terminal';
-import type {
-  LocalFileEntry,
-} from './sftp';
+import type { LocalFileEntry } from './sftp';
 import type {
   S3ConnectParams,
   S3TestConnectionConfig,

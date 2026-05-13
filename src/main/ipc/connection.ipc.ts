@@ -5,7 +5,7 @@ import { expandAndConfineToHomeSync } from '../lib/validate';
 import { IPC } from '@shared/constants';
 import { ErrorCode, LunarError } from '@shared/errors';
 import { type ConnectionRow, getDatabase } from '../services/database';
-import { logger } from '../lib/logger';
+import log from '../lib/logger';
 import { detectAndImport } from '../lib/importers';
 import { deleteCredential, storeCredential } from '../services/credential-store';
 import { registerHandler } from '../lib/ipc-handler';
@@ -219,7 +219,7 @@ export function registerConnectionHandlers(): void {
 
     const row = db.prepare('SELECT * FROM connections WHERE id = ?').get(id) as ConnectionRow;
     const connection = rowToConnection(row);
-    logger.info(`Connection created: ${connection.name}`, {
+    log.info(`Connection created: ${connection.name}`, {
       id: connection.id,
       provider: connection.provider,
     });
@@ -326,7 +326,7 @@ export function registerConnectionHandlers(): void {
 
     const row = db.prepare('SELECT * FROM connections WHERE id = ?').get(input.id) as ConnectionRow;
     const connection = rowToConnection(row);
-    logger.info(`Connection updated: ${connection.name}`, { id: connection.id });
+    log.info(`Connection updated: ${connection.name}`, { id: connection.id });
     return connection;
   });
 
@@ -337,7 +337,7 @@ export function registerConnectionHandlers(): void {
       db.prepare('DELETE FROM connections WHERE id = ?').run(connId);
     });
     deleteBoth(id);
-    logger.info(`Connection deleted: ${id}`);
+    log.info(`Connection deleted: ${id}`);
   });
 
   registerHandler(IPC.CONNECTION_DELETE_ALL, () => {
@@ -350,7 +350,7 @@ export function registerConnectionHandlers(): void {
       db.prepare('DELETE FROM connections').run();
     });
     deleteAll();
-    logger.info('All connections deleted');
+    log.info('All connections deleted');
   });
 
   registerHandler(IPC.CONNECTION_REORDER, (_event, ids: string[]) => {
