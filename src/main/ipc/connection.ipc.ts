@@ -459,8 +459,9 @@ export function registerConnectionHandlers(): void {
         folder, color_tag,
         jump_host_host, jump_host_port, jump_host_username,
         jump_host_auth_type, jump_host_private_key_path,
+        is_hidden,
         created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const importedSftpByName = new Map<string, string>();
     const pendingJumpHostLinks: { targetId: string; name: string; targetLabel: string }[] = [];
@@ -551,6 +552,7 @@ export function registerConnectionHandlers(): void {
             conn.jumpHostConfig?.username || null,
             conn.jumpHostConfig?.authType || null,
             jumpHostKeyPath,
+            conn.isHidden ? 1 : 0,
             now,
             now,
           );
@@ -588,6 +590,7 @@ export function registerConnectionHandlers(): void {
             null, // jump_host_username
             null, // jump_host_auth_type
             null, // jump_host_private_key_path
+            conn.isHidden ? 1 : 0,
             now,
             now,
           );

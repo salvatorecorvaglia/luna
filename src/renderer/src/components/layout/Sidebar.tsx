@@ -67,9 +67,12 @@ export function Sidebar() {
   }, [searchInputValue]);
 
   const filteredConnections = useMemo(() => {
-    if (!debouncedSearchQuery.trim()) return connectionList;
+    // Filter out hidden connections (like jump hosts) from the sidebar
+    const visible = connectionList.filter((c) => !c.isHidden);
+
+    if (!debouncedSearchQuery.trim()) return visible;
     const q = debouncedSearchQuery.toLowerCase();
-    return connectionList.filter(
+    return visible.filter(
       (c) =>
         c.name.toLowerCase().includes(q) ||
         c.host.toLowerCase().includes(q) ||

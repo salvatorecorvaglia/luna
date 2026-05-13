@@ -37,6 +37,8 @@ export interface ConnectionRow {
   jump_host_username: string | null;
   jump_host_auth_type: string | null;
   jump_host_private_key_path: string | null;
+  /** Whether this connection should be hidden from the main sidebar list. */
+  is_hidden: number;
   last_connected_at: number | null;
   created_at: number;
   updated_at: number;
@@ -304,6 +306,13 @@ function getMigrations(): { name: string; sql: string }[] {
         ALTER TABLE connections ADD COLUMN jump_host_auth_type TEXT
           CHECK (jump_host_auth_type IN ('password', 'key', 'key+passphrase'));
         ALTER TABLE connections ADD COLUMN jump_host_private_key_path TEXT;
+      `,
+    },
+    {
+      name: '012_connection_is_hidden',
+      sql: `
+        ALTER TABLE connections ADD COLUMN is_hidden INTEGER NOT NULL DEFAULT 0;
+        CREATE INDEX IF NOT EXISTS idx_connections_is_hidden ON connections(is_hidden);
       `,
     },
   ];
