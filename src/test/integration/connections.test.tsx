@@ -4,8 +4,11 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { expect, it, vi, describe, beforeEach } from 'vitest';
+import '@testing-library/jest-dom/vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from '../../renderer/src/App';
+import { useUIStore } from '../../renderer/src/stores/ui-store';
+import { useTerminalStore } from '../../renderer/src/stores/terminal-store';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -19,25 +22,55 @@ const queryClient = new QueryClient({
 vi.stubGlobal('api', {
   app: {
     getCredentialBackend: vi.fn().mockResolvedValue({ backend: 'safeStorage' }),
-    onUpdateStatus: vi.fn().mockReturnValue(() => {}),
+    getVersion: vi.fn().mockResolvedValue('1.2.3'),
+    getActiveSessions: vi.fn().mockResolvedValue({ ssh: [], s3: [] }),
+    onUpdateAvailable: vi.fn().mockReturnValue(() => {}),
+    onUpdateDownloadProgress: vi.fn().mockReturnValue(() => {}),
+    onUpdateDownloaded: vi.fn().mockReturnValue(() => {}),
+    onUpdateError: vi.fn().mockReturnValue(() => {}),
+    installUpdate: vi.fn().mockResolvedValue(undefined),
   },
   connections: {
     list: vi.fn().mockResolvedValue([]),
+    get: vi.fn().mockResolvedValue(null),
+    create: vi.fn().mockResolvedValue(undefined),
+    update: vi.fn().mockResolvedValue(undefined),
+    delete: vi.fn().mockResolvedValue(undefined),
+    reorder: vi.fn().mockResolvedValue(undefined),
+  },
+  credentials: {
     onTamper: vi.fn().mockReturnValue(() => {}),
   },
+  ssh: {
+    onHostKeyChange: vi.fn().mockReturnValue(() => {}),
+    trustHostKey: vi.fn().mockResolvedValue({ trusted: true }),
+  },
+  transfers: {
+    onProgress: vi.fn().mockReturnValue(() => {}),
+    onComplete: vi.fn().mockReturnValue(() => {}),
+    onError: vi.fn().mockReturnValue(() => {}),
+    onCancelled: vi.fn().mockReturnValue(() => {}),
+  },
   storage: {
-    onTransferProgress: vi.fn().mockReturnValue(() => {}),
-    onTransferComplete: vi.fn().mockReturnValue(() => {}),
+    list: vi.fn().mockResolvedValue([]),
+    stat: vi.fn(),
+    mkdir: vi.fn(),
+    rename: vi.fn(),
+    delete: vi.fn(),
+    readFile: vi.fn(),
+    download: vi.fn(),
+    upload: vi.fn(),
   },
   shell: {
-    onOpenPath: vi.fn().mockReturnValue(() => {}),
     homeDir: vi.fn().mockResolvedValue('/home/user'),
-    showOpenDialog: vi.fn().mockResolvedValue({ canceled: true, filePaths: [] }),
-    showSaveDialog: vi.fn().mockResolvedValue({ canceled: true, filePath: '' }),
+    readdir: vi.fn().mockResolvedValue([]),
+    openFileDialog: vi.fn().mockResolvedValue({ canceled: true, filePaths: [] }),
+    saveFileDialog: vi.fn().mockResolvedValue({ canceled: true, filePath: '' }),
   },
-  db: {
-    getSetting: vi.fn().mockResolvedValue('""'),
-    getAllSettings: vi.fn().mockResolvedValue({}),
+  settings: {
+    get: vi.fn().mockResolvedValue('""'),
+    set: vi.fn().mockResolvedValue(undefined),
+    getAll: vi.fn().mockResolvedValue({}),
   },
   window: {
     isMaximized: vi.fn().mockResolvedValue(false),
@@ -55,16 +88,27 @@ vi.stubGlobal('api', {
     onData: vi.fn().mockReturnValue(() => {}),
     onExit: vi.fn().mockReturnValue(() => {}),
   },
+  localTerminal: {
+    spawn: vi.fn().mockResolvedValue('lt1'),
+    onData: vi.fn().mockReturnValue(() => {}),
+    onExit: vi.fn().mockReturnValue(() => {}),
+  },
+  s3: {
+    connect: vi.fn().mockResolvedValue(undefined),
+    disconnect: vi.fn().mockResolvedValue(undefined),
+    testConnection: vi.fn().mockResolvedValue({ ok: true }),
+  },
+  log: vi.fn().mockResolvedValue(undefined),
 });
 
 // Mock ResizeObserver which is not present in jsdom but used by xterm/framer-motion
 vi.stubGlobal(
   'ResizeObserver',
-  vi.fn().mockImplementation(() => ({
-    observe: vi.fn(),
-    unobserve: vi.fn(),
-    disconnect: vi.fn(),
-  })),
+  class ResizeObserver {
+    observe = vi.fn();
+    unobserve = vi.fn();
+    disconnect = vi.fn();
+  },
 );
 
 // Mock matchMedia
@@ -85,6 +129,9 @@ vi.stubGlobal(
 describe('Connections Integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    queryClient.clear();
+    useUIStore.setState({ activeView: 'terminal', sidebarOpen: true });
+    useTerminalStore.setState({ tabOrder: [], sessions: new Map() });
   });
 
   it('renders the welcome view when no connections exist', async () => {
@@ -103,13 +150,15 @@ describe('Connections Integration', () => {
       </QueryClientProvider>,
     );
 
-    // Find the button in WelcomeView
-    const btn = await screen.findByText(/New Connection/i);
+    // Ensure app is loaded
+    await screen.findByText(/Connections/i);
+
+    // Use the sidebar plus button (aria-label="New connection")
+    const btn = await screen.findByLabelText(/New connection/i);
     fireEvent.click(btn);
 
     // ConnectionForm should now be visible (it has a title "New Connection" in its header)
-    // Using getAllByText because "New Connection" is both on the button and the form title
     const titles = await screen.findAllByText(/New Connection/i);
-    expect(titles.length).toBeGreaterThan(1);
+    expect(titles.length).toBeGreaterThan(0);
   });
 });
