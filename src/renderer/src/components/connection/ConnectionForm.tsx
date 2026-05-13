@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, Cloud, EyeOff, FolderClosed, Loader2, Palette, Server, Wifi, X } from 'lucide-react';
+import { Check, Cloud, FolderClosed, Loader2, Palette, Server, Wifi, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { useConnectionStore } from '@/stores/connection-store';
