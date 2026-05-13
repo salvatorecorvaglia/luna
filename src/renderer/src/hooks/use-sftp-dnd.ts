@@ -4,7 +4,7 @@ import type { FileEntry } from '@/components/sftp/FilePane';
 import { useTransferStore } from '@/stores/transfer-store';
 
 interface UseSftpDndArgs {
-  sftpSessionId: string | null;
+  activeSessionId: string | null;
   localPath: string;
   remotePath: string;
 }
@@ -26,7 +26,7 @@ interface UseSftpDndResult {
  * inject `../` or NUL into the remote/local destination filename.
  */
 export function useSftpDnd({
-  sftpSessionId,
+  activeSessionId,
   localPath,
   remotePath,
 }: UseSftpDndArgs): UseSftpDndResult {
@@ -54,7 +54,7 @@ export function useSftpDnd({
       const rawFileName = e.dataTransfer.getData('file-name');
       const fileSize = parseInt(e.dataTransfer.getData('file-size') || '0', 10);
       const isDirectory = e.dataTransfer.getData('is-directory') === 'true';
-      if (!remoteSrc || !sftpSessionId) return;
+      if (!remoteSrc || !activeSessionId) return;
 
       // Reject directories before any IPC: directory transfers aren't
       // implemented yet and the previous "warn and continue" path would
@@ -75,7 +75,7 @@ export function useSftpDnd({
       const localDest = await window.api.shell.joinPath(localPath, fileName);
       try {
         const transferId = await window.api.storage.download({
-          sessionId: sftpSessionId,
+          sessionId: activeSessionId,
           remotePath: remoteSrc,
           localPath: localDest,
         });
@@ -89,13 +89,13 @@ export function useSftpDnd({
           transferred: 0,
           status: 'queued',
           bytesPerSec: 0,
-          sessionId: sftpSessionId,
+          sessionId: activeSessionId,
         });
       } catch (err: unknown) {
         toast.error(`Download failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     },
-    [sftpSessionId, localPath, addTransfer, sanitizeFilename],
+    [activeSessionId, localPath, addTransfer, sanitizeFilename],
   );
 
   const handleRemoteDrop = useCallback(
@@ -105,7 +105,7 @@ export function useSftpDnd({
       const rawFileName = e.dataTransfer.getData('file-name');
       const fileSize = parseInt(e.dataTransfer.getData('file-size') || '0', 10);
       const isDirectory = e.dataTransfer.getData('is-directory') === 'true';
-      if (!localSrc || !sftpSessionId) return;
+      if (!localSrc || !activeSessionId) return;
 
       if (isDirectory) {
         toast.warning(
@@ -122,7 +122,7 @@ export function useSftpDnd({
       const remoteDest = remotePath === '/' ? `/${fileName}` : `${remotePath}/${fileName}`;
       try {
         const transferId = await window.api.storage.upload({
-          sessionId: sftpSessionId,
+          sessionId: activeSessionId,
           localPath: localSrc,
           remotePath: remoteDest,
         });
@@ -136,13 +136,13 @@ export function useSftpDnd({
           transferred: 0,
           status: 'queued',
           bytesPerSec: 0,
-          sessionId: sftpSessionId,
+          sessionId: activeSessionId,
         });
       } catch (err: unknown) {
         toast.error(`Upload failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     },
-    [sftpSessionId, remotePath, addTransfer, sanitizeFilename],
+    [activeSessionId, remotePath, addTransfer, sanitizeFilename],
   );
 
   const handleLocalDragStart = useCallback((entry: FileEntry, e: React.DragEvent) => {

@@ -34,12 +34,12 @@ export function TransferQueue() {
     try {
       const transferId =
         item.type === 'download'
-          ? await window.api.sftp.download({
+          ? await window.api.storage.download({
               sessionId: item.sessionId,
               remotePath: item.remotePath,
               localPath: item.localPath,
             })
-          : await window.api.sftp.upload({
+          : await window.api.storage.upload({
               sessionId: item.sessionId,
               localPath: item.localPath,
               remotePath: item.remotePath,

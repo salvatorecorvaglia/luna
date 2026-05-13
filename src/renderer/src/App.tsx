@@ -9,6 +9,7 @@ import { WelcomeView } from '@/components/common/WelcomeView';
 import { ConnectionForm } from '@/components/connection/ConnectionForm';
 import { CommandPalette } from '@/components/command-palette/CommandPalette';
 import { SettingsPanel } from '@/components/common/SettingsPanel';
+import { ShortcutsHelp } from '@/components/common/ShortcutsHelp';
 import { HostKeyDialog } from '@/components/common/HostKeyDialog';
 import { TerminalView } from '@/components/terminal/TerminalView';
 import { LocalTerminalView } from '@/components/terminal/LocalTerminalView';
@@ -136,6 +137,14 @@ export default function App() {
         e.preventDefault();
         useUIStore.getState().setActiveView('sftp');
       }
+
+      // '?' — Toggle Shortcuts Help
+      if (e.key === '?' && !mod) {
+        // Only trigger if not in a form field (already handled by the isFormField check above)
+        e.preventDefault();
+        const store = useUIStore.getState();
+        store.setShortcutsHelpOpen(!store.shortcutsHelpOpen);
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -183,6 +192,7 @@ export default function App() {
       <ConnectionForm />
       <CommandPalette />
       <SettingsPanel />
+      <ShortcutsHelp />
       <HostKeyDialog />
 
       <Toaster

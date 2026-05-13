@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'sonner';
-import { useSftpStore } from '@/stores/sftp-store';
+import { useStorageStore } from '@/stores/storage-store';
 import { useUIStore } from '@/stores/ui-store';
 
 /**
@@ -15,8 +15,8 @@ export async function connectToS3(connectionId: string): Promise<string | null> 
     addStorageSession,
     updateStorageSessionStatus,
     removeStorageSession,
-    setSftpSessionId,
-  } = useSftpStore.getState();
+    setActiveSessionId,
+  } = useStorageStore.getState();
 
   // 1. Check local store
   const existing = Array.from(storageSessions.values()).find(
@@ -37,7 +37,7 @@ export async function connectToS3(connectionId: string): Promise<string | null> 
           status: 'connected',
           initialPath: sess.initialPath,
         });
-        setSftpSessionId(sess.id);
+        setActiveSessionId(sess.id);
         useUIStore.getState().setActiveView('sftp');
         return sess.id;
       }
@@ -47,7 +47,7 @@ export async function connectToS3(connectionId: string): Promise<string | null> 
   }
 
   if (existing) {
-    setSftpSessionId(existing.id);
+    setActiveSessionId(existing.id);
     useUIStore.getState().setActiveView('sftp');
     return existing.id;
   }
@@ -78,7 +78,7 @@ export async function connectToS3(connectionId: string): Promise<string | null> 
   try {
     await window.api.s3.connect({ sessionId, connectionId });
     updateStorageSessionStatus(sessionId, 'connected');
-    setSftpSessionId(sessionId);
+    setActiveSessionId(sessionId);
     return sessionId;
   } catch (err: unknown) {
     toast.error(`S3 connection failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -88,12 +88,12 @@ export async function connectToS3(connectionId: string): Promise<string | null> 
 }
 
 export async function disconnectS3(sessionId: string): Promise<void> {
-  const { removeStorageSession, sftpSessionId, setSftpSessionId } = useSftpStore.getState();
+  const { removeStorageSession, activeSessionId, setActiveSessionId } = useStorageStore.getState();
   try {
     await window.api.s3.disconnect(sessionId);
   } catch {
     // best-effort
   }
   removeStorageSession(sessionId);
-  if (sftpSessionId === sessionId) setSftpSessionId(null);
+  if (activeSessionId === sessionId) setActiveSessionId(null);
 }

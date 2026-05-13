@@ -3,7 +3,7 @@ import { registerSettingsHandlers } from './settings.ipc';
 import { registerCredentialHandlers } from './credentials.ipc';
 import { registerShellHandlers } from './shell.ipc';
 import { registerSshHandlers } from './ssh.ipc';
-import { registerSftpHandlers } from './sftp.ipc';
+import { registerTransferHandlers } from './transfer.ipc';
 import { registerStorageHandlers } from './storage.ipc';
 import { registerS3Handlers } from './s3.ipc';
 import { registerAppHandlers } from './app.ipc';
@@ -16,7 +16,7 @@ export function registerAllHandlers(): void {
   registerCredentialHandlers();
   registerShellHandlers();
   registerSshHandlers();
-  registerSftpHandlers();
+  registerTransferHandlers();
   registerStorageHandlers();
   registerS3Handlers();
   registerAppHandlers();

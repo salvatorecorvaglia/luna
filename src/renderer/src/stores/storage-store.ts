@@ -15,14 +15,15 @@ export interface StorageSession {
   initialPath: string;
 }
 
-interface SftpState {
+interface StorageState {
   localPath: string;
   remotePath: string;
   localSelection: Set<string>;
   remoteSelection: Set<string>;
   showHiddenFiles: boolean;
   previewFile: { name: string; content: string; type: string } | null;
-  sftpSessionId: string | null;
+  /** Current active session id (can be SFTP/SSH session id or S3 session id). */
+  activeSessionId: string | null;
   /** Active non-SSH storage sessions (currently: S3). Keyed by session id. */
   storageSessions: Map<string, StorageSession>;
 
@@ -35,13 +36,13 @@ interface SftpState {
   toggleRemoteSelection: (name: string) => void;
   clearSelections: () => void;
   setPreviewFile: (file: { name: string; content: string; type: string } | null) => void;
-  setSftpSessionId: (id: string | null) => void;
+  setActiveSessionId: (id: string | null) => void;
   addStorageSession: (session: StorageSession) => void;
   updateStorageSessionStatus: (id: string, status: StorageSession['status']) => void;
   removeStorageSession: (id: string) => void;
 }
 
-export const useSftpStore = create<SftpState>()(
+export const useStorageStore = create<StorageState>()(
   persist(
     (set) => ({
       localPath: '',
@@ -50,7 +51,7 @@ export const useSftpStore = create<SftpState>()(
       remoteSelection: new Set(),
       showHiddenFiles: false,
       previewFile: null,
-      sftpSessionId: null,
+      activeSessionId: null,
       storageSessions: new Map(),
 
       toggleHiddenFiles: () => set((s) => ({ showHiddenFiles: !s.showHiddenFiles })),
@@ -74,7 +75,7 @@ export const useSftpStore = create<SftpState>()(
         }),
       clearSelections: () => set({ localSelection: new Set(), remoteSelection: new Set() }),
       setPreviewFile: (file) => set({ previewFile: file }),
-      setSftpSessionId: (id) => set({ sftpSessionId: id }),
+      setActiveSessionId: (id) => set({ activeSessionId: id }),
       addStorageSession: (session) =>
         set((s) => {
           // Skip duplicates: a retry/reconnect for the same session id must not
@@ -101,15 +102,13 @@ export const useSftpStore = create<SftpState>()(
         }),
     }),
     {
-      name: 'lunar-sftp-storage',
+      name: 'lunar-storage-store',
       partialize: (state) => ({
         localPath: state.localPath,
         remotePath: state.remotePath,
-        sftpSessionId: state.sftpSessionId,
+        activeSessionId: state.activeSessionId,
         showHiddenFiles: state.showHiddenFiles,
       }),
-      // Map and Set don't serialize well, but we are not partializing them anyway.
-      // If we ever do, we'd need a storage: createJSONStorage(() => localStorage, { reviver, replacer })
     },
   ),
 );

@@ -12,9 +12,9 @@ const addStorageSession = vi.fn((s: unknown) => {
   storageSessions.set((s as { id: string }).id, s);
 });
 
-let sftpSessionId: string | null = null;
-const setSftpSessionId = vi.fn((id: string | null) => {
-  sftpSessionId = id;
+let activeSessionId: string | null = null;
+const setActiveSessionId = vi.fn((id: string | null) => {
+  activeSessionId = id;
 });
 
 vi.mock('@/stores/terminal-store', () => ({
@@ -26,13 +26,13 @@ vi.mock('@/stores/terminal-store', () => ({
   },
 }));
 
-vi.mock('@/stores/sftp-store', () => ({
-  useSftpStore: {
+vi.mock('@/stores/storage-store', () => ({
+  useStorageStore: {
     getState: () => ({
       storageSessions,
       addStorageSession,
-      sftpSessionId,
-      setSftpSessionId,
+      activeSessionId,
+      setActiveSessionId,
     }),
   },
 }));
@@ -45,8 +45,8 @@ beforeEach(() => {
   storageSessions.clear();
   addTerminalSession.mockClear();
   addStorageSession.mockClear();
-  setSftpSessionId.mockClear();
-  sftpSessionId = null;
+  setActiveSessionId.mockClear();
+  activeSessionId = null;
   getActiveSessions.mockReset();
   getConnection.mockReset();
   Object.assign(window, {
@@ -119,21 +119,21 @@ describe('useSessionRecovery', () => {
     );
   });
 
-  it('clears sftpSessionId when it points to a session that is gone', async () => {
-    sftpSessionId = 'orphan';
+  it('clears activeSessionId when it points to a session that is gone', async () => {
+    activeSessionId = 'orphan';
     getActiveSessions.mockResolvedValue({ ssh: [], s3: [] });
     await mountAndWait();
-    expect(setSftpSessionId).toHaveBeenCalledWith(null);
+    expect(setActiveSessionId).toHaveBeenCalledWith(null);
   });
 
-  it('keeps sftpSessionId when it matches a recovered session', async () => {
-    sftpSessionId = 'r1';
+  it('keeps activeSessionId when it matches a recovered session', async () => {
+    activeSessionId = 'r1';
     getActiveSessions.mockResolvedValue({
       ssh: [],
       s3: [{ id: 'r1', connectionId: 'c1', connectionName: 'b', initialPath: '/b' }],
     });
     await mountAndWait();
-    expect(setSftpSessionId).not.toHaveBeenCalled();
+    expect(setActiveSessionId).not.toHaveBeenCalled();
   });
 
   it('swallows errors from getActiveSessions without crashing', async () => {
