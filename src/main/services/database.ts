@@ -335,7 +335,7 @@ function getMigrations(): { name: string; sql: string }[] {
         DELETE FROM connections 
         WHERE is_hidden = 1 
           AND name LIKE 'Jump: %' 
-          AND (host LIKE '%_%' OR host LIKE '%MobaFont%');
+          AND (host LIKE '%\\_%' ESCAPE '\\' OR host LIKE '%MobaFont%');
       `,
     },
   ];

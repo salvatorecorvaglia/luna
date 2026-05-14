@@ -206,6 +206,10 @@ class SshManager {
           pendingHostKeys: this.pendingHostKeys,
           sessionId,
         });
+        if (this.sessions.get(sessionId) !== session) {
+          channel.dispose();
+          return { success: false, error: 'Connection aborted' };
+        }
         jumpSock = channel.sock;
         session.jumpDispose = channel.dispose;
       } catch (err) {
@@ -226,6 +230,10 @@ class SshManager {
       },
       { pendingHostKeys: this.pendingHostKeys, connectionId, sessionId, sock: jumpSock },
     );
+    if (this.sessions.get(sessionId) !== session) {
+      session.jumpDispose?.();
+      return { success: false, error: 'Connection aborted' };
+    }
     if (configError) {
       session.jumpDispose?.();
       this.sessions.delete(sessionId);
@@ -458,19 +466,10 @@ class SshManager {
         return;
       }
 
-      this.cleanupStreamListeners(sess);
-      try {
-        sess.client.end();
-      } catch (err) {
-        log.error(`[SSH] Error ending client for reconnect ${sessionId}:`, err);
-      }
-
       const connectionId = sess.connectionId;
       const reconnectAttempts = sess.reconnectAttempts;
       const cols = sess.cols;
       const rows = sess.rows;
-      // connect() re-adds the session (and bumps reconnectGen).
-      this.sessions.delete(sessionId);
 
       // Connect() should always resolve with {success}, but treat a thrown
       // error the same as a failed reconnect so a bug here can't escape as an
@@ -693,13 +692,14 @@ class SshManager {
         jumpDispose?.();
         resolve(result);
       };
+      const timeoutMs = getSetting('ssh.connectTimeoutMs', LIMITS.SSH_CONNECT_TIMEOUT_MS);
       const timer = setTimeout(
         () =>
           finish({
             ok: false,
-            error: `Connection test timed out after ${LIMITS.SSH_CONNECT_TIMEOUT_MS}ms`,
+            error: `Connection test timed out after ${timeoutMs}ms`,
           }),
-        LIMITS.SSH_CONNECT_TIMEOUT_MS,
+        timeoutMs,
       );
       client.once('ready', () => {
         clearTimeout(timer);

@@ -20,8 +20,8 @@ import type { SshConnectParams, SshResizeParams, SshSendDataParams } from '@shar
 import type { AuthType } from '@shared/types/connection';
 
 export function registerSshHandlers(): void {
-  sshManager.onSessionConnect((sessionId) => {
-    storageRegistry.register(sessionId, sftpStorageProvider);
+  sshManager.onSessionConnect((_sessionId) => {
+    // Eagerly registered in SSH_CONNECT instead to avoid races
   });
 
   sshManager.onSessionDisconnect((sessionId) => {
@@ -51,7 +51,7 @@ export function registerSshHandlers(): void {
   registerHandler(IPC.SSH_DISCONNECT, (_event, sessionId: string) => {
     assertNonEmptyString(sessionId, 'sessionId');
     sshManager.disconnect(sessionId);
-    storageRegistry.unregister(sessionId);
+    // Unregistration happens centrally via onSessionDisconnect
   });
 
   registerHandler(IPC.SSH_SEND_DATA, (_event, params: SshSendDataParams) => {

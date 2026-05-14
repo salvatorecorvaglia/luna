@@ -47,9 +47,9 @@ describe('log IPC', () => {
     expect(warn).toHaveBeenCalledWith('[Renderer] something off', { detail: 1 });
   });
 
-  it('routes error to log.error', async () => {
+  it('routes error to log.warn with a [Renderer Error] prefix to prevent spam', async () => {
     await call('error', 'boom');
-    expect(error).toHaveBeenCalledWith('[Renderer] boom');
+    expect(warn).toHaveBeenCalledWith('[Renderer Error] boom');
   });
 
   it('routes debug to log.debug', async () => {

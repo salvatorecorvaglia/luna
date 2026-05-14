@@ -49,7 +49,10 @@ export class LunarError extends Error {
   public static isLunarError(error: unknown): error is LunarError {
     return (
       error instanceof LunarError ||
-      (typeof error === 'object' && error !== null && 'code' in error && 'message' in error)
+      (typeof error === 'object' &&
+        error !== null &&
+        'name' in error &&
+        (error as Error).name === 'LunarError')
     );
   }
 

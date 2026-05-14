@@ -1,6 +1,6 @@
 import { app, safeStorage } from 'electron';
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'fs';
+import { appendFileSync, existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { getDatabase } from './database';
 import log from '../lib/logger';
@@ -82,6 +82,14 @@ function getEncryptionKey(): Buffer {
       if (canWrap) {
         try {
           writeFileSync(wrappedPath, safeStorage.encryptString(encryptionKey.toString('base64')));
+          // Remove the plaintext key file now that the wrapped version is
+          // persisted. Leaving it on disk would let anyone with read access
+          // to the data directory recover the master encryption key.
+          try {
+            unlinkSync(keyPath);
+          } catch (unlinkErr) {
+            log.warn('[Credentials] Could not remove plaintext key file after wrapping', unlinkErr);
+          }
         } catch (err) {
           log.warn('[Credentials] Could not wrap existing key with safeStorage', err);
         }

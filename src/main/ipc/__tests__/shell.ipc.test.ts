@@ -159,9 +159,11 @@ describe('shell IPC — symlink jail (TOCTOU & bypass)', () => {
     await symlink(target, link);
     const result = (await handlers.get(IPC.SHELL_READ_FILE)!({}, link)) as {
       content: string;
+      encoding: 'utf-8' | 'base64';
       size: number;
     };
-    expect(Buffer.from(result.content, 'base64').toString()).toBe('hello');
+    expect(result.encoding).toBe('utf-8');
+    expect(result.content).toBe('hello');
     expect(result.size).toBe(5);
   });
 });

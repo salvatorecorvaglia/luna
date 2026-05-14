@@ -32,6 +32,9 @@ function checkRetrieveRate(): void {
   retrieveTimestamps.push(now);
 }
 
+/** Cap on the size of a secret accepted from the renderer. */
+const MAX_CREDENTIAL_SECRET_LEN = 65536;
+
 export function registerCredentialHandlers(): void {
   // Forward decrypt-failure events to the renderer so it can surface a
   // security banner. The renderer subscribes via window.api.credentials.onTamper.
@@ -47,6 +50,12 @@ export function registerCredentialHandlers(): void {
     (_event, payload: { connectionId: string; secret: string }) => {
       assertNonEmptyString(payload?.connectionId, 'connectionId');
       assertNonEmptyString(payload?.secret, 'secret');
+      if (payload.secret.length > MAX_CREDENTIAL_SECRET_LEN) {
+        throw new LunarError(
+          `secret exceeds ${MAX_CREDENTIAL_SECRET_LEN}-character cap`,
+          ErrorCode.VALIDATION_ERROR,
+        );
+      }
       storeCredential(payload.connectionId, payload.secret);
     },
   );
