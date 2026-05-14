@@ -13,6 +13,9 @@ const SENSITIVE_KEYS = new Set([
   'authorization',
   'token',
   'cookie',
+  'accesskeyid',
+  'secretaccesskey',
+  'sessiontoken',
 ]);
 
 const PLACEHOLDER = '[REDACTED]';
@@ -22,7 +25,14 @@ export function redactString(input: string): string {
   return input
     .replace(/(authorization\s*[:=]\s*)([^\s,;]+)/gi, `$1${PLACEHOLDER}`)
     .replace(/(password\s*[:=]\s*)([^\s,;]+)/gi, `$1${PLACEHOLDER}`)
-    .replace(/(passphrase\s*[:=]\s*)([^\s,;]+)/gi, `$1${PLACEHOLDER}`);
+    .replace(/(passphrase\s*[:=]\s*)([^\s,;]+)/gi, `$1${PLACEHOLDER}`)
+    .replace(/(accessKeyId\s*[:=]\s*)([^\s,;]+)/gi, `$1${PLACEHOLDER}`)
+    .replace(/(secretAccessKey\s*[:=]\s*)([^\s,;]+)/gi, `$1${PLACEHOLDER}`)
+    .replace(/(sessionToken\s*[:=]\s*)([^\s,;]+)/gi, `$1${PLACEHOLDER}`)
+    .replace(
+      /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
+      PLACEHOLDER,
+    );
 }
 
 export function redact(value: unknown, depth = 0): unknown {

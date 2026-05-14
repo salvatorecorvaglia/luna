@@ -29,7 +29,8 @@ export function registerLogHandlers(): void {
           log.warn(...data);
           break;
         case 'error':
-          log.error(...data);
+          data[0] = `[Renderer Error] ${message}`;
+          log.warn(...data);
           break;
         case 'debug':
           log.debug(...data);

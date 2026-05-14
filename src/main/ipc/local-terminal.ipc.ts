@@ -72,17 +72,25 @@ export function registerLocalTerminalHandlers(): void {
 
       const shell = detectShell();
       const args = process.platform !== 'win32' ? ['--login'] : [];
+      const cleanEnv = { ...process.env };
+      const electronVars = [
+        'ELECTRON_RUN_AS_NODE',
+        'ELECTRON_NO_ATTACH_CONSOLE',
+        'ORIGINAL_XDG_CURRENT_DESKTOP',
+        'CHROME_DESKTOP',
+        'DESKTOP_STARTUP_ID',
+      ];
+      electronVars.forEach((v) => delete cleanEnv[v]);
+
       const ptyProcess = pty.spawn(shell, args, {
         name: 'xterm-256color',
         cols,
         rows,
         cwd: homedir(),
         env: {
-          ...process.env,
+          ...cleanEnv,
           TERM: 'xterm-256color',
           COLORTERM: 'truecolor',
-          // Ensure we don't pass Electron-specific vars that might confuse child shells
-          ELECTRON_RUN_AS_NODE: undefined,
         },
       });
 

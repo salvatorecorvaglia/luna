@@ -7,7 +7,11 @@ import { ErrorCode, LunarError } from '@shared/errors';
 import { type ConnectionRow, getDatabase } from '../services/database';
 import log from '../lib/logger';
 import { detectAndImport } from '../lib/importers';
-import { deleteCredential, storeCredential } from '../services/credential-store';
+import {
+  deleteCredential,
+  storeCredential,
+  retrieveS3Credential,
+} from '../services/credential-store';
 import { registerHandler } from '../lib/ipc-handler';
 import type {
   AuthType,
@@ -111,7 +115,9 @@ const UPDATE_FIELD_MAP: Record<string, string> = {
   folder: 'folder',
   colorTag: 'color_tag',
   jumpHostConnectionId: 'jump_host_connection_id',
-  jumpHostConfig: 'jump_host_config', // Synthetic key for loop handling
+  // Synthetic key for loop handling; does not map to a single real column.
+  // Handled explicitly in the update loop via a `continue` guard.
+  jumpHostConfig: 'jump_host_config',
   isHidden: 'is_hidden',
 };
 
@@ -318,12 +324,15 @@ export function registerConnectionHandlers(): void {
         deleteCredential(`jumphost:${input.id}`);
       }
     } else if (provider === 's3' && (input.accessKeyId || input.secretAccessKey)) {
+      // Merge partial updates with the existing credential blob so supplying
+      // only one of accessKeyId/secretAccessKey doesn't blank the other field.
+      const prev = retrieveS3Credential(input.id);
       storeCredential(
         input.id,
         JSON.stringify({
-          accessKeyId: input.accessKeyId,
-          secretAccessKey: input.secretAccessKey,
-          sessionToken: input.sessionToken || undefined,
+          accessKeyId: input.accessKeyId ?? prev?.accessKeyId,
+          secretAccessKey: input.secretAccessKey ?? prev?.secretAccessKey,
+          sessionToken: input.sessionToken ?? prev?.sessionToken ?? undefined,
         }),
       );
     }
@@ -358,6 +367,15 @@ export function registerConnectionHandlers(): void {
   });
 
   registerHandler(IPC.CONNECTION_REORDER, (_event, ids: string[]) => {
+    if (!Array.isArray(ids)) throw validation('ids must be an array');
+    if (ids.length > MAX_IMPORT_CONNECTIONS) {
+      throw validation(`ids array exceeds maximum length (${MAX_IMPORT_CONNECTIONS})`);
+    }
+    for (const id of ids) {
+      if (typeof id !== 'string' || id.length === 0 || id.includes('\0')) {
+        throw validation('Each id must be a non-empty string without null bytes');
+      }
+    }
     const update = db.prepare('UPDATE connections SET sort_order = ? WHERE id = ?');
     const transaction = db.transaction((idList: string[]) => {
       idList.forEach((id, index) => {
@@ -615,18 +633,20 @@ export function registerConnectionHandlers(): void {
       );
       const linkAll = db.transaction(() => {
         for (const link of pendingJumpHostLinks) {
-          if (link.name === link.targetLabel) {
+          const inBatchId = importedSftpByName.get(link.name);
+          const dbRow = findSftpByName.get(link.name) as
+            | { id: string; jump_host_connection_id: string | null }
+            | undefined;
+          const bastionId = inBatchId ?? dbRow?.id;
+
+          if (bastionId === link.targetId) {
             skipped.push({
               name: link.targetLabel,
               reason: 'jump host references itself',
             });
             continue;
           }
-          const inBatchId = importedSftpByName.get(link.name);
-          const dbRow = findSftpByName.get(link.name) as
-            | { id: string; jump_host_connection_id: string | null }
-            | undefined;
-          const bastionId = inBatchId ?? dbRow?.id;
+
           if (!bastionId) {
             skipped.push({
               name: link.targetLabel,

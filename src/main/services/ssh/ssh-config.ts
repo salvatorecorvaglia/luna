@@ -92,7 +92,11 @@ async function loadPrivateKeyCached(absPath: string): Promise<Buffer> {
   while (keyCache.size > KEY_CACHE_MAX) {
     const oldest = keyCache.keys().next().value;
     if (oldest === undefined) break;
+    const evicted = keyCache.get(oldest);
     keyCache.delete(oldest);
+    // Best-effort scrub: zero the buffer contents so private key material
+    // doesn't linger in the V8 heap longer than necessary.
+    if (evicted) evicted.fill(0);
   }
   return buf;
 }
@@ -201,10 +205,15 @@ export async function buildConnectConfig(
 
   // If a transient password/passphrase was supplied (test-connection on
   // unsaved settings), use it directly. Otherwise look up the saved
-  // credential by connectionId.
-  const password = params.password ?? (connectionId ? retrieveCredential(connectionId) : undefined);
+  // credential by connectionId, but only for the active authType.
+  const password =
+    params.authType === 'password'
+      ? (params.password ?? (connectionId ? retrieveCredential(connectionId) : undefined))
+      : undefined;
   const passphrase =
-    params.passphrase ?? (connectionId ? retrieveCredential(connectionId) : undefined);
+    params.authType === 'key+passphrase'
+      ? (params.passphrase ?? (connectionId ? retrieveCredential(connectionId) : undefined))
+      : undefined;
 
   if (params.authType === 'password') {
     config.password = password || undefined;

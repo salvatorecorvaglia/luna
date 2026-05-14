@@ -3,7 +3,7 @@ import { access, lstat, readdir, readFile, realpath, stat, writeFile } from 'fs/
 import { constants as fsConstants } from 'fs';
 import { basename, isAbsolute, join, resolve } from 'path';
 import { homedir } from 'os';
-import { IPC } from '@shared/constants';
+import { BINARY_PREVIEW_EXTENSIONS, IPC } from '@shared/constants';
 import { ErrorCode, LunarError } from '@shared/errors';
 import {
   assertSafeAbsolutePath,
@@ -215,8 +215,12 @@ export function registerShellHandlers(): void {
     }
 
     const data = await readFile(target);
+    const ext = filePath.split('.').pop()?.toLowerCase() || '';
+    const isBinary = BINARY_PREVIEW_EXTENSIONS.has(ext);
+
     return {
-      content: data.toString('base64'),
+      content: data.toString(isBinary ? 'base64' : 'utf-8'),
+      encoding: isBinary ? 'base64' : 'utf-8',
       size: s.size,
     };
   });

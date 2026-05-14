@@ -145,7 +145,7 @@ void app.whenReady().then(() => {
               "frame-ancestors 'none'; " +
               "base-uri 'self'; " +
               "form-action 'none'; " +
-              "frame-src 'self' data:; " +
+              "frame-src 'none'; " +
               "object-src 'none'",
           ],
         },
