@@ -492,6 +492,15 @@ export function ConnectionForm() {
     toast.info('Connection test cancelled');
   }
 
+  /**
+   * Hard ceiling on a single test run. The main-side handler already times
+   * out the SSH connect at LIMITS.SSH_CONNECT_TIMEOUT_MS (60s), but if the
+   * IPC itself stalls (main crash, paused renderer-host link) the button
+   * would otherwise stay stuck on "Testing…" forever. 65s gives the server
+   * a clean grace window without leaving the user waiting indefinitely.
+   */
+  const TEST_HARD_TIMEOUT_MS = 65_000;
+
   async function handleTest() {
     // If a test is already running, treat the click as a cancel.
     if (testRunRef.current) {
@@ -502,6 +511,18 @@ export function ConnectionForm() {
     const runId = ++testRunCounter.current;
     const controller = new AbortController();
     testRunRef.current = { controller, runId };
+    const watchdog = setTimeout(() => {
+      // Only fire if this run is still the active one — a fast user-cancel
+      // would have already cleared the ref.
+      if (testRunRef.current?.runId !== runId) return;
+      controller.abort();
+      testRunRef.current = null;
+      setTesting(false);
+      toast.error('Connection test timed out — main process not responding');
+    }, TEST_HARD_TIMEOUT_MS);
+    // The controller's onabort fires from cancelTest() too; clean the timer
+    // there so a manual cancel doesn't leave it ticking against a stale runId.
+    controller.signal.addEventListener('abort', () => clearTimeout(watchdog), { once: true });
 
     /** Apply a result only if no newer test has superseded this one and
      *  the user hasn't aborted in the meantime. Prevents stale toasts when
@@ -549,6 +570,7 @@ export function ConnectionForm() {
           toast.error(result.error || 'Connection failed');
         }
       } finally {
+        clearTimeout(watchdog);
         if (testRunRef.current?.runId === runId) {
           testRunRef.current = null;
           setTesting(false);
@@ -585,6 +607,7 @@ export function ConnectionForm() {
           toast.error(result.error || 'S3 connection failed');
         }
       } finally {
+        clearTimeout(watchdog);
         if (testRunRef.current?.runId === runId) {
           testRunRef.current = null;
           setTesting(false);

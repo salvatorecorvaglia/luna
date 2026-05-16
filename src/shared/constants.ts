@@ -34,6 +34,8 @@ export const IPC = {
   STORAGE_READ_FILE: 'storage:read-file',
   STORAGE_DOWNLOAD: 'storage:download',
   STORAGE_UPLOAD: 'storage:upload',
+  /** Fired when a list() call hit the safety cap and stopped paginating. */
+  STORAGE_LIST_TRUNCATED: 'storage:list-truncated',
 
   // S3
   S3_CONNECT: 's3:connect',

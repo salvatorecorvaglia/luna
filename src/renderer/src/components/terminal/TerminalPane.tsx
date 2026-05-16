@@ -77,6 +77,10 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
     }, 100);
   }, [sessionId]);
 
+  // Live match count surfaced from xterm's SearchAddon. -1 sentinel means
+  // "no search active" so the chip can suppress itself; 0 means "no match".
+  const [searchMatch, setSearchMatch] = useState<{ index: number; total: number } | null>(null);
+
   const openSearch = useCallback(() => {
     setSearchOpen(true);
     queueMicrotask(() => searchInputRef.current?.focus());
@@ -85,6 +89,7 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
   const closeSearch = useCallback(() => {
     setSearchOpen(false);
     setSearchQuery('');
+    setSearchMatch(null);
     searchAddonRef.current?.clearDecorations();
     terminalRef.current?.focus();
   }, []);
@@ -143,6 +148,13 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
         terminal.loadAddon(searchAddon);
         terminal.loadAddon(unicode11Addon);
         terminal.unicode.activeVersion = '11';
+
+        // Surface match count under the search input. Fires after every
+        // findNext/findPrevious as well as after the buffer changes while
+        // a query is active. The addon emits resultIndex=-1 when no match.
+        searchAddon.onDidChangeResults(({ resultIndex, resultCount }) => {
+          setSearchMatch({ index: resultIndex, total: resultCount });
+        });
 
         // Important: open the terminal before loading fitAddon or doing any layout.
         terminal.open(containerRef.current);
@@ -292,32 +304,22 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
     }
   }, [terminalTheme]);
 
-  // Apply font size changes live
+  // Apply font size + scrollback changes live. Merged into one effect so a
+  // simultaneous change to both (e.g. loading a saved profile that swaps
+  // theme + size + scrollback at once) only calls fitAddon.fit() once per
+  // render rather than twice — fit() is expensive (it forces a reflow and
+  // an xterm dimension recalc) so duplicated fits cost a noticeable frame.
   useEffect(() => {
     const terminal = terminalRef.current;
-    if (terminal) {
-      terminal.options.fontSize = fontSize;
-      try {
-        fitAddonRef.current?.fit();
-      } catch {
-        /* ignore */
-      }
+    if (!terminal) return;
+    terminal.options.fontSize = fontSize;
+    terminal.options.scrollback = scrollback;
+    try {
+      fitAddonRef.current?.fit();
+    } catch {
+      /* ignore — fit can throw if the terminal isn't attached yet */
     }
-  }, [fontSize]);
-
-  // Apply scrollback changes live
-  useEffect(() => {
-    const terminal = terminalRef.current;
-    if (terminal) {
-      terminal.options.scrollback = scrollback;
-      // Re-fit so the visible row count picks up the new buffer geometry.
-      try {
-        fitAddonRef.current?.fit();
-      } catch {
-        /* ignore */
-      }
-    }
-  }, [scrollback]);
+  }, [fontSize, scrollback]);
 
   // Re-fit and focus when tab becomes active. handleResize already debounces
   // through resizeTimeoutRef, so calling it directly is safe — the previous
@@ -381,6 +383,7 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
                 searchAddonRef.current?.findNext(e.target.value);
               } else {
                 searchAddonRef.current?.clearDecorations();
+                setSearchMatch(null);
               }
             }}
             onKeyDown={(e) => {
@@ -397,6 +400,25 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
             aria-label="Search terminal output"
             className="w-40 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground/50"
           />
+          {searchQuery && searchMatch && (
+            <span
+              className={
+                searchMatch.total === 0
+                  ? 'text-[10px] text-destructive tabular-nums'
+                  : 'text-[10px] text-muted-foreground tabular-nums'
+              }
+              aria-live="polite"
+              aria-label={
+                searchMatch.total === 0
+                  ? 'No matches'
+                  : `Match ${searchMatch.index + 1} of ${searchMatch.total}`
+              }
+            >
+              {searchMatch.total === 0
+                ? 'no matches'
+                : `${searchMatch.index + 1}/${searchMatch.total}`}
+            </span>
+          )}
           <button
             onClick={findPrevious}
             className="btn-icon !p-0.5"

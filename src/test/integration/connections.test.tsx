@@ -60,6 +60,7 @@ vi.stubGlobal('api', {
     readFile: vi.fn(),
     download: vi.fn(),
     upload: vi.fn(),
+    onListTruncated: vi.fn().mockReturnValue(() => {}),
   },
   shell: {
     homeDir: vi.fn().mockResolvedValue('/home/user'),
