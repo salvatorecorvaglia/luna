@@ -9,6 +9,7 @@ import log from '../lib/logger';
 import { AbortError, SftpTransferError, SshConnectionError } from '../lib/errors';
 import { releaseStorageBucket } from '../lib/rate-limiter';
 import { formatPermissions, isSessionFatal } from './sftp/sftp-helpers';
+import { getRuntimeNumber } from '../config/runtime';
 
 // Deliberately do NOT import transferQueue here — that created a cycle
 // (sftp-manager ↔ transfer-queue). Transfer enqueueing is the IPC layer's
@@ -16,11 +17,11 @@ import { formatPermissions, isSessionFatal } from './sftp/sftp-helpers';
 
 type StepCallback = (transferred: number, chunk: number, total: number) => void;
 
-const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
-const IDLE_CHECK_INTERVAL_MS = 60 * 1000;
-/** Delay before unlinking a partial local file after destroy() — gives the
- * write stream time to flush its destroy ack so unlink doesn't race with it. */
-const ABORT_CLEANUP_DELAY_MS = 50;
+// Read once at module load: these don't need per-call overrides, but keeping
+// them in the settings table makes them tunable without a rebuild.
+const IDLE_TIMEOUT_MS = getRuntimeNumber('SFTP_IDLE_TIMEOUT_MS');
+const IDLE_CHECK_INTERVAL_MS = getRuntimeNumber('SFTP_IDLE_CHECK_INTERVAL_MS');
+const ABORT_CLEANUP_DELAY_MS = getRuntimeNumber('SFTP_ABORT_CLEANUP_DELAY_MS');
 
 class SftpManager {
   private sftpSessions = new Map<string, SFTPWrapper>();

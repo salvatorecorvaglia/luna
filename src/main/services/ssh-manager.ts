@@ -10,6 +10,7 @@ import { buildConnectConfig } from './ssh/ssh-config';
 import { openJumpChannel } from './ssh/jump-host';
 import { TimeoutError, withTimeout } from '../lib/with-timeout';
 import { describeSshError } from '../lib/error-map';
+import { getRuntimeNumber } from '../config/runtime';
 import log from '../lib/logger';
 
 interface StreamListeners {
@@ -47,9 +48,9 @@ interface SshSession {
 }
 
 /** Maximum delay between reconnect attempts (ms). The backoff doubles up to this cap. */
-const MAX_RECONNECT_DELAY_MS = 30_000;
+const MAX_RECONNECT_DELAY_MS = getRuntimeNumber('SSH_RECONNECT_MAX_DELAY_MS');
 /** Base delay for the first reconnect attempt (ms). */
-const RECONNECT_BASE_DELAY_MS = 1_000;
+const RECONNECT_BASE_DELAY_MS = getRuntimeNumber('SSH_RECONNECT_BASE_DELAY_MS');
 
 class SshManager {
   private sessions = new Map<string, SshSession>();

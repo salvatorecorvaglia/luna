@@ -21,6 +21,7 @@ import type { StorageEntry, StorageStatResult } from '@shared/types/storage-prov
 import type { StepCallback, StorageProvider } from '../storage/types';
 import { AbortError, S3StorageError } from '../../lib/errors';
 import { TimeoutError, withTimeout } from '../../lib/with-timeout';
+import { getRuntimeNumber } from '../../config/runtime';
 import log from '../../lib/logger';
 import { parseS3Path } from './s3-paths';
 import { objectToEntry, prefixToEntry, wrapS3Error } from './s3-helpers';
@@ -505,8 +506,10 @@ class S3StorageProvider implements StorageProvider {
     const upload = new Upload({
       client,
       params: { Bucket: bucket, Key: key, Body: body },
-      queueSize: 4,
-      partSize: 5 * 1024 * 1024,
+      // Tunable via settings (s3.uploadQueueSize / s3.uploadPartSizeBytes) —
+      // see src/main/config/runtime.ts for the bounds.
+      queueSize: getRuntimeNumber('S3_UPLOAD_QUEUE_SIZE'),
+      partSize: getRuntimeNumber('S3_UPLOAD_PART_SIZE_BYTES'),
       // Tells the SDK to call AbortMultipartUpload + DeleteObject on any
       // failure path, so an erroring upload doesn't strand parts in the
       // bucket waiting to be billed.
