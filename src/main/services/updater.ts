@@ -18,11 +18,28 @@ function checkOnce(): Promise<unknown> {
 }
 
 export function initAutoUpdater(): void {
-  if (!app.isPackaged) return;
+  // Hard-fail closed in unpackaged builds. `app.isPackaged` is false in dev
+  // and for tampered packages whose `package.json` was edited at rest, so a
+  // running binary that lies about being packaged also gets no auto-update.
+  if (!app.isPackaged) {
+    log.info('[Updater] Skipping auto-update setup (app not packaged).');
+    return;
+  }
 
   autoUpdater.logger = log;
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
+  // Lock down against downgrade-attack feeds: an adversary controlling the
+  // update channel must not be able to roll users back to a known-vulnerable
+  // older build (cf. CVE-2020-15257 style attacks). Both are false by default
+  // in current electron-updater, but pin explicitly so a future default
+  // change can't quietly widen our attack surface.
+  autoUpdater.allowDowngrade = false;
+  autoUpdater.allowPrerelease = false;
+  // Refuse cached partial downloads from a prior session that may have been
+  // tampered with on disk between launches. With this off, electron-updater
+  // streams the full installer and re-verifies the signature each run.
+  autoUpdater.disableDifferentialDownload = true;
 
   // Refuse to operate against an unencrypted update feed.
   // Note: electron-updater already enforces HTTPS by default for most providers.
@@ -82,7 +99,12 @@ export function checkForUpdate(): { available: boolean; version?: string } {
 }
 
 export function installUpdate(): void {
-  if (!app.isPackaged) return;
+  // Same guard as initAutoUpdater — a renderer that calls install in an
+  // unpackaged build must not be able to coerce the updater into running.
+  if (!app.isPackaged) {
+    log.warn('[Updater] Refusing installUpdate: app is not packaged.');
+    return;
+  }
 
   autoUpdater
     .downloadUpdate()

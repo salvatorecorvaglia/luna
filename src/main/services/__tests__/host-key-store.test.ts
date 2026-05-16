@@ -67,8 +67,12 @@ describe('host-key-store TOFU', () => {
     expect(onPort2222).toEqual({ trusted: false, changed: false, isFirst: true });
   });
 
-  it('rejects weak/deprecated algorithms even if the key matches', () => {
-    updateHostKey('host', 22, Buffer.from('key-1'), 'ssh-rsa');
+  it('refuses to persist weak/deprecated algorithms via updateHostKey', () => {
+    // The trust path must never store a weak algorithm — even if a future
+    // prompt-side regression surfaces one. Hard policy in the store itself.
+    expect(() => updateHostKey('host', 22, Buffer.from('key-1'), 'ssh-rsa')).toThrow(/ssh-rsa/);
+    // And verify() still rejects the weak algo on the wire, regardless of
+    // whether anything is stored.
     const result = verifyHostKey('host', 22, Buffer.from('key-1'), 'ssh-rsa');
     expect(result).toEqual({
       trusted: false,

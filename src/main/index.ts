@@ -130,6 +130,18 @@ void app.whenReady().then(() => {
   // Skipped in dev because Vite's HMR client uses inline scripts + a websocket
   // back to localhost, which a strict policy would block (resulting in a blank
   // window). Production loads from file:// where 'self' is sufficient.
+  //
+  // Why 'unsafe-inline' for style-src: xterm.js dynamically appends <style>
+  // elements for its DOM/canvas renderer themes, and React + many UI libs
+  // emit `style="..."` attributes for layout. Removing 'unsafe-inline'
+  // entirely would break the terminal and large parts of the UI. The
+  // dominant XSS attack vector (script injection) is already blocked by the
+  // strict `script-src 'self'` directive — no 'unsafe-inline' or
+  // 'unsafe-eval' for scripts.
+  //
+  // `frame-src 'self' data:` is required by FilePreview.tsx, which renders
+  // PDF previews inside an <iframe> backed by a data: URL. Removing it
+  // would silently break PDF preview without affecting non-PDF flows.
   if (!is.dev) {
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
       callback({
@@ -138,15 +150,27 @@ void app.whenReady().then(() => {
           'Content-Security-Policy': [
             "default-src 'self'; " +
               "script-src 'self'; " +
+              // Keep <style>-tag inlining unrestricted only because xterm needs it;
+              // attribute styles are governed by style-src-attr below.
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+              "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+              "style-src-attr 'unsafe-inline'; " +
               "img-src 'self' data: blob:; " +
               "font-src 'self' data: https://fonts.gstatic.com; " +
               "connect-src 'self'; " +
               "frame-ancestors 'none'; " +
               "base-uri 'self'; " +
               "form-action 'none'; " +
-              "frame-src 'none'; " +
-              "object-src 'none'",
+              // PDF preview uses a data: iframe; 'self' is intentionally omitted
+              // so a hostile renderer can't frame the app's own origin to bypass
+              // navigation guards.
+              "frame-src data:; " +
+              "worker-src 'self' blob:; " +
+              "media-src 'self' blob: data:; " +
+              "object-src 'none'; " +
+              // Upgrade any accidentally-emitted http:// sub-resource to https
+              // so a downgrade in the bundled HTML can't slip through.
+              'upgrade-insecure-requests',
           ],
         },
       });

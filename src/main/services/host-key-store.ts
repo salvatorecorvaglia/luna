@@ -93,6 +93,13 @@ export function verifyHostKey(
 
 /**
  * Update the stored host key (user chose to trust the new key).
+ *
+ * Re-validates the algorithm allowlist before persisting. `verifyHostKey`
+ * already rejects weak algorithms during the connection handshake, but the
+ * trust path is reachable from a user-action (Trust button on the prompt)
+ * and a future regression that surfaces a weak-algo key to that prompt
+ * would otherwise persist it permanently. Refusing weak algorithms here
+ * is a hard policy that doesn't depend on prompt-side validation.
  */
 export function updateHostKey(
   host: string,
@@ -100,6 +107,13 @@ export function updateHostKey(
   keyData: Buffer,
   algorithm: string,
 ): void {
+  if (!isAllowedHostKeyAlgorithm(algorithm)) {
+    throw new Error(
+      `Refusing to store host key with disallowed algorithm "${algorithm}". ` +
+        `The server must advertise ed25519, ecdsa-sha2-*, or rsa-sha2-* host keys.`,
+    );
+  }
+
   const db = getDatabase();
   const hostKey = formatHostKey(host, port);
   const fp = fingerprintKey(keyData);
