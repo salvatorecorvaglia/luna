@@ -95,6 +95,15 @@ export interface BuildConfigOptions {
  */
 const KEY_CACHE_MAX = 8;
 const keyCache = new Map<string, Buffer>();
+/**
+ * In-flight read dedup. Two concurrent connects against the same key file
+ * (common on rapid reconnect bursts and parallel SFTP/SSH sessions) would
+ * otherwise both miss the cache, both stat+read the file, and both write
+ * the result back — wasting disk I/O and widening the window during which
+ * private key material lives on the heap unnecessarily. The map holds the
+ * pending promise so concurrent callers join the same read.
+ */
+const keyReadInFlight = new Map<string, Promise<Buffer>>();
 
 async function loadPrivateKeyCached(absPath: string): Promise<Buffer> {
   const st = await stat(absPath);
@@ -107,18 +116,32 @@ async function loadPrivateKeyCached(absPath: string): Promise<Buffer> {
     keyCache.set(key, hit);
     return hit;
   }
-  const buf = await readFile(absPath);
-  keyCache.set(key, buf);
-  while (keyCache.size > KEY_CACHE_MAX) {
-    const oldest = keyCache.keys().next().value;
-    if (oldest === undefined) break;
-    const evicted = keyCache.get(oldest);
-    keyCache.delete(oldest);
-    // Best-effort scrub: zero the buffer contents so private key material
-    // doesn't linger in the V8 heap longer than necessary.
-    if (evicted) evicted.fill(0);
-  }
-  return buf;
+
+  // If a read for the same composite key is already in flight, await its
+  // result instead of issuing a duplicate.
+  const pending = keyReadInFlight.get(key);
+  if (pending) return pending;
+
+  const readPromise = (async (): Promise<Buffer> => {
+    const buf = await readFile(absPath);
+    keyCache.set(key, buf);
+    while (keyCache.size > KEY_CACHE_MAX) {
+      const oldest = keyCache.keys().next().value;
+      if (oldest === undefined) break;
+      const evicted = keyCache.get(oldest);
+      keyCache.delete(oldest);
+      // Best-effort scrub: zero the buffer contents so private key material
+      // doesn't linger in the V8 heap longer than necessary.
+      if (evicted) evicted.fill(0);
+    }
+    return buf;
+  })().finally(() => {
+    // Equality check guards against a stale entry left behind by an
+    // overlapping eviction-then-reinsertion sequence.
+    if (keyReadInFlight.get(key) === readPromise) keyReadInFlight.delete(key);
+  });
+  keyReadInFlight.set(key, readPromise);
+  return readPromise;
 }
 
 export async function buildConnectConfig(

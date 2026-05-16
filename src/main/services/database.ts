@@ -45,33 +45,70 @@ export interface ConnectionRow {
 }
 
 let db: Database.Database | null = null;
+/**
+ * Re-entrancy guard: a migration calling out to helper code that itself
+ * needs `getDatabase()` would otherwise either (a) re-enter and open a
+ * second sqlite connection holding a competing file lock, or (b) recurse
+ * indefinitely. Once `db` is assigned we always return it; the flag is
+ * only here to make the contract explicit and to give a clear error if
+ * a migration triggers re-entry *before* the assignment.
+ */
+let initializing = false;
 
 export function getDatabase(): Database.Database {
   if (db) return db;
-
-  const userDataPath = app.getPath('userData');
-  const dbDir = join(userDataPath, 'data');
-
-  if (!existsSync(dbDir)) {
-    mkdirSync(dbDir, { recursive: true });
+  if (initializing) {
+    // We're inside the first call's initialization (a migration helper called
+    // getDatabase()) and the db handle isn't installed yet. Refuse rather
+    // than open a second handle that would race the first on the same file.
+    throw new Error(
+      '[database] getDatabase() called re-entrantly during initialization — ' +
+        'migrations must use the local handle they were passed.',
+    );
   }
 
-  const dbPath = join(dbDir, 'lunar.db');
-  db = new Database(dbPath);
+  initializing = true;
+  try {
+    const userDataPath = app.getPath('userData');
+    const dbDir = join(userDataPath, 'data');
 
-  // Enable WAL mode for better concurrent performance
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
+    if (!existsSync(dbDir)) {
+      mkdirSync(dbDir, { recursive: true });
+    }
 
-  // Check database integrity
-  const integrityResult = db.pragma('integrity_check') as { integrity_check: string }[];
-  if (integrityResult[0]?.integrity_check !== 'ok') {
-    log.warn('[database] Integrity check failed:', integrityResult);
+    const dbPath = join(dbDir, 'lunar.db');
+    const handle = new Database(dbPath);
+
+    // Enable WAL mode for better concurrent performance
+    handle.pragma('journal_mode = WAL');
+    handle.pragma('foreign_keys = ON');
+
+    // Check database integrity
+    const integrityResult = handle.pragma('integrity_check') as { integrity_check: string }[];
+    if (integrityResult[0]?.integrity_check !== 'ok') {
+      log.warn('[database] Integrity check failed:', integrityResult);
+    }
+
+    // Install the handle *before* migrations run so any helper that calls
+    // getDatabase() recursively (legacy code paths, retired migration utils)
+    // gets the same instance instead of recursing.
+    db = handle;
+    runMigrations(handle);
+    return handle;
+  } catch (err) {
+    // Roll back the global so the next caller can retry from a clean slate.
+    if (db) {
+      try {
+        db.close();
+      } catch {
+        // ignore — already broken
+      }
+      db = null;
+    }
+    throw err;
+  } finally {
+    initializing = false;
   }
-
-  runMigrations(db);
-
-  return db;
 }
 
 /**

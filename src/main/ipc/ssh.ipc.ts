@@ -2,8 +2,13 @@ import { IPC } from '@shared/constants';
 import { sshManager } from '../services/ssh-manager';
 import { storageRegistry } from '../services/storage/registry';
 import { sftpStorageProvider } from '../services/storage/sftp-storage-provider';
+import { getDatabase } from '../services/database';
 import { ErrorCode, LunarError } from '@shared/errors';
 import { assertBoundedInt, assertNonEmptyString } from '../lib/validate';
+import {
+  assertValidJumpHost,
+  assertValidManualJumpHost,
+} from '../lib/jump-host-validate';
 import { registerHandler } from '../lib/ipc-handler';
 
 const VALID_AUTH_TYPES = new Set(['password', 'key', 'key+passphrase']);
@@ -17,7 +22,7 @@ const MAX_SECRET_LEN = 4096;
  */
 const MAX_SSH_SEND_BYTES = 65536;
 import type { SshConnectParams, SshResizeParams, SshSendDataParams } from '@shared/types/terminal';
-import type { AuthType } from '@shared/types/connection';
+import type { AuthType, ManualJumpHostConfig } from '@shared/types/connection';
 
 export function registerSshHandlers(): void {
   sshManager.onSessionConnect((_sessionId) => {
@@ -95,6 +100,7 @@ export function registerSshHandlers(): void {
           password?: string;
           passphrase?: string;
           jumpHostConnectionId?: string;
+          jumpHostConfig?: ManualJumpHostConfig;
         };
       },
     ) => {
@@ -124,13 +130,21 @@ export function registerSshHandlers(): void {
             );
           }
         }
+        if (c.jumpHostConnectionId !== undefined && c.jumpHostConfig !== undefined) {
+          throw new LunarError(
+            'testConnection accepts jumpHostConnectionId OR jumpHostConfig, not both',
+            ErrorCode.VALIDATION_ERROR,
+          );
+        }
         if (c.jumpHostConnectionId !== undefined) {
-          if (typeof c.jumpHostConnectionId !== 'string' || c.jumpHostConnectionId.length === 0) {
-            throw new LunarError(
-              'jumpHostConnectionId must be a non-empty string',
-              ErrorCode.VALIDATION_ERROR,
-            );
-          }
+          assertNonEmptyString(c.jumpHostConnectionId, 'jumpHostConnectionId');
+          // Same rules as connection create/update — an invalid bastion id
+          // must fail here too, otherwise a test against a deleted or
+          // non-SFTP jump host passes and the real connect blows up later.
+          assertValidJumpHost(getDatabase(), c.jumpHostConnectionId, null);
+        }
+        if (c.jumpHostConfig !== undefined) {
+          assertValidManualJumpHost(c.jumpHostConfig);
         }
       } else if (params.connectionId) {
         assertNonEmptyString(params.connectionId, 'connectionId');
