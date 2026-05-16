@@ -13,6 +13,26 @@ import log from '../../lib/logger';
 import { parseHostKeyAlgorithm, type PendingHostKeyRegistry } from './host-key-flow';
 
 /**
+ * Defense-in-depth cap on credential length. The IPC layer rejects secrets
+ * longer than MAX_SECRET_LEN before they ever reach this module, but a
+ * compromised credential store entry, a migration bug, or a future direct
+ * caller could still hand us an oversized blob — fed to ssh2's key parser
+ * or sent on the wire to a peer, that's a cheap DoS surface. 4 KiB
+ * comfortably exceeds any legitimate passphrase or password.
+ */
+const MAX_SECRET_BYTES = 4096;
+
+function assertSecretLength(value: string | null | undefined, label: string): void {
+  if (
+    value !== undefined &&
+    value !== null &&
+    Buffer.byteLength(value, 'utf-8') > MAX_SECRET_BYTES
+  ) {
+    throw new Error(`${label} exceeds ${MAX_SECRET_BYTES}-byte limit`);
+  }
+}
+
+/**
  * Filter a list of SSH algorithms against what the current Node.js crypto
  * implementation actually supports. Prevents "Unsupported algorithm" errors
  * when a modern primitive (like chacha20-poly1305) is missing from the
@@ -214,6 +234,16 @@ export async function buildConnectConfig(
     params.authType === 'key+passphrase'
       ? (params.passphrase ?? (connectionId ? retrieveCredential(connectionId) : undefined))
       : undefined;
+
+  // Defense-in-depth length check: the IPC layer caps incoming secrets, but
+  // saved credentials, future call sites, or a corrupted store could still
+  // surface oversized values.
+  try {
+    assertSecretLength(password, 'SSH password');
+    assertSecretLength(passphrase, 'SSH key passphrase');
+  } catch (err) {
+    return { config, error: err instanceof Error ? err.message : String(err) };
+  }
 
   if (params.authType === 'password') {
     config.password = password || undefined;
