@@ -4,6 +4,7 @@ import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import type { AuthType } from '@shared/types/connection';
 import type { StorageProviderKind } from '@shared/types/storage-provider';
+import { migrations as migrationList, type Migration } from './db/migrations';
 import log from '../lib/logger';
 
 /** Shape of a row in the `connections` table (snake_case DB columns). */
@@ -176,206 +177,15 @@ function runMigrations(db: Database.Database): void {
   }
 }
 
-function getMigrations(): { name: string; sql: string }[] {
-  return [
-    {
-      name: '001_connections',
-      sql: `
-        CREATE TABLE IF NOT EXISTS connections (
-          id TEXT PRIMARY KEY,
-          name TEXT NOT NULL,
-          host TEXT NOT NULL,
-          port INTEGER NOT NULL DEFAULT 22,
-          username TEXT NOT NULL,
-          auth_type TEXT NOT NULL CHECK (auth_type IN ('password', 'key', 'key+passphrase')),
-          private_key_path TEXT,
-          folder TEXT NOT NULL DEFAULT 'default',
-          color_tag TEXT,
-          startup_command TEXT,
-          last_connected_at INTEGER,
-          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
-          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
-        );
-      `,
-    },
-    {
-      name: '002_settings',
-      sql: `
-        CREATE TABLE IF NOT EXISTS settings (
-          key TEXT PRIMARY KEY,
-          value TEXT NOT NULL
-        );
-
-        INSERT OR IGNORE INTO settings (key, value) VALUES
-          ('terminal.fontFamily', '"JetBrains Mono, Menlo, Consolas, monospace"'),
-          ('terminal.fontSize', '14'),
-          ('terminal.theme', '"dracula"'),
-          ('terminal.scrollback', '10000'),
-          ('transfer.concurrency', '3'),
-          ('ssh.autoReconnect', 'true'),
-          ('ssh.keepAliveInterval', '10000'),
-          ('ssh.maxReconnectAttempts', '5');
-      `,
-    },
-    {
-      name: '003_history',
-      sql: `
-        CREATE TABLE IF NOT EXISTS connection_history (
-          id TEXT PRIMARY KEY,
-          connection_id TEXT NOT NULL REFERENCES connections(id) ON DELETE CASCADE,
-          connected_at INTEGER NOT NULL DEFAULT (unixepoch()),
-          disconnected_at INTEGER,
-          duration_secs INTEGER,
-          error TEXT
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_history_connection ON connection_history(connection_id);
-        CREATE INDEX IF NOT EXISTS idx_history_connected ON connection_history(connected_at DESC);
-      `,
-    },
-    {
-      name: '004_known_hosts_and_credentials',
-      sql: `
-        CREATE TABLE IF NOT EXISTS known_hosts (
-          host_key TEXT PRIMARY KEY,
-          algorithm TEXT NOT NULL,
-          fingerprint TEXT NOT NULL,
-          first_seen INTEGER NOT NULL DEFAULT (unixepoch())
-        );
-
-        CREATE TABLE IF NOT EXISTS credentials (
-          connection_id TEXT PRIMARY KEY,
-          encrypted_data BLOB NOT NULL
-        );
-      `,
-    },
-    {
-      name: '005_ui_apply_terminal_theme',
-      sql: `
-        INSERT OR IGNORE INTO settings (key, value) VALUES
-          ('ui.applyTerminalTheme', 'true');
-      `,
-    },
-    {
-      name: '006_remove_app_theme',
-      sql: `DELETE FROM settings WHERE key = 'theme';`,
-    },
-    {
-      name: '007_connection_indexes',
-      sql: `
-        CREATE INDEX IF NOT EXISTS idx_connections_name ON connections(name);
-        CREATE INDEX IF NOT EXISTS idx_connections_host ON connections(host);
-        CREATE INDEX IF NOT EXISTS idx_connections_folder ON connections(folder);
-      `,
-    },
-    {
-      // Add provider columns and relax SSH-only NOT NULLs. SQLite doesn't
-      // support ALTER COLUMN, so we rebuild the table: copy → drop → rename,
-      // then recreate the indexes from migration 007.
-      name: '008_provider_columns',
-      sql: `
-        CREATE TABLE connections_new (
-          id TEXT PRIMARY KEY,
-          name TEXT NOT NULL,
-          provider TEXT NOT NULL DEFAULT 'sftp' CHECK (provider IN ('sftp', 's3')),
-          host TEXT,
-          port INTEGER,
-          username TEXT,
-          auth_type TEXT CHECK (auth_type IN ('password', 'key', 'key+passphrase')),
-          private_key_path TEXT,
-          endpoint TEXT,
-          region TEXT,
-          default_bucket TEXT,
-          force_path_style INTEGER,
-          folder TEXT NOT NULL DEFAULT 'default',
-          color_tag TEXT,
-          startup_command TEXT,
-          last_connected_at INTEGER,
-          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
-          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
-        );
-
-        INSERT INTO connections_new
-          (id, name, provider, host, port, username, auth_type, private_key_path,
-           folder, color_tag, startup_command, last_connected_at, created_at, updated_at)
-        SELECT
-          id, name, 'sftp', host, port, username, auth_type, private_key_path,
-          folder, color_tag, startup_command, last_connected_at, created_at, updated_at
-        FROM connections;
-
-        DROP TABLE connections;
-        ALTER TABLE connections_new RENAME TO connections;
-
-        CREATE INDEX IF NOT EXISTS idx_connections_name ON connections(name);
-        CREATE INDEX IF NOT EXISTS idx_connections_host ON connections(host);
-        CREATE INDEX IF NOT EXISTS idx_connections_folder ON connections(folder);
-        CREATE INDEX IF NOT EXISTS idx_connections_provider ON connections(provider);
-      `,
-    },
-    {
-      name: '009_connection_sort_order',
-      sql: `
-        ALTER TABLE connections ADD COLUMN sort_order INTEGER DEFAULT 0;
-        CREATE INDEX IF NOT EXISTS idx_connections_sort_order ON connections(sort_order);
-      `,
-    },
-    {
-      // Jump host / bastion support. Single-hop: an SFTP connection can
-      // reference another SFTP connection whose SSH session will be used to
-      // open a forwarded TCP channel to the target. ON DELETE SET NULL keeps
-      // dependent rows valid (they fall back to direct connect) when the
-      // bastion row is deleted. SQLite enforces FK constraints only when
-      // `PRAGMA foreign_keys = ON`, which getDatabase() sets at open time.
-      name: '010_jump_host_connection_id',
-      sql: `
-        ALTER TABLE connections ADD COLUMN jump_host_connection_id TEXT
-          REFERENCES connections(id) ON DELETE SET NULL;
-        CREATE INDEX IF NOT EXISTS idx_connections_jump_host
-          ON connections(jump_host_connection_id);
-      `,
-    },
-    {
-      name: '011_manual_jump_host_columns',
-      sql: `
-        ALTER TABLE connections ADD COLUMN jump_host_host TEXT;
-        ALTER TABLE connections ADD COLUMN jump_host_port INTEGER;
-        ALTER TABLE connections ADD COLUMN jump_host_username TEXT;
-        ALTER TABLE connections ADD COLUMN jump_host_auth_type TEXT
-          CHECK (jump_host_auth_type IN ('password', 'key', 'key+passphrase'));
-        ALTER TABLE connections ADD COLUMN jump_host_private_key_path TEXT;
-      `,
-    },
-    {
-      name: '012_connection_is_hidden',
-      sql: `
-        ALTER TABLE connections ADD COLUMN is_hidden INTEGER NOT NULL DEFAULT 0;
-        CREATE INDEX IF NOT EXISTS idx_connections_is_hidden ON connections(is_hidden);
-      `,
-    },
-    {
-      name: '013_cleanup_bogus_jump_hosts',
-      sql: `
-        -- Delete hidden jump host connections created by a bug in the MobaXterm importer 
-        -- that misidentified UI color settings (e.g. "180,180,192") as hostnames.
-        -- Due to ON DELETE SET NULL, the main connections will be automatically cleaned.
-        DELETE FROM connections 
-        WHERE is_hidden = 1 
-          AND name LIKE 'Jump: %' 
-          AND host LIKE '%,%';
-      `,
-    },
-    {
-      name: '014_cleanup_bogus_jump_hosts_v2',
-      sql: `
-        -- Delete hidden jump host connections created by a bug in the MobaXterm importer 
-        -- that misidentified internal variables (e.g. "_Std_Colors_0_") as hostnames.
-        DELETE FROM connections 
-        WHERE is_hidden = 1 
-          AND name LIKE 'Jump: %' 
-          AND (host LIKE '%\\_%' ESCAPE '\\' OR host LIKE '%MobaFont%');
-      `,
-    },
-  ];
+/**
+ * Migration list now lives one-per-file under `./db/migrations/`. This thin
+ * accessor preserves the existing internal call signature and the
+ * `__test__.getMigrations` shape so tests don't need to change. Adding a
+ * new migration means dropping a new file in that directory and appending
+ * an entry to its index — no change to this module.
+ */
+function getMigrations(): Migration[] {
+  return migrationList;
 }
 
 /** Read a single setting from the DB, returning the parsed value or the provided default. */
