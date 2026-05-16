@@ -113,6 +113,19 @@ export function FilePane({
     if (filterOpen) filterInputRef.current?.focus();
   }, [filterOpen]);
 
+  /**
+   * Toggle the filter input visibility, dropping any stale query when the
+   * UI is dismissed. Without the explicit clear, a user returning to the
+   * pane later would find the list partially filtered with no visible chip
+   * indicating why their file is "missing".
+   */
+  const toggleFilter = useCallback(() => {
+    setFilterOpen((prev) => {
+      if (prev) setFilterQuery('');
+      return !prev;
+    });
+  }, []);
+
   // useDeferredValue defers the heavy filter pass on the previous query so
   // typing in a 10k-file pane doesn't block keystroke commits. React keeps
   // the old filtered list visible until the new pass is ready.
@@ -230,7 +243,7 @@ export function FilePane({
             </button>
           )}
           <button
-            onClick={() => setFilterOpen((o) => !o)}
+            onClick={toggleFilter}
             className={cn('btn-icon !p-1', filterOpen && 'text-foreground bg-accent')}
             title={`Filter (${MOD}F)`}
             aria-label="Filter files"

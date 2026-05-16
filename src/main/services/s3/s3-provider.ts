@@ -16,12 +16,13 @@ import {
 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import type { Readable } from 'stream';
-import { BINARY_PREVIEW_EXTENSIONS, LIMITS } from '@shared/constants';
+import { BINARY_PREVIEW_EXTENSIONS, IPC, LIMITS } from '@shared/constants';
 import type { StorageEntry, StorageStatResult } from '@shared/types/storage-provider';
 import type { StepCallback, StorageProvider } from '../storage/types';
 import { AbortError, S3StorageError } from '../../lib/errors';
 import { TimeoutError, withTimeout } from '../../lib/with-timeout';
 import { getRuntimeNumber } from '../../config/runtime';
+import { emitToRenderer } from '../emit';
 import log from '../../lib/logger';
 import { parseS3Path } from './s3-paths';
 import { objectToEntry, prefixToEntry, wrapS3Error } from './s3-helpers';
@@ -118,6 +119,11 @@ class S3StorageProvider implements StorageProvider {
   async list(sessionId: string, path: string): Promise<StorageEntry[]> {
     return this.runOp(sessionId, 'list', async (client) => {
       const { bucket, key } = parseS3Path(path);
+      // Captured outside the closure so the truncation guard at the bottom
+      // can fire one event after pagination, regardless of which call shape
+      // hit the cap. Kept off the runtime path for the root-listing case
+      // (which returns at most a few thousand buckets) by never assigning.
+      let truncated = false;
 
       if (!bucket) {
         // Root: list buckets.
@@ -173,11 +179,27 @@ class S3StorageProvider implements StorageProvider {
           // Safety cap: stop pagination if we've accumulated too many entries
           // to prevent OOM on buckets with millions of keys at a given prefix.
           if (entries.length >= LIMITS.MAX_S3_LIST_ENTRIES) {
+            truncated = true;
             ContinuationToken = undefined;
           }
         } while (ContinuationToken);
       } catch (err) {
         throw wrapS3Error('list-objects', err);
+      }
+      if (truncated) {
+        // The renderer otherwise sees a normal list and has no way to know
+        // the bucket had more entries beyond the cap. Surface a structured
+        // event so the SFTP/S3 file pane can show a "results truncated"
+        // badge instead of silently misleading the user.
+        emitToRenderer(IPC.STORAGE_LIST_TRUNCATED, {
+          sessionId,
+          path,
+          returned: entries.length,
+          limit: LIMITS.MAX_S3_LIST_ENTRIES,
+        });
+        log.warn(
+          `[S3] list-objects truncated at ${LIMITS.MAX_S3_LIST_ENTRIES} entries for ${bucket}/${key}`,
+        );
       }
       return entries;
     });

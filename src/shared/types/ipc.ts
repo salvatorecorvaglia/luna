@@ -214,6 +214,14 @@ export interface IpcEventMap {
   'transfer:complete': TransferCompleteEvent;
   'transfer:error': TransferErrorEvent;
   'transfer:cancelled': TransferCompleteEvent;
+  'storage:list-truncated': {
+    sessionId: string;
+    path: string;
+    /** Number of entries returned before truncation kicked in. */
+    returned: number;
+    /** The hard cap that triggered truncation (so the UI can quote it). */
+    limit: number;
+  };
   'credential:on-tamper': { connectionId: string; reason: string; at: number };
   'app:update-available': { version: string };
   'app:update-download-progress': { percent: number; bytesPerSecond: number };

@@ -168,6 +168,7 @@ const api = {
     readFile: (params: StorageReadFileParams) => invoke(IPC.STORAGE_READ_FILE, params),
     download: (params: StorageTransferParams) => invoke(IPC.STORAGE_DOWNLOAD, params),
     upload: (params: StorageTransferParams) => invoke(IPC.STORAGE_UPLOAD, params),
+    onListTruncated: createEventListener(IPC.STORAGE_LIST_TRUNCATED),
   },
 
   // S3 sessions

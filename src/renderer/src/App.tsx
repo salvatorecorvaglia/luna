@@ -78,6 +78,20 @@ export default function App() {
     return cleanup;
   }, []);
 
+  // Surface S3 list truncation. The S3 provider caps any single prefix at
+  // LIMITS.MAX_S3_LIST_ENTRIES to keep main from OOMing on millions-of-keys
+  // buckets; without this toast the user sees a normal-looking listing and
+  // has no way to know they need to drill into a sub-prefix to see the rest.
+  useEffect(() => {
+    const cleanup = window.api.storage.onListTruncated((event) => {
+      toast.warning(
+        `Showing the first ${event.returned.toLocaleString()} entries of ${event.path}. The bucket has more — open a sub-prefix to see them.`,
+        { duration: 8000 },
+      );
+    });
+    return cleanup;
+  }, []);
+
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

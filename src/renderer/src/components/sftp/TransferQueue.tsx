@@ -1,5 +1,6 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import {
   AlertCircle,
   CheckCircle2,
@@ -61,13 +62,14 @@ export function TransferQueue() {
     }
   };
 
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   const items = Array.from(transfers.values());
   if (items.length === 0) return null;
 
   const activeCount = items.filter((t) => t.status === 'active' || t.status === 'queued').length;
   const completedCount = items.filter((t) => t.status === 'completed').length;
 
-  const cancelAll = () => {
+  const cancelAll = (): void => {
     for (const item of items) {
       if (item.status === 'active' || item.status === 'queued') {
         cancelTransfer(item.id);
@@ -104,7 +106,7 @@ export function TransferQueue() {
         <div className="flex items-center gap-2">
           {activeCount > 0 && (
             <button
-              onClick={cancelAll}
+              onClick={() => setConfirmCancelOpen(true)}
               className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-destructive cursor-pointer"
               aria-label="Cancel all active transfers"
             >
@@ -159,6 +161,23 @@ export function TransferQueue() {
           </motion.div>
         )}
       </AnimatePresence>
+      <ConfirmDialog
+        open={confirmCancelOpen}
+        title="Cancel all active transfers?"
+        message={
+          activeCount === 1
+            ? 'The one in-flight transfer will be aborted. Partially-downloaded files are removed; partially-uploaded files may need manual cleanup on the remote.'
+            : `${activeCount} in-flight transfers will be aborted. Partially-downloaded files are removed; partially-uploaded files may need manual cleanup on the remote.`
+        }
+        confirmLabel="Cancel all"
+        cancelLabel="Keep running"
+        destructive
+        onConfirm={() => {
+          setConfirmCancelOpen(false);
+          cancelAll();
+        }}
+        onCancel={() => setConfirmCancelOpen(false)}
+      />
     </div>
   );
 }

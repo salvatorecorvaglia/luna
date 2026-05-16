@@ -128,7 +128,7 @@ export function PromptDialog({
                 />
                 <div className="mt-4 flex items-center justify-between gap-2">
                   <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
-                    Esc to cancel
+                    Enter to confirm · Esc to cancel
                   </span>
                   <div className="flex gap-2">
                     <button type="button" onClick={onCancel} className="btn-outline">
