@@ -333,12 +333,20 @@ class SshManager {
 
           settle({ success: true });
 
+          // Identity guard: if the sessions map has moved on (manual disconnect
+          // → reconnect, or a rapid double-connect with the same sessionId),
+          // these long-lived listeners must not corrupt the new session entry.
+          // removeAllListeners() during the cleanup path drops these handlers,
+          // but a callback already queued by a prior emit could still fire —
+          // bail when the captured session reference is no longer current.
           client.on('error', (err) => {
+            if (this.sessions.get(sessionId) !== session) return;
             const friendly = describeSshError(err);
             emitToRenderer(IPC.SSH_ON_ERROR, { sessionId, error: friendly });
             this.handleDisconnect(sessionId);
           });
           client.on('close', () => {
+            if (this.sessions.get(sessionId) !== session) return;
             if (session.status === 'connected') this.handleDisconnect(sessionId);
           });
         });
@@ -453,46 +461,62 @@ class SshManager {
 
     // Capture the generation so the timer body can detect "I'm stale".
     const gen = session.reconnectGen;
-    session.reconnectTimer = setTimeout(async () => {
-      const sess = this.sessions.get(sessionId);
-      if (!sess || sess.reconnectGen !== gen) {
-        // Either the session is gone or someone (manual disconnect/reconnect) bumped
-        // the generation while we were waiting. Don't act on stale state.
-        return;
-      }
-      sess.reconnectTimer = null;
-      if (sess.status === 'connected') {
-        sess.reconnecting = false;
-        return;
-      }
+    // Wrap the entire async body in a terminal try/catch. setTimeout's
+    // callback returns a Promise (the timer doesn't await it), so any
+    // rejection escaping this scope lands as an unhandled rejection and
+    // hits the process's uncaughtException handler — kills observability
+    // of the actual SSH lifecycle failure that caused it.
+    session.reconnectTimer = setTimeout(() => {
+      void (async () => {
+        try {
+          const sess = this.sessions.get(sessionId);
+          if (!sess || sess.reconnectGen !== gen) {
+            // Either the session is gone or someone (manual disconnect/reconnect) bumped
+            // the generation while we were waiting. Don't act on stale state.
+            return;
+          }
+          sess.reconnectTimer = null;
+          if (sess.status === 'connected') {
+            sess.reconnecting = false;
+            return;
+          }
 
-      const connectionId = sess.connectionId;
-      const reconnectAttempts = sess.reconnectAttempts;
-      const cols = sess.cols;
-      const rows = sess.rows;
+          const connectionId = sess.connectionId;
+          const reconnectAttempts = sess.reconnectAttempts;
+          const cols = sess.cols;
+          const rows = sess.rows;
 
-      // Connect() should always resolve with {success}, but treat a thrown
-      // error the same as a failed reconnect so a bug here can't escape as an
-      // unhandled rejection inside a setTimeout callback.
-      let result: { success: boolean; error?: string };
-      try {
-        result = await this.connect(sessionId, connectionId, cols, rows);
-      } catch (err) {
-        log.error(`[SSH] Reconnect threw for ${sessionId}:`, err);
-        result = { success: false, error: err instanceof Error ? err.message : String(err) };
-      }
+          // connect() should always resolve with {success}, but treat a thrown
+          // error the same as a failed reconnect.
+          let result: { success: boolean; error?: string };
+          try {
+            result = await this.connect(sessionId, connectionId, cols, rows);
+          } catch (err) {
+            log.error(`[SSH] Reconnect threw for ${sessionId}:`, err);
+            result = { success: false, error: err instanceof Error ? err.message : String(err) };
+          }
 
-      if (!result.success) {
-        const newSess = this.sessions.get(sessionId);
-        if (newSess) {
-          newSess.reconnectAttempts = reconnectAttempts;
-          newSess.reconnecting = false;
+          if (!result.success) {
+            const newSess = this.sessions.get(sessionId);
+            if (newSess) {
+              newSess.reconnectAttempts = reconnectAttempts;
+              newSess.reconnecting = false;
+            }
+            this.attemptReconnect(sessionId);
+          } else {
+            const newSess = this.sessions.get(sessionId);
+            if (newSess) newSess.reconnecting = false;
+          }
+        } catch (err) {
+          // Last-resort: route any leak to the logger rather than letting it
+          // escape as an unhandled rejection from inside a setTimeout.
+          log.error(`[SSH] Reconnect timer body threw for ${sessionId}:`, err);
+          const sess = this.sessions.get(sessionId);
+          if (sess && sess.reconnectGen === gen) {
+            sess.reconnecting = false;
+          }
         }
-        this.attemptReconnect(sessionId);
-      } else {
-        const newSess = this.sessions.get(sessionId);
-        if (newSess) newSess.reconnecting = false;
-      }
+      })();
     }, delay);
   }
 

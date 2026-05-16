@@ -57,6 +57,10 @@ export function registerS3Handlers(): void {
 
   registerHandler(IPC.S3_DISCONNECT, (_event, sessionId: string) => {
     assertNonEmptyString(sessionId, 'sessionId');
+    // Mark closing first so a concurrent storage IPC sees the closing state
+    // and fails fast instead of receiving a provider whose S3Client is being
+    // destroyed under it.
+    storageRegistry.markClosing(sessionId);
     s3StorageProvider.closeSession(sessionId);
     storageRegistry.unregister(sessionId);
     releaseStorageBucket(sessionId);

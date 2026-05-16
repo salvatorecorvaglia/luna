@@ -405,14 +405,6 @@ class S3StorageProvider implements StorageProvider {
     const { bucket, key } = parseS3Path(remotePath);
     if (!bucket || !key) throw new S3StorageError('Cannot download a non-key path');
 
-    const cleanupPartial = async (): Promise<void> => {
-      await unlink(localPath).catch((err: NodeJS.ErrnoException) => {
-        if (err.code !== 'ENOENT') {
-          log.warn(`[S3] Failed to remove partial download ${localPath}:`, err.message);
-        }
-      });
-    };
-
     if (signal.aborted) throw new AbortError('Transfer cancelled');
 
     let total = 0;
@@ -432,6 +424,25 @@ class S3StorageProvider implements StorageProvider {
     const writeStream = createWriteStream(localPath);
     let transferred = 0;
 
+    // Race guard: an abort that lands microseconds after 'finish' would
+    // otherwise unlink a complete file. Verify the on-disk size before
+    // discarding the local copy.
+    const cleanupPartial = async (): Promise<void> => {
+      if (total > 0) {
+        try {
+          const stats = await fsStat(localPath);
+          if (stats.size >= total) return;
+        } catch {
+          // ENOENT or stat error — fall through to unlink
+        }
+      }
+      await unlink(localPath).catch((err: NodeJS.ErrnoException) => {
+        if (err.code !== 'ENOENT') {
+          log.warn(`[S3] Failed to remove partial download ${localPath}:`, err.message);
+        }
+      });
+    };
+
     return new Promise<void>((resolve, reject) => {
       let settled = false;
       const settle = (fn: () => void): void => {
@@ -441,6 +452,10 @@ class S3StorageProvider implements StorageProvider {
         fn();
       };
       const onAbort = (): void => {
+        if (writeStream.writableFinished) {
+          settle(() => resolve());
+          return;
+        }
         body.destroy();
         writeStream.destroy();
         settle(() => cleanupPartial().finally(() => reject(new AbortError('Transfer cancelled'))));
@@ -492,6 +507,9 @@ class S3StorageProvider implements StorageProvider {
       params: { Bucket: bucket, Key: key, Body: body },
       queueSize: 4,
       partSize: 5 * 1024 * 1024,
+      // Tells the SDK to call AbortMultipartUpload + DeleteObject on any
+      // failure path, so an erroring upload doesn't strand parts in the
+      // bucket waiting to be billed.
       leavePartsOnError: false,
     });
 
@@ -500,8 +518,20 @@ class S3StorageProvider implements StorageProvider {
       onStep(transferred, 0, total || (p.total ?? 0));
     });
 
+    // Track the in-flight abort so the outer flow can wait for the multipart
+    // cleanup to land on the server before resolving. Without the await, the
+    // process could exit (or the next op start) while AbortMultipartUpload is
+    // still in flight, occasionally leaving orphaned parts behind despite
+    // leavePartsOnError: false.
+    let abortPromise: Promise<unknown> | null = null;
     const onAbort = (): void => {
-      void upload.abort();
+      try {
+        abortPromise = upload.abort().catch((err) => {
+          log.warn(`[S3] AbortMultipartUpload failed for ${bucket}/${key}:`, err);
+        });
+      } catch (err) {
+        log.warn(`[S3] upload.abort() threw synchronously for ${bucket}/${key}:`, err);
+      }
       body.destroy();
     };
     signal.addEventListener('abort', onAbort, { once: true });
@@ -509,7 +539,20 @@ class S3StorageProvider implements StorageProvider {
     try {
       await upload.done();
     } catch (err) {
-      if (signal.aborted) throw new AbortError('Transfer cancelled');
+      // If the user aborted, surface a clean AbortError — but only after the
+      // SDK's abort path has actually completed, otherwise the renderer can
+      // start a new upload to the same key while the old multipart is still
+      // being torn down (causes intermittent 409s on some S3 providers).
+      if (signal.aborted) {
+        if (abortPromise) {
+          try {
+            await abortPromise;
+          } catch {
+            // already logged inside onAbort
+          }
+        }
+        throw new AbortError('Transfer cancelled');
+      }
       throw wrapS3Error('upload', err);
     } finally {
       signal.removeEventListener('abort', onAbort);

@@ -44,6 +44,7 @@ vi.mock('../../services/storage/registry', () => ({
   storageRegistry: {
     register: vi.fn(),
     unregister: vi.fn(),
+    markClosing: vi.fn(),
     require: () => ({}),
   },
 }));

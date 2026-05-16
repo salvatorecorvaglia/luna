@@ -7,6 +7,7 @@ import { storageRegistry } from './storage/registry';
 import { emitToRenderer } from './emit';
 import { AbortError } from '../lib/errors';
 import { classifyTransferError } from '../lib/error-map';
+import log from '../lib/logger';
 
 interface QueuedTransfer {
   id: string;
@@ -172,20 +173,32 @@ class TransferQueue {
         // executeTransfer is async — fire and forget. The finally branch re-enters
         // processQueue() after each completion, but the dispatching flag means
         // re-entrant calls during the loop are absorbed.
-        // Wrap in try/catch so a sync throw before the first await can't poison
-        // the dispatch loop and leave the slot permanently occupied.
+        // Defense in depth — executeTransfer is async so a synchronous throw
+        // already becomes a rejected promise, but if its catch handler (or a
+        // future refactor) throws, we still need to ensure no rejection
+        // escapes the dispatcher and lands as an unhandled rejection.
         try {
-          this.executeTransfer(transfer).catch((err) => {
-            // executeTransfer's own try/catch should swallow everything; this
-            // is a last-resort guard against a future change leaking a reject.
-            this.active.delete(transfer.id);
-            emitToRenderer(IPC.TRANSFER_ERROR, {
-              transferId: transfer.id,
-              error: err instanceof Error ? err.message : String(err),
-              errorClass: classifyTransferError(err),
+          this.executeTransfer(transfer)
+            .catch((err) => {
+              // Last-resort guard against a future change leaking a reject.
+              try {
+                this.active.delete(transfer.id);
+                emitToRenderer(IPC.TRANSFER_ERROR, {
+                  transferId: transfer.id,
+                  error: err instanceof Error ? err.message : String(err),
+                  errorClass: classifyTransferError(err),
+                });
+                this.processQueue();
+              } catch (innerErr) {
+                log.error('[TransferQueue] dispatcher error handler threw:', innerErr);
+              }
+            })
+            // Final swallow: if the .catch() handler above somehow rejects
+            // (synchronous throw inside it would resolve via the try block,
+            // but defensive belt-and-braces) the promise still settles cleanly.
+            .catch((finalErr) => {
+              log.error('[TransferQueue] dispatcher catch chain leaked:', finalErr);
             });
-            this.processQueue();
-          });
         } catch (err) {
           this.active.delete(transfer.id);
           emitToRenderer(IPC.TRANSFER_ERROR, {
