@@ -13,6 +13,8 @@ import {
   retrieveS3Credential,
 } from '../services/credential-store';
 import { registerHandler } from '../lib/ipc-handler';
+import { assertBoundedInt, assertNonEmptyString } from '../lib/validate';
+import { assertValidJumpHost, assertValidManualJumpHost } from '../lib/jump-host-validate';
 import type {
   AuthType,
   Connection,
@@ -60,41 +62,6 @@ function rowToConnection(row: ConnectionRow): Connection {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
-}
-
-/**
- * Validate that `jumpHostConnectionId` points to a usable bastion row.
- * Throws a VALIDATION_ERROR with a user-friendly message on any violation.
- * Rules:
- *  - The id must exist.
- *  - The target row must be an SFTP connection (S3 has no notion of SSH).
- *  - It must not equal `selfId` (would create a 1-node cycle).
- *  - It must not itself have `jump_host_connection_id` set (single-hop only,
- *    until/unless multi-hop chains are added).
- */
-function assertValidJumpHost(
-  db: ReturnType<typeof getDatabase>,
-  jumpId: string,
-  selfId: string | null,
-): void {
-  if (selfId && jumpId === selfId) {
-    throw validation('A connection cannot use itself as a jump host');
-  }
-  const row = db
-    .prepare('SELECT id, provider, jump_host_connection_id FROM connections WHERE id = ?')
-    .get(jumpId) as
-    | { id: string; provider: string; jump_host_connection_id: string | null }
-    | undefined;
-
-  if (!row) {
-    throw validation('Jump host connection not found');
-  }
-  if (row.provider !== 'sftp') {
-    throw validation('Only SFTP connections can be used as jump hosts');
-  }
-  if (row.jump_host_connection_id) {
-    throw validation('Multi-hop jump host chains are not yet supported');
-  }
 }
 
 // Whitelist of UpdateConnectionInput keys → DB column names. Only fields listed
@@ -160,6 +127,9 @@ export function registerConnectionHandlers(): void {
     const jumpHostId =
       provider === 'sftp' && input.jumpHostConnectionId ? input.jumpHostConnectionId : null;
     if (jumpHostId) assertValidJumpHost(db, jumpHostId, null);
+    if (provider === 'sftp' && input.jumpHostConfig) {
+      assertValidManualJumpHost(input.jumpHostConfig);
+    }
 
     db.prepare(
       `
@@ -249,6 +219,13 @@ export function registerConnectionHandlers(): void {
     const assignments: string[] = ['updated_at = ?'];
     const values: (string | number | null)[] = [now];
 
+    // Per-field type coercion. The allowlist guarantees `key` is one of the
+    // expected columns, but the renderer can still send a wrong-typed value
+    // for the right key (e.g. `port: "22"` as a string). Reject those at the
+    // boundary rather than letting better-sqlite3 silently coerce them — a
+    // string "22" stored against an integer column re-emerges as the integer
+    // 22 on read, but a non-numeric string would silently break invariants.
+    const VALID_PROVIDERS = new Set(['sftp', 's3']);
     for (const [key, column] of Object.entries(UPDATE_FIELD_MAP)) {
       const raw = (input as unknown as Record<string, unknown>)[key];
       if (raw === undefined) continue;
@@ -260,15 +237,43 @@ export function registerConnectionHandlers(): void {
         key === 'region' ||
         key === 'defaultBucket'
       ) {
-        value = (raw as string) || null;
+        // Nullable strings. Empty string collapses to NULL.
+        if (raw === null || raw === '') {
+          value = null;
+        } else if (typeof raw !== 'string') {
+          throw validation(`${key} must be a string`);
+        } else {
+          if (raw.includes('\0')) throw validation(`${key} must not contain null bytes`);
+          value = raw;
+        }
+      } else if (key === 'folder') {
+        // NOT NULL DEFAULT 'default' — empty/null collapses to the default
+        // so a stale form value doesn't violate the schema constraint.
+        if (raw === null || raw === '') {
+          value = 'default';
+        } else if (typeof raw !== 'string') {
+          throw validation('folder must be a string');
+        } else {
+          if (raw.includes('\0')) throw validation('folder must not contain null bytes');
+          value = raw;
+        }
       } else if (key === 'forcePathStyle' || key === 'isHidden') {
+        if (typeof raw !== 'boolean' && raw !== 0 && raw !== 1 && raw !== null) {
+          throw validation(`${key} must be a boolean`);
+        }
         value = raw ? 1 : 0;
       } else if (key === 'jumpHostConnectionId') {
-        const v = raw === null || raw === '' ? null : (raw as string);
-        if (v !== null) assertValidJumpHost(db, v, input.id);
-        value = v;
+        if (raw === null || raw === '') {
+          value = null;
+        } else if (typeof raw !== 'string') {
+          throw validation('jumpHostConnectionId must be a string');
+        } else {
+          assertValidJumpHost(db, raw, input.id);
+          value = raw;
+        }
       } else if (key === 'jumpHostConfig') {
         const config = raw as CreateConnectionInput['jumpHostConfig'];
+        if (config) assertValidManualJumpHost(config);
         if (!config) {
           assignments.push('jump_host_host = NULL');
           assignments.push('jump_host_port = NULL');
@@ -288,8 +293,28 @@ export function registerConnectionHandlers(): void {
           values.push(config.privateKeyPath || null);
         }
         continue;
+      } else if (key === 'port') {
+        assertBoundedInt(raw, 'port', 1, 65535);
+        value = raw;
+      } else if (key === 'name' || key === 'host' || key === 'username') {
+        // Non-empty required string columns.
+        assertNonEmptyString(raw, key);
+        value = raw;
+      } else if (key === 'authType') {
+        if (typeof raw !== 'string' || !VALID_AUTH_TYPES.includes(raw as AuthType)) {
+          throw validation(`authType must be one of ${VALID_AUTH_TYPES.join('|')}`);
+        }
+        value = raw;
+      } else if (key === 'provider') {
+        if (typeof raw !== 'string' || !VALID_PROVIDERS.has(raw)) {
+          throw validation('provider must be "sftp" or "s3"');
+        }
+        value = raw;
       } else {
-        value = raw as string | number;
+        // Unreachable given the allowlist above — keep a typed fallthrough so
+        // a future allowlist entry without a matching coercion branch errors
+        // loudly instead of slipping past the type check.
+        throw validation(`Unhandled update field: ${key}`);
       }
       assignments.push(`${column} = ?`);
       values.push(value);

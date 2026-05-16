@@ -132,20 +132,31 @@ class SftpManager {
       throw new SshConnectionError('SSH session not found');
     }
 
-    const open = new Promise<SFTPWrapper>((resolve, reject) => {
-      session.client.sftp((err, sftp) => {
-        if (err) return reject(err);
-        this.sftpSessions.set(sessionId, sftp);
+    // Wrap the sftp() callback in a timeout. ssh2's client.sftp() has no
+    // intrinsic deadline — if the server is unresponsive or the underlying
+    // TCP socket hangs mid-SSH-channel-open, the callback never fires and
+    // every subsequent SFTP op (list, stat, transfer) is queued behind a
+    // promise that will never settle. The cap mirrors STORAGE_OP_TIMEOUT_MS
+    // so the worst case for any SFTP op is one timeout window.
+    const open = withTimeout(
+      new Promise<SFTPWrapper>((resolve, reject) => {
+        session.client.sftp((err, sftp) => {
+          if (err) return reject(err);
+          this.sftpSessions.set(sessionId, sftp);
 
-        sftp.on('close', () => {
-          this.sftpSessions.delete(sessionId);
+          sftp.on('close', () => {
+            this.sftpSessions.delete(sessionId);
+          });
+
+          resolve(sftp);
         });
-
-        resolve(sftp);
-      });
-    }).finally(() => {
+      }),
+      LIMITS.STORAGE_OP_TIMEOUT_MS,
+      `sftp:open(${sessionId})`,
+    ).finally(() => {
       // Clear the reservation once the open settles so a later disconnect →
-      // reconnect cycle can open a fresh subsystem.
+      // reconnect cycle can open a fresh subsystem. Equality check protects
+      // against an unrelated entry installed by a race.
       if (this.opening.get(sessionId) === open) this.opening.delete(sessionId);
     });
     this.opening.set(sessionId, open);
