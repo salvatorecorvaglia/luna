@@ -15,6 +15,7 @@ Lunar is a high-performance, cross-platform desktop application designed to stre
 - **Multi-Session Management**: Organize your work with tabs and multi-pane splits (horizontal/vertical).
 - **Professional Theming**: Built-in themes including Dracula, Nord, Tokyo Night, Gruvbox, Monokai, and One Dark.
 - **Unicode 11 Support**: Robust character rendering for modern CLI tools and emojis.
+- **Terminal Search**: Integrated search with match counts and highlight support.
 - **Jump Host Support**: Securely connect to remote servers through intermediate gateway hosts (SSH tunneling).
 - **Resilient Connectivity**: Automatic reconnection with exponential backoff and configurable retry limits for SSH.
 
@@ -22,7 +23,8 @@ Lunar is a high-performance, cross-platform desktop application designed to stre
 
 - **Dual-Pane Workflow**: Effortlessly transfer files between local and remote systems.
 - **Drag & Drop**: Seamlessly move files into the cloud or down to your machine.
-- **Queue Management**: Concurrent transfer engine with real-time progress monitoring and abort support.
+- **Queue Management**: Concurrent transfer engine with real-time progress monitoring, cancel confirmation, and abort support.
+- **Upload Verification**: Automatic verification of file completion for SFTP transfers.
 - **In-App Preview**: Securely preview configuration files without leaving the application.
 - **Session Recovery**: Persistent session state across application restarts.
 
@@ -31,7 +33,7 @@ Lunar is a high-performance, cross-platform desktop application designed to stre
 - **First-Class Provider**: AWS S3 and any S3-compatible service (MinIO, Cloudflare R2, Backblaze B2, Wasabi) sit alongside SFTP.
 - **Multipart Uploads**: Large files stream through `@aws-sdk/lib-storage` with live progress and abort support.
 - **Bucket Management**: List, create, and delete buckets; pin a default bucket or browse the whole account.
-- **Optimized Storage**: Operation timeouts and query caching ensuring a responsive experience even on slow networks.
+- **Optimized Storage**: Operation timeouts, query caching, and listing truncation alerts for large directories.
 
 ### 🛠️ Developer-First Tools
 
@@ -52,7 +54,9 @@ Lunar has undergone a rigorous architectural audit to ensure the highest standar
 - **Input Validation**: All IPC arguments undergo strict validation, including path traversal guards and settings whitelisting.
 - **Zero Circular Dependencies**: A clean, modular architecture ensures long-term maintainability.
 - **Credential Protection**: SSH passwords/passphrases and S3 access keys are encrypted using **AES-256-GCM** — never stored in plain text.
-- **IPC Logging**: Robust logging system for monitoring cross-process communication and debugging.
+- **Host Key Auditing**: Secure host key verification store with **TOFU (Trust On First Use)** support to prevent man-in-the-middle attacks.
+- **Database Migrations**: Integrated migration framework ensures seamless schema updates across versions.
+- **IPC Logging & Validation**: Robust logging for monitoring communication with strict payload size validation.
 
 ---
 
