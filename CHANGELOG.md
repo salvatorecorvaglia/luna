@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-05-16
+
+### Added
+
+- **Infrastructure**: Implemented a database migration framework and runtime configuration for SSH and S3 connection settings.
+- **Security**: Added secure host key verification store with TOFU (Trust On First Use) support and IPC payload size validation.
+- **UX**: Added transfer cancel confirmation, terminal search match counts, and S3 listing truncation alerts.
+
+### Improved
+
+- **Security & Validation**: Enforced strict input validation for database updates and added a jump host validation utility.
+- **Stability**: Enhanced transfer stability with session closing states, race-condition guards for file operations, and verification of upload completion.
+- **State Management**: Refined filter state management across the application.
+- **Updates**: Added a manual download link to the update error toast action.
+
 ## [0.6.3] - 2026-05-14
 
 ### Improved

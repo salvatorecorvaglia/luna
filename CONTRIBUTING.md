@@ -66,7 +66,7 @@ npm install
 
 Lunar is an Electron application built with `electron-vite`:
 
-- **Main Process** (`src/main/`): system-level operations, SSH/SFTP logic, S3 client lifecycle, database management.
+- **Main Process** (`src/main/`): system-level operations, SSH/SFTP logic, S3 client lifecycle, database management, and migration framework.
 - **Renderer Process** (`src/renderer/`): React application providing the user interface.
 - **Preload Scripts** (`src/preload/`): exposes the typed `window.api` bridge to the renderer.
 - **Shared Modules** (`src/shared/`): types and constants shared between processes.
@@ -91,7 +91,8 @@ When adding a new provider, implement `StorageProvider`, add a `*-connect` IPC h
 
 - **Process Isolation**: All sensitive operations (SSH, SFTP, S3, credentials, database) run in the main process. The renderer communicates exclusively through typed IPC via the preload bridge.
 - **Credential Security**: SSH passwords/passphrases and S3 access keys are encrypted with a local AES-256-GCM key, never stored in plain text. S3 secrets are persisted as a JSON blob (`{accessKeyId, secretAccessKey, sessionToken?}`) inside the same encrypted column.
-- **Host Key Verification**: Trust-on-first-use (TOFU) with explicit user confirmation — new host keys trigger a dialog; changed keys show a clear warning.
+- **Host Key Verification**: Trust-on-first-use (TOFU) with a secure host key verification store — new host keys trigger a dialog for explicit user confirmation; changed keys show a clear warning to prevent MITM attacks.
+- **Input & Payload Validation**: Strict validation for all IPC arguments, including path traversal guards and payload size limits.
 
 ### Testing S3 Locally
 
