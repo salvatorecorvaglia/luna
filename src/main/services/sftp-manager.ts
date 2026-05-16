@@ -446,12 +446,24 @@ class SftpManager {
     const readStream = sftp.createReadStream(remotePath);
     const writeStream = createWriteStream(localPath);
 
+    // Race guard: an abort landing microseconds after the last byte hit disk
+    // would otherwise destroy() the writeStream (preventing 'finish') and
+    // unlink a complete file. Before discarding the partial download, verify
+    // the file on disk doesn't already match the expected size.
     const cleanupOnAbort = async (): Promise<void> => {
       await new Promise<void>((resolve) => {
         readStream.destroy();
         writeStream.destroy();
         setTimeout(resolve, ABORT_CLEANUP_DELAY_MS);
       });
+      if (total > 0) {
+        try {
+          const stats = await fsStat(localPath);
+          if (stats.size >= total) return;
+        } catch {
+          // ENOENT or stat error — fall through to unlink (no-op if missing)
+        }
+      }
       await unlink(localPath).catch((err: NodeJS.ErrnoException) => {
         if (err.code !== 'ENOENT') {
           log.warn(`[SFTP] Failed to remove partial download ${localPath}:`, err.message);
@@ -468,6 +480,12 @@ class SftpManager {
         fn();
       };
       const onAbort = (): void => {
+        // If 'finish' has already been emitted (the abort lost the race), the
+        // file is fully on disk — resolve instead of running the cleanup path.
+        if (writeStream.writableFinished) {
+          settle(() => resolve());
+          return;
+        }
         settle(() => cleanupOnAbort().finally(() => reject(new AbortError('Transfer cancelled'))));
       };
 
@@ -531,15 +549,20 @@ class SftpManager {
     }
 
     let transferred = 0;
+    let writeClosed = false;
     const readStream = createReadStream(localPath);
     const writeStream = sftp.createWriteStream(remotePath);
 
+    // Race guard: if 'close' has already been emitted (upload completed
+    // on the remote), an abort landing immediately after must NOT unlink
+    // the now-complete remote file.
     const cleanupOnAbort = async (): Promise<void> => {
       await new Promise<void>((resolve) => {
         readStream.destroy();
         writeStream.destroy();
         setTimeout(resolve, ABORT_CLEANUP_DELAY_MS);
       });
+      if (writeClosed) return;
       await new Promise<void>((resolve) => {
         sftp.unlink(remotePath, () => resolve());
       });
@@ -554,6 +577,10 @@ class SftpManager {
         fn();
       };
       const onAbort = (): void => {
+        if (writeClosed) {
+          settle(() => resolve());
+          return;
+        }
         settle(() => cleanupOnAbort().finally(() => reject(new AbortError('Transfer cancelled'))));
       };
 
@@ -574,6 +601,7 @@ class SftpManager {
         settle(() => cleanupOnAbort().finally(() => reject(err)));
       });
       writeStream.on('close', () => {
+        writeClosed = true;
         settle(() => resolve());
       });
 

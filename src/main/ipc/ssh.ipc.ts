@@ -25,6 +25,10 @@ export function registerSshHandlers(): void {
   });
 
   sshManager.onSessionDisconnect((sessionId) => {
+    // Mark first so any IPC call racing the unregister sees the closing state
+    // and fails fast with a clear error instead of receiving a provider whose
+    // SSH transport is already half-torn-down.
+    storageRegistry.markClosing(sessionId);
     storageRegistry.unregister(sessionId);
   });
 
@@ -50,6 +54,11 @@ export function registerSshHandlers(): void {
 
   registerHandler(IPC.SSH_DISCONNECT, (_event, sessionId: string) => {
     assertNonEmptyString(sessionId, 'sessionId');
+    // Mark the storage session as closing *before* tearing the SSH transport
+    // down so a concurrent storage IPC can't grab the provider during the
+    // gap between disconnect start and the unregister fired by the
+    // onSessionDisconnect callback.
+    storageRegistry.markClosing(sessionId);
     sshManager.disconnect(sessionId);
     // Unregistration happens centrally via onSessionDisconnect
   });
