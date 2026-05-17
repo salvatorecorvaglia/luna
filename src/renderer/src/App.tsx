@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Toaster, toast } from 'sonner';
 import { ShieldAlert } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
@@ -6,14 +6,41 @@ import { useUIStore } from '@/stores/ui-store';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { useConnectionStore } from '@/stores/connection-store';
 import { WelcomeView } from '@/components/common/WelcomeView';
-import { ConnectionForm } from '@/components/connection/ConnectionForm';
-import { CommandPalette } from '@/components/command-palette/CommandPalette';
-import { SettingsPanel } from '@/components/common/SettingsPanel';
-import { ShortcutsHelp } from '@/components/common/ShortcutsHelp';
+// HostKeyDialog stays eager — it subscribes to host-key change IPC events on
+// mount and must be alive at startup to catch the first one.
 import { HostKeyDialog } from '@/components/common/HostKeyDialog';
-import { TerminalView } from '@/components/terminal/TerminalView';
-import { LocalTerminalView } from '@/components/terminal/LocalTerminalView';
-import { SftpManager } from '@/components/sftp/SftpManager';
+
+// Overlays: chunk loads on first open. Each is gated on its store-managed
+// `open` flag below so the chunk isn't fetched until the user triggers it.
+const ConnectionForm = lazy(() =>
+  import('@/components/connection/ConnectionForm').then((m) => ({ default: m.ConnectionForm })),
+);
+const CommandPalette = lazy(() =>
+  import('@/components/command-palette/CommandPalette').then((m) => ({
+    default: m.CommandPalette,
+  })),
+);
+const SettingsPanel = lazy(() =>
+  import('@/components/common/SettingsPanel').then((m) => ({ default: m.SettingsPanel })),
+);
+const ShortcutsHelp = lazy(() =>
+  import('@/components/common/ShortcutsHelp').then((m) => ({ default: m.ShortcutsHelp })),
+);
+
+// Views: lazy chunks loaded on first activation. After first visit each view
+// stays mounted (just hidden via CSS) so xterm buffers, scroll position, and
+// react-query caches survive view switches.
+const TerminalView = lazy(() =>
+  import('@/components/terminal/TerminalView').then((m) => ({ default: m.TerminalView })),
+);
+const LocalTerminalView = lazy(() =>
+  import('@/components/terminal/LocalTerminalView').then((m) => ({
+    default: m.LocalTerminalView,
+  })),
+);
+const SftpManager = lazy(() =>
+  import('@/components/sftp/SftpManager').then((m) => ({ default: m.SftpManager })),
+);
 import { useTransferEventListener } from '@/hooks/use-transfers';
 import { useUpdaterEventListener } from '@/hooks/use-updater';
 import { useSessionRecovery } from '@/hooks/use-session-recovery';
@@ -179,34 +206,76 @@ export default function App() {
   const showLocal = activeView === 'local';
   const showWelcome = !showTerminal && !showSftp && !showLocal;
 
+  // "Ever visited" gates each view's first mount until the user activates it.
+  // Once mounted the view stays in the DOM (hidden via CSS) so xterm buffers,
+  // scroll positions, and react-query caches survive view switches. Latched
+  // during render (React's documented one-way-state-from-props pattern) so
+  // the chunk fetch fires on the same paint that flips activeView.
+  const [everTerminal, setEverTerminal] = useState(false);
+  const [everSftp, setEverSftp] = useState(false);
+  const [everLocal, setEverLocal] = useState(false);
+  if (showTerminal && !everTerminal) setEverTerminal(true);
+  if (showSftp && !everSftp) setEverSftp(true);
+  if (showLocal && !everLocal) setEverLocal(true);
+
+  // Overlay open flags. Reading at this level lets us conditionally mount the
+  // lazy components, which is what defers the chunk fetch until first open.
+  const settingsOpen = useUIStore((s) => s.settingsOpen);
+  const commandPaletteOpen = useUIStore((s) => s.commandPaletteOpen);
+  const shortcutsHelpOpen = useUIStore((s) => s.shortcutsHelpOpen);
+  const connectionFormOpen = useConnectionStore((s) => s.connectionFormOpen);
+
   return (
     <>
       <AppShell>
-        {/* Keep TerminalView mounted across view switches so xterm buffers/history survive */}
-        <div className={showTerminal ? 'h-full' : 'hidden'}>
-          <TerminalView />
-        </div>
+        {everTerminal && (
+          <div className={showTerminal ? 'h-full' : 'hidden'}>
+            <Suspense fallback={null}>
+              <TerminalView />
+            </Suspense>
+          </div>
+        )}
 
-        {/* Keep LocalTerminalView mounted to preserve history and allow auto-spawn on view switch */}
-        <div className={showLocal ? 'h-full' : 'hidden'}>
-          <LocalTerminalView />
-        </div>
+        {everLocal && (
+          <div className={showLocal ? 'h-full' : 'hidden'}>
+            <Suspense fallback={null}>
+              <LocalTerminalView />
+            </Suspense>
+          </div>
+        )}
 
-        {/* Keep SftpManager mounted across view switches so the split-ratio,
-            filter input, and react-query cache survive a hop into the terminal
-            and back. */}
-        <div className={showSftp ? 'h-full' : 'hidden'}>
-          <SftpManager />
-        </div>
+        {everSftp && (
+          <div className={showSftp ? 'h-full' : 'hidden'}>
+            <Suspense fallback={null}>
+              <SftpManager />
+            </Suspense>
+          </div>
+        )}
 
         {showWelcome && <WelcomeView />}
       </AppShell>
 
-      {/* Overlays */}
-      <ConnectionForm />
-      <CommandPalette />
-      <SettingsPanel />
-      <ShortcutsHelp />
+      {/* Overlays — each lazy chunk loads on first open. */}
+      {connectionFormOpen && (
+        <Suspense fallback={null}>
+          <ConnectionForm />
+        </Suspense>
+      )}
+      {commandPaletteOpen && (
+        <Suspense fallback={null}>
+          <CommandPalette />
+        </Suspense>
+      )}
+      {settingsOpen && (
+        <Suspense fallback={null}>
+          <SettingsPanel />
+        </Suspense>
+      )}
+      {shortcutsHelpOpen && (
+        <Suspense fallback={null}>
+          <ShortcutsHelp />
+        </Suspense>
+      )}
       <HostKeyDialog />
 
       <Toaster
