@@ -2,26 +2,13 @@ import { Check, Eye, EyeOff, FolderClosed, Globe, Hash, Key, Lock } from 'lucide
 import { cn } from '@/lib/utils';
 import { FormField } from './FormField';
 import { HelpTooltip } from '../common/HelpTooltip';
+import type { Patch, S3State } from './use-connection-form-state';
 
 interface S3FieldsProps {
   fieldId: string;
   isEditing: boolean;
-  endpoint: string;
-  setEndpoint(v: string): void;
-  region: string;
-  setRegion(v: string): void;
-  defaultBucket: string;
-  setDefaultBucket(v: string): void;
-  forcePathStyle: boolean;
-  setForcePathStyle(v: boolean): void;
-  accessKeyId: string;
-  setAccessKeyId(v: string): void;
-  secretAccessKey: string;
-  setSecretAccessKey(v: string): void;
-  sessionToken: string;
-  setSessionToken(v: string): void;
-  showSecretKey: boolean;
-  setShowSecretKey(v: boolean): void;
+  s3: S3State;
+  onS3Change: Patch<S3State>;
   visibleError(field: string): string | undefined;
   markTouched(field: string): void;
 }
@@ -29,22 +16,8 @@ interface S3FieldsProps {
 export function S3Fields({
   fieldId,
   isEditing,
-  endpoint,
-  setEndpoint,
-  region,
-  setRegion,
-  defaultBucket,
-  setDefaultBucket,
-  forcePathStyle,
-  setForcePathStyle,
-  accessKeyId,
-  setAccessKeyId,
-  secretAccessKey,
-  setSecretAccessKey,
-  sessionToken,
-  setSessionToken,
-  showSecretKey,
-  setShowSecretKey,
+  s3,
+  onS3Change,
   visibleError,
   markTouched,
 }: S3FieldsProps) {
@@ -60,8 +33,8 @@ export function S3Fields({
           <input
             id={`${fieldId}-endpoint`}
             type="text"
-            value={endpoint}
-            onChange={(e) => setEndpoint(e.target.value)}
+            value={s3.endpoint}
+            onChange={(e) => onS3Change({ endpoint: e.target.value })}
             onBlur={() => markTouched('endpoint')}
             placeholder="(blank for AWS)"
             className="form-input"
@@ -71,8 +44,8 @@ export function S3Fields({
           <input
             id={`${fieldId}-region`}
             type="text"
-            value={region}
-            onChange={(e) => setRegion(e.target.value)}
+            value={s3.region}
+            onChange={(e) => onS3Change({ region: e.target.value })}
             onBlur={() => markTouched('region')}
             placeholder="Region (e.g. us-east-1)"
             className="form-input"
@@ -90,8 +63,8 @@ export function S3Fields({
         <input
           id={`${fieldId}-akid`}
           type="text"
-          value={accessKeyId}
-          onChange={(e) => setAccessKeyId(e.target.value)}
+          value={s3.accessKeyId}
+          onChange={(e) => onS3Change({ accessKeyId: e.target.value })}
           onBlur={() => markTouched('accessKeyId')}
           placeholder={isEditing ? '(unchanged)' : 'Access key'}
           className={cn(
@@ -111,9 +84,9 @@ export function S3Fields({
         <div className="relative">
           <input
             id={`${fieldId}-sak`}
-            type={showSecretKey ? 'text' : 'password'}
-            value={secretAccessKey}
-            onChange={(e) => setSecretAccessKey(e.target.value)}
+            type={s3.showSecretKey ? 'text' : 'password'}
+            value={s3.secretAccessKey}
+            onChange={(e) => onS3Change({ secretAccessKey: e.target.value })}
             onBlur={() => markTouched('secretAccessKey')}
             placeholder={isEditing ? '(unchanged)' : 'Secret access key'}
             className={cn(
@@ -123,11 +96,11 @@ export function S3Fields({
           />
           <button
             type="button"
-            onClick={() => setShowSecretKey(!showSecretKey)}
+            onClick={() => onS3Change({ showSecretKey: !s3.showSecretKey })}
             className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground/60 hover:text-foreground cursor-pointer"
             tabIndex={-1}
           >
-            {showSecretKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            {s3.showSecretKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
           </button>
         </div>
       </FormField>
@@ -141,8 +114,8 @@ export function S3Fields({
         <input
           id={`${fieldId}-stok`}
           type="password"
-          value={sessionToken}
-          onChange={(e) => setSessionToken(e.target.value)}
+          value={s3.sessionToken}
+          onChange={(e) => onS3Change({ sessionToken: e.target.value })}
           onBlur={() => markTouched('sessionToken')}
           placeholder="(STS only)"
           className="form-input"
@@ -160,8 +133,8 @@ export function S3Fields({
             <input
               id={`${fieldId}-bucket`}
               type="text"
-              value={defaultBucket}
-              onChange={(e) => setDefaultBucket(e.target.value)}
+              value={s3.defaultBucket}
+              onChange={(e) => onS3Change({ defaultBucket: e.target.value })}
               onBlur={() => markTouched('defaultBucket')}
               placeholder="my-bucket"
               className="form-input"
@@ -172,8 +145,8 @@ export function S3Fields({
           <div className="relative flex h-4 w-4 shrink-0 items-center justify-center rounded border border-border bg-card transition-all group-hover:border-primary/50">
             <input
               type="checkbox"
-              checked={forcePathStyle}
-              onChange={(e) => setForcePathStyle(e.target.checked)}
+              checked={s3.forcePathStyle}
+              onChange={(e) => onS3Change({ forcePathStyle: e.target.checked })}
               className="peer sr-only"
             />
             <div className="absolute inset-0 rounded bg-primary opacity-0 transition-opacity peer-checked:opacity-100" />

@@ -1,55 +1,24 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { Eye, EyeOff, FileKey, Globe, Hash, Key, Lock, User, Waypoints } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { AuthType, Connection } from '@shared/types/connection';
+import type { Connection } from '@shared/types/connection';
 import { AUTH_TYPES } from './connection-form.constants';
 import { FormField } from './FormField';
+import type { JumpHostState, Patch, SftpState } from './use-connection-form-state';
 
 interface SftpFieldsProps {
   fieldId: string;
   isEditing: boolean;
-  host: string;
-  setHost(v: string): void;
-  port: string;
-  setPort(v: string): void;
-  username: string;
-  setUsername(v: string): void;
-  authType: AuthType;
-  setAuthType(v: AuthType): void;
-  password: string;
-  setPassword(v: string): void;
-  privateKeyPath: string;
-  setPrivateKeyPath(v: string): void;
-  passphrase: string;
-  setPassphrase(v: string): void;
-  showPassword: boolean;
-  setShowPassword(v: boolean): void;
+  sftp: SftpState;
+  onSftpChange: Patch<SftpState>;
+  jumpHost: JumpHostState;
+  onJumpHostChange: Patch<JumpHostState>;
   /**
    * Connections eligible to act as a jump host. The parent filters out the
    * current connection (no self-reference) and any already-chained
    * connection (single-hop only) before passing the list in.
    */
   jumpHostOptions: Connection[];
-  jumpHostConnectionId: string;
-  setJumpHostConnectionId(v: string): void;
-  jumpHostMode: 'existing' | 'manual';
-  setJumpHostMode(v: 'existing' | 'manual'): void;
-  jumpHostHost: string;
-  setJumpHostHost(v: string): void;
-  jumpHostPort: string;
-  setJumpHostPort(v: string): void;
-  jumpHostUsername: string;
-  setJumpHostUsername(v: string): void;
-  jumpHostAuthType: AuthType;
-  setJumpHostAuthType(v: AuthType): void;
-  jumpHostPassword: string;
-  setJumpHostPassword(v: string): void;
-  jumpHostPrivateKeyPath: string;
-  setJumpHostPrivateKeyPath(v: string): void;
-  jumpHostPassphrase: string;
-  setJumpHostPassphrase(v: string): void;
-  showJumpHostPassword: boolean;
-  setShowJumpHostPassword(v: boolean): void;
   visibleError(field: string): string | undefined;
   markTouched(field: string): void;
   onBrowseKey(): void;
@@ -58,43 +27,11 @@ interface SftpFieldsProps {
 export function SftpFields({
   fieldId,
   isEditing,
-  host,
-  setHost,
-  port,
-  setPort,
-  username,
-  setUsername,
-  authType,
-  setAuthType,
-  password,
-  setPassword,
-  privateKeyPath,
-  setPrivateKeyPath,
-  passphrase,
-  setPassphrase,
-  showPassword,
-  setShowPassword,
+  sftp,
+  onSftpChange,
+  jumpHost,
+  onJumpHostChange,
   jumpHostOptions,
-  jumpHostConnectionId,
-  setJumpHostConnectionId,
-  jumpHostMode,
-  setJumpHostMode,
-  jumpHostHost,
-  setJumpHostHost,
-  jumpHostPort,
-  setJumpHostPort,
-  jumpHostUsername,
-  setJumpHostUsername,
-  jumpHostAuthType,
-  setJumpHostAuthType,
-  jumpHostPassword,
-  setJumpHostPassword,
-  jumpHostPrivateKeyPath,
-  setJumpHostPrivateKeyPath,
-  jumpHostPassphrase,
-  setJumpHostPassphrase,
-  showJumpHostPassword,
-  setShowJumpHostPassword,
   visibleError,
   markTouched,
   onBrowseKey,
@@ -114,8 +51,8 @@ export function SftpFields({
             <input
               id={`${fieldId}-host`}
               type="text"
-              value={host}
-              onChange={(e) => setHost(e.target.value)}
+              value={sftp.host}
+              onChange={(e) => onSftpChange({ host: e.target.value })}
               onBlur={() => markTouched('host')}
               placeholder="192.168.1.100"
               aria-invalid={!!visibleError('host')}
@@ -139,8 +76,8 @@ export function SftpFields({
             inputMode="numeric"
             min={1}
             max={65535}
-            value={port}
-            onChange={(e) => setPort(e.target.value)}
+            value={sftp.port}
+            onChange={(e) => onSftpChange({ port: e.target.value })}
             onBlur={() => markTouched('port')}
             placeholder="22"
             aria-invalid={!!visibleError('port')}
@@ -164,8 +101,8 @@ export function SftpFields({
         <input
           id={`${fieldId}-user`}
           type="text"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
+          value={sftp.username}
+          onChange={(e) => onSftpChange({ username: e.target.value })}
           onBlur={() => markTouched('username')}
           placeholder="Enter username"
           aria-invalid={!!visibleError('username')}
@@ -189,11 +126,11 @@ export function SftpFields({
               key={type.value}
               type="button"
               role="radio"
-              aria-checked={authType === type.value}
-              onClick={() => setAuthType(type.value)}
+              aria-checked={sftp.authType === type.value}
+              onClick={() => onSftpChange({ authType: type.value })}
               className={cn(
                 'flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium cursor-pointer',
-                authType === type.value
+                sftp.authType === type.value
                   ? 'border-ring bg-accent text-foreground shadow-xs'
                   : 'border-border text-muted-foreground hover:border-ring/50 hover:bg-accent/50',
               )}
@@ -207,7 +144,7 @@ export function SftpFields({
 
       {/* Password / Key fields */}
       <AnimatePresence mode="wait">
-        {authType === 'password' && (
+        {sftp.authType === 'password' && (
           <motion.div
             key="password"
             initial={{ opacity: 0, height: 0 }}
@@ -223,9 +160,9 @@ export function SftpFields({
               <div className="relative">
                 <input
                   id={`${fieldId}-pass`}
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  type={sftp.showPassword ? 'text' : 'password'}
+                  value={sftp.password}
+                  onChange={(e) => onSftpChange({ password: e.target.value })}
                   onBlur={() => markTouched('password')}
                   placeholder={isEditing ? '(unchanged)' : 'Enter password'}
                   className={cn(
@@ -235,11 +172,11 @@ export function SftpFields({
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
+                  onClick={() => onSftpChange({ showPassword: !sftp.showPassword })}
                   className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground/60 hover:text-foreground cursor-pointer"
                   tabIndex={-1}
                 >
-                  {showPassword ? (
+                  {sftp.showPassword ? (
                     <EyeOff className="h-3.5 w-3.5" />
                   ) : (
                     <Eye className="h-3.5 w-3.5" />
@@ -250,7 +187,7 @@ export function SftpFields({
           </motion.div>
         )}
 
-        {(authType === 'key' || authType === 'key+passphrase') && (
+        {(sftp.authType === 'key' || sftp.authType === 'key+passphrase') && (
           <motion.div
             key="key"
             initial={{ opacity: 0, height: 0 }}
@@ -270,8 +207,8 @@ export function SftpFields({
                 <input
                   id={`${fieldId}-key`}
                   type="text"
-                  value={privateKeyPath}
-                  onChange={(e) => setPrivateKeyPath(e.target.value)}
+                  value={sftp.privateKeyPath}
+                  onChange={(e) => onSftpChange({ privateKeyPath: e.target.value })}
                   onBlur={() => markTouched('privateKeyPath')}
                   placeholder="~/.ssh/id_rsa"
                   aria-invalid={!!visibleError('privateKeyPath')}
@@ -290,7 +227,7 @@ export function SftpFields({
               </div>
             </FormField>
 
-            {authType === 'key+passphrase' && (
+            {sftp.authType === 'key+passphrase' && (
               <FormField
                 label="Passphrase"
                 icon={<Lock className="h-3.5 w-3.5" />}
@@ -299,8 +236,8 @@ export function SftpFields({
                 <input
                   id={`${fieldId}-phrase`}
                   type="password"
-                  value={passphrase}
-                  onChange={(e) => setPassphrase(e.target.value)}
+                  value={sftp.passphrase}
+                  onChange={(e) => onSftpChange({ passphrase: e.target.value })}
                   onBlur={() => markTouched('passphrase')}
                   placeholder={isEditing ? '(unchanged)' : 'Key passphrase'}
                   className="form-input"
@@ -324,11 +261,11 @@ export function SftpFields({
             <button
               type="button"
               role="tab"
-              aria-selected={jumpHostMode === 'existing'}
-              onClick={() => setJumpHostMode('existing')}
+              aria-selected={jumpHost.mode === 'existing'}
+              onClick={() => onJumpHostChange({ mode: 'existing' })}
               className={cn(
                 'px-2 py-1 text-[10px] font-semibold rounded-[4px] transition-all cursor-pointer',
-                jumpHostMode === 'existing'
+                jumpHost.mode === 'existing'
                   ? 'bg-background text-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground',
               )}
@@ -338,11 +275,11 @@ export function SftpFields({
             <button
               type="button"
               role="tab"
-              aria-selected={jumpHostMode === 'manual'}
-              onClick={() => setJumpHostMode('manual')}
+              aria-selected={jumpHost.mode === 'manual'}
+              onClick={() => onJumpHostChange({ mode: 'manual' })}
               className={cn(
                 'px-2 py-1 text-[10px] font-semibold rounded-[4px] transition-all cursor-pointer',
-                jumpHostMode === 'manual'
+                jumpHost.mode === 'manual'
                   ? 'bg-background text-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground',
               )}
@@ -353,7 +290,7 @@ export function SftpFields({
         </div>
 
         <AnimatePresence mode="wait">
-          {jumpHostMode === 'existing' ? (
+          {jumpHost.mode === 'existing' ? (
             <motion.div
               key="existing"
               initial={{ opacity: 0, y: 5 }}
@@ -369,8 +306,8 @@ export function SftpFields({
               >
                 <select
                   id={`${fieldId}-jump`}
-                  value={jumpHostConnectionId}
-                  onChange={(e) => setJumpHostConnectionId(e.target.value)}
+                  value={jumpHost.connectionId}
+                  onChange={(e) => onJumpHostChange({ connectionId: e.target.value })}
                   className="form-input"
                 >
                   <option value="">None (direct connection)</option>
@@ -402,8 +339,8 @@ export function SftpFields({
                     <input
                       id={`${fieldId}-jh-host`}
                       type="text"
-                      value={jumpHostHost}
-                      onChange={(e) => setJumpHostHost(e.target.value)}
+                      value={jumpHost.host}
+                      onChange={(e) => onJumpHostChange({ host: e.target.value })}
                       onBlur={() => markTouched('jumpHostHost')}
                       placeholder="bastion.example.com"
                       className="form-input text-xs"
@@ -419,8 +356,8 @@ export function SftpFields({
                   <input
                     id={`${fieldId}-jh-port`}
                     type="number"
-                    value={jumpHostPort}
-                    onChange={(e) => setJumpHostPort(e.target.value)}
+                    value={jumpHost.port}
+                    onChange={(e) => onJumpHostChange({ port: e.target.value })}
                     onBlur={() => markTouched('jumpHostPort')}
                     placeholder="22"
                     className="form-input text-xs"
@@ -437,8 +374,8 @@ export function SftpFields({
                 <input
                   id={`${fieldId}-jh-user`}
                   type="text"
-                  value={jumpHostUsername}
-                  onChange={(e) => setJumpHostUsername(e.target.value)}
+                  value={jumpHost.username}
+                  onChange={(e) => onJumpHostChange({ username: e.target.value })}
                   onBlur={() => markTouched('jumpHostUsername')}
                   placeholder="ssh-user"
                   className="form-input text-xs"
@@ -451,10 +388,10 @@ export function SftpFields({
                     <button
                       key={type.value}
                       type="button"
-                      onClick={() => setJumpHostAuthType(type.value)}
+                      onClick={() => onJumpHostChange({ authType: type.value })}
                       className={cn(
                         'flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] font-medium rounded-md border transition-all cursor-pointer',
-                        jumpHostAuthType === type.value
+                        jumpHost.authType === type.value
                           ? 'border-ring bg-accent text-foreground'
                           : 'border-border text-muted-foreground hover:bg-accent/50',
                       )}
@@ -466,7 +403,7 @@ export function SftpFields({
                 </div>
 
                 <AnimatePresence mode="wait">
-                  {jumpHostAuthType === 'password' && (
+                  {jumpHost.authType === 'password' && (
                     <motion.div
                       key="jh-pass"
                       initial={{ opacity: 0, height: 0 }}
@@ -475,19 +412,21 @@ export function SftpFields({
                     >
                       <div className="relative">
                         <input
-                          type={showJumpHostPassword ? 'text' : 'password'}
-                          value={jumpHostPassword}
-                          onChange={(e) => setJumpHostPassword(e.target.value)}
+                          type={jumpHost.showPassword ? 'text' : 'password'}
+                          value={jumpHost.password}
+                          onChange={(e) => onJumpHostChange({ password: e.target.value })}
                           onBlur={() => markTouched('jumpHostPassword')}
                           placeholder="Jump host password"
                           className="form-input text-xs pr-9"
                         />
                         <button
                           type="button"
-                          onClick={() => setShowJumpHostPassword(!showJumpHostPassword)}
+                          onClick={() =>
+                            onJumpHostChange({ showPassword: !jumpHost.showPassword })
+                          }
                           className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground cursor-pointer"
                         >
-                          {showJumpHostPassword ? (
+                          {jumpHost.showPassword ? (
                             <EyeOff className="h-3 w-3" />
                           ) : (
                             <Eye className="h-3 w-3" />
@@ -497,7 +436,7 @@ export function SftpFields({
                     </motion.div>
                   )}
 
-                  {(jumpHostAuthType === 'key' || jumpHostAuthType === 'key+passphrase') && (
+                  {(jumpHost.authType === 'key' || jumpHost.authType === 'key+passphrase') && (
                     <motion.div
                       key="jh-key"
                       initial={{ opacity: 0, height: 0 }}
@@ -508,8 +447,8 @@ export function SftpFields({
                       <div className="flex gap-2">
                         <input
                           type="text"
-                          value={jumpHostPrivateKeyPath}
-                          onChange={(e) => setJumpHostPrivateKeyPath(e.target.value)}
+                          value={jumpHost.privateKeyPath}
+                          onChange={(e) => onJumpHostChange({ privateKeyPath: e.target.value })}
                           onBlur={() => markTouched('jumpHostPrivateKeyPath')}
                           placeholder="~/.ssh/id_rsa"
                           className={cn(
@@ -528,18 +467,18 @@ export function SftpFields({
                                 },
                               ],
                             });
-                            if (path) setJumpHostPrivateKeyPath(path);
+                            if (path) onJumpHostChange({ privateKeyPath: path });
                           }}
                           className="btn-outline text-[10px] h-8 shrink-0"
                         >
                           Browse
                         </button>
                       </div>
-                      {jumpHostAuthType === 'key+passphrase' && (
+                      {jumpHost.authType === 'key+passphrase' && (
                         <input
                           type="password"
-                          value={jumpHostPassphrase}
-                          onChange={(e) => setJumpHostPassphrase(e.target.value)}
+                          value={jumpHost.passphrase}
+                          onChange={(e) => onJumpHostChange({ passphrase: e.target.value })}
                           placeholder="Key passphrase"
                           className="form-input text-xs"
                         />
