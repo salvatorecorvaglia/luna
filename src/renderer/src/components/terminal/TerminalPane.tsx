@@ -1,255 +1,71 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { toast } from 'sonner';
-import { Terminal } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
-import { WebLinksAddon } from '@xterm/addon-web-links';
-import { SearchAddon } from '@xterm/addon-search';
-import { WebglAddon } from '@xterm/addon-webgl';
-import { CanvasAddon } from '@xterm/addon-canvas';
-import { Unicode11Addon } from '@xterm/addon-unicode11';
-import { ChevronDown, ChevronUp, RefreshCcw, X } from 'lucide-react';
-import '@xterm/xterm/css/xterm.css';
+import { useMemo } from 'react';
+import { RefreshCcw } from 'lucide-react';
 import { useTerminalStore } from '@/stores/terminal-store';
-import { logger } from '@/lib/logger';
-import { terminalThemes } from '@/themes/terminal';
-import { buildTerminalKeyHandler, installXtermPointerHandlers } from '@/lib/terminal-input';
 import type { SessionStatus } from '@shared/types/terminal';
+import { useTerminalSession, type TerminalTransport } from './use-terminal-session';
+import { TerminalSearchBar } from './TerminalSearchBar';
 
 interface TerminalPaneProps {
   sessionId: string;
   isActive?: boolean;
 }
 
+// Strip control chars (incl. ESC) from server-side error strings so a peer
+// can't smuggle ANSI sequences into the local terminal buffer.
+function sanitize(s: string): string {
+  let out = '';
+  for (let i = 0; i < s.length; i++) {
+    const code = s.charCodeAt(i);
+    const printable = code === 9 || code === 10 || code === 13 || (code >= 32 && code !== 127);
+    out += printable ? s[i] : '?';
+  }
+  return out;
+}
+
 export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const terminalRef = useRef<Terminal | null>(null);
-  const fitAddonRef = useRef<FitAddon | null>(null);
-  const searchAddonRef = useRef<SearchAddon | null>(null);
-  const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const terminalTheme = useTerminalStore((s) => s.terminalTheme);
-  const fontSize = useTerminalStore((s) => s.fontSize);
-  const scrollback = useTerminalStore((s) => s.scrollback);
   const session = useTerminalStore((s) => s.sessions.get(sessionId));
   const status = session?.status;
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
 
-  // Tracks the current activeness of this pane through a ref so the deferred
-  // resize callback can re-check it at fire time. Without this, a debounced
-  // resize queued while active could fire after the user switched away,
-  // sending an SSH `resize` to the wrong session.
-  const isActiveRef = useRef<boolean>(isActive ?? true);
-  useEffect(() => {
-    isActiveRef.current = isActive ?? true;
-  }, [isActive]);
+  const transport = useMemo<TerminalTransport>(
+    () => ({
+      sendData: (p) => window.api.ssh.sendData(p),
+      resize: (p) => window.api.ssh.resize(p),
+      onData: (cb) => window.api.ssh.onData(cb),
+    }),
+    [],
+  );
 
-  const handleResize = useCallback(() => {
-    // Debounce so a stream of ResizeObserver events during a window drag
-    // doesn't fan out into a fit()/SSH-resize per frame.
-    if (resizeTimeoutRef.current) {
-      clearTimeout(resizeTimeoutRef.current);
-    }
-    resizeTimeoutRef.current = setTimeout(() => {
-      resizeTimeoutRef.current = null;
-      if (!isActiveRef.current) return;
-      const fitAddon = fitAddonRef.current;
-      const terminal = terminalRef.current;
-      // `terminal.element` is set once the terminal has been opened into the
-      // DOM and a renderer is wired up — checking it via public API replaces
-      // an older `(terminal as any)._core._renderService` probe.
-      if (fitAddon && terminal && terminal.element) {
-        try {
-          fitAddon.fit();
-          void window.api.ssh.resize({
-            sessionId,
-            cols: terminal.cols,
-            rows: terminal.rows,
-          });
-        } catch (err) {
-          // Most often the terminal isn't attached yet (initial paint).
-          // Log via warn so persistent failures are visible (CQ5).
-          logger.warn('[TerminalPane] resize failed', {
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      }
-    }, 100);
-  }, [sessionId]);
-
-  // Live match count surfaced from xterm's SearchAddon. -1 sentinel means
-  // "no search active" so the chip can suppress itself; 0 means "no match".
-  const [searchMatch, setSearchMatch] = useState<{ index: number; total: number } | null>(null);
-
-  const openSearch = useCallback(() => {
-    setSearchOpen(true);
-    queueMicrotask(() => searchInputRef.current?.focus());
-  }, []);
-
-  const closeSearch = useCallback(() => {
-    setSearchOpen(false);
-    setSearchQuery('');
-    setSearchMatch(null);
-    searchAddonRef.current?.clearDecorations();
-    terminalRef.current?.focus();
-  }, []);
-
-  const findNext = useCallback(() => {
-    if (searchQuery) searchAddonRef.current?.findNext(searchQuery);
-  }, [searchQuery]);
-
-  const findPrevious = useCallback(() => {
-    if (searchQuery) searchAddonRef.current?.findPrevious(searchQuery);
-  }, [searchQuery]);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    let cancelled = false;
-    let cleanup: (() => void) | null = null;
-
-    queueMicrotask(() => {
-      if (cancelled || !containerRef.current) return;
-
-      const {
-        terminalTheme: initialThemeName,
-        fontSize: initialFontSize,
-        scrollback: initialScrollback,
-      } = useTerminalStore.getState();
-      const theme = terminalThemes[initialThemeName];
-
-      // Construct xterm + addons inside a try/catch so a thrower (typically
-      // happens when running headless or when a node addon fails to load)
-      // doesn't leave half-initialized state behind. On failure, dispose
-      // anything that did get created and bail out of the effect.
-      let terminal: Terminal;
-      let fitAddon: FitAddon;
-      let searchAddon: SearchAddon;
-      try {
-        terminal = new Terminal({
-          cursorBlink: true,
-          cursorStyle: 'bar',
-          fontSize: initialFontSize,
-          fontFamily: 'JetBrains Mono, Menlo, Consolas, monospace',
-          lineHeight: 1.2,
-          letterSpacing: 0,
-          scrollback: initialScrollback,
-          allowProposedApi: true,
-          screenReaderMode: true,
-          theme,
-        });
-
-        fitAddon = new FitAddon();
-        const webLinksAddon = new WebLinksAddon();
-        searchAddon = new SearchAddon();
-        const unicode11Addon = new Unicode11Addon();
-
-        terminal.loadAddon(webLinksAddon);
-        terminal.loadAddon(searchAddon);
-        terminal.loadAddon(unicode11Addon);
-        terminal.unicode.activeVersion = '11';
-
-        // Surface match count under the search input. Fires after every
-        // findNext/findPrevious as well as after the buffer changes while
-        // a query is active. The addon emits resultIndex=-1 when no match.
-        searchAddon.onDidChangeResults(({ resultIndex, resultCount }) => {
-          setSearchMatch({ index: resultIndex, total: resultCount });
-        });
-
-        // Important: open the terminal before loading fitAddon or doing any layout.
-        terminal.open(containerRef.current);
-        terminal.loadAddon(fitAddon);
-      } catch (err) {
-        console.error('[TerminalPane] xterm initialization failed', err);
-        toast.error('Failed to initialize terminal — try reopening the tab.');
-        return;
-      }
-
-      // Try WebGL; on context loss dispose it and load the Canvas addon so we
-      // don't drop all the way down to xterm's DOM renderer (which is much
-      // slower). Notify the user once so a sudden loss isn't mysterious.
-      try {
-        const webglAddon = new WebglAddon();
-        let webglNoticeShown = false;
-        webglAddon.onContextLoss(() => {
-          webglAddon.dispose();
-          try {
-            terminal.loadAddon(new CanvasAddon());
-          } catch {
-            // DOM renderer is the last-resort fallback.
-          }
-          if (!webglNoticeShown) {
-            webglNoticeShown = true;
-            toast.warning('Terminal GPU acceleration was lost — switched to software rendering.', {
-              id: `webgl-loss-${sessionId}`,
-            });
-          }
-        });
-        terminal.loadAddon(webglAddon);
-      } catch {
-        // WebGL itself failed to initialize — try Canvas, then fall through to DOM.
-        try {
-          terminal.loadAddon(new CanvasAddon());
-        } catch {
-          // DOM renderer is the last-resort fallback.
-        }
-      }
-
-      try {
-        fitAddon.fit();
-      } catch (err) {
-        // Initial fit can fail if the terminal is not yet attached to the DOM
-        // or is in a hidden tab. handleResize or the activation effect will retry.
-        logger.debug('[TerminalPane] Initial fit failed', { error: err });
-      }
-
-      terminalRef.current = terminal;
-      fitAddonRef.current = fitAddon;
-      searchAddonRef.current = searchAddon;
-
-      terminal.attachCustomKeyEventHandler(buildTerminalKeyHandler(terminal, openSearch));
-
-      const xtermEl = containerRef.current;
-      const teardownPointer = installXtermPointerHandlers(terminal, xtermEl);
-
-      // Send keystrokes to SSH
-      terminal.onData((data) => {
-        void window.api.ssh.sendData({ sessionId, data });
-      });
-
-      // Receive data from SSH
-      const cleanupData = window.api.ssh.onData((event) => {
-        if (event.sessionId === sessionId) {
-          terminal.write(event.data);
-        }
-      });
-
-      // Handle close
+  const {
+    containerRef,
+    searchInputRef,
+    searchOpen,
+    searchQuery,
+    setSearchQuery,
+    searchMatch,
+    setSearchMatch,
+    searchAddonRef,
+    closeSearch,
+    findNext,
+    findPrevious,
+  } = useTerminalSession({
+    sessionId,
+    isActive,
+    transport,
+    logTag: 'TerminalPane',
+    initErrorMessage: 'Failed to initialize terminal — try reopening the tab.',
+    onReady: ({ terminal }) => {
       const cleanupClose = window.api.ssh.onClose((event) => {
         if (event.sessionId === sessionId) {
           terminal.write('\r\n\x1b[31m--- Connection closed ---\x1b[0m\r\n');
         }
       });
 
-      // Handle error — strip control chars (incl. ESC) so server-side messages can't
-      // smuggle ANSI sequences into the local terminal buffer.
-      const sanitize = (s: string): string => {
-        let out = '';
-        for (let i = 0; i < s.length; i++) {
-          const code = s.charCodeAt(i);
-          const printable =
-            code === 9 || code === 10 || code === 13 || (code >= 32 && code !== 127);
-          out += printable ? s[i] : '?';
-        }
-        return out;
-      };
       const cleanupError = window.api.ssh.onError((event) => {
         if (event.sessionId === sessionId) {
           terminal.write(`\r\n\x1b[31m--- Error: ${sanitize(event.error)} ---\x1b[0m\r\n`);
         }
       });
 
-      // Sync session status from main process
       const { updateSessionStatus } = useTerminalStore.getState();
       const cleanupStatus = window.api.ssh.onStatus(
         (event: { sessionId: string; status: SessionStatus }) => {
@@ -259,86 +75,16 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
         },
       );
 
-      // ResizeObserver delivers an initial entry on .observe() once layout
-      // is ready, which is what we want for the first fit — rely on that
-      // instead of a setTimeout race against the paint cycle.
-      const observer = new ResizeObserver(handleResize);
-      observer.observe(containerRef.current);
-
-      cleanup = () => {
-        cleanupData();
+      return () => {
         cleanupClose();
         cleanupError();
         cleanupStatus();
-        observer.disconnect();
-        teardownPointer();
-        if (resizeTimeoutRef.current) {
-          clearTimeout(resizeTimeoutRef.current);
-        }
-        terminal.dispose();
-        terminalRef.current = null;
-        fitAddonRef.current = null;
-        searchAddonRef.current = null;
       };
-    });
-
-    return () => {
-      cancelled = true;
-      cleanup?.();
-    };
-  }, [sessionId, handleResize, openSearch]);
-
-  // Update theme in place without remounting (preserves scroll history).
-  // Mutating `options.theme` doesn't trigger xterm's redraw — colors
-  // stay stale until the next keystroke writes to the buffer. Force a
-  // refresh of the visible viewport so the swap is immediate.
-  useEffect(() => {
-    const terminal = terminalRef.current;
-    if (terminal) {
-      terminal.options.theme = terminalThemes[terminalTheme];
-      try {
-        terminal.refresh(0, terminal.rows - 1);
-      } catch {
-        // refresh can throw if the terminal isn't attached yet — harmless.
-      }
-    }
-  }, [terminalTheme]);
-
-  // Apply font size + scrollback changes live. Merged into one effect so a
-  // simultaneous change to both (e.g. loading a saved profile that swaps
-  // theme + size + scrollback at once) only calls fitAddon.fit() once per
-  // render rather than twice — fit() is expensive (it forces a reflow and
-  // an xterm dimension recalc) so duplicated fits cost a noticeable frame.
-  useEffect(() => {
-    const terminal = terminalRef.current;
-    if (!terminal) return;
-    terminal.options.fontSize = fontSize;
-    terminal.options.scrollback = scrollback;
-    try {
-      fitAddonRef.current?.fit();
-    } catch {
-      /* ignore — fit can throw if the terminal isn't attached yet */
-    }
-  }, [fontSize, scrollback]);
-
-  // Re-fit and focus when tab becomes active. handleResize already debounces
-  // through resizeTimeoutRef, so calling it directly is safe — the previous
-  // setTimeout(50) wrapper was masking timing rather than fixing it.
-  useEffect(() => {
-    if (isActive) {
-      handleResize();
-      terminalRef.current?.focus();
-    } else if (resizeTimeoutRef.current) {
-      // Pane went inactive while a debounced resize was queued — drop it
-      // so it can't fire and dispatch ssh:resize for the wrong session.
-      clearTimeout(resizeTimeoutRef.current);
-      resizeTimeoutRef.current = null;
-    }
-  }, [isActive, handleResize]);
+    },
+  });
 
   return (
     <div className="relative h-full w-full overflow-hidden">
-      {/* Disconnected Overlay */}
       {(status === 'error' || status === 'disconnected') && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/60 backdrop-blur-sm">
           <div className="flex flex-col items-center gap-4 rounded-xl border border-border/80 bg-card p-6 shadow-2xl">
@@ -366,84 +112,18 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
         </div>
       )}
 
-      {/* Search bar */}
       {searchOpen && (
-        <div
-          role="region"
-          aria-label="Terminal search"
-          className="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-lg border border-border/80 bg-card px-2 py-1 shadow-lg"
-        >
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              if (e.target.value) {
-                searchAddonRef.current?.findNext(e.target.value);
-              } else {
-                searchAddonRef.current?.clearDecorations();
-                setSearchMatch(null);
-              }
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                if (e.shiftKey) {
-                  findPrevious();
-                } else {
-                  findNext();
-                }
-              }
-              if (e.key === 'Escape') closeSearch();
-            }}
-            placeholder="Search..."
-            aria-label="Search terminal output"
-            className="w-40 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground/50"
-          />
-          {searchQuery && searchMatch && (
-            <span
-              className={
-                searchMatch.total === 0
-                  ? 'text-[10px] text-destructive tabular-nums'
-                  : 'text-[10px] text-muted-foreground tabular-nums'
-              }
-              aria-live="polite"
-              aria-label={
-                searchMatch.total === 0
-                  ? 'No matches'
-                  : `Match ${searchMatch.index + 1} of ${searchMatch.total}`
-              }
-            >
-              {searchMatch.total === 0
-                ? 'no matches'
-                : `${searchMatch.index + 1}/${searchMatch.total}`}
-            </span>
-          )}
-          <button
-            onClick={findPrevious}
-            className="btn-icon !p-0.5"
-            title="Previous"
-            aria-label="Previous match"
-          >
-            <ChevronUp className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={findNext}
-            className="btn-icon !p-0.5"
-            title="Next"
-            aria-label="Next match"
-          >
-            <ChevronDown className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={closeSearch}
-            className="btn-icon !p-0.5"
-            title="Close"
-            aria-label="Close search"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
+        <TerminalSearchBar
+          inputRef={searchInputRef}
+          query={searchQuery}
+          setQuery={setSearchQuery}
+          match={searchMatch}
+          setMatch={setSearchMatch}
+          searchAddonRef={searchAddonRef}
+          onFindNext={findNext}
+          onFindPrevious={findPrevious}
+          onClose={closeSearch}
+        />
       )}
       <div
         ref={containerRef}
