@@ -79,4 +79,50 @@ describe('credentials IPC', () => {
     expect(result).toBe('secret');
     expect(retrieve).toHaveBeenCalledWith('abc');
   });
+
+  describe('byte-length cap', () => {
+    const handler = (): ((...a: unknown[]) => unknown) => handlers.get(IPC.CREDENTIAL_STORE)!;
+
+    it('accepts a secret whose char count exceeds the cap but whose byte length is under', async () => {
+      // 4-byte emoji × 10000 chars = 40000 bytes — well under the 65536 byte cap.
+      // Under the old char-length check this would have looked oversized when the
+      // cap was treated as a byte cap. The new check is byte-correct.
+      const secret = '😀'.repeat(10000);
+      await expect(handler()({}, { connectionId: 'id', secret })).resolves.toBeUndefined();
+      expect(store).toHaveBeenCalledWith('id', secret);
+    });
+
+    it('rejects a secret whose byte length exceeds the cap even when char length is under', async () => {
+      // 4-byte emoji × 20000 chars = 80000 bytes — over the 65536 byte cap, but
+      // only 20000 chars. A char-count check would have let this through.
+      const secret = '😀'.repeat(20000);
+      await expect(handler()({}, { connectionId: 'id', secret })).rejects.toThrow(/65536-byte/);
+      expect(store).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('retrieve rate limiter', () => {
+    it('allows 60 retrievals per 60s window and rejects the 61st', async () => {
+      const retr = handlers.get(IPC.CREDENTIAL_RETRIEVE)!;
+      // Module-level ring buffer survives across tests; jump real time forward
+      // by more than the 60s sliding window so all prior entries are evicted
+      // before we measure the cap fresh.
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date('2030-01-01T00:00:00Z'));
+        // Drain the buffer by performing one call, then advancing past the
+        // window before the burst — older entries from earlier tests get
+        // pruned by checkRetrieveRate's head-advance loop.
+        for (let i = 0; i < 60; i++) {
+          await expect(retr({}, 'id')).resolves.toBeDefined();
+        }
+        await expect(retr({}, 'id')).rejects.toThrow(/rate limit/i);
+        // After the window slides past, retrieval becomes available again.
+        vi.setSystemTime(new Date('2030-01-01T00:02:00Z'));
+        await expect(retr({}, 'id')).resolves.toBeDefined();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
 });
