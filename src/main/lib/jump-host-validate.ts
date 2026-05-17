@@ -7,9 +7,10 @@ import { assertBoundedInt, assertNonEmptyString } from './validate';
  * Defense-in-depth cap on transient passphrase/password length passed
  * alongside a manual jump-host config. The credentials IPC and ssh-config
  * already enforce 4 KiB caps; this duplicates the constant so the
- * structural validator stays self-contained.
+ * structural validator stays self-contained. Measured in UTF-8 bytes so a
+ * multi-byte string can't slip past a char-count check.
  */
-const MAX_SECRET_LEN = 4096;
+const MAX_SECRET_BYTES = 4096;
 
 const VALID_AUTH_TYPES = new Set<ManualJumpHostConfig['authType']>([
   'password',
@@ -82,8 +83,8 @@ export function assertValidManualJumpHost(c: unknown): asserts c is ManualJumpHo
   }
   for (const [k, v] of Object.entries({ password: cfg.password, passphrase: cfg.passphrase })) {
     if (v === undefined) continue;
-    if (typeof v !== 'string' || v.length > MAX_SECRET_LEN) {
-      throw validation(`jumpHostConfig.${k} must be a string up to ${MAX_SECRET_LEN} characters`);
+    if (typeof v !== 'string' || Buffer.byteLength(v, 'utf-8') > MAX_SECRET_BYTES) {
+      throw validation(`jumpHostConfig.${k} must be a string up to ${MAX_SECRET_BYTES} bytes`);
     }
   }
 }
