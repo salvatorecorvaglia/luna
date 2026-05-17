@@ -20,16 +20,17 @@ export default defineConfig({
         'src/test/**',
         'src/renderer/src/themes/terminal/**'
       ],
-      // Floor — tests cover validation (incl. symlink jail), host-key TOFU
-      // and IPv6 disambiguation, transfer-queue, credential round-trip,
-      // emit redaction, ssh.ipc validation, db.ipc import sanitization
-      // and database migrations. Raise as new tests are added rather
-      // than treating these as final goals.
+      // Floor — covers validation (incl. symlink jail), host-key TOFU and
+      // IPv6 disambiguation, transfer-queue, credential round-trip + IPC
+      // byte-length cap + ring-buffer rate limiter, emit redaction, ssh.ipc
+      // validation, db.ipc import sanitization, db migrations, error-map
+      // classification, and terminal-output sanitisation. Raise as new
+      // tests are added rather than treating these as final goals.
       thresholds: {
-        lines: 24,
-        functions: 22,
-        branches: 16.5,
-        statements: 23.2
+        lines: 30,
+        functions: 26,
+        branches: 21,
+        statements: 29
       }
     }
   },

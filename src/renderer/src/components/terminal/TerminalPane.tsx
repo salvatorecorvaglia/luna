@@ -4,22 +4,11 @@ import { useTerminalStore } from '@/stores/terminal-store';
 import type { SessionStatus } from '@shared/types/terminal';
 import { useTerminalSession, type TerminalTransport } from './use-terminal-session';
 import { TerminalSearchBar } from './TerminalSearchBar';
+import { sanitizeTerminalText } from '@/lib/terminal-output';
 
 interface TerminalPaneProps {
   sessionId: string;
   isActive?: boolean;
-}
-
-// Strip control chars (incl. ESC) from server-side error strings so a peer
-// can't smuggle ANSI sequences into the local terminal buffer.
-function sanitize(s: string): string {
-  let out = '';
-  for (let i = 0; i < s.length; i++) {
-    const code = s.charCodeAt(i);
-    const printable = code === 9 || code === 10 || code === 13 || (code >= 32 && code !== 127);
-    out += printable ? s[i] : '?';
-  }
-  return out;
 }
 
 export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
@@ -62,7 +51,9 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
 
       const cleanupError = window.api.ssh.onError((event) => {
         if (event.sessionId === sessionId) {
-          terminal.write(`\r\n\x1b[31m--- Error: ${sanitize(event.error)} ---\x1b[0m\r\n`);
+          terminal.write(
+            `\r\n\x1b[31m--- Error: ${sanitizeTerminalText(event.error)} ---\x1b[0m\r\n`,
+          );
         }
       });
 
