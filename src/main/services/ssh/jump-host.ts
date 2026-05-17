@@ -51,8 +51,24 @@ export async function openJumpChannel(params: OpenJumpChannelParams): Promise<Ju
 
   if (jumpConnectionId) {
     const db = getDatabase();
-    const row = db.prepare('SELECT * FROM connections WHERE id = ?').get(jumpConnectionId) as
-      | ConnectionRow
+    const row = db
+      .prepare(
+        `SELECT name, provider, host, port, username, auth_type, private_key_path,
+                jump_host_connection_id
+         FROM connections WHERE id = ?`,
+      )
+      .get(jumpConnectionId) as
+      | Pick<
+          ConnectionRow,
+          | 'name'
+          | 'provider'
+          | 'host'
+          | 'port'
+          | 'username'
+          | 'auth_type'
+          | 'private_key_path'
+          | 'jump_host_connection_id'
+        >
       | undefined;
     if (!row) {
       throw new Error('Jump host connection not found');

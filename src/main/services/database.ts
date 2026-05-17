@@ -7,6 +7,41 @@ import type { StorageProviderKind } from '@shared/types/storage-provider';
 import { migrations as migrationList, type Migration } from './db/migrations';
 import log from '../lib/logger';
 
+/**
+ * Explicit column list for `SELECT` against `connections` when the caller
+ * needs the full `ConnectionRow` shape (i.e. anything that pipes through
+ * `rowToConnection`). Mirrors the fields below so a rename surfaces as a
+ * SQL error at the call site instead of silently producing `undefined`.
+ * Narrower call sites should inline their own projection.
+ */
+export const CONNECTION_COLUMNS = [
+  'id',
+  'name',
+  'provider',
+  'host',
+  'port',
+  'username',
+  'auth_type',
+  'private_key_path',
+  'endpoint',
+  'region',
+  'default_bucket',
+  'force_path_style',
+  'folder',
+  'color_tag',
+  'sort_order',
+  'jump_host_connection_id',
+  'jump_host_host',
+  'jump_host_port',
+  'jump_host_username',
+  'jump_host_auth_type',
+  'jump_host_private_key_path',
+  'is_hidden',
+  'last_connected_at',
+  'created_at',
+  'updated_at',
+].join(', ');
+
 /** Shape of a row in the `connections` table (snake_case DB columns). */
 export interface ConnectionRow {
   id: string;
