@@ -13,6 +13,32 @@ import { describeSshError } from '../lib/error-map';
 import { getRuntimeNumber } from '../config/runtime';
 import log from '../lib/logger';
 
+/**
+ * Columns needed to build an SSH `ConnectConfig` from the connections table —
+ * shared by connect() and testConnection(). Excludes S3-only fields and
+ * UI-only metadata.
+ */
+const SSH_CONNECT_COLUMNS = `
+  provider, host, port, username, auth_type, private_key_path,
+  jump_host_connection_id, jump_host_host, jump_host_port,
+  jump_host_username, jump_host_auth_type, jump_host_private_key_path
+`;
+type SshConnectRow = Pick<
+  ConnectionRow,
+  | 'provider'
+  | 'host'
+  | 'port'
+  | 'username'
+  | 'auth_type'
+  | 'private_key_path'
+  | 'jump_host_connection_id'
+  | 'jump_host_host'
+  | 'jump_host_port'
+  | 'jump_host_username'
+  | 'jump_host_auth_type'
+  | 'jump_host_private_key_path'
+>;
+
 interface StreamListeners {
   onData: (data: Buffer) => void;
   onClose: () => void;
@@ -116,9 +142,9 @@ class SshManager {
     rows = 24,
   ): Promise<{ success: boolean; error?: string }> {
     const db = getDatabase();
-    const row = db.prepare('SELECT * FROM connections WHERE id = ?').get(connectionId) as
-      | ConnectionRow
-      | undefined;
+    const row = db
+      .prepare(`SELECT ${SSH_CONNECT_COLUMNS} FROM connections WHERE id = ?`)
+      .get(connectionId) as SshConnectRow | undefined;
     if (!row) {
       return { success: false, error: 'Connection not found' };
     }
@@ -631,9 +657,9 @@ class SshManager {
       jumpHostConfig = params.config.jumpHostConfig;
     } else if (params.connectionId) {
       const db = getDatabase();
-      const row = db.prepare('SELECT * FROM connections WHERE id = ?').get(params.connectionId) as
-        | ConnectionRow
-        | undefined;
+      const row = db
+        .prepare(`SELECT ${SSH_CONNECT_COLUMNS} FROM connections WHERE id = ?`)
+        .get(params.connectionId) as SshConnectRow | undefined;
       if (!row) return { ok: false, error: 'Connection not found' };
       if (row.provider !== 'sftp') {
         return { ok: false, error: 'Not an SSH connection' };

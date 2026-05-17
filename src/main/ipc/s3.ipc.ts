@@ -15,8 +15,16 @@ const MAX_SECRET_LEN = 4096;
 
 function loadConfig(connectionId: string): S3SessionOptions {
   const db = getDatabase();
-  const row = db.prepare('SELECT * FROM connections WHERE id = ?').get(connectionId) as
-    | ConnectionRow
+  const row = db
+    .prepare(
+      `SELECT name, provider, endpoint, region, default_bucket, force_path_style
+       FROM connections WHERE id = ?`,
+    )
+    .get(connectionId) as
+    | Pick<
+        ConnectionRow,
+        'name' | 'provider' | 'endpoint' | 'region' | 'default_bucket' | 'force_path_style'
+      >
     | undefined;
   if (!row) throw new LunarError(`Connection not found: ${connectionId}`, ErrorCode.NOT_FOUND);
   if (row.provider !== 's3') {

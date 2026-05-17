@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { expandAndConfineToHomeSync } from '../lib/validate';
 import { IPC } from '@shared/constants';
 import { ErrorCode, LunarError } from '@shared/errors';
-import { type ConnectionRow, getDatabase } from '../services/database';
+import { CONNECTION_COLUMNS, type ConnectionRow, getDatabase } from '../services/database';
 import log from '../lib/logger';
 import { detectAndImport } from '../lib/importers';
 import {
@@ -93,15 +93,15 @@ export function registerConnectionHandlers(): void {
 
   registerHandler(IPC.CONNECTION_LIST, () => {
     const rows = db
-      .prepare('SELECT * FROM connections ORDER BY sort_order ASC, name ASC')
+      .prepare(`SELECT ${CONNECTION_COLUMNS} FROM connections ORDER BY sort_order ASC, name ASC`)
       .all() as ConnectionRow[];
     return rows.map(rowToConnection);
   });
 
   registerHandler(IPC.CONNECTION_GET, (_event, id: string) => {
-    const row = db.prepare('SELECT * FROM connections WHERE id = ?').get(id) as
-      | ConnectionRow
-      | undefined;
+    const row = db
+      .prepare(`SELECT ${CONNECTION_COLUMNS} FROM connections WHERE id = ?`)
+      .get(id) as ConnectionRow | undefined;
     return row ? rowToConnection(row) : null;
   });
 
@@ -197,7 +197,9 @@ export function registerConnectionHandlers(): void {
       );
     }
 
-    const row = db.prepare('SELECT * FROM connections WHERE id = ?').get(id) as ConnectionRow;
+    const row = db
+      .prepare(`SELECT ${CONNECTION_COLUMNS} FROM connections WHERE id = ?`)
+      .get(id) as ConnectionRow;
     const connection = rowToConnection(row);
     log.info(`Connection created: ${connection.name}`, {
       id: connection.id,
@@ -208,9 +210,9 @@ export function registerConnectionHandlers(): void {
 
   registerHandler(IPC.CONNECTION_UPDATE, (_event, input: UpdateConnectionInput) => {
     const now = Math.floor(Date.now() / 1000);
-    const existing = db.prepare('SELECT * FROM connections WHERE id = ?').get(input.id) as
-      | ConnectionRow
-      | undefined;
+    const existing = db
+      .prepare(`SELECT ${CONNECTION_COLUMNS} FROM connections WHERE id = ?`)
+      .get(input.id) as ConnectionRow | undefined;
 
     if (!existing) {
       throw new LunarError(`Connection not found: ${input.id}`, ErrorCode.NOT_FOUND);
@@ -362,7 +364,9 @@ export function registerConnectionHandlers(): void {
       );
     }
 
-    const row = db.prepare('SELECT * FROM connections WHERE id = ?').get(input.id) as ConnectionRow;
+    const row = db
+      .prepare(`SELECT ${CONNECTION_COLUMNS} FROM connections WHERE id = ?`)
+      .get(input.id) as ConnectionRow;
     const connection = rowToConnection(row);
     log.info(`Connection updated: ${connection.name}`, { id: connection.id });
     return connection;
@@ -412,7 +416,12 @@ export function registerConnectionHandlers(): void {
 
   registerHandler(IPC.CONNECTION_EXPORT, (): ExportedConnection[] => {
     const rows = db
-      .prepare('SELECT * FROM connections ORDER BY sort_order ASC, name ASC')
+      .prepare(
+        `SELECT id, name, provider, host, port, username, auth_type, private_key_path,
+                endpoint, region, default_bucket, force_path_style,
+                folder, color_tag, jump_host_connection_id
+         FROM connections ORDER BY sort_order ASC, name ASC`,
+      )
       .all() as ConnectionRow[];
     const idToName = new Map(rows.map((r) => [r.id, r.name]));
     return rows.map((row) => {
