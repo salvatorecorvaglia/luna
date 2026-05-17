@@ -99,9 +99,9 @@ export function registerConnectionHandlers(): void {
   });
 
   registerHandler(IPC.CONNECTION_GET, (_event, id: string) => {
-    const row = db
-      .prepare(`SELECT ${CONNECTION_COLUMNS} FROM connections WHERE id = ?`)
-      .get(id) as ConnectionRow | undefined;
+    const row = db.prepare(`SELECT ${CONNECTION_COLUMNS} FROM connections WHERE id = ?`).get(id) as
+      | ConnectionRow
+      | undefined;
     return row ? rowToConnection(row) : null;
   });
 

@@ -27,7 +27,10 @@ let retrieveTail = 0;
 function checkRetrieveRate(): void {
   const now = Date.now();
   const cutoff = now - RETRIEVE_WINDOW_MS;
-  while (retrieveHead < retrieveTail && retrieveTimestamps[retrieveHead % RETRIEVE_MAX_PER_WINDOW] < cutoff) {
+  while (
+    retrieveHead < retrieveTail &&
+    retrieveTimestamps[retrieveHead % RETRIEVE_MAX_PER_WINDOW] < cutoff
+  ) {
     retrieveHead++;
   }
   if (retrieveTail - retrieveHead >= RETRIEVE_MAX_PER_WINDOW) {

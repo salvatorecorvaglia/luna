@@ -5,10 +5,7 @@ import { sftpStorageProvider } from '../services/storage/sftp-storage-provider';
 import { getDatabase } from '../services/database';
 import { ErrorCode, LunarError } from '@shared/errors';
 import { assertBoundedInt, assertNonEmptyString } from '../lib/validate';
-import {
-  assertValidJumpHost,
-  assertValidManualJumpHost,
-} from '../lib/jump-host-validate';
+import { assertValidJumpHost, assertValidManualJumpHost } from '../lib/jump-host-validate';
 import { registerHandler } from '../lib/ipc-handler';
 
 const VALID_AUTH_TYPES = new Set(['password', 'key', 'key+passphrase']);

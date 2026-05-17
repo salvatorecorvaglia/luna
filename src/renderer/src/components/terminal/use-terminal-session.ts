@@ -225,10 +225,9 @@ export function useTerminalSession(opts: TerminalSessionOptions): TerminalSessio
           }
           if (!webglNoticeShown) {
             webglNoticeShown = true;
-            toast.warning(
-              'Terminal GPU acceleration was lost — switched to software rendering.',
-              { id: `webgl-loss-${sessionId}` },
-            );
+            toast.warning('Terminal GPU acceleration was lost — switched to software rendering.', {
+              id: `webgl-loss-${sessionId}`,
+            });
           }
         });
         terminal.loadAddon(webglAddon);

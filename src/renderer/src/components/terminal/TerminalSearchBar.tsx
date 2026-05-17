@@ -67,9 +67,7 @@ export function TerminalSearchBar({
           }
           aria-live="polite"
           aria-label={
-            match.total === 0
-              ? 'No matches'
-              : `Match ${match.index + 1} of ${match.total}`
+            match.total === 0 ? 'No matches' : `Match ${match.index + 1} of ${match.total}`
           }
         >
           {match.total === 0 ? 'no matches' : `${match.index + 1}/${match.total}`}
@@ -83,12 +81,7 @@ export function TerminalSearchBar({
       >
         <ChevronUp className="h-3.5 w-3.5" />
       </button>
-      <button
-        onClick={onFindNext}
-        className="btn-icon !p-0.5"
-        title="Next"
-        aria-label="Next match"
-      >
+      <button onClick={onFindNext} className="btn-icon !p-0.5" title="Next" aria-label="Next match">
         <ChevronDown className="h-3.5 w-3.5" />
       </button>
       <button onClick={onClose} className="btn-icon !p-0.5" title="Close" aria-label="Close search">
