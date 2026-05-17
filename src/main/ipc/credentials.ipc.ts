@@ -18,22 +18,27 @@ import { ErrorCode, LunarError } from '@shared/errors';
  */
 const RETRIEVE_WINDOW_MS = 60_000;
 const RETRIEVE_MAX_PER_WINDOW = 60;
-const retrieveTimestamps: number[] = [];
+// Ring buffer over the window: O(1) per check, no per-call array mutation.
+// head/tail are monotonically increasing counters; size = tail - head.
+const retrieveTimestamps: number[] = new Array(RETRIEVE_MAX_PER_WINDOW);
+let retrieveHead = 0;
+let retrieveTail = 0;
 
 function checkRetrieveRate(): void {
   const now = Date.now();
   const cutoff = now - RETRIEVE_WINDOW_MS;
-  while (retrieveTimestamps.length > 0 && retrieveTimestamps[0] < cutoff) {
-    retrieveTimestamps.shift();
+  while (retrieveHead < retrieveTail && retrieveTimestamps[retrieveHead % RETRIEVE_MAX_PER_WINDOW] < cutoff) {
+    retrieveHead++;
   }
-  if (retrieveTimestamps.length >= RETRIEVE_MAX_PER_WINDOW) {
+  if (retrieveTail - retrieveHead >= RETRIEVE_MAX_PER_WINDOW) {
     throw new LunarError('Credential retrieval rate limit exceeded', ErrorCode.FORBIDDEN);
   }
-  retrieveTimestamps.push(now);
+  retrieveTimestamps[retrieveTail % RETRIEVE_MAX_PER_WINDOW] = now;
+  retrieveTail++;
 }
 
-/** Cap on the size of a secret accepted from the renderer. */
-const MAX_CREDENTIAL_SECRET_LEN = 65536;
+/** Cap on the size of a secret accepted from the renderer (bytes, UTF-8). */
+const MAX_CREDENTIAL_SECRET_BYTES = 65536;
 
 export function registerCredentialHandlers(): void {
   // Forward decrypt-failure events to the renderer so it can surface a
@@ -50,9 +55,9 @@ export function registerCredentialHandlers(): void {
     (_event, payload: { connectionId: string; secret: string }) => {
       assertNonEmptyString(payload?.connectionId, 'connectionId');
       assertNonEmptyString(payload?.secret, 'secret');
-      if (payload.secret.length > MAX_CREDENTIAL_SECRET_LEN) {
+      if (Buffer.byteLength(payload.secret, 'utf-8') > MAX_CREDENTIAL_SECRET_BYTES) {
         throw new LunarError(
-          `secret exceeds ${MAX_CREDENTIAL_SECRET_LEN}-character cap`,
+          `secret exceeds ${MAX_CREDENTIAL_SECRET_BYTES}-byte cap`,
           ErrorCode.VALIDATION_ERROR,
         );
       }

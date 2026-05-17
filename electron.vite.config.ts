@@ -7,7 +7,7 @@ export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
     build: {
-      sourcemap: true
+      sourcemap: process.env.NODE_ENV !== 'production'
     },
     resolve: {
       alias: {
@@ -18,7 +18,7 @@ export default defineConfig({
   preload: {
     plugins: [externalizeDepsPlugin()],
     build: {
-      sourcemap: true
+      sourcemap: process.env.NODE_ENV !== 'production'
     },
     resolve: {
       alias: {
@@ -29,7 +29,7 @@ export default defineConfig({
   renderer: {
     root: 'src/renderer',
     build: {
-      sourcemap: true,
+      sourcemap: process.env.NODE_ENV !== 'production',
       rollupOptions: {
         input: resolve('src/renderer/index.html')
       }
