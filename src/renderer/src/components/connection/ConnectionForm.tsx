@@ -10,7 +10,6 @@ import {
   useCreateConnection,
   useUpdateConnection,
 } from '@/hooks/use-connections';
-import type { AuthType } from '@shared/types/connection';
 import type { StorageProviderKind } from '@shared/types/storage-provider';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
@@ -18,6 +17,7 @@ import { COLOR_OPTIONS, dialogVariants, overlayVariants } from './connection-for
 import { FormField } from './FormField';
 import { SftpFields } from './SftpFields';
 import { S3Fields } from './S3Fields';
+import { useConnectionFormState } from './use-connection-form-state';
 
 export function ConnectionForm() {
   const { connectionFormOpen, editingConnectionId, duplicatingConnectionId, closeForm } =
@@ -28,45 +28,27 @@ export function ConnectionForm() {
   const createMutation = useCreateConnection();
   const updateMutation = useUpdateConnection();
 
-  const [provider, setProvider] = useState<StorageProviderKind>('sftp');
-  const [name, setName] = useState('');
-  const [host, setHost] = useState('');
-  const [port, setPort] = useState('22');
-  const [username, setUsername] = useState('');
-  const [authType, setAuthType] = useState<AuthType>('password');
-  const [password, setPassword] = useState('');
-  const [privateKeyPath, setPrivateKeyPath] = useState('');
-  const [passphrase, setPassphrase] = useState('');
-  // S3 fields
-  const [endpoint, setEndpoint] = useState('');
-  const [region, setRegion] = useState('');
-  const [defaultBucket, setDefaultBucket] = useState('');
-  const [forcePathStyle, setForcePathStyle] = useState(false);
-  const [accessKeyId, setAccessKeyId] = useState('');
-  const [secretAccessKey, setSecretAccessKey] = useState('');
-  const [sessionToken, setSessionToken] = useState('');
-  const [showSecretKey, setShowSecretKey] = useState(false);
-  const [folder, setFolder] = useState('default');
-  const [colorTag, setColorTag] = useState<string>(COLOR_OPTIONS[0].hex);
-  const [isHidden, setIsHidden] = useState(false);
-  /**
-   * Empty string = "None (direct connection)". We deliberately don't use
-   * `null/undefined` in form state so the controlled <select> never goes
-   * uncontrolled when the user clears the field.
-   */
-  const [jumpHostConnectionId, setJumpHostConnectionId] = useState<string>('');
-  const [jumpHostMode, setJumpHostMode] = useState<'existing' | 'manual'>('existing');
-  const [jumpHostHost, setJumpHostHost] = useState('');
-  const [jumpHostPort, setJumpHostPort] = useState('22');
-  const [jumpHostUsername, setJumpHostUsername] = useState('');
-  const [jumpHostAuthType, setJumpHostAuthType] = useState<AuthType>('password');
-  const [jumpHostPassword, setJumpHostPassword] = useState('');
-  const [jumpHostPrivateKeyPath, setJumpHostPrivateKeyPath] = useState('');
-  const [jumpHostPassphrase, setJumpHostPassphrase] = useState('');
-  const [showJumpHostPassword, setShowJumpHostPassword] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
+  const {
+    common,
+    sftp,
+    jumpHost,
+    s3,
+    patchCommon,
+    patchSftp,
+    patchJumpHost,
+    patchS3,
+    touched,
+    markTouched,
+    setTouched,
+    dirty,
+    markDirty,
+    setDirty,
+    resetForm,
+    reseedFromConnection,
+    clearSecrets,
+  } = useConnectionFormState(COLOR_OPTIONS[0].hex);
+
   const [showGroupsDropdown, setShowGroupsDropdown] = useState(false);
-  const [touched, setTouched] = useState<Record<string, boolean>>({});
   /**
    * Inline result of the private-key file probe. Validated when the path
    * field blurs (and the path is non-empty) so the user sees "file not found"
@@ -83,11 +65,7 @@ export function ConnectionForm() {
   const fieldId = useId();
   const isEditing = !!editingConnectionId;
   const isSaving = createMutation.isPending || updateMutation.isPending;
-  // Tracks whether the user has typed anything since the form opened — gates
-  // the "discard changes?" confirm dialog so a no-op close stays silent.
-  const [dirty, setDirty] = useState(false);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
-  const markDirty = useCallback(() => setDirty(true), []);
 
   // Eligible jump-host targets: SFTP only, never the connection being edited,
   // never a connection that itself chains through another bastion (single-hop).
@@ -105,9 +83,9 @@ export function ConnectionForm() {
   }, [existingConnections]);
 
   const filteredFolders = useMemo(() => {
-    const search = folder === 'default' ? '' : folder.toLowerCase();
+    const search = common.folder === 'default' ? '' : common.folder.toLowerCase();
     return uniqueFolders.filter((f) => f.toLowerCase().includes(search));
-  }, [uniqueFolders, folder]);
+  }, [uniqueFolders, common.folder]);
 
   // requestClose is hoisted via useCallback below; the focus trap reads it
   // through a ref so this effect doesn't have to rerun every time `dirty`
@@ -121,80 +99,12 @@ export function ConnectionForm() {
     return attachFocusTrap(dialog, { onEscape: () => requestCloseRef.current() });
   }, [connectionFormOpen]);
 
-  const resetForm = useCallback(() => {
-    setProvider('sftp');
-    setName('');
-    setHost('');
-    setPort('22');
-    setUsername('');
-    setAuthType('password');
-    setPassword('');
-    setPrivateKeyPath('');
-    setPassphrase('');
-    setEndpoint('');
-    setRegion('');
-    setDefaultBucket('');
-    setForcePathStyle(false);
-    setAccessKeyId('');
-    setSecretAccessKey('');
-    setSessionToken('');
-    setShowSecretKey(false);
-    setFolder('default');
-    setColorTag(COLOR_OPTIONS[0].hex);
-    setShowPassword(false);
-    setJumpHostConnectionId('');
-    setJumpHostMode('existing');
-    setJumpHostHost('');
-    setJumpHostPort('22');
-    setJumpHostUsername('');
-    setJumpHostAuthType('password');
-    setJumpHostPassword('');
-    setJumpHostPrivateKeyPath('');
-    setJumpHostPassphrase('');
-    setShowJumpHostPassword(false);
-    setIsHidden(false);
-    setTouched({});
-  }, []);
-
   // Sync form fields when the form opens or the source connection changes.
   // setState-in-effect is intentional: the source is a remote-loaded record.
   useEffect(() => {
     const source = editingConnection || duplicatingConnection;
     if (source) {
-      /* eslint-disable react-hooks/set-state-in-effect */
-      setProvider(source.provider ?? 'sftp');
-      setName(duplicatingConnection ? `${source.name} (copy)` : source.name);
-      setHost(source.host);
-      setPort(String(source.port));
-      setUsername(source.username);
-      setAuthType(source.authType);
-      setPrivateKeyPath(source.privateKeyPath || '');
-      setEndpoint(source.endpoint || '');
-      setRegion(source.region || '');
-      setDefaultBucket(source.defaultBucket || '');
-      setForcePathStyle(source.forcePathStyle ?? false);
-      setAccessKeyId('');
-      setSecretAccessKey('');
-      setSessionToken('');
-      setFolder(source.folder);
-      setColorTag(source.colorTag || COLOR_OPTIONS[0].hex);
-      setIsHidden(source.isHidden ?? false);
-      setJumpHostConnectionId(source.jumpHostConnectionId || '');
-      if (source.jumpHostConfig) {
-        setJumpHostMode('manual');
-        setJumpHostHost(source.jumpHostConfig.host);
-        setJumpHostPort(String(source.jumpHostConfig.port));
-        setJumpHostUsername(source.jumpHostConfig.username);
-        setJumpHostAuthType(source.jumpHostConfig.authType);
-        setJumpHostPrivateKeyPath(source.jumpHostConfig.privateKeyPath || '');
-      } else {
-        setJumpHostMode('existing');
-      }
-      setPassword('');
-      setPassphrase('');
-      setJumpHostPassword('');
-      setJumpHostPassphrase('');
-      /* eslint-enable react-hooks/set-state-in-effect */
+      reseedFromConnection(source, { isDuplicate: !!duplicatingConnection });
     } else {
       resetForm();
     }
@@ -202,7 +112,15 @@ export function ConnectionForm() {
     // Resetting dirty when the form is reseeded keeps the confirm dialog
     // from firing for changes that were programmatic (edit-mode prefill).
     setDirty(false);
-  }, [editingConnection, duplicatingConnection, connectionFormOpen, resetForm]);
+  }, [
+    editingConnection,
+    duplicatingConnection,
+    connectionFormOpen,
+    reseedFromConnection,
+    resetForm,
+    setTouched,
+    setDirty,
+  ]);
 
   // Defence-in-depth: whenever the form transitions to closed (cancel,
   // escape, X button, discard, *or* submit), wipe transient secrets from
@@ -211,16 +129,8 @@ export function ConnectionForm() {
   // cleartext password can't linger across the close animation.
   useEffect(() => {
     if (connectionFormOpen) return;
-    /* eslint-disable react-hooks/set-state-in-effect */
-    setPassword('');
-    setPassphrase('');
-    setSecretAccessKey('');
-    setSessionToken('');
-    setAccessKeyId('');
-    setJumpHostPassword('');
-    setJumpHostPassphrase('');
-    /* eslint-enable react-hooks/set-state-in-effect */
-  }, [connectionFormOpen]);
+    clearSecrets();
+  }, [connectionFormOpen, clearSecrets]);
 
   // Guarded close: prompt to confirm discard if the user has typed anything.
   const requestClose = useCallback(() => {
@@ -237,57 +147,56 @@ export function ConnectionForm() {
     requestCloseRef.current = requestClose;
   }, [requestClose]);
 
-  const markTouched = useCallback((field: string) => {
-    setTouched((prev) => ({ ...prev, [field]: true }));
-  }, []);
-
   // Name uniqueness has to be live (it's a duplicate-detection signal as the
   // user types), but the rest is cheap to validate on demand and shouldn't
   // re-walk N existingConnections per keystroke.
   const nameError = useMemo<string | undefined>(() => {
-    const trimmedName = name.trim();
+    const trimmedName = common.name.trim();
     if (!trimmedName) return 'Connection name is required';
     const lower = trimmedName.toLowerCase();
     const collides = existingConnections?.some(
       (c) => c.name.trim().toLowerCase() === lower && c.id !== editingConnectionId,
     );
     return collides ? 'A connection with this name already exists' : undefined;
-  }, [name, existingConnections, editingConnectionId]);
+  }, [common.name, existingConnections, editingConnectionId]);
 
   // Per-field validation (no list walks) — recomputed on the cheap inputs.
   const fieldErrors = useMemo<Record<string, string>>(() => {
     const out: Record<string, string> = {};
-    if (provider === 'sftp') {
-      if (!host.trim()) out.host = 'Host is required';
-      const portNum = parseInt(port, 10);
-      if (port.trim() === '' || Number.isNaN(portNum) || portNum < 1 || portNum > 65535) {
+    if (common.provider === 'sftp') {
+      if (!sftp.host.trim()) out.host = 'Host is required';
+      const portNum = parseInt(sftp.port, 10);
+      if (sftp.port.trim() === '' || Number.isNaN(portNum) || portNum < 1 || portNum > 65535) {
         out.port = 'Port must be between 1 and 65535';
       }
-      if (!username.trim()) out.username = 'Username is required';
-      if (authType === 'password' && !isEditing && !password.trim()) {
+      if (!sftp.username.trim()) out.username = 'Username is required';
+      if (sftp.authType === 'password' && !isEditing && !sftp.password.trim()) {
         out.password = 'Password is required';
       }
-      if ((authType === 'key' || authType === 'key+passphrase') && !privateKeyPath.trim()) {
+      if (
+        (sftp.authType === 'key' || sftp.authType === 'key+passphrase') &&
+        !sftp.privateKeyPath.trim()
+      ) {
         out.privateKeyPath = 'Private key path is required';
       } else if (privateKeyProbeError) {
         out.privateKeyPath = privateKeyProbeError;
       }
 
-      if (jumpHostMode === 'manual') {
-        if (!jumpHostHost.trim()) out.jumpHostHost = 'Jump host is required';
-        const jhPortNum = parseInt(jumpHostPort, 10);
+      if (jumpHost.mode === 'manual') {
+        if (!jumpHost.host.trim()) out.jumpHostHost = 'Jump host is required';
+        const jhPortNum = parseInt(jumpHost.port, 10);
         if (
-          jumpHostPort.trim() === '' ||
+          jumpHost.port.trim() === '' ||
           Number.isNaN(jhPortNum) ||
           jhPortNum < 1 ||
           jhPortNum > 65535
         ) {
           out.jumpHostPort = 'Port must be between 1 and 65535';
         }
-        if (!jumpHostUsername.trim()) out.jumpHostUsername = 'Username is required';
+        if (!jumpHost.username.trim()) out.jumpHostUsername = 'Username is required';
         if (
-          (jumpHostAuthType === 'key' || jumpHostAuthType === 'key+passphrase') &&
-          !jumpHostPrivateKeyPath.trim()
+          (jumpHost.authType === 'key' || jumpHost.authType === 'key+passphrase') &&
+          !jumpHost.privateKeyPath.trim()
         ) {
           out.jumpHostPrivateKeyPath = 'Private key path is required';
         }
@@ -295,39 +204,23 @@ export function ConnectionForm() {
     } else {
       // S3 — credentials only required on create. On edit, leaving them
       // blank means "keep existing" (mirrors the SSH password UX).
-      if (!isEditing && !accessKeyId.trim()) out.accessKeyId = 'Access Key ID is required';
-      if (!isEditing && !secretAccessKey.trim()) {
+      if (!isEditing && !s3.accessKeyId.trim()) out.accessKeyId = 'Access Key ID is required';
+      if (!isEditing && !s3.secretAccessKey.trim()) {
         out.secretAccessKey = 'Secret Access Key is required';
       }
     }
     return out;
-  }, [
-    provider,
-    host,
-    port,
-    username,
-    authType,
-    privateKeyPath,
-    privateKeyProbeError,
-    accessKeyId,
-    secretAccessKey,
-    isEditing,
-    jumpHostMode,
-    jumpHostHost,
-    jumpHostPort,
-    jumpHostUsername,
-    jumpHostAuthType,
-    jumpHostPrivateKeyPath,
-    password,
-  ]);
+  }, [common.provider, sftp, jumpHost, s3, isEditing, privateKeyProbeError]);
 
   // Debounced inline probe of the private-key file. All setState calls happen
   // inside the deferred timeout callback (asynchronous), so the effect itself
   // never commits state synchronously — the clear-on-empty path is also
   // queued through the same timer to keep that property.
   useEffect(() => {
-    const needsKey = provider === 'sftp' && (authType === 'key' || authType === 'key+passphrase');
-    const path = privateKeyPath.trim();
+    const needsKey =
+      common.provider === 'sftp' &&
+      (sftp.authType === 'key' || sftp.authType === 'key+passphrase');
+    const path = sftp.privateKeyPath.trim();
     let cancelled = false;
     const handle = setTimeout(async () => {
       if (cancelled) return;
@@ -357,7 +250,7 @@ export function ConnectionForm() {
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [provider, authType, privateKeyPath]);
+  }, [common.provider, sftp.authType, sftp.privateKeyPath]);
 
   const errors = useMemo<Record<string, string>>(
     () => (nameError ? { ...fieldErrors, name: nameError } : fieldErrors),
@@ -387,11 +280,11 @@ export function ConnectionForm() {
     }
 
     if (
-      provider === 'sftp' &&
-      (authType === 'key' || authType === 'key+passphrase') &&
-      privateKeyPath.trim().length > 0
+      common.provider === 'sftp' &&
+      (sftp.authType === 'key' || sftp.authType === 'key+passphrase') &&
+      sftp.privateKeyPath.trim().length > 0
     ) {
-      const probe = await window.api.shell.checkFile(privateKeyPath.trim());
+      const probe = await window.api.shell.checkFile(sftp.privateKeyPath.trim());
       if (!probe.ok) {
         const reason =
           probe.reason === 'missing'
@@ -407,53 +300,53 @@ export function ConnectionForm() {
     }
 
     const data =
-      provider === 'sftp'
+      common.provider === 'sftp'
         ? {
-            name: name.trim(),
+            name: common.name.trim(),
             provider: 'sftp' as const,
-            host: host.trim(),
-            port: parseInt(port) || 22,
-            username: username.trim(),
-            authType,
-            privateKeyPath: privateKeyPath || undefined,
-            password: password || undefined,
-            passphrase: passphrase || undefined,
+            host: sftp.host.trim(),
+            port: parseInt(sftp.port) || 22,
+            username: sftp.username.trim(),
+            authType: sftp.authType,
+            privateKeyPath: sftp.privateKeyPath || undefined,
+            password: sftp.password || undefined,
+            passphrase: sftp.passphrase || undefined,
             // Send explicit null on edit so an unselect actually clears the
             // FK. New connections only carry the value when set.
-            jumpHostConnectionId: jumpHostConnectionId
-              ? jumpHostConnectionId
+            jumpHostConnectionId: jumpHost.connectionId
+              ? jumpHost.connectionId
               : isEditing
                 ? null
                 : undefined,
-            folder: folder.trim() || 'default',
-            colorTag,
-            isHidden,
+            folder: common.folder.trim() || 'default',
+            colorTag: common.colorTag,
+            isHidden: common.isHidden,
           }
         : {
-            name: name.trim(),
+            name: common.name.trim(),
             provider: 's3' as const,
-            endpoint: endpoint.trim() || undefined,
-            region: region.trim() || undefined,
-            defaultBucket: defaultBucket.trim() || undefined,
-            forcePathStyle,
-            accessKeyId: accessKeyId.trim() || undefined,
-            secretAccessKey: secretAccessKey || undefined,
-            sessionToken: sessionToken || undefined,
-            folder: folder.trim() || 'default',
-            colorTag,
-            isHidden,
+            endpoint: s3.endpoint.trim() || undefined,
+            region: s3.region.trim() || undefined,
+            defaultBucket: s3.defaultBucket.trim() || undefined,
+            forcePathStyle: s3.forcePathStyle,
+            accessKeyId: s3.accessKeyId.trim() || undefined,
+            secretAccessKey: s3.secretAccessKey || undefined,
+            sessionToken: s3.sessionToken || undefined,
+            folder: common.folder.trim() || 'default',
+            colorTag: common.colorTag,
+            isHidden: common.isHidden,
             jumpHostConfig:
-              jumpHostMode === 'manual'
+              jumpHost.mode === 'manual'
                 ? {
-                    host: jumpHostHost.trim(),
-                    port: parseInt(jumpHostPort) || 22,
-                    username: jumpHostUsername.trim(),
-                    authType: jumpHostAuthType,
-                    privateKeyPath: jumpHostPrivateKeyPath || undefined,
-                    password: jumpHostPassword || undefined,
-                    passphrase: jumpHostPassphrase || undefined,
+                    host: jumpHost.host.trim(),
+                    port: parseInt(jumpHost.port) || 22,
+                    username: jumpHost.username.trim(),
+                    authType: jumpHost.authType,
+                    privateKeyPath: jumpHost.privateKeyPath || undefined,
+                    password: jumpHost.password || undefined,
+                    passphrase: jumpHost.passphrase || undefined,
                   }
-                : isEditing && !jumpHostConnectionId
+                : isEditing && !jumpHost.connectionId
                   ? null
                   : undefined,
           };
@@ -470,13 +363,7 @@ export function ConnectionForm() {
       // relying on unmount: between submit and unmount the dialog can
       // animate out for a few hundred ms, during which heap snapshots /
       // devtools would still expose the cleartext.
-      setPassword('');
-      setPassphrase('');
-      setSecretAccessKey('');
-      setSessionToken('');
-      setAccessKeyId('');
-      setJumpHostPassword('');
-      setJumpHostPassphrase('');
+      clearSecrets();
       closeForm();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to save connection');
@@ -502,7 +389,6 @@ export function ConnectionForm() {
   const TEST_HARD_TIMEOUT_MS = 65_000;
 
   async function handleTest() {
-    // If a test is already running, treat the click as a cancel.
     if (testRunRef.current) {
       cancelTest();
       return;
@@ -512,26 +398,19 @@ export function ConnectionForm() {
     const controller = new AbortController();
     testRunRef.current = { controller, runId };
     const watchdog = setTimeout(() => {
-      // Only fire if this run is still the active one — a fast user-cancel
-      // would have already cleared the ref.
       if (testRunRef.current?.runId !== runId) return;
       controller.abort();
       testRunRef.current = null;
       setTesting(false);
       toast.error('Connection test timed out — main process not responding');
     }, TEST_HARD_TIMEOUT_MS);
-    // The controller's onabort fires from cancelTest() too; clean the timer
-    // there so a manual cancel doesn't leave it ticking against a stale runId.
     controller.signal.addEventListener('abort', () => clearTimeout(watchdog), { once: true });
 
-    /** Apply a result only if no newer test has superseded this one and
-     *  the user hasn't aborted in the meantime. Prevents stale toasts when
-     *  the user starts a second test before the first replies. */
     const isStillCurrent = (): boolean =>
       testRunRef.current?.runId === runId && !controller.signal.aborted;
 
-    if (provider === 'sftp') {
-      if (!host.trim() || !username.trim()) {
+    if (common.provider === 'sftp') {
+      if (!sftp.host.trim() || !sftp.username.trim()) {
         toast.error('Host and Username are required to test');
         testRunRef.current = null;
         return;
@@ -540,25 +419,25 @@ export function ConnectionForm() {
       try {
         const result = await window.api.ssh.testConnection({
           config: {
-            host: host.trim(),
-            port: parseInt(port) || 22,
-            username: username.trim(),
-            authType,
-            privateKeyPath: privateKeyPath || undefined,
-            password: password || undefined,
-            passphrase: passphrase || undefined,
+            host: sftp.host.trim(),
+            port: parseInt(sftp.port) || 22,
+            username: sftp.username.trim(),
+            authType: sftp.authType,
+            privateKeyPath: sftp.privateKeyPath || undefined,
+            password: sftp.password || undefined,
+            passphrase: sftp.passphrase || undefined,
             jumpHostConnectionId:
-              jumpHostMode === 'existing' ? jumpHostConnectionId || undefined : undefined,
+              jumpHost.mode === 'existing' ? jumpHost.connectionId || undefined : undefined,
             jumpHostConfig:
-              jumpHostMode === 'manual'
+              jumpHost.mode === 'manual'
                 ? {
-                    host: jumpHostHost.trim(),
-                    port: parseInt(jumpHostPort) || 22,
-                    username: jumpHostUsername.trim(),
-                    authType: jumpHostAuthType,
-                    privateKeyPath: jumpHostPrivateKeyPath || undefined,
-                    password: jumpHostPassword || undefined,
-                    passphrase: jumpHostPassphrase || undefined,
+                    host: jumpHost.host.trim(),
+                    port: parseInt(jumpHost.port) || 22,
+                    username: jumpHost.username.trim(),
+                    authType: jumpHost.authType,
+                    privateKeyPath: jumpHost.privateKeyPath || undefined,
+                    password: jumpHost.password || undefined,
+                    passphrase: jumpHost.passphrase || undefined,
                   }
                 : undefined,
           },
@@ -577,8 +456,8 @@ export function ConnectionForm() {
         }
       }
     } else {
-      const useStored = isEditing && !accessKeyId.trim() && !secretAccessKey.trim();
-      if (!useStored && (!accessKeyId.trim() || !secretAccessKey.trim())) {
+      const useStored = isEditing && !s3.accessKeyId.trim() && !s3.secretAccessKey.trim();
+      if (!useStored && (!s3.accessKeyId.trim() || !s3.secretAccessKey.trim())) {
         toast.error('Access Key ID and Secret Access Key are required to test');
         testRunRef.current = null;
         return;
@@ -590,13 +469,13 @@ export function ConnectionForm() {
             ? { connectionId: editingConnectionId || undefined }
             : {
                 config: {
-                  endpoint: endpoint.trim() || undefined,
-                  region: region.trim() || undefined,
-                  forcePathStyle,
-                  accessKeyId: accessKeyId.trim(),
-                  secretAccessKey,
-                  sessionToken: sessionToken || undefined,
-                  defaultBucket: defaultBucket.trim() || undefined,
+                  endpoint: s3.endpoint.trim() || undefined,
+                  region: s3.region.trim() || undefined,
+                  forcePathStyle: s3.forcePathStyle,
+                  accessKeyId: s3.accessKeyId.trim(),
+                  secretAccessKey: s3.secretAccessKey,
+                  sessionToken: s3.sessionToken || undefined,
+                  defaultBucket: s3.defaultBucket.trim() || undefined,
                 },
               },
         );
@@ -623,9 +502,14 @@ export function ConnectionForm() {
       ],
     });
     if (path) {
-      setPrivateKeyPath(path);
+      patchSftp({ privateKeyPath: path });
     }
   }
+
+  const setProvider = (p: StorageProviderKind): void => patchCommon({ provider: p });
+  const setName = (v: string): void => patchCommon({ name: v });
+  const setFolder = (v: string): void => patchCommon({ folder: v });
+  const setColorTag = (v: string): void => patchCommon({ colorTag: v });
 
   return (
     <AnimatePresence>
@@ -698,12 +582,12 @@ export function ConnectionForm() {
                       <button
                         type="button"
                         role="radio"
-                        aria-checked={provider === 'sftp'}
+                        aria-checked={common.provider === 'sftp'}
                         onClick={() => setProvider('sftp')}
                         disabled={isEditing}
                         className={cn(
                           'flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed',
-                          provider === 'sftp'
+                          common.provider === 'sftp'
                             ? 'border-ring bg-accent text-foreground shadow-xs'
                             : 'border-border text-muted-foreground hover:border-ring/50 hover:bg-accent/50',
                         )}
@@ -714,12 +598,12 @@ export function ConnectionForm() {
                       <button
                         type="button"
                         role="radio"
-                        aria-checked={provider === 's3'}
+                        aria-checked={common.provider === 's3'}
                         onClick={() => setProvider('s3')}
                         disabled={isEditing}
                         className={cn(
                           'flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed',
-                          provider === 's3'
+                          common.provider === 's3'
                             ? 'border-ring bg-accent text-foreground shadow-xs'
                             : 'border-border text-muted-foreground hover:border-ring/50 hover:bg-accent/50',
                         )}
@@ -741,7 +625,7 @@ export function ConnectionForm() {
                     <input
                       id={`${fieldId}-name`}
                       type="text"
-                      value={name}
+                      value={common.name}
                       onChange={(e) => setName(e.target.value)}
                       onBlur={() => markTouched('name')}
                       placeholder="My Server"
@@ -754,73 +638,27 @@ export function ConnectionForm() {
                     />
                   </FormField>
 
-                  {provider === 'sftp' && (
+                  {common.provider === 'sftp' && (
                     <SftpFields
                       fieldId={fieldId}
                       isEditing={isEditing}
-                      host={host}
-                      setHost={setHost}
-                      port={port}
-                      setPort={setPort}
-                      username={username}
-                      setUsername={setUsername}
-                      authType={authType}
-                      setAuthType={setAuthType}
-                      password={password}
-                      setPassword={setPassword}
-                      privateKeyPath={privateKeyPath}
-                      setPrivateKeyPath={setPrivateKeyPath}
-                      passphrase={passphrase}
-                      setPassphrase={setPassphrase}
-                      showPassword={showPassword}
-                      setShowPassword={setShowPassword}
+                      sftp={sftp}
+                      onSftpChange={patchSftp}
+                      jumpHost={jumpHost}
+                      onJumpHostChange={patchJumpHost}
                       jumpHostOptions={jumpHostOptions}
-                      jumpHostConnectionId={jumpHostConnectionId}
-                      setJumpHostConnectionId={setJumpHostConnectionId}
-                      jumpHostMode={jumpHostMode}
-                      setJumpHostMode={setJumpHostMode}
-                      jumpHostHost={jumpHostHost}
-                      setJumpHostHost={setJumpHostHost}
-                      jumpHostPort={jumpHostPort}
-                      setJumpHostPort={setJumpHostPort}
-                      jumpHostUsername={jumpHostUsername}
-                      setJumpHostUsername={setJumpHostUsername}
-                      jumpHostAuthType={jumpHostAuthType}
-                      setJumpHostAuthType={setJumpHostAuthType}
-                      jumpHostPassword={jumpHostPassword}
-                      setJumpHostPassword={setJumpHostPassword}
-                      jumpHostPrivateKeyPath={jumpHostPrivateKeyPath}
-                      setJumpHostPrivateKeyPath={setJumpHostPrivateKeyPath}
-                      jumpHostPassphrase={jumpHostPassphrase}
-                      setJumpHostPassphrase={setJumpHostPassphrase}
-                      showJumpHostPassword={showJumpHostPassword}
-                      setShowJumpHostPassword={setShowJumpHostPassword}
                       visibleError={visibleError}
                       markTouched={markTouched}
                       onBrowseKey={handleBrowseKey}
                     />
                   )}
 
-                  {provider === 's3' && (
+                  {common.provider === 's3' && (
                     <S3Fields
                       fieldId={fieldId}
                       isEditing={isEditing}
-                      endpoint={endpoint}
-                      setEndpoint={setEndpoint}
-                      region={region}
-                      setRegion={setRegion}
-                      defaultBucket={defaultBucket}
-                      setDefaultBucket={setDefaultBucket}
-                      forcePathStyle={forcePathStyle}
-                      setForcePathStyle={setForcePathStyle}
-                      accessKeyId={accessKeyId}
-                      setAccessKeyId={setAccessKeyId}
-                      secretAccessKey={secretAccessKey}
-                      setSecretAccessKey={setSecretAccessKey}
-                      sessionToken={sessionToken}
-                      setSessionToken={setSessionToken}
-                      showSecretKey={showSecretKey}
-                      setShowSecretKey={setShowSecretKey}
+                      s3={s3}
+                      onS3Change={patchS3}
                       visibleError={visibleError}
                       markTouched={markTouched}
                     />
@@ -838,18 +676,18 @@ export function ConnectionForm() {
                           key={color.hex}
                           type="button"
                           role="radio"
-                          aria-checked={colorTag === color.hex}
+                          aria-checked={common.colorTag === color.hex}
                           aria-label={color.name}
                           onClick={() => setColorTag(color.hex)}
                           className={cn(
                             'relative h-7 w-7 rounded-full cursor-pointer',
-                            colorTag === color.hex
+                            common.colorTag === color.hex
                               ? 'ring-2 ring-ring ring-offset-2 ring-offset-card'
                               : 'hover:scale-110',
                           )}
                           style={{ backgroundColor: color.hex }}
                         >
-                          {colorTag === color.hex && (
+                          {common.colorTag === color.hex && (
                             <Check className="absolute inset-0 m-auto h-3.5 w-3.5 text-white drop-shadow-sm" />
                           )}
                         </button>
@@ -869,7 +707,7 @@ export function ConnectionForm() {
                         <input
                           id={`${fieldId}-group`}
                           type="text"
-                          value={folder === 'default' ? '' : folder}
+                          value={common.folder === 'default' ? '' : common.folder}
                           onChange={(e) => {
                             setFolder(e.target.value || 'default');
                             setShowGroupsDropdown(true);
@@ -887,7 +725,7 @@ export function ConnectionForm() {
                           <FolderClosed className="h-4 w-4" />
                         </div>
 
-                        {folder !== 'default' && (
+                        {common.folder !== 'default' && (
                           <button
                             type="button"
                             onClick={() => setFolder('default')}
@@ -916,7 +754,7 @@ export function ConnectionForm() {
                                   }}
                                   className={cn(
                                     'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs font-medium transition-colors cursor-pointer',
-                                    folder === f
+                                    common.folder === f
                                       ? 'bg-primary/10 text-primary'
                                       : 'text-foreground hover:bg-accent hover:text-accent-foreground',
                                   )}
@@ -945,10 +783,11 @@ export function ConnectionForm() {
                                 whileHover={{ y: -1, scale: 1.02 }}
                                 whileTap={{ scale: 0.98 }}
                                 type="button"
-                                onClick={() => setFolder(folder === f ? 'default' : f)}
+                                onClick={() => setFolder(common.folder === f ? 'default' : f)}
                                 className={cn(
                                   'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all cursor-pointer border shadow-xs',
-                                  folder === f || (f === 'default' && folder === 'default')
+                                  common.folder === f ||
+                                    (f === 'default' && common.folder === 'default')
                                     ? 'bg-primary/5 border-primary/40 text-primary shadow-[0_0_12px_-3px_rgba(99,102,241,0.2)] ring-1 ring-primary/20'
                                     : 'bg-muted/10 border-border/40 text-muted-foreground hover:bg-muted/20 hover:border-border/60 hover:text-foreground',
                                 )}
@@ -956,7 +795,8 @@ export function ConnectionForm() {
                                 <FolderClosed
                                   className={cn(
                                     'h-3 w-3 transition-opacity',
-                                    folder === f || (f === 'default' && folder === 'default')
+                                    common.folder === f ||
+                                      (f === 'default' && common.folder === 'default')
                                       ? 'opacity-100'
                                       : 'opacity-40',
                                   )}
