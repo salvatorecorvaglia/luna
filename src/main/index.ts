@@ -164,7 +164,7 @@ void app.whenReady().then(() => {
               // PDF preview uses a data: iframe; 'self' is intentionally omitted
               // so a hostile renderer can't frame the app's own origin to bypass
               // navigation guards.
-              "frame-src data:; " +
+              'frame-src data:; ' +
               "worker-src 'self' blob:; " +
               "media-src 'self' blob: data:; " +
               "object-src 'none'; " +

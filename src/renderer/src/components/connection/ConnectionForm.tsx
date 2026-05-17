@@ -218,8 +218,7 @@ export function ConnectionForm() {
   // queued through the same timer to keep that property.
   useEffect(() => {
     const needsKey =
-      common.provider === 'sftp' &&
-      (sftp.authType === 'key' || sftp.authType === 'key+passphrase');
+      common.provider === 'sftp' && (sftp.authType === 'key' || sftp.authType === 'key+passphrase');
     const path = sftp.privateKeyPath.trim();
     let cancelled = false;
     const handle = setTimeout(async () => {

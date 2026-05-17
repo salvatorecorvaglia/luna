@@ -39,9 +39,9 @@ describe('describeSshError', () => {
   });
 
   it('maps the ssh2 auth-methods phrase to the auth-failed hint', () => {
-    expect(
-      describeSshError(new Error('All configured authentication methods failed')),
-    ).toMatch(/authentication failed/i);
+    expect(describeSshError(new Error('All configured authentication methods failed'))).toMatch(
+      /authentication failed/i,
+    );
   });
 
   it('uses the handshake-timeout hint when the message says "timeout" (not "timed out")', () => {
