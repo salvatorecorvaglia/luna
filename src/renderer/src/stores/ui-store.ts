@@ -63,7 +63,6 @@ export const useUIStore = create<UIState>()(
       partialize: (state) => ({
         sidebarOpen: state.sidebarOpen,
         sidebarWidth: state.sidebarWidth,
-        activeView: state.activeView,
         sidebarSectionOrder: state.sidebarSectionOrder,
       }),
     },
