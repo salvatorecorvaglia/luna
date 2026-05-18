@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { FileCode, FileImage, FileText, X } from 'lucide-react';
+import { Z } from '@/lib/z-layers';
 import { useStorageStore } from '@/stores/storage-store';
 
 function detectLanguage(name: string): string {
@@ -70,7 +71,7 @@ export function FilePreview() {
             initial="initial"
             animate="animate"
             exit="exit"
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+            className={`fixed inset-0 ${Z.modal} bg-black/60 backdrop-blur-sm`}
             onClick={() => setPreviewFile(null)}
           />
           <motion.div
@@ -78,7 +79,7 @@ export function FilePreview() {
             initial="initial"
             animate="animate"
             exit="exit"
-            className="fixed inset-2 z-50 flex flex-col rounded-xl border border-border/80 bg-card shadow-xl overflow-hidden sm:inset-8"
+            className={`fixed inset-2 ${Z.modal} flex flex-col rounded-xl border border-border/80 bg-card shadow-xl overflow-hidden sm:inset-8`}
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">

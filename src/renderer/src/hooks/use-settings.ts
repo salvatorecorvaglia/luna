@@ -10,7 +10,7 @@ export function useSettings() {
 }
 
 export function useSetting<K extends keyof AppSettings>(key: K) {
-  return useQuery<string>({
+  return useQuery<string | null>({
     queryKey: ['settings', key],
     queryFn: () => window.api.settings.get(key),
     staleTime: 30_000,

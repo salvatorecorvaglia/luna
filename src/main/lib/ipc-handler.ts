@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import log from './logger';
 import { ErrorCode, LunarError } from '@shared/errors';
+import type { IpcChannel, IpcRequest, IpcResponse } from '@shared/types/ipc';
 
 /**
  * Hard cap on the serialized size of a single IPC request. The renderer
@@ -27,14 +28,29 @@ function payloadByteSize(args: unknown[]): number {
 }
 
 /**
+ * Args tuple for a handler. `void` requests are erased (handlers take no
+ * request arg); every other request type becomes a single-element tuple so
+ * channels with a typed request must declare it in their handler signature.
+ */
+type HandlerArgs<C extends IpcChannel> = IpcRequest<C> extends void ? [] : [IpcRequest<C>];
+
+type ChannelHandler<C extends IpcChannel> = (
+  event: Electron.IpcMainInvokeEvent,
+  ...args: HandlerArgs<C>
+) => IpcResponse<C> | Promise<IpcResponse<C>>;
+
+/**
  * Wraps an IPC handler to provide centralized error handling and logging.
  * Any error thrown by the handler will be caught, logged, and re-thrown
  * as a structured object that the renderer can recognize.
+ *
+ * The handler signature is derived from `IpcHandlerMap`, so a wrong-typed
+ * request or response is a compile error at the call site rather than a
+ * runtime surprise on the renderer.
  */
-export function registerHandler(
-  channel: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  handler: (event: Electron.IpcMainInvokeEvent, ...args: any[]) => Promise<unknown> | unknown,
+export function registerHandler<C extends IpcChannel>(
+  channel: C,
+  handler: ChannelHandler<C>,
 ): void {
   ipcMain.handle(channel, async (event, ...args) => {
     try {
@@ -45,7 +61,11 @@ export function registerHandler(
           ErrorCode.VALIDATION_ERROR,
         );
       }
-      const result = await handler(event, ...args);
+      // ipcMain.handle forwards args as unknown[]; the channel-typed handler
+      // expects HandlerArgs<C>. The cast is safe at the IPC boundary because
+      // size + content validation in each handler runs before any args are
+      // trusted, and Electron preserves arity from the renderer side.
+      const result = await (handler as (...a: unknown[]) => unknown)(event, ...args);
       return result;
     } catch (error) {
       const lunarError = LunarError.fromUnknown(error);

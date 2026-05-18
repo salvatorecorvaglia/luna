@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertTriangle } from 'lucide-react';
 import { attachFocusTrap } from '@/lib/focus-trap';
+import { Z } from '@/lib/z-layers';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -59,7 +61,11 @@ export function ConfirmDialog({
     return attachFocusTrap(dialog, { onEscape: onCancel });
   }, [open, onCancel]);
 
-  return (
+  // Portal to <body> so the dialog is decoupled from any parent that may
+  // unmount (e.g. ConnectionForm closing). Without the portal the discard-
+  // warning could vanish silently mid-confirm if its parent dropped.
+  if (typeof document === 'undefined') return null;
+  return createPortal(
     <AnimatePresence>
       {open && (
         <>
@@ -68,14 +74,14 @@ export function ConfirmDialog({
             initial="initial"
             animate="animate"
             exit="exit"
-            className="fixed inset-0 z-[1100] bg-black/60 backdrop-blur-sm"
+            className={`fixed inset-0 ${Z.confirm} bg-black/60 backdrop-blur-sm`}
           />
           <motion.div
             variants={dialogVariants}
             initial="initial"
             animate="animate"
             exit="exit"
-            className="fixed inset-0 z-[1100] flex items-center justify-center p-4"
+            className={`fixed inset-0 ${Z.confirm} flex items-center justify-center p-4`}
           >
             <div
               ref={dialogRef}
@@ -126,6 +132,7 @@ export function ConfirmDialog({
           </motion.div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }

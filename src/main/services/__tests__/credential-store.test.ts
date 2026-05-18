@@ -20,15 +20,40 @@ vi.mock('electron', () => ({
   },
 }));
 
+// In-memory stand-in for the credentials table so the tamper-detection path
+// (store → retrieve → decrypt-failure → emit) can be exercised end-to-end.
+const credentialRows = new Map<string, Buffer>();
 vi.mock('../database', () => ({
-  getDatabase: () => ({ exec: () => {}, prepare: () => ({ run: () => {} }) }),
+  getDatabase: () => ({
+    exec: () => {},
+    prepare: (sql: string) => ({
+      run: (...args: unknown[]) => {
+        if (/^INSERT/i.test(sql)) {
+          credentialRows.set(args[0] as string, args[1] as Buffer);
+        } else if (/^DELETE/i.test(sql)) {
+          credentialRows.delete(args[0] as string);
+        }
+      },
+      get: (id: string) => {
+        const row = credentialRows.get(id);
+        return row ? { encrypted_data: row } : undefined;
+      },
+    }),
+  }),
 }));
 
 vi.mock('../../lib/logger', () => ({
   default: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
 }));
 
-import { __test__ } from '../credential-store';
+import {
+  __test__,
+  deleteCredential,
+  onCredentialTamper,
+  retrieveCredential,
+  storeCredential,
+  type CredentialTamperEvent,
+} from '../credential-store';
 
 beforeEach(() => {
   // The module caches the encryption key after first use; that's fine for
@@ -74,6 +99,79 @@ describe('credential-store encryption', () => {
 
   it('rejects an empty buffer', () => {
     expect(() => __test__.decrypt(Buffer.alloc(0))).toThrow(/ciphertext too short/);
+  });
+});
+
+describe('credential-store tamper detection', () => {
+  beforeEach(() => {
+    credentialRows.clear();
+  });
+
+  it('emits onCredentialTamper when a stored credential fails to decrypt', () => {
+    const events: CredentialTamperEvent[] = [];
+    const unsubscribe = onCredentialTamper((e) => events.push(e));
+    try {
+      storeCredential('conn-1', 'secret');
+      // Flip a byte in the ciphertext to invalidate the GCM auth tag.
+      const sealed = credentialRows.get('conn-1')!;
+      const tampered = Buffer.from(sealed);
+      tampered[tampered.length - 1] ^= 0xff;
+      credentialRows.set('conn-1', tampered);
+
+      const result = retrieveCredential('conn-1');
+      expect(result).toBeNull();
+      expect(events).toHaveLength(1);
+      expect(events[0].connectionId).toBe('conn-1');
+      expect(events[0].reason).toMatch(/auth|unable|tag/i);
+      expect(typeof events[0].at).toBe('number');
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it('drops the tampered row so the user is prompted to re-enter', () => {
+    const unsubscribe = onCredentialTamper(() => {});
+    try {
+      storeCredential('conn-2', 'secret');
+      const sealed = credentialRows.get('conn-2')!;
+      const tampered = Buffer.from(sealed);
+      tampered[tampered.length - 1] ^= 0xff;
+      credentialRows.set('conn-2', tampered);
+
+      retrieveCredential('conn-2');
+      expect(credentialRows.has('conn-2')).toBe(false);
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it('unsubscribe stops further tamper notifications', () => {
+    const events: CredentialTamperEvent[] = [];
+    const unsubscribe = onCredentialTamper((e) => events.push(e));
+    unsubscribe();
+
+    storeCredential('conn-3', 'secret');
+    const sealed = credentialRows.get('conn-3')!;
+    const tampered = Buffer.from(sealed);
+    tampered[tampered.length - 1] ^= 0xff;
+    credentialRows.set('conn-3', tampered);
+
+    retrieveCredential('conn-3');
+    expect(events).toHaveLength(0);
+  });
+
+  it('returns the secret untouched on the happy path (no tamper event)', () => {
+    const events: CredentialTamperEvent[] = [];
+    const unsubscribe = onCredentialTamper((e) => events.push(e));
+    try {
+      storeCredential('conn-4', 'hello');
+      expect(retrieveCredential('conn-4')).toBe('hello');
+      expect(events).toHaveLength(0);
+      deleteCredential('conn-4');
+      expect(retrieveCredential('conn-4')).toBeNull();
+    } finally {
+      unsubscribe();
+    }
   });
 });
 

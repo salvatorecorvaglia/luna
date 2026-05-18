@@ -22,6 +22,12 @@ interface QueuedTransfer {
   lastTransferred: number;
 }
 
+interface ReservedTransfer {
+  id: string;
+  key: string;
+  controller: AbortController;
+}
+
 class TransferQueue {
   private queue: QueuedTransfer[] = [];
   private active = new Map<string, QueuedTransfer>();
@@ -33,12 +39,14 @@ class TransferQueue {
    */
   private dedupIndex = new Map<string, string>();
   /**
-   * Transfer ids that have reserved a dedup key but haven't been pushed to
-   * `queue` yet (because enqueue() is awaiting stat()). A concurrent enqueue()
-   * with the same key must treat these as live, not stale — otherwise both
-   * callers race past the dedup check and create duplicate transfers.
+   * Transfers that have reserved a dedup key and an AbortController but
+   * haven't been pushed to `queue` yet (because enqueue() is awaiting stat()).
+   * A concurrent enqueue() with the same key must treat these as live, not
+   * stale. Crucially, cancel(id) called during this window must abort the
+   * controller — otherwise the transfer would slip past the cancel and start
+   * running after the await settles.
    */
-  private reserved = new Set<string>();
+  private reserved = new Map<string, ReservedTransfer>();
   private maxConcurrent = 3;
   /** Re-entrancy guard: only one synchronous dispatch loop at a time. */
   private dispatching = false;
@@ -70,7 +78,8 @@ class TransferQueue {
       // `queue` (still awaiting stat). Treat that as live so we return its id
       // and let the caller wire up to the same transfer, instead of racing
       // past the dedup check and creating a duplicate.
-      if (this.reserved.has(existingId)) return existingId;
+      const reserved = this.reserved.get(existingId);
+      if (reserved && !reserved.controller.signal.aborted) return existingId;
       const existing = this.active.get(existingId) ?? this.queue.find((t) => t.id === existingId);
       if (existing && !existing.controller.signal.aborted) return existing.id;
       // Stale entry (e.g. an aborted transfer that didn't clear the index).
@@ -86,10 +95,15 @@ class TransferQueue {
 
     // Reserve the dedup key synchronously, *before* the first await, so a
     // concurrent enqueue() with the same key short-circuits via dedupIndex
-    // instead of also racing through stat() and pushing a duplicate.
+    // instead of also racing through stat() and pushing a duplicate. The
+    // AbortController is created here too, *before* the await, so a cancel(id)
+    // racing through the stat() window can abort it instead of being dropped
+    // (the controller used to be created after the await — leaving cancel()
+    // with nothing to find in queue/active and silently no-op'ing).
     const transferId = uuidv4();
+    const controller = new AbortController();
     this.dedupIndex.set(key, transferId);
-    this.reserved.add(transferId);
+    this.reserved.set(transferId, { id: transferId, key, controller });
 
     try {
       let size = 0;
@@ -105,6 +119,14 @@ class TransferQueue {
         // size will be reported by progress callback
       }
 
+      // If cancel() ran during the stat() await, the controller was aborted
+      // and the dedup reservation was already dropped. Emit a cancellation
+      // event and bail out so the transfer never reaches the queue.
+      if (controller.signal.aborted) {
+        emitToRenderer(IPC.TRANSFER_CANCELLED, { transferId });
+        return transferId;
+      }
+
       const fileName = basename(type === 'upload' ? localPath : remotePath);
       const transfer: QueuedTransfer = {
         id: transferId,
@@ -114,7 +136,7 @@ class TransferQueue {
         remotePath,
         fileName,
         size,
-        controller: new AbortController(),
+        controller,
         lastEmitTime: Date.now(),
         lastTransferred: 0,
       };
@@ -160,6 +182,20 @@ class TransferQueue {
     const active = this.active.get(transferId);
     if (active) {
       active.controller.abort();
+      return;
+    }
+
+    // The transfer may still be inside the enqueue() stat() await window —
+    // reserved but not yet in queue/active. Abort the pre-allocated controller
+    // and drop the dedup reservation so a re-enqueue isn't blocked. enqueue()
+    // observes the aborted controller after the await and emits
+    // TRANSFER_CANCELLED itself.
+    const reserved = this.reserved.get(transferId);
+    if (reserved) {
+      reserved.controller.abort();
+      if (this.dedupIndex.get(reserved.key) === transferId) {
+        this.dedupIndex.delete(reserved.key);
+      }
     }
   }
 

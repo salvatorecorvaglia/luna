@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Check, Cloud, FolderClosed, Loader2, Palette, Server, Wifi, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { attachFocusTrap } from '@/lib/focus-trap';
+import { Z } from '@/lib/z-layers';
 import { useConnectionStore } from '@/stores/connection-store';
 import {
   useConnection,
@@ -530,7 +531,7 @@ export function ConnectionForm() {
             initial="initial"
             animate="animate"
             exit="exit"
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+            className={`fixed inset-0 ${Z.modal} bg-black/60 backdrop-blur-sm`}
           />
 
           {/* Dialog */}
@@ -539,7 +540,7 @@ export function ConnectionForm() {
             initial="initial"
             animate="animate"
             exit="exit"
-            className="no-drag fixed inset-0 z-50 flex items-center justify-center p-4"
+            className={`no-drag fixed inset-0 ${Z.modal} flex items-center justify-center p-4`}
           >
             <div
               ref={dialogRef}

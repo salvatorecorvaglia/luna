@@ -108,6 +108,11 @@ export function FileList({
   onSelectAll,
   emptyMessage = 'No files',
 }: FileListProps) {
+  // Opt out of React Compiler memoization for the whole component because
+  // useVirtualizer's internal refs/effects are incompatible with auto-memo
+  // (see comment at the useVirtualizer call below). The directive is also a
+  // no-op without the compiler plugin — it exists primarily to silence the
+  // compiler-aware lint rule on the virtualizer call site.
   'use no memo';
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');

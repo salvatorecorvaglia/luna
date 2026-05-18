@@ -163,7 +163,7 @@ export interface IpcHandlerMap {
   'credential:delete': { request: string; response: void };
 
   // Settings
-  'settings:get': { request: keyof AppSettings; response: string };
+  'settings:get': { request: keyof AppSettings; response: string | null };
   'settings:set': { request: { key: keyof AppSettings; value: string }; response: void };
   'settings:get-all': { request: void; response: Partial<AppSettings> };
 
