@@ -204,6 +204,12 @@ export function ConnectionForm() {
     } else {
       // S3 — credentials only required on create. On edit, leaving them
       // blank means "keep existing" (mirrors the SSH password UX).
+      if (s3.port.trim() !== '') {
+        const portNum = parseInt(s3.port, 10);
+        if (Number.isNaN(portNum) || portNum < 1 || portNum > 65535) {
+          out.port = 'Port must be between 1 and 65535';
+        }
+      }
       if (!isEditing && !s3.accessKeyId.trim()) out.accessKeyId = 'Access Key ID is required';
       if (!isEditing && !s3.secretAccessKey.trim()) {
         out.secretAccessKey = 'Secret Access Key is required';
@@ -324,7 +330,9 @@ export function ConnectionForm() {
         : {
             name: common.name.trim(),
             provider: 's3' as const,
-            endpoint: s3.endpoint.trim() || undefined,
+            endpoint: s3.host.trim()
+              ? `${s3.protocol}://${s3.host.trim()}${s3.port.trim() ? `:${s3.port.trim()}` : ''}`
+              : undefined,
             region: s3.region.trim() || undefined,
             defaultBucket: s3.defaultBucket.trim() || undefined,
             forcePathStyle: s3.forcePathStyle,
@@ -468,7 +476,9 @@ export function ConnectionForm() {
             ? { connectionId: editingConnectionId || undefined }
             : {
                 config: {
-                  endpoint: s3.endpoint.trim() || undefined,
+                  endpoint: s3.host.trim()
+                    ? `${s3.protocol}://${s3.host.trim()}${s3.port.trim() ? `:${s3.port.trim()}` : ''}`
+                    : undefined,
                   region: s3.region.trim() || undefined,
                   forcePathStyle: s3.forcePathStyle,
                   accessKeyId: s3.accessKeyId.trim(),

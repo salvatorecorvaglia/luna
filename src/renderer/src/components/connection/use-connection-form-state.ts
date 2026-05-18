@@ -35,7 +35,9 @@ export interface JumpHostState {
 }
 
 export interface S3State {
-  endpoint: string;
+  protocol: 'http' | 'https';
+  host: string;
+  port: string;
   region: string;
   defaultBucket: string;
   forcePathStyle: boolean;
@@ -80,7 +82,9 @@ const DEFAULT_JUMP_HOST: JumpHostState = {
 };
 
 const DEFAULT_S3: S3State = {
-  endpoint: '',
+  protocol: 'https',
+  host: '',
+  port: '',
   region: '',
   defaultBucket: '',
   forcePathStyle: false,
@@ -206,8 +210,44 @@ export function useConnectionFormState(initialColor: string): UseConnectionFormS
           connectionId: source.jumpHostConnectionId || '',
         });
       }
+
+      let protocol: 'http' | 'https' = 'https';
+      let host = '';
+      let port = '';
+      if (source.endpoint) {
+        try {
+          const url = new URL(source.endpoint);
+          protocol = url.protocol === 'http:' ? 'http' : 'https';
+          host = url.hostname;
+          port = url.port;
+        } catch {
+          const match = source.endpoint.match(/^(https?):\/\/(.+)$/i);
+          if (match) {
+            protocol = match[1].toLowerCase() === 'http' ? 'http' : 'https';
+            const rest = match[2];
+            const colon = rest.indexOf(':');
+            if (colon !== -1) {
+              host = rest.slice(0, colon);
+              port = rest.slice(colon + 1);
+            } else {
+              host = rest;
+            }
+          } else {
+            const colon = source.endpoint.indexOf(':');
+            if (colon !== -1) {
+              host = source.endpoint.slice(0, colon);
+              port = source.endpoint.slice(colon + 1);
+            } else {
+              host = source.endpoint;
+            }
+          }
+        }
+      }
+
       setS3({
-        endpoint: source.endpoint || '',
+        protocol,
+        host,
+        port,
         region: source.region || '',
         defaultBucket: source.defaultBucket || '',
         forcePathStyle: source.forcePathStyle ?? false,

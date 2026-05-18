@@ -23,35 +23,81 @@ export function S3Fields({
 }: S3FieldsProps) {
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-4 gap-3">
         <FormField
-          label="Endpoint"
+          label="Protocol"
           icon={<Globe className="h-3.5 w-3.5" />}
+          id={`${fieldId}-protocol`}
+        >
+          <select
+            id={`${fieldId}-protocol`}
+            value={s3.protocol}
+            onChange={(e) => onS3Change({ protocol: e.target.value as 'http' | 'https' })}
+            className="form-input cursor-pointer"
+          >
+            <option value="https">https://</option>
+            <option value="http">http://</option>
+          </select>
+        </FormField>
+        <div className="col-span-2">
+          <FormField
+            label="Endpoint Host"
+            icon={<Globe className="h-3.5 w-3.5" />}
+            optional
+            id={`${fieldId}-host`}
+          >
+            <input
+              id={`${fieldId}-host`}
+              type="text"
+              value={s3.host}
+              onChange={(e) => onS3Change({ host: e.target.value })}
+              onBlur={() => markTouched('host')}
+              placeholder="(blank for AWS S3)"
+              className="form-input"
+            />
+          </FormField>
+        </div>
+        <FormField
+          label="Port"
+          icon={<Hash className="h-3.5 w-3.5" />}
           optional
-          id={`${fieldId}-endpoint`}
+          id={`${fieldId}-port`}
+          error={visibleError('port')}
         >
           <input
-            id={`${fieldId}-endpoint`}
-            type="text"
-            value={s3.endpoint}
-            onChange={(e) => onS3Change({ endpoint: e.target.value })}
-            onBlur={() => markTouched('endpoint')}
-            placeholder="(blank for AWS)"
-            className="form-input"
-          />
-        </FormField>
-        <FormField label="Region" icon={<Hash className="h-3.5 w-3.5" />} id={`${fieldId}-region`}>
-          <input
-            id={`${fieldId}-region`}
-            type="text"
-            value={s3.region}
-            onChange={(e) => onS3Change({ region: e.target.value })}
-            onBlur={() => markTouched('region')}
-            placeholder="Region (e.g. us-east-1)"
-            className="form-input"
+            id={`${fieldId}-port`}
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={65535}
+            value={s3.port}
+            onChange={(e) => onS3Change({ port: e.target.value })}
+            onBlur={() => markTouched('port')}
+            placeholder="Port"
+            className={cn(
+              'form-input',
+              visibleError('port') && 'border-destructive/60 focus:border-destructive',
+            )}
           />
         </FormField>
       </div>
+
+      <FormField
+        label="Region"
+        icon={<Hash className="h-3.5 w-3.5" />}
+        id={`${fieldId}-region`}
+        error={visibleError('region')}
+      >
+        <input
+          id={`${fieldId}-region`}
+          type="text"
+          value={s3.region}
+          onChange={(e) => onS3Change({ region: e.target.value })}
+          onBlur={() => markTouched('region')}
+          placeholder="Region (e.g. us-east-1)"
+          className="form-input"
+        />
+      </FormField>
 
       <FormField
         label="Access Key ID"
