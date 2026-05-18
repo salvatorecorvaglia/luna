@@ -372,6 +372,22 @@ export function registerConnectionHandlers(): void {
     return connection;
   });
 
+  registerHandler(IPC.CONNECTION_RENAME_FOLDER, (_event, { oldName, newName, provider }: { oldName: string; newName: string; provider: 'sftp' | 's3' }) => {
+    if (!oldName || !oldName.trim()) throw validation('Old folder name is required');
+    if (!newName || !newName.trim()) throw validation('New folder name is required');
+    if (newName.includes('\0')) throw validation('Folder name must not contain null bytes');
+
+    const updateTx = db.transaction(() => {
+      if (provider === 'sftp') {
+        db.prepare("UPDATE connections SET folder = ? WHERE folder = ? AND (provider = 'sftp' OR provider IS NULL)").run(newName, oldName);
+      } else {
+        db.prepare("UPDATE connections SET folder = ? WHERE folder = ? AND provider = 's3'").run(newName, oldName);
+      }
+    });
+    updateTx();
+    log.info(`Folder renamed from ${oldName} to ${newName} for provider ${provider}`);
+  });
+
   registerHandler(IPC.CONNECTION_DELETE, (_event, id: string) => {
     const deleteBoth = db.transaction((connId: string) => {
       deleteCredential(connId);

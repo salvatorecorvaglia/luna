@@ -120,6 +120,8 @@ const api = {
     get: (id: string) => invoke(IPC.CONNECTION_GET, id),
     create: (input: CreateConnectionInput) => invoke(IPC.CONNECTION_CREATE, input),
     update: (input: UpdateConnectionInput) => invoke(IPC.CONNECTION_UPDATE, input),
+    renameFolder: (params: { oldName: string; newName: string; provider: 'sftp' | 's3' }) =>
+      invoke(IPC.CONNECTION_RENAME_FOLDER, params),
     delete: (id: string) => invoke(IPC.CONNECTION_DELETE, id),
     deleteAll: () => invoke(IPC.CONNECTION_DELETE_ALL),
     reorder: (ids: string[]) => invoke(IPC.CONNECTION_REORDER, ids),

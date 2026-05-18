@@ -4,6 +4,7 @@ export const IPC = {
   CONNECTION_GET: 'connection:get',
   CONNECTION_CREATE: 'connection:create',
   CONNECTION_UPDATE: 'connection:update',
+  CONNECTION_RENAME_FOLDER: 'connection:rename-folder',
   CONNECTION_DELETE: 'connection:delete',
   CONNECTION_DELETE_ALL: 'connection:delete-all',
   CONNECTION_REORDER: 'connection:reorder',
