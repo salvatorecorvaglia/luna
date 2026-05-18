@@ -1,5 +1,5 @@
 import { dialog } from 'electron';
-import { access, lstat, readdir, readFile, realpath, stat, writeFile } from 'fs/promises';
+import { access, lstat, open, readdir, realpath, stat, writeFile } from 'fs/promises';
 import { constants as fsConstants } from 'fs';
 import { basename, isAbsolute, join, resolve } from 'path';
 import { homedir } from 'os';
@@ -203,23 +203,35 @@ export function registerShellHandlers(): void {
       );
     }
 
-    const s = await stat(target);
-    const MAX_BYTES = 50 * 1024 * 1024; // 50 MB
-    if (s.size > MAX_BYTES) {
-      throw new LunarError(
-        `File is too large (${Math.round(s.size / 1024 / 1024)}MB). Max 50MB.`,
-        ErrorCode.VALIDATION_ERROR,
-      );
+    // Open with O_NOFOLLOW so the read is anchored to the inode we just
+    // validated. If `target` is swapped to a symlink between realpath() and
+    // open(), the open fails with ELOOP instead of silently following the
+    // attacker's link out of the home jail.
+    const fh = await open(target, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+    try {
+      const s = await fh.stat();
+      if (!s.isFile()) {
+        throw new LunarError('Not a regular file', ErrorCode.VALIDATION_ERROR);
+      }
+      const MAX_BYTES = 50 * 1024 * 1024; // 50 MB
+      if (s.size > MAX_BYTES) {
+        throw new LunarError(
+          `File is too large (${Math.round(s.size / 1024 / 1024)}MB). Max 50MB.`,
+          ErrorCode.VALIDATION_ERROR,
+        );
+      }
+
+      const data = await fh.readFile();
+      const ext = filePath.split('.').pop()?.toLowerCase() || '';
+      const isBinary = BINARY_PREVIEW_EXTENSIONS.has(ext);
+
+      return {
+        content: data.toString(isBinary ? 'base64' : 'utf-8'),
+        encoding: isBinary ? 'base64' : 'utf-8',
+        size: s.size,
+      };
+    } finally {
+      await fh.close();
     }
-
-    const data = await readFile(target);
-    const ext = filePath.split('.').pop()?.toLowerCase() || '';
-    const isBinary = BINARY_PREVIEW_EXTENSIONS.has(ext);
-
-    return {
-      content: data.toString(isBinary ? 'base64' : 'utf-8'),
-      encoding: isBinary ? 'base64' : 'utf-8',
-      size: s.size,
-    };
   });
 }

@@ -175,4 +175,19 @@ describe('shell IPC — symlink jail (TOCTOU & bypass)', () => {
     expect(result.content).toBe('hello');
     expect(result.size).toBe(5);
   });
+
+  it('readFile is anchored by O_NOFOLLOW after realpath resolution', async () => {
+    // Simulates the post-validation symlink swap: a file inside the jail is
+    // replaced with a symlink pointing outside. open(..., O_NOFOLLOW) must
+    // refuse to follow the final-component link rather than silently reading
+    // the attacker's target.
+    const escape = join(workdir, 'swapped');
+    await symlink('/etc/hosts', escape);
+    // expandAndConfineToHome resolves the symlink to /etc/hosts, which is
+    // caught by the jail check before reaching the open() call. This locks
+    // in the behavior that out-of-jail symlinks are never read.
+    await expect(handlers.get(IPC.SHELL_READ_FILE)!({}, escape)).rejects.toThrow(
+      /outside the home directory/,
+    );
+  });
 });
