@@ -148,18 +148,29 @@ export function ConnectionForm() {
     requestCloseRef.current = requestClose;
   }, [requestClose]);
 
+  // Precompute a lowercase-name Set keyed on the connection list so the
+  // per-keystroke collision check is O(1) instead of an O(n) walk with a
+  // per-item trim+toLowerCase. The Set rebuilds only when the list changes
+  // or the user opens a different connection to edit.
+  const existingNamesLower = useMemo(() => {
+    const out = new Set<string>();
+    for (const c of existingConnections ?? []) {
+      if (c.id === editingConnectionId) continue;
+      out.add(c.name.trim().toLowerCase());
+    }
+    return out;
+  }, [existingConnections, editingConnectionId]);
+
   // Name uniqueness has to be live (it's a duplicate-detection signal as the
   // user types), but the rest is cheap to validate on demand and shouldn't
   // re-walk N existingConnections per keystroke.
   const nameError = useMemo<string | undefined>(() => {
     const trimmedName = common.name.trim();
     if (!trimmedName) return 'Connection name is required';
-    const lower = trimmedName.toLowerCase();
-    const collides = existingConnections?.some(
-      (c) => c.name.trim().toLowerCase() === lower && c.id !== editingConnectionId,
-    );
-    return collides ? 'A connection with this name already exists' : undefined;
-  }, [common.name, existingConnections, editingConnectionId]);
+    return existingNamesLower.has(trimmedName.toLowerCase())
+      ? 'A connection with this name already exists'
+      : undefined;
+  }, [common.name, existingNamesLower]);
 
   // Per-field validation (no list walks) — recomputed on the cheap inputs.
   const fieldErrors = useMemo<Record<string, string>>(() => {
