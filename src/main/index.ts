@@ -33,6 +33,19 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason) => {
   const lunarError = LunarError.fromUnknown(reason, ErrorCode.INTERNAL_ERROR);
   log.error('[Main] Unhandled rejection:', lunarError.toObject());
+  // Node will crash on unhandled rejections by default in a future major. In
+  // development we crash immediately so the bug surfaces during the change
+  // that introduced it instead of years later in production. Production keeps
+  // the lenient log-only behavior to avoid bricking sessions on a transient
+  // throw from a third-party module.
+  if (!app.isPackaged) {
+    try {
+      closeDatabase();
+    } catch {
+      /* already in failure mode */
+    }
+    process.exit(1);
+  }
 });
 
 let mainWindow: BrowserWindow | null = null;

@@ -2,6 +2,7 @@ import { app, safeStorage } from 'electron';
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import { appendFileSync, existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { ErrorCode, LunarError } from '@shared/errors';
 import { getDatabase } from './database';
 import log from '../lib/logger';
 
@@ -72,10 +73,12 @@ function getEncryptionKey(): Buffer {
       // LUNAR_REQUIRE_OS_KEYRING=1 — credentials become unreadable until
       // libsecret is installed, which is the safer default for shared hosts.
       if (!canWrap && process.env.LUNAR_REQUIRE_OS_KEYRING === '1') {
-        throw new Error(
+        throw new LunarError(
           'LUNAR_REQUIRE_OS_KEYRING=1 is set and OS-level secret storage is unavailable. ' +
             'Install gnome-keyring or libsecret-1-0 and restart, or unset the variable to ' +
             'allow the existing plaintext key file.',
+          ErrorCode.FORBIDDEN,
+          { reason: 'os-keyring-required' },
         );
       }
       encryptionKey = readFileSync(keyPath);
@@ -109,18 +112,21 @@ function getEncryptionKey(): Buffer {
         // silently fall back to plaintext on disk: credentials would be
         // recoverable by anyone with read access to the user's data dir.
         encryptionKey = null;
-        throw new Error(
+        throw new LunarError(
           `Failed to write OS-protected encryption key: ${err instanceof Error ? err.message : String(err)}`,
-          { cause: err },
+          ErrorCode.INTERNAL_ERROR,
+          { reason: 'safe-storage-write-failed', cause: err instanceof Error ? err.message : String(err) },
         );
       }
     } else {
       // Fresh install on a platform without safeStorage (e.g. Linux without
       // libsecret). Refuse to persist a plaintext master key — credential
       // storage is opt-in and the user must install a keyring backend first.
-      throw new Error(
+      throw new LunarError(
         'Cannot initialize credential storage: OS-level secret storage (safeStorage) is ' +
           'unavailable. On Linux, install gnome-keyring or libsecret-1-0 and restart.',
+        ErrorCode.FORBIDDEN,
+        { reason: 'safe-storage-unavailable' },
       );
     }
   }

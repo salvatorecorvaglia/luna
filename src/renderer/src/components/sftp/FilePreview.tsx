@@ -52,15 +52,18 @@ export function FilePreview() {
   const previewFile = useStorageStore((s) => s.previewFile);
   const setPreviewFile = useStorageStore((s) => s.setPreviewFile);
 
-  // Close on Escape
+  // Close on Escape. Only attach the listener while a preview is open so
+  // background keystrokes don't churn through it; the handler itself never
+  // reads previewFile so there's no stale-closure concern.
+  const previewOpen = previewFile !== null;
   useEffect(() => {
-    if (!previewFile) return;
+    if (!previewOpen) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setPreviewFile(null);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [previewFile, setPreviewFile]);
+  }, [previewOpen, setPreviewFile]);
 
   return (
     <AnimatePresence>
