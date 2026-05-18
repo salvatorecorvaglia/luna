@@ -372,21 +372,32 @@ export function registerConnectionHandlers(): void {
     return connection;
   });
 
-  registerHandler(IPC.CONNECTION_RENAME_FOLDER, (_event, { oldName, newName, provider }: { oldName: string; newName: string; provider: 'sftp' | 's3' }) => {
-    if (!oldName || !oldName.trim()) throw validationError('Old folder name is required');
-    if (!newName || !newName.trim()) throw validationError('New folder name is required');
-    if (newName.includes('\0')) throw validationError('Folder name must not contain null bytes');
+  registerHandler(
+    IPC.CONNECTION_RENAME_FOLDER,
+    (
+      _event,
+      { oldName, newName, provider }: { oldName: string; newName: string; provider: 'sftp' | 's3' },
+    ) => {
+      if (!oldName || !oldName.trim()) throw validationError('Old folder name is required');
+      if (!newName || !newName.trim()) throw validationError('New folder name is required');
+      if (newName.includes('\0')) throw validationError('Folder name must not contain null bytes');
 
-    const updateTx = db.transaction(() => {
-      if (provider === 'sftp') {
-        db.prepare("UPDATE connections SET folder = ? WHERE folder = ? AND (provider = 'sftp' OR provider IS NULL)").run(newName, oldName);
-      } else {
-        db.prepare("UPDATE connections SET folder = ? WHERE folder = ? AND provider = 's3'").run(newName, oldName);
-      }
-    });
-    updateTx();
-    log.info(`Folder renamed from ${oldName} to ${newName} for provider ${provider}`);
-  });
+      const updateTx = db.transaction(() => {
+        if (provider === 'sftp') {
+          db.prepare(
+            "UPDATE connections SET folder = ? WHERE folder = ? AND (provider = 'sftp' OR provider IS NULL)",
+          ).run(newName, oldName);
+        } else {
+          db.prepare("UPDATE connections SET folder = ? WHERE folder = ? AND provider = 's3'").run(
+            newName,
+            oldName,
+          );
+        }
+      });
+      updateTx();
+      log.info(`Folder renamed from ${oldName} to ${newName} for provider ${provider}`);
+    },
+  );
 
   registerHandler(IPC.CONNECTION_DELETE, (_event, id: string) => {
     const deleteBoth = db.transaction((connId: string) => {
@@ -751,7 +762,9 @@ export function registerConnectionHandlers(): void {
     const stats = await stat(path);
     const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
     if (stats.size > MAX_IMPORT_BYTES) {
-      throw validationError(`Import file is too large: ${stats.size} bytes (max ${MAX_IMPORT_BYTES})`);
+      throw validationError(
+        `Import file is too large: ${stats.size} bytes (max ${MAX_IMPORT_BYTES})`,
+      );
     }
     const content = await readFile(path, 'utf-8');
     try {

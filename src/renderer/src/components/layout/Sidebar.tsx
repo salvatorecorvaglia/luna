@@ -500,7 +500,9 @@ function FolderGroup({
                     setShowRenameDialog(false);
                   },
                   onError: (err) => {
-                    toast.error(`Rename failed: ${err instanceof Error ? err.message : String(err)}`);
+                    toast.error(
+                      `Rename failed: ${err instanceof Error ? err.message : String(err)}`,
+                    );
                   },
                 },
               );

@@ -115,7 +115,10 @@ function getEncryptionKey(): Buffer {
         throw new LunarError(
           `Failed to write OS-protected encryption key: ${err instanceof Error ? err.message : String(err)}`,
           ErrorCode.INTERNAL_ERROR,
-          { reason: 'safe-storage-write-failed', cause: err instanceof Error ? err.message : String(err) },
+          {
+            reason: 'safe-storage-write-failed',
+            cause: err instanceof Error ? err.message : String(err),
+          },
         );
       }
     } else {

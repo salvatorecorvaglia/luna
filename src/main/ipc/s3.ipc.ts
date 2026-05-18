@@ -4,6 +4,7 @@ import { type ConnectionRow, getDatabase } from '../services/database';
 import { retrieveS3Credential } from '../services/credential-store';
 import { storageRegistry } from '../services/storage/registry';
 import { s3StorageProvider, type S3SessionOptions } from '../services/s3/s3-provider';
+import { buildS3ClientConfig } from '../services/s3/s3-helpers';
 import { ErrorCode, LunarError } from '@shared/errors';
 import { assertNonEmptyString } from '../lib/validate';
 import { releaseStorageBucket } from '../lib/rate-limiter';
@@ -126,22 +127,24 @@ export function registerS3Handlers(): void {
         );
       }
 
-      const client = new S3Client({
-        region: opts.region || 'us-east-1',
-        endpoint: opts.endpoint || undefined,
-        forcePathStyle: opts.forcePathStyle ?? false,
-        // Cap connect/request time so an unreachable endpoint surfaces a
-        // quick error instead of hanging on the default ~30s TCP timeout.
-        requestHandler: { requestTimeout: 10_000, connectionTimeout: 5_000 },
-        // Don't retry — the user is testing the connection; a failure should
-        // be returned immediately, not amplified into 3× 10s waits.
-        maxAttempts: 1,
-        credentials: {
-          accessKeyId: opts.accessKeyId,
-          secretAccessKey: opts.secretAccessKey,
-          sessionToken: opts.sessionToken,
-        },
-      });
+      // fastFail=true caps timeouts to 10s/5s and disables retries so an
+      // unreachable endpoint returns a quick error instead of hanging on the
+      // SDK's default ~30s × 3 attempts.
+      const client = new S3Client(
+        buildS3ClientConfig(
+          {
+            region: opts.region,
+            endpoint: opts.endpoint,
+            forcePathStyle: opts.forcePathStyle,
+            credentials: {
+              accessKeyId: opts.accessKeyId,
+              secretAccessKey: opts.secretAccessKey,
+              sessionToken: opts.sessionToken,
+            },
+          },
+          { fastFail: true },
+        ),
+      );
       try {
         await client.send(new ListBucketsCommand({}));
         return { ok: true };

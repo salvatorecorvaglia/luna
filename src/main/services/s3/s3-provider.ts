@@ -25,7 +25,7 @@ import { getRuntimeNumber } from '../../config/runtime';
 import { emitToRenderer } from '../emit';
 import log from '../../lib/logger';
 import { parseS3Path } from './s3-paths';
-import { objectToEntry, prefixToEntry, wrapS3Error } from './s3-helpers';
+import { buildS3ClientConfig, objectToEntry, prefixToEntry, wrapS3Error } from './s3-helpers';
 
 interface S3Session {
   client: S3Client;
@@ -59,16 +59,18 @@ class S3StorageProvider implements StorageProvider {
   private sessions = new Map<string, S3Session>();
 
   openSession(sessionId: string, opts: S3SessionOptions): void {
-    const client = new S3Client({
-      region: opts.region || 'us-east-1',
-      endpoint: opts.endpoint || undefined,
-      forcePathStyle: opts.forcePathStyle ?? false,
-      credentials: {
-        accessKeyId: opts.accessKeyId,
-        secretAccessKey: opts.secretAccessKey,
-        sessionToken: opts.sessionToken,
-      },
-    });
+    const client = new S3Client(
+      buildS3ClientConfig({
+        region: opts.region,
+        endpoint: opts.endpoint,
+        forcePathStyle: opts.forcePathStyle,
+        credentials: {
+          accessKeyId: opts.accessKeyId,
+          secretAccessKey: opts.secretAccessKey,
+          sessionToken: opts.sessionToken,
+        },
+      }),
+    );
     this.sessions.set(sessionId, {
       client,
       connectionId: opts.connectionId,
