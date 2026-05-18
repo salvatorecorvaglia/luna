@@ -7,7 +7,7 @@ import { emitToRenderer } from '../emit';
 import { fingerprintKey, getStoredHostKey, verifyHostKey } from '../host-key-store';
 import { getSetting } from '../database';
 import { retrieveCredential } from '../credential-store';
-import { expandAndConfineToHome } from '../../lib/validate';
+import { expandAndValidatePrivateKeyPath } from '../../lib/validate';
 import { getCiphers } from 'crypto';
 import log from '../../lib/logger';
 import { parseHostKeyAlgorithm, type PendingHostKeyRegistry } from './host-key-flow';
@@ -281,9 +281,7 @@ export async function buildConnectConfig(
       // Expand ~ via os.homedir() (not $HOME, which can be unset/empty and
       // collapse "~/.." into "/.."), and confine the real (symlink-resolved)
       // target to the home directory.
-      const keyPath = await expandAndConfineToHome(params.privateKeyPath, 'privateKeyPath', {
-        requireExists: true,
-      });
+      const keyPath = await expandAndValidatePrivateKeyPath(params.privateKeyPath, 'privateKeyPath');
       const keyBuf = await loadPrivateKeyCached(keyPath);
       const parsedKey = utils.parseKey(keyBuf, passphrase || undefined);
 

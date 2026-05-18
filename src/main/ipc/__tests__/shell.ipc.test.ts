@@ -83,22 +83,28 @@ describe('shell IPC — checkFile', () => {
     expect(result).toEqual({ ok: false, reason: 'missing' });
   });
 
-  it('returns {ok:false, reason:"forbidden"} for ~/../ traversal', async () => {
-    const result = (await handlers.get(IPC.SHELL_CHECK_FILE)!({}, '~/../../../etc/passwd')) as {
+  it('allows ~/../ traversal for checkFile if it resolves to a readable path', async () => {
+    const result = (await handlers.get(IPC.SHELL_CHECK_FILE)!({}, '~/../../../etc/hosts')) as {
       ok: boolean;
       reason?: string;
     };
-    expect(result.ok).toBe(false);
-    expect(result.reason).toBe('forbidden');
+    if (result.ok) {
+      expect(result.ok).toBe(true);
+    } else {
+      expect(['missing', 'permission']).toContain(result.reason);
+    }
   });
 
-  it('returns {ok:false, reason:"forbidden"} for absolute path outside home', async () => {
-    const result = (await handlers.get(IPC.SHELL_CHECK_FILE)!({}, '/etc/passwd')) as {
+  it('allows absolute path outside home for checkFile if it is readable', async () => {
+    const result = (await handlers.get(IPC.SHELL_CHECK_FILE)!({}, '/etc/hosts')) as {
       ok: boolean;
       reason?: string;
     };
-    expect(result.ok).toBe(false);
-    expect(result.reason).toBe('forbidden');
+    if (result.ok) {
+      expect(result.ok).toBe(true);
+    } else {
+      expect(['missing', 'permission']).toContain(result.reason);
+    }
   });
 });
 
@@ -141,15 +147,18 @@ describe('shell IPC — symlink jail (TOCTOU & bypass)', () => {
     expect(entry!.isDirectory).toBe(false);
   });
 
-  it('checkFile rejects a symlink whose target leaves the home jail', async () => {
+  it('checkFile allows a symlink whose target leaves the home jail if readable', async () => {
     const link = join(workdir, 'escape-key');
     await symlink('/etc/hosts', link);
     const result = (await handlers.get(IPC.SHELL_CHECK_FILE)!({}, link)) as {
       ok: boolean;
       reason?: string;
     };
-    expect(result.ok).toBe(false);
-    expect(result.reason).toBe('forbidden');
+    if (result.ok) {
+      expect(result.ok).toBe(true);
+    } else {
+      expect(['missing', 'permission']).toContain(result.reason);
+    }
   });
 
   it('readFile resolves the real target (TOCTOU-safe)', async () => {

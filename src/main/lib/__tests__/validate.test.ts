@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { homedir, tmpdir } from 'os';
 import { join } from 'path';
-import { mkdtempSync, rmSync, symlinkSync, mkdirSync, writeFileSync } from 'fs';
+import { mkdtempSync, rmSync, symlinkSync, mkdirSync, writeFileSync, realpathSync } from 'fs';
 import {
   assertBoundedInt,
   assertNonEmptyString,
@@ -10,6 +10,8 @@ import {
   assertValidPath,
   expandAndConfineToHome,
   expandAndConfineToHomeSync,
+  expandAndValidatePrivateKeyPath,
+  expandAndValidatePrivateKeyPathSync,
 } from '../validate';
 
 const HOME = homedir();
@@ -252,3 +254,36 @@ describe('assertSafeRealAbsolutePath (symlink-following)', () => {
     );
   });
 });
+
+describe('expandAndValidatePrivateKeyPathSync', () => {
+  it('expands ~/x to <home>/x', () => {
+    const out = expandAndValidatePrivateKeyPathSync('~/keys/id_rsa', 'p');
+    expect(out).toBe(join(HOME, 'keys/id_rsa'));
+  });
+
+  it('allows absolute paths outside home', () => {
+    const out = expandAndValidatePrivateKeyPathSync('/etc/passwd', 'p');
+    expect(out).toBe(join('/', 'etc/passwd'));
+  });
+});
+
+describe('expandAndValidatePrivateKeyPath', () => {
+  it('expands a leading ~ and resolves/follows symlinks without home confinement', async () => {
+    const outsideTmp = mkdtempSync(join(tmpdir(), 'lunar-outside-key-'));
+    const safeFile = join(outsideTmp, 'key.pem');
+    writeFileSync(safeFile, 'ok');
+    try {
+      const out = await expandAndValidatePrivateKeyPath(safeFile, 'p');
+      expect(out).toBe(realpathSync(safeFile));
+    } finally {
+      rmSync(outsideTmp, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects relative paths', async () => {
+    await expect(expandAndValidatePrivateKeyPath('relative/path', 'p')).rejects.toThrow(
+      /absolute or start with ~/,
+    );
+  });
+});
+

@@ -7,9 +7,9 @@ import { BINARY_PREVIEW_EXTENSIONS, IPC } from '@shared/constants';
 import { ErrorCode, LunarError } from '@shared/errors';
 import {
   assertSafeAbsolutePath,
-  assertSafeRealAbsolutePath,
   assertValidPath,
   expandAndConfineToHome,
+  expandAndValidatePrivateKeyPath,
   isInsideDir,
 } from '../lib/validate';
 import { registerHandler } from '../lib/ipc-handler';
@@ -102,7 +102,7 @@ export function registerShellHandlers(): void {
         return null;
       }
 
-      return assertSafeRealAbsolutePath(result.filePaths[0], 'filePath');
+      return realpath(result.filePaths[0]);
     },
   );
 
@@ -131,7 +131,7 @@ export function registerShellHandlers(): void {
       if (Buffer.byteLength(options.content, 'utf-8') > MAX_BYTES) {
         throw new LunarError(`content exceeds ${MAX_BYTES} bytes`, ErrorCode.VALIDATION_ERROR);
       }
-      const safePath = await assertSafeRealAbsolutePath(result.filePath, 'filePath');
+      const safePath = resolve(result.filePath);
       await writeFile(safePath, options.content, 'utf-8');
       return safePath;
     },
@@ -146,9 +146,11 @@ export function registerShellHandlers(): void {
     }
     let expanded: string;
     try {
-      // Confines `~`/absolute paths to home and rejects `..` traversal.
-      expanded = await expandAndConfineToHome(filePath, 'filePath');
-    } catch {
+      expanded = await expandAndValidatePrivateKeyPath(filePath, 'filePath');
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException | undefined)?.code === 'ENOENT') {
+        return { ok: false, reason: 'missing' as const };
+      }
       return { ok: false, reason: 'forbidden' as const };
     }
     try {
@@ -157,11 +159,7 @@ export function registerShellHandlers(): void {
         return { ok: false, reason: 'not-a-file' as const };
       }
       if (ls.isSymbolicLink()) {
-        // Ensure the symlink target also stays inside home.
-        const real = await realpath(expanded);
-        if (!isInsideDir(real, homedir())) {
-          return { ok: false, reason: 'forbidden' as const };
-        }
+        await realpath(expanded);
       }
       await access(expanded, fsConstants.R_OK);
       return { ok: true as const };

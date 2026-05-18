@@ -187,3 +187,47 @@ export async function assertSafeRealAbsolutePath(value: unknown, name: string): 
     return value;
   }
 }
+
+/**
+ * Expand a leading `~` to the user's real home directory and validate that the
+ * private key path is an absolute path that exists (no home confinement).
+ */
+export async function expandAndValidatePrivateKeyPath(
+  rawPath: string,
+  name: string,
+): Promise<string> {
+  assertNonEmptyString(rawPath, name);
+  const home = homedir();
+  const expanded =
+    rawPath === '~'
+      ? home
+      : rawPath.startsWith('~/') || rawPath.startsWith('~\\')
+        ? `${home}${sep}${rawPath.slice(2)}`
+        : rawPath;
+  if (!isAbsolute(expanded)) {
+    throw validationError(`${name} must be absolute or start with ~`);
+  }
+  const resolved = resolvePath(expanded);
+  const real = await realpath(resolved);
+  return real;
+}
+
+/**
+ * Synchronous expansion + validation (no symlink follow or existence check).
+ * Used inside connection import to canonicalize key paths without blocking disk I/O.
+ */
+export function expandAndValidatePrivateKeyPathSync(rawPath: string, name: string): string {
+  assertNonEmptyString(rawPath, name);
+  const home = homedir();
+  const expanded =
+    rawPath === '~'
+      ? home
+      : rawPath.startsWith('~/') || rawPath.startsWith('~\\')
+        ? `${home}${sep}${rawPath.slice(2)}`
+        : rawPath;
+  if (!isAbsolute(expanded)) {
+    throw validationError(`${name} must be absolute or start with ~`);
+  }
+  return resolvePath(expanded);
+}
+
