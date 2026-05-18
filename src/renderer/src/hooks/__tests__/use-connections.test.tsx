@@ -104,6 +104,10 @@ describe('useRenameFolder', () => {
     const { result } = renderHook(() => useRenameFolder(), { wrapper });
     result.current.mutate({ oldName: 'GroupA', newName: 'GroupB', provider: 'sftp' });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(renameFolder).toHaveBeenCalledWith({ oldName: 'GroupA', newName: 'GroupB', provider: 'sftp' });
+    expect(renameFolder).toHaveBeenCalledWith({
+      oldName: 'GroupA',
+      newName: 'GroupB',
+      provider: 'sftp',
+    });
   });
 });

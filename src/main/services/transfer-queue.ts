@@ -212,40 +212,23 @@ class TransferQueue {
         // executeTransfer is async — fire and forget. The finally branch re-enters
         // processQueue() after each completion, but the dispatching flag means
         // re-entrant calls during the loop are absorbed.
-        // Defense in depth — executeTransfer is async so a synchronous throw
-        // already becomes a rejected promise, but if its catch handler (or a
-        // future refactor) throws, we still need to ensure no rejection
-        // escapes the dispatcher and lands as an unhandled rejection.
-        try {
-          this.executeTransfer(transfer)
-            .catch((err) => {
-              // Last-resort guard against a future change leaking a reject.
-              try {
-                this.active.delete(transfer.id);
-                emitToRenderer(IPC.TRANSFER_ERROR, {
-                  transferId: transfer.id,
-                  error: err instanceof Error ? err.message : String(err),
-                  errorClass: classifyTransferError(err),
-                });
-                this.processQueue();
-              } catch (innerErr) {
-                log.error('[TransferQueue] dispatcher error handler threw:', innerErr);
-              }
-            })
-            // Final swallow: if the .catch() handler above somehow rejects
-            // (synchronous throw inside it would resolve via the try block,
-            // but defensive belt-and-braces) the promise still settles cleanly.
-            .catch((finalErr) => {
-              log.error('[TransferQueue] dispatcher catch chain leaked:', finalErr);
-            });
-        } catch (err) {
+        // executeTransfer has its own try/catch/finally that handles errors
+        // and cleanup. This outer .catch() is a single safety net: if a
+        // future refactor lets a rejection slip past executeTransfer's
+        // handler, drain the active slot and surface the error rather than
+        // letting it become an unhandled rejection. log.error never throws,
+        // so a second .catch() chain is unnecessary.
+        this.executeTransfer(transfer).catch((err) => {
           this.active.delete(transfer.id);
+          this.forgetDedup(transfer);
           emitToRenderer(IPC.TRANSFER_ERROR, {
             transferId: transfer.id,
             error: err instanceof Error ? err.message : String(err),
             errorClass: classifyTransferError(err),
           });
-        }
+          log.error('[TransferQueue] dispatcher fallback handled rejection:', err);
+          this.processQueue();
+        });
       }
     } finally {
       this.dispatching = false;

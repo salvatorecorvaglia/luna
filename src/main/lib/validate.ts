@@ -230,4 +230,3 @@ export function expandAndValidatePrivateKeyPathSync(rawPath: string, name: strin
   }
   return resolvePath(expanded);
 }
-

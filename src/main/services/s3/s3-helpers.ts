@@ -1,6 +1,48 @@
-import type { _Object } from '@aws-sdk/client-s3';
+import type { _Object, S3ClientConfig } from '@aws-sdk/client-s3';
 import type { StorageEntry } from '@shared/types/storage-provider';
 import { AbortError, S3StorageError } from '../../lib/errors';
+
+export interface S3ClientCredentials {
+  accessKeyId: string;
+  secretAccessKey: string;
+  sessionToken?: string;
+}
+
+export interface S3ClientConfigInput {
+  region?: string;
+  endpoint?: string;
+  forcePathStyle?: boolean;
+  credentials: S3ClientCredentials;
+}
+
+/**
+ * Single source of truth for the S3Client constructor shape used across the
+ * app. Both the long-lived session client and the short-lived test-connection
+ * client go through here so credential/region/forcePathStyle defaults stay
+ * in sync. Pass `fastFail: true` for connectivity probes — caps connect /
+ * request timeouts and disables retries so an unreachable endpoint surfaces
+ * a quick error instead of waiting ~30s × 3.
+ */
+export function buildS3ClientConfig(
+  opts: S3ClientConfigInput,
+  { fastFail = false }: { fastFail?: boolean } = {},
+): S3ClientConfig {
+  const base: S3ClientConfig = {
+    region: opts.region || 'us-east-1',
+    endpoint: opts.endpoint || undefined,
+    forcePathStyle: opts.forcePathStyle ?? false,
+    credentials: {
+      accessKeyId: opts.credentials.accessKeyId,
+      secretAccessKey: opts.credentials.secretAccessKey,
+      sessionToken: opts.credentials.sessionToken,
+    },
+  };
+  if (fastFail) {
+    base.requestHandler = { requestTimeout: 10_000, connectionTimeout: 5_000 };
+    base.maxAttempts = 1;
+  }
+  return base;
+}
 
 /**
  * Build a directory-like StorageEntry from an S3 CommonPrefix entry. S3

@@ -48,11 +48,10 @@ class StorageRegistry {
   /** Throwing variant — the IPC layer expects a session to be registered. */
   require(sessionId: string): StorageProvider {
     if (this.closing.has(sessionId)) {
-      throw new LunarError(
-        `Storage session ${sessionId} is closing`,
-        ErrorCode.NOT_FOUND,
-        { sessionId, reason: 'closing' },
-      );
+      throw new LunarError(`Storage session ${sessionId} is closing`, ErrorCode.NOT_FOUND, {
+        sessionId,
+        reason: 'closing',
+      });
     }
     const p = this.providers.get(sessionId);
     if (!p) {

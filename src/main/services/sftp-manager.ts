@@ -59,7 +59,8 @@ class SftpManager {
     // Unref so an unexpected uncaughtException-then-quit path can't be
     // held open by this timer alone if `before-quit` doesn't fire (e.g. a
     // crash during init). Production cleanup still goes through dispose().
-    this.idleCheckTimer.unref?.();
+    // setInterval in Node returns a Timeout whose .unref() is always defined.
+    this.idleCheckTimer.unref();
   }
 
   /** Stop the idle-sweep timer. Call from `before-quit`. */

@@ -281,7 +281,10 @@ export async function buildConnectConfig(
       // Expand ~ via os.homedir() (not $HOME, which can be unset/empty and
       // collapse "~/.." into "/.."), and confine the real (symlink-resolved)
       // target to the home directory.
-      const keyPath = await expandAndValidatePrivateKeyPath(params.privateKeyPath, 'privateKeyPath');
+      const keyPath = await expandAndValidatePrivateKeyPath(
+        params.privateKeyPath,
+        'privateKeyPath',
+      );
       const keyBuf = await loadPrivateKeyCached(keyPath);
       const parsedKey = utils.parseKey(keyBuf, passphrase || undefined);
 

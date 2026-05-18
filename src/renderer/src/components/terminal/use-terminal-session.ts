@@ -132,7 +132,12 @@ export function useTerminalSession(opts: TerminalSessionOptions): TerminalSessio
 
   const openSearch = useCallback(() => {
     setSearchOpen(true);
-    queueMicrotask(() => searchInputRef.current?.focus());
+    // setState schedules a render; the search input is conditionally mounted,
+    // so the ref isn't populated until after the next commit+paint.
+    // requestAnimationFrame fires after layout, by which point the input
+    // exists and can take focus. queueMicrotask used to race the commit and
+    // silently miss.
+    requestAnimationFrame(() => searchInputRef.current?.focus());
   }, []);
 
   const closeSearch = useCallback(() => {
