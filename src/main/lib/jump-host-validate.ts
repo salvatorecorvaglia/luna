@@ -1,7 +1,6 @@
 import type Database from 'better-sqlite3';
-import { ErrorCode, LunarError } from '@shared/errors';
 import type { ManualJumpHostConfig } from '@shared/types/connection';
-import { assertBoundedInt, assertNonEmptyString } from './validate';
+import { assertBoundedInt, assertNonEmptyString, validationError } from './validate';
 
 /**
  * Defense-in-depth cap on transient passphrase/password length passed
@@ -17,10 +16,6 @@ const VALID_AUTH_TYPES = new Set<ManualJumpHostConfig['authType']>([
   'key',
   'key+passphrase',
 ]);
-
-function validation(message: string): LunarError {
-  return new LunarError(message, ErrorCode.VALIDATION_ERROR);
-}
 
 /**
  * Validate that `jumpHostConnectionId` points to a usable bastion row.
@@ -42,7 +37,7 @@ export function assertValidJumpHost(
   selfId: string | null,
 ): void {
   if (selfId && jumpId === selfId) {
-    throw validation('A connection cannot use itself as a jump host');
+    throw validationError('A connection cannot use itself as a jump host');
   }
   const row = db
     .prepare('SELECT id, provider, jump_host_connection_id FROM connections WHERE id = ?')
@@ -51,13 +46,13 @@ export function assertValidJumpHost(
     | undefined;
 
   if (!row) {
-    throw validation('Jump host connection not found');
+    throw validationError('Jump host connection not found');
   }
   if (row.provider !== 'sftp') {
-    throw validation('Only SFTP connections can be used as jump hosts');
+    throw validationError('Only SFTP connections can be used as jump hosts');
   }
   if (row.jump_host_connection_id) {
-    throw validation('Multi-hop jump host chains are not yet supported');
+    throw validationError('Multi-hop jump host chains are not yet supported');
   }
 }
 
@@ -69,14 +64,14 @@ export function assertValidJumpHost(
  */
 export function assertValidManualJumpHost(c: unknown): asserts c is ManualJumpHostConfig {
   if (c === null || typeof c !== 'object') {
-    throw validation('jumpHostConfig must be an object');
+    throw validationError('jumpHostConfig must be an object');
   }
   const cfg = c as Partial<ManualJumpHostConfig>;
   assertNonEmptyString(cfg.host, 'jumpHostConfig.host');
   assertBoundedInt(cfg.port, 'jumpHostConfig.port', 1, 65535);
   assertNonEmptyString(cfg.username, 'jumpHostConfig.username');
   if (cfg.authType == null || !VALID_AUTH_TYPES.has(cfg.authType)) {
-    throw validation(`jumpHostConfig.authType must be one of password|key|key+passphrase`);
+    throw validationError(`jumpHostConfig.authType must be one of password|key|key+passphrase`);
   }
   if (cfg.privateKeyPath !== undefined && cfg.privateKeyPath !== null) {
     assertNonEmptyString(cfg.privateKeyPath, 'jumpHostConfig.privateKeyPath');
@@ -84,7 +79,7 @@ export function assertValidManualJumpHost(c: unknown): asserts c is ManualJumpHo
   for (const [k, v] of Object.entries({ password: cfg.password, passphrase: cfg.passphrase })) {
     if (v === undefined) continue;
     if (typeof v !== 'string' || Buffer.byteLength(v, 'utf-8') > MAX_SECRET_BYTES) {
-      throw validation(`jumpHostConfig.${k} must be a string up to ${MAX_SECRET_BYTES} bytes`);
+      throw validationError(`jumpHostConfig.${k} must be a string up to ${MAX_SECRET_BYTES} bytes`);
     }
   }
 }

@@ -94,8 +94,12 @@ export function Sidebar() {
     return { sftp, s3 };
   }, [filteredConnections]);
 
-  // Sync local state with grouped connections when not reordering and no mutation is pending
-  // Using render-time sync to avoid cascading renders (react-hooks/set-state-in-effect)
+  // Mirror the grouped query result into local state so optimistic drag-reorder
+  // can mutate without waiting for the mutation round-trip. Uses the
+  // render-time setState pattern from the React docs ("Adjusting state on a
+  // prop change") instead of useEffect — running in the render phase lets
+  // React batch the update into the same commit, avoiding the extra paint
+  // that an effect-driven sync would cause.
   const [prevGroupedByProvider, setPrevGroupedByProvider] = useState(groupedByProvider);
   if (
     groupedByProvider !== prevGroupedByProvider &&

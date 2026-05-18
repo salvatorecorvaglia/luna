@@ -1,13 +1,9 @@
 import { IPC, LIMITS } from '@shared/constants';
-import { ErrorCode, LunarError } from '@shared/errors';
 import { getDatabase } from '../services/database';
 import { transferQueue } from '../services/transfer-queue';
 import type { AppSettings } from '@shared/types/settings';
 import { registerHandler } from '../lib/ipc-handler';
-
-function validation(message: string): LunarError {
-  return new LunarError(message, ErrorCode.VALIDATION_ERROR);
-}
+import { validationError } from '../lib/validate';
 
 /** Per-key value type guards. Values arrive from the renderer as JSON-encoded
  * strings (`'14'`, `'"dracula"'`, `'true'`); after parsing we enforce shape so
@@ -61,7 +57,7 @@ export function registerSettingsHandlers(): void {
 
   registerHandler(IPC.SETTINGS_GET, (_event, key: string) => {
     if (!VALID_SETTINGS_KEYS.has(key)) {
-      throw validation(`Unknown setting key: ${key}`);
+      throw validationError(`Unknown setting key: ${key}`);
     }
     const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
       | { value: string }
@@ -71,16 +67,16 @@ export function registerSettingsHandlers(): void {
 
   registerHandler(IPC.SETTINGS_SET, (_event, { key, value }: { key: string; value: string }) => {
     if (!VALID_SETTINGS_KEYS.has(key)) {
-      throw validation(`Unknown setting key: ${key}`);
+      throw validationError(`Unknown setting key: ${key}`);
     }
     let parsed: unknown;
     try {
       parsed = JSON.parse(value);
     } catch {
-      throw validation(`Setting ${key} must be JSON-encoded`);
+      throw validationError(`Setting ${key} must be JSON-encoded`);
     }
     if (!checkSettingType(key, parsed)) {
-      throw validation(`Setting ${key} has wrong type`);
+      throw validationError(`Setting ${key} has wrong type`);
     }
     let v = value;
     if (key === 'terminal.scrollback') {

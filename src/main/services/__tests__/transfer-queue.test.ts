@@ -48,7 +48,7 @@ function resetQueue(): void {
     queue: unknown[];
     active: Map<string, unknown>;
     dedupIndex?: Map<string, string>;
-    reserved?: Set<string>;
+    reserved?: { clear: () => void };
   };
   q.queue.length = 0;
   q.active.clear();
@@ -113,6 +113,42 @@ describe('transferQueue', () => {
     const [a, b] = await Promise.all([first, second]);
     expect(a).toBe(b);
     expect(transferQueue.getActiveCount() + transferQueue.getQueuedCount()).toBe(1);
+  });
+
+  it('cancel during the enqueue stat() window prevents the transfer from running', async () => {
+    // Regression: cancel(id) used to silently no-op while enqueue() was
+    // awaiting stat(), because the controller and queue entry didn't exist
+    // yet. The transfer then started running after stat() resolved, ignoring
+    // the user's cancel. Fix: pre-allocate the AbortController so cancel()
+    // can abort the reserved transfer; enqueue() honours the abort post-await
+    // by emitting TRANSFER_CANCELLED and skipping the queue push.
+    let releaseStat: ((value: { size: number }) => void) | undefined;
+    const pendingStat = new Promise<{ size: number }>((resolve) => {
+      releaseStat = resolve;
+    });
+    (fsStat as unknown as { mockReturnValueOnce: (v: unknown) => void }).mockReturnValueOnce(
+      pendingStat,
+    );
+
+    const inflight = transferQueue.enqueue('upload', 'sess', '/race', '/race-r');
+    // Let enqueue() reach the stat() await and reserve the id.
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const reserved = (transferQueue as unknown as { reserved: Map<string, { id: string }> })
+      .reserved;
+    expect(reserved.size).toBe(1);
+    const [reservedId] = reserved.keys();
+
+    transferQueue.cancel(reservedId);
+    releaseStat!({ size: 0 });
+    const id = await inflight;
+
+    expect(id).toBe(reservedId);
+    expect(transferQueue.getActiveCount()).toBe(0);
+    expect(transferQueue.getQueuedCount()).toBe(0);
+    expect(stubProvider.streamUpload).not.toHaveBeenCalled();
+    expect(emitsOf(IPC.TRANSFER_CANCELLED)).toHaveLength(1);
   });
 
   it('frees the dedup slot after cancel so a re-enqueue is a fresh transfer', async () => {

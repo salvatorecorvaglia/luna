@@ -10,7 +10,7 @@ import { ErrorCode, LunarError } from '@shared/errors';
  * already caught the same message text, so the upgrade is backwards-
  * compatible.
  */
-function validationError(message: string): LunarError {
+export function validationError(message: string): LunarError {
   return new LunarError(message, ErrorCode.VALIDATION_ERROR);
 }
 

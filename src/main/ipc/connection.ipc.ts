@@ -1,7 +1,6 @@
 import { dialog } from 'electron';
 import { readFile } from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
-import { expandAndConfineToHomeSync } from '../lib/validate';
 import { IPC } from '@shared/constants';
 import { ErrorCode, LunarError } from '@shared/errors';
 import { CONNECTION_COLUMNS, type ConnectionRow, getDatabase } from '../services/database';
@@ -13,7 +12,12 @@ import {
   retrieveS3Credential,
 } from '../services/credential-store';
 import { registerHandler } from '../lib/ipc-handler';
-import { assertBoundedInt, assertNonEmptyString } from '../lib/validate';
+import {
+  assertBoundedInt,
+  assertNonEmptyString,
+  expandAndConfineToHomeSync,
+  validationError,
+} from '../lib/validate';
 import { assertValidJumpHost, assertValidManualJumpHost } from '../lib/jump-host-validate';
 import type {
   AuthType,
@@ -22,10 +26,6 @@ import type {
   ExportedConnection,
   UpdateConnectionInput,
 } from '@shared/types/connection';
-
-function validation(message: string): LunarError {
-  return new LunarError(message, ErrorCode.VALIDATION_ERROR);
-}
 
 const VALID_AUTH_TYPES = ['password', 'key', 'key+passphrase'] as const;
 
@@ -106,19 +106,19 @@ export function registerConnectionHandlers(): void {
   });
 
   registerHandler(IPC.CONNECTION_CREATE, (_event, input: CreateConnectionInput) => {
-    if (!input.name?.trim()) throw validation('Connection name is required');
+    if (!input.name?.trim()) throw validationError('Connection name is required');
     const provider = input.provider ?? 'sftp';
 
     if (provider === 'sftp') {
-      if (!input.host?.trim()) throw validation('Host is required');
-      if (!input.username?.trim()) throw validation('Username is required');
+      if (!input.host?.trim()) throw validationError('Host is required');
+      if (!input.username?.trim()) throw validationError('Username is required');
       if (typeof input.port !== 'number' || input.port < 1 || input.port > 65535) {
-        throw validation('Port must be between 1 and 65535');
+        throw validationError('Port must be between 1 and 65535');
       }
-      if (!input.authType) throw validation('authType is required');
+      if (!input.authType) throw validationError('authType is required');
     } else if (provider === 's3') {
-      if (!input.accessKeyId?.trim()) throw validation('Access Key ID is required');
-      if (!input.secretAccessKey?.trim()) throw validation('Secret Access Key is required');
+      if (!input.accessKeyId?.trim()) throw validationError('Access Key ID is required');
+      if (!input.secretAccessKey?.trim()) throw validationError('Secret Access Key is required');
     }
 
     const id = uuidv4();
@@ -243,9 +243,9 @@ export function registerConnectionHandlers(): void {
         if (raw === null || raw === '') {
           value = null;
         } else if (typeof raw !== 'string') {
-          throw validation(`${key} must be a string`);
+          throw validationError(`${key} must be a string`);
         } else {
-          if (raw.includes('\0')) throw validation(`${key} must not contain null bytes`);
+          if (raw.includes('\0')) throw validationError(`${key} must not contain null bytes`);
           value = raw;
         }
       } else if (key === 'folder') {
@@ -254,21 +254,21 @@ export function registerConnectionHandlers(): void {
         if (raw === null || raw === '') {
           value = 'default';
         } else if (typeof raw !== 'string') {
-          throw validation('folder must be a string');
+          throw validationError('folder must be a string');
         } else {
-          if (raw.includes('\0')) throw validation('folder must not contain null bytes');
+          if (raw.includes('\0')) throw validationError('folder must not contain null bytes');
           value = raw;
         }
       } else if (key === 'forcePathStyle' || key === 'isHidden') {
         if (typeof raw !== 'boolean' && raw !== 0 && raw !== 1 && raw !== null) {
-          throw validation(`${key} must be a boolean`);
+          throw validationError(`${key} must be a boolean`);
         }
         value = raw ? 1 : 0;
       } else if (key === 'jumpHostConnectionId') {
         if (raw === null || raw === '') {
           value = null;
         } else if (typeof raw !== 'string') {
-          throw validation('jumpHostConnectionId must be a string');
+          throw validationError('jumpHostConnectionId must be a string');
         } else {
           assertValidJumpHost(db, raw, input.id);
           value = raw;
@@ -304,19 +304,19 @@ export function registerConnectionHandlers(): void {
         value = raw;
       } else if (key === 'authType') {
         if (typeof raw !== 'string' || !VALID_AUTH_TYPES.includes(raw as AuthType)) {
-          throw validation(`authType must be one of ${VALID_AUTH_TYPES.join('|')}`);
+          throw validationError(`authType must be one of ${VALID_AUTH_TYPES.join('|')}`);
         }
         value = raw;
       } else if (key === 'provider') {
         if (typeof raw !== 'string' || !VALID_PROVIDERS.has(raw)) {
-          throw validation('provider must be "sftp" or "s3"');
+          throw validationError('provider must be "sftp" or "s3"');
         }
         value = raw;
       } else {
         // Unreachable given the allowlist above — keep a typed fallthrough so
         // a future allowlist entry without a matching coercion branch errors
         // loudly instead of slipping past the type check.
-        throw validation(`Unhandled update field: ${key}`);
+        throw validationError(`Unhandled update field: ${key}`);
       }
       assignments.push(`${column} = ?`);
       values.push(value);
@@ -373,9 +373,9 @@ export function registerConnectionHandlers(): void {
   });
 
   registerHandler(IPC.CONNECTION_RENAME_FOLDER, (_event, { oldName, newName, provider }: { oldName: string; newName: string; provider: 'sftp' | 's3' }) => {
-    if (!oldName || !oldName.trim()) throw validation('Old folder name is required');
-    if (!newName || !newName.trim()) throw validation('New folder name is required');
-    if (newName.includes('\0')) throw validation('Folder name must not contain null bytes');
+    if (!oldName || !oldName.trim()) throw validationError('Old folder name is required');
+    if (!newName || !newName.trim()) throw validationError('New folder name is required');
+    if (newName.includes('\0')) throw validationError('Folder name must not contain null bytes');
 
     const updateTx = db.transaction(() => {
       if (provider === 'sftp') {
@@ -412,13 +412,13 @@ export function registerConnectionHandlers(): void {
   });
 
   registerHandler(IPC.CONNECTION_REORDER, (_event, ids: string[]) => {
-    if (!Array.isArray(ids)) throw validation('ids must be an array');
+    if (!Array.isArray(ids)) throw validationError('ids must be an array');
     if (ids.length > MAX_IMPORT_CONNECTIONS) {
-      throw validation(`ids array exceeds maximum length (${MAX_IMPORT_CONNECTIONS})`);
+      throw validationError(`ids array exceeds maximum length (${MAX_IMPORT_CONNECTIONS})`);
     }
     for (const id of ids) {
       if (typeof id !== 'string' || id.length === 0 || id.includes('\0')) {
-        throw validation('Each id must be a non-empty string without null bytes');
+        throw validationError('Each id must be a non-empty string without null bytes');
       }
     }
     const update = db.prepare('UPDATE connections SET sort_order = ? WHERE id = ?');
@@ -467,7 +467,7 @@ export function registerConnectionHandlers(): void {
   function sanitizeImportedKeyPath(input: string | undefined | null): string | null {
     if (!input) return null;
     if (typeof input !== 'string') {
-      throw validation('privateKeyPath must be a string');
+      throw validationError('privateKeyPath must be a string');
     }
     try {
       return expandAndConfineToHomeSync(input, 'privateKeyPath');
@@ -491,7 +491,7 @@ export function registerConnectionHandlers(): void {
     max = MAX_IMPORT_FIELD_LEN,
   ): void {
     if (typeof val === 'string' && val.length > max) {
-      throw validation(`${label} exceeds ${max} characters`);
+      throw validationError(`${label} exceeds ${max} characters`);
     }
   }
 
@@ -503,14 +503,14 @@ export function registerConnectionHandlers(): void {
       const env = input as { version?: unknown; connections?: unknown };
       if (env.version !== undefined) {
         if (env.version !== LUNAR_EXPORT_FORMAT_VERSION) {
-          throw validation(
+          throw validationError(
             `Unsupported export format version ${String(env.version)} (expected ${LUNAR_EXPORT_FORMAT_VERSION})`,
           );
         }
       }
       if (Array.isArray(env.connections)) return env.connections as ExportedConnection[];
     }
-    throw validation('Expected an array of connections or { version, connections } envelope');
+    throw validationError('Expected an array of connections or { version, connections } envelope');
   }
 
   function importConnections(payload: ExportedConnection[] | unknown): {
@@ -518,9 +518,9 @@ export function registerConnectionHandlers(): void {
     skipped: { name: string; reason: string }[];
   } {
     const connections = unwrapImportPayload(payload);
-    if (!Array.isArray(connections)) throw validation('Expected an array of connections');
+    if (!Array.isArray(connections)) throw validationError('Expected an array of connections');
     if (connections.length > MAX_IMPORT_CONNECTIONS) {
-      throw validation(
+      throw validationError(
         `Import contains ${connections.length} connections (max ${MAX_IMPORT_CONNECTIONS})`,
       );
     }
@@ -751,7 +751,7 @@ export function registerConnectionHandlers(): void {
     const stats = await stat(path);
     const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
     if (stats.size > MAX_IMPORT_BYTES) {
-      throw validation(`Import file is too large: ${stats.size} bytes (max ${MAX_IMPORT_BYTES})`);
+      throw validationError(`Import file is too large: ${stats.size} bytes (max ${MAX_IMPORT_BYTES})`);
     }
     const content = await readFile(path, 'utf-8');
     try {
@@ -762,7 +762,7 @@ export function registerConnectionHandlers(): void {
       if (thirdParty.length > 0) {
         return importConnections(thirdParty);
       }
-      throw validation('Import file is not valid JSON or supported third-party format');
+      throw validationError('Import file is not valid JSON or supported third-party format');
     }
   });
 }

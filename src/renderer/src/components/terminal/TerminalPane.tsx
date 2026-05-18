@@ -1,10 +1,11 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { RefreshCcw } from 'lucide-react';
 import { useTerminalStore } from '@/stores/terminal-store';
 import type { SessionStatus } from '@shared/types/terminal';
 import { useTerminalSession, type TerminalTransport } from './use-terminal-session';
 import { TerminalSearchBar } from './TerminalSearchBar';
 import { sanitizeTerminalText } from '@/lib/terminal-output';
+import { attachFocusTrap } from '@/lib/focus-trap';
 
 interface TerminalPaneProps {
   sessionId: string;
@@ -74,20 +75,47 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
     },
   });
 
+  const overlayShown = status === 'error' || status === 'disconnected';
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const reconnectBtnRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!overlayShown || !overlayRef.current) return;
+    // Move focus into the overlay so screen readers announce the dialog and
+    // keyboard users land on the actionable button instead of staying on the
+    // terminal underneath. attachFocusTrap also restores focus to the prior
+    // element on unmount.
+    reconnectBtnRef.current?.focus();
+    return attachFocusTrap(overlayRef.current);
+  }, [overlayShown]);
+
   return (
     <div className="relative h-full w-full overflow-hidden">
-      {(status === 'error' || status === 'disconnected') && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+      {overlayShown && (
+        <div
+          ref={overlayRef}
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby={`terminal-overlay-title-${sessionId}`}
+          aria-describedby={`terminal-overlay-desc-${sessionId}`}
+          className="absolute inset-0 z-20 flex items-center justify-center bg-background/60 backdrop-blur-sm"
+        >
           <div className="flex flex-col items-center gap-4 rounded-xl border border-border/80 bg-card p-6 shadow-2xl">
             <div className="text-center">
-              <h3 className="text-lg font-medium text-foreground">
+              <h3
+                id={`terminal-overlay-title-${sessionId}`}
+                className="text-lg font-medium text-foreground"
+              >
                 {status === 'error' ? 'Connection Error' : 'Disconnected'}
               </h3>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <p
+                id={`terminal-overlay-desc-${sessionId}`}
+                className="mt-1 text-sm text-muted-foreground"
+              >
                 The SSH session to the server was lost.
               </p>
             </div>
             <button
+              ref={reconnectBtnRef}
               onClick={() => {
                 if (session?.connectionId) {
                   useTerminalStore.getState().updateSessionStatus(sessionId, 'connecting');
