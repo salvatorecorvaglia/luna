@@ -38,6 +38,17 @@ export function useUpdateConnection() {
   });
 }
 
+export function useRenameFolder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (params: { oldName: string; newName: string; provider: 'sftp' | 's3' }) =>
+      window.api.connections.renameFolder(params),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['connections'] });
+    },
+  });
+}
+
 export function useDeleteConnection() {
   const queryClient = useQueryClient();
   return useMutation({

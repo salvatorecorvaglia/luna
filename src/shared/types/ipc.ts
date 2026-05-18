@@ -49,6 +49,10 @@ export interface IpcHandlerMap {
   'connection:get': { request: string; response: Connection | null };
   'connection:create': { request: CreateConnectionInput; response: Connection };
   'connection:update': { request: UpdateConnectionInput; response: Connection };
+  'connection:rename-folder': {
+    request: { oldName: string; newName: string; provider: 'sftp' | 's3' };
+    response: void;
+  };
   'connection:delete': { request: string; response: void };
   'connection:delete-all': { request: void; response: void };
   'connection:reorder': { request: string[]; response: void };

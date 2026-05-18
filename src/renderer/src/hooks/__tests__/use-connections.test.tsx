@@ -9,6 +9,7 @@ import {
   useDeleteConnection,
   useReorderConnections,
   useUpdateConnection,
+  useRenameFolder,
 } from '../use-connections';
 
 const list = vi.fn();
@@ -16,6 +17,7 @@ const create = vi.fn();
 const update = vi.fn();
 const del = vi.fn();
 const reorder = vi.fn();
+const renameFolder = vi.fn();
 
 beforeEach(() => {
   list.mockReset();
@@ -23,6 +25,7 @@ beforeEach(() => {
   update.mockReset();
   del.mockReset();
   reorder.mockReset();
+  renameFolder.mockReset();
   // window.api is set up at module load by the harness; here we just
   // (re-)assign the connections facade so each test starts clean.
   (globalThis as unknown as { window: Window }).window =
@@ -30,7 +33,7 @@ beforeEach(() => {
     (globalThis as unknown as { window: Window });
   Object.assign(window, {
     api: {
-      connections: { list, get: vi.fn(), create, update, delete: del, reorder },
+      connections: { list, get: vi.fn(), create, update, delete: del, reorder, renameFolder },
     },
   });
 });
@@ -92,5 +95,15 @@ describe('useReorderConnections', () => {
     result.current.mutate(['a', 'b', 'c']);
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(reorder).toHaveBeenCalledWith(['a', 'b', 'c']);
+  });
+});
+
+describe('useRenameFolder', () => {
+  it('invokes connections.renameFolder with the oldName, newName and provider', async () => {
+    renameFolder.mockResolvedValue(undefined);
+    const { result } = renderHook(() => useRenameFolder(), { wrapper });
+    result.current.mutate({ oldName: 'GroupA', newName: 'GroupB', provider: 'sftp' });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(renameFolder).toHaveBeenCalledWith({ oldName: 'GroupA', newName: 'GroupB', provider: 'sftp' });
   });
 });

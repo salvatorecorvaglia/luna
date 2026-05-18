@@ -29,6 +29,7 @@ import {
   useDeleteConnection,
   useUpdateConnection,
   useReorderConnections,
+  useRenameFolder,
 } from '@/hooks/use-connections';
 import type { UseMutationResult } from '@tanstack/react-query';
 import type { Connection } from '@shared/types/ipc';
@@ -38,6 +39,7 @@ import { connectToS3 } from '@/lib/s3';
 import { useStorageStore } from '@/stores/storage-store';
 import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { PromptDialog } from '@/components/common/PromptDialog';
 
 export function Sidebar() {
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
@@ -410,6 +412,7 @@ function SidebarSection({
           <FolderGroup
             key={folderName}
             name={folderName}
+            provider={isSsh ? 'sftp' : 's3'}
             connections={folders[folderName]}
             onReorder={(newOrder) => handleReorderFolder(folderName, newOrder)}
             setIsDraggingConnection={setIsDraggingConnection}
@@ -425,6 +428,7 @@ function SidebarSection({
 
 function FolderGroup({
   name,
+  provider,
   connections,
   onReorder,
   setIsDraggingConnection,
@@ -433,6 +437,7 @@ function FolderGroup({
   allConnectionsInSection,
 }: {
   name: string;
+  provider: 'sftp' | 's3';
   connections: Connection[];
   onReorder: (newOrder: Connection[]) => void;
   setIsDraggingConnection: (v: boolean) => void;
@@ -441,27 +446,64 @@ function FolderGroup({
   allConnectionsInSection: Connection[];
 }) {
   const [isOpen, setIsOpen] = useState(true);
+  const [showRenameDialog, setShowRenameDialog] = useState(false);
+  const renameMutation = useRenameFolder();
   const isDefault = name === 'default';
+
+  const contextMenuItems: ContextMenuItem[] = [
+    {
+      label: 'Rename Group',
+      icon: <Pencil className="h-3.5 w-3.5" />,
+      onClick: () => setShowRenameDialog(true),
+    },
+  ];
 
   return (
     <div className="space-y-0.5">
       {!isDefault && (
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="group/folder flex w-full items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium text-muted-foreground/60 hover:text-muted-foreground transition-colors cursor-pointer"
-        >
-          <ChevronRight
-            className={cn(
-              'h-3 w-3 text-muted-foreground/30 group-hover/folder:text-muted-foreground/60 transition-transform',
-              isOpen && 'rotate-90',
-            )}
+        <>
+          <ContextMenu items={contextMenuItems}>
+            <button
+              onClick={() => setIsOpen(!isOpen)}
+              className="group/folder flex w-full items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium text-muted-foreground/60 hover:text-muted-foreground transition-colors cursor-pointer"
+            >
+              <ChevronRight
+                className={cn(
+                  'h-3 w-3 text-muted-foreground/30 group-hover/folder:text-muted-foreground/60 transition-transform',
+                  isOpen && 'rotate-90',
+                )}
+              />
+              <FolderClosed className="h-3 w-3 text-muted-foreground/40 group-hover/folder:text-muted-foreground/70" />
+              <span className="truncate">{name}</span>
+              <span className="ml-auto text-[10px] text-muted-foreground/20 group-hover/folder:text-muted-foreground/50 tabular-nums">
+                {connections.length}
+              </span>
+            </button>
+          </ContextMenu>
+          <PromptDialog
+            open={showRenameDialog}
+            title="Rename group"
+            message={`Enter a new name for the group "${name}"`}
+            placeholder="Group name"
+            defaultValue={name}
+            confirmLabel="Rename"
+            onConfirm={(newName) => {
+              renameMutation.mutate(
+                { oldName: name, newName, provider },
+                {
+                  onSuccess: () => {
+                    toast.success('Group renamed');
+                    setShowRenameDialog(false);
+                  },
+                  onError: (err) => {
+                    toast.error(`Rename failed: ${err instanceof Error ? err.message : String(err)}`);
+                  },
+                },
+              );
+            }}
+            onCancel={() => setShowRenameDialog(false)}
           />
-          <FolderClosed className="h-3 w-3 text-muted-foreground/40 group-hover/folder:text-muted-foreground/70" />
-          <span className="truncate">{name}</span>
-          <span className="ml-auto text-[10px] text-muted-foreground/20 group-hover/folder:text-muted-foreground/50 tabular-nums">
-            {connections.length}
-          </span>
-        </button>
+        </>
       )}
 
       <AnimatePresence initial={false}>
