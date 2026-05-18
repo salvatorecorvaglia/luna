@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2026-05-18
+
+### Added
+
+- **Security & Validation**: Enforced byte-based length validation for secrets and rate-limited timestamps.
+
+### Improved
+
+- **Code Organization & Refactoring**:
+  - Abstracted terminal session management into a custom `useTerminalSession` hook and extracted the terminal search bar component.
+  - Extracted connection form state logic into a custom `useConnectionFormState` hook and split S3/SFTP field components.
+  - Moved terminal sanitization to a dedicated module and expanded unit/integration test coverage.
+- **Database Optimization**: Replaced wildcard `SELECT *` statements with explicit column projections for all connection queries to improve efficiency and type safety.
+- **Performance & Bundling**: Optimized bundle size and startup time with Vite manualChunks and lazy-loaded components/overlays (reducing initial chunk size from ~1.7 MB to ~250 kB).
+- **Formatting**: Refactored the entire codebase for consistent formatting using Prettier.
+
 ## [0.7.0] - 2026-05-16
 
 ### Added
@@ -98,7 +114,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Performance Optimization**: Extracted and centralized the storage rate limiter to ensure consistent throughput across S3 and SFTP providers.
-
 
 ## [0.5.4] - 2026-05-11
 
