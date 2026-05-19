@@ -72,9 +72,10 @@ export function ConnectionForm() {
   // Inline result of the most recent Test Connection run. Surfaced beneath
   // the footer Test button so users can read it at their own pace, instead
   // of relying on a toast that disappears after a few seconds.
-  const [testResult, setTestResult] = useState<
-    { status: 'success' | 'error'; message: string } | null
-  >(null);
+  const [testResult, setTestResult] = useState<{
+    status: 'success' | 'error';
+    message: string;
+  } | null>(null);
   // Holds the test-connection AbortController so the user can cancel a hung
   // test before the IPC reply (10 s+ for unreachable hosts).
   const testRunRef = useRef<{ controller: AbortController; runId: number } | null>(null);
