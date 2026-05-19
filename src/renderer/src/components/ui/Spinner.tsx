@@ -4,10 +4,10 @@ import { cn } from '@/lib/utils';
 type SpinnerSize = 'xs' | 'sm' | 'md' | 'lg';
 
 const SIZE_CLASS: Record<SpinnerSize, string> = {
-  xs: 'h-3 w-3',
-  sm: 'h-3.5 w-3.5',
-  md: 'h-4 w-4',
-  lg: 'h-5 w-5',
+  xs: 'size-3',
+  sm: 'size-3.5',
+  md: 'size-4',
+  lg: 'size-5',
 };
 
 interface SpinnerProps {

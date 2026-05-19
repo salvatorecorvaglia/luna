@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, Cloud, FolderClosed, Loader2, Palette, Server, Wifi, X } from 'lucide-react';
+import { Check, Cloud, FolderClosed, Palette, Server, Wifi, X } from 'lucide-react';
+import { Spinner } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { Z } from '@/lib/z-layers';
@@ -13,6 +14,7 @@ import {
 } from '@/hooks/use-connections';
 import type { StorageProviderKind } from '@shared/types/storage-provider';
 import { toast } from 'sonner';
+import { toastArgs } from '@shared/error-messages';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { COLOR_OPTIONS, dialogVariants, overlayVariants } from './connection-form.constants';
 import { FormField } from './FormField';
@@ -385,7 +387,7 @@ export function ConnectionForm() {
       clearSecrets();
       closeForm();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save connection');
+      toast.error(...toastArgs(err, 'Failed to save connection'));
     }
   }
 
@@ -564,8 +566,8 @@ export function ConnectionForm() {
               {/* Header */}
               <div className="flex shrink-0 items-center justify-between border-b border-border/60 px-5 py-4">
                 <div className="flex items-center gap-2.5">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-                    <Server className="h-4 w-4 text-primary" />
+                  <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10">
+                    <Server className="size-4 text-primary" />
                   </div>
                   <h2
                     id="connection-form-title"
@@ -579,7 +581,7 @@ export function ConnectionForm() {
                   </h2>
                 </div>
                 <button onClick={requestClose} className="btn-icon" aria-label="Close">
-                  <X className="h-4 w-4" />
+                  <X className="size-4" />
                 </button>
               </div>
 
@@ -596,7 +598,7 @@ export function ConnectionForm() {
                   {/* Provider toggle */}
                   <div>
                     <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                      <Cloud className="h-3.5 w-3.5" />
+                      <Cloud className="size-3.5" />
                       Provider
                     </label>
                     <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Provider">
@@ -613,7 +615,7 @@ export function ConnectionForm() {
                             : 'border-border text-muted-foreground hover:border-ring/50 hover:bg-accent/50',
                         )}
                       >
-                        <Server className="h-4 w-4" />
+                        <Server className="size-4" />
                         SSH / SFTP
                       </button>
                       <button
@@ -629,7 +631,7 @@ export function ConnectionForm() {
                             : 'border-border text-muted-foreground hover:border-ring/50 hover:bg-accent/50',
                         )}
                       >
-                        <Cloud className="h-4 w-4" />
+                        <Cloud className="size-4" />
                         S3-compatible
                       </button>
                     </div>
@@ -638,7 +640,7 @@ export function ConnectionForm() {
                   {/* Name */}
                   <FormField
                     label="Connection Name"
-                    icon={<Server className="h-3.5 w-3.5" aria-hidden="true" />}
+                    icon={<Server className="size-3.5" aria-hidden="true" />}
                     required
                     id={`${fieldId}-name`}
                     error={visibleError('name')}
@@ -688,7 +690,7 @@ export function ConnectionForm() {
                   {/* Color Tag */}
                   <div>
                     <label className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                      <Palette className="h-3.5 w-3.5" />
+                      <Palette className="size-3.5" />
                       Color Tag
                     </label>
                     <div className="flex gap-2.5" role="radiogroup" aria-label="Color tag">
@@ -701,7 +703,7 @@ export function ConnectionForm() {
                           aria-label={color.name}
                           onClick={() => setColorTag(color.hex)}
                           className={cn(
-                            'relative h-7 w-7 rounded-full cursor-pointer',
+                            'relative size-7 rounded-full cursor-pointer',
                             common.colorTag === color.hex
                               ? 'ring-2 ring-ring ring-offset-2 ring-offset-card'
                               : 'hover:scale-110',
@@ -709,7 +711,7 @@ export function ConnectionForm() {
                           style={{ backgroundColor: color.hex }}
                         >
                           {common.colorTag === color.hex && (
-                            <Check className="absolute inset-0 m-auto h-3.5 w-3.5 text-white drop-shadow-sm" />
+                            <Check className="absolute inset-0 m-auto size-3.5 text-white drop-shadow-sm" />
                           )}
                         </button>
                       ))}
@@ -719,7 +721,7 @@ export function ConnectionForm() {
                   {/* Folder / Group */}
                   <FormField
                     label="Group"
-                    icon={<FolderClosed className="h-3.5 w-3.5" />}
+                    icon={<FolderClosed className="size-3.5" />}
                     optional
                     id={`${fieldId}-group`}
                   >
@@ -743,7 +745,7 @@ export function ConnectionForm() {
                           style={{ paddingLeft: '2.5rem' }}
                         />
                         <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/40 group-focus-within/input:text-primary transition-colors pointer-events-none">
-                          <FolderClosed className="h-4 w-4" />
+                          <FolderClosed className="size-4" />
                         </div>
 
                         {common.folder !== 'default' && (
@@ -753,7 +755,7 @@ export function ConnectionForm() {
                             className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-foreground transition-colors cursor-pointer"
                             title="Clear group"
                           >
-                            <X className="h-3.5 w-3.5" />
+                            <X className="size-3.5" />
                           </button>
                         )}
 
@@ -780,7 +782,7 @@ export function ConnectionForm() {
                                       : 'text-foreground hover:bg-accent hover:text-accent-foreground',
                                   )}
                                 >
-                                  <FolderClosed className="h-3.5 w-3.5 opacity-50" />
+                                  <FolderClosed className="size-3.5 opacity-50" />
                                   {f}
                                 </button>
                               ))}
@@ -815,7 +817,7 @@ export function ConnectionForm() {
                               >
                                 <FolderClosed
                                   className={cn(
-                                    'h-3 w-3 transition-opacity',
+                                    'size-3 transition-opacity',
                                     common.folder === f ||
                                       (f === 'default' && common.folder === 'default')
                                       ? 'opacity-100'
@@ -846,12 +848,12 @@ export function ConnectionForm() {
                     )}
                   >
                     {testing ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                      <Spinner size="sm" className="text-primary" />
                     ) : (
-                      <Wifi className="h-3.5 w-3.5" />
+                      <Wifi className="size-3.5" />
                     )}
                     <span className={cn(testing && 'font-semibold')}>
-                      {testing ? 'Testing…' : 'Test connection'}
+                      {testing ? 'Cancel test' : 'Test connection'}
                     </span>
                   </button>
 
@@ -865,16 +867,8 @@ export function ConnectionForm() {
                       aria-busy={isSaving || connectionsLoading}
                       className="btn-primary"
                     >
-                      {(isSaving || connectionsLoading) && (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" />
-                      )}
-                      {isSaving
-                        ? 'Saving...'
-                        : connectionsLoading
-                          ? 'Loading…'
-                          : isEditing
-                            ? 'Update Connection'
-                            : 'Create Connection'}
+                      {(isSaving || connectionsLoading) && <Spinner size="sm" className="mr-2" />}
+                      {isEditing ? 'Update Connection' : 'Create Connection'}
                     </button>
                   </div>
                 </div>

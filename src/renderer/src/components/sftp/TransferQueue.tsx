@@ -18,6 +18,7 @@ import { useTransferStore } from '@/stores/transfer-store';
 import { cancelTransfer } from '@/hooks/use-transfers';
 import type { TransferErrorClass, TransferItem } from '@shared/types/transfer';
 import { toast } from 'sonner';
+import { toastArgs } from '@shared/error-messages';
 import { formatEta, formatSize, formatSpeed } from '@/lib/format';
 
 export function TransferQueue() {
@@ -58,7 +59,7 @@ export function TransferQueue() {
         sessionId: item.sessionId,
       });
     } catch (err: unknown) {
-      toast.error(`Retry failed: ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(...toastArgs(err, 'Retry failed'));
     }
   };
 
@@ -98,7 +99,7 @@ export function TransferQueue() {
           aria-controls="transfer-queue-list"
           className="flex flex-1 items-center gap-2 hover:text-foreground cursor-pointer"
         >
-          <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+          <Upload className="size-3.5" aria-hidden="true" />
           <span className="font-medium" aria-live="polite">
             {summary}
           </span>
@@ -110,7 +111,7 @@ export function TransferQueue() {
               className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-destructive cursor-pointer"
               aria-label="Cancel all active transfers"
             >
-              <X className="h-3 w-3" aria-hidden="true" />
+              <X className="size-3" aria-hidden="true" />
               Cancel all
             </button>
           )}
@@ -120,9 +121,9 @@ export function TransferQueue() {
             className="rounded p-0.5 hover:text-foreground cursor-pointer"
           >
             {queueExpanded ? (
-              <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+              <ChevronDown className="size-3.5" aria-hidden="true" />
             ) : (
-              <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
+              <ChevronUp className="size-3.5" aria-hidden="true" />
             )}
           </button>
         </div>
@@ -153,7 +154,7 @@ export function TransferQueue() {
                   onClick={clearCompleted}
                   className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
                 >
-                  <Trash2 className="h-3 w-3" />
+                  <Trash2 className="size-3" />
                   Clear completed
                 </button>
               </div>
@@ -231,9 +232,9 @@ const TransferRow = memo(function TransferRow({
     <div className="flex items-center gap-2.5 border-t border-border/40 px-3 py-2">
       {/* Icon */}
       {item.type === 'upload' ? (
-        <Upload className="h-3.5 w-3.5 text-info flex-shrink-0" aria-hidden="true" />
+        <Upload className="size-3.5 text-info flex-shrink-0" aria-hidden="true" />
       ) : (
-        <Download className="h-3.5 w-3.5 text-success flex-shrink-0" aria-hidden="true" />
+        <Download className="size-3.5 text-success flex-shrink-0" aria-hidden="true" />
       )}
 
       {/* Info */}
@@ -269,9 +270,9 @@ const TransferRow = memo(function TransferRow({
 
       {/* Status icon */}
       <div className="flex-shrink-0" aria-hidden="true">
-        {item.status === 'active' && <Loader2 className="h-3.5 w-3.5 text-info animate-spin" />}
-        {item.status === 'completed' && <CheckCircle2 className="h-3.5 w-3.5 text-success" />}
-        {item.status === 'error' && <AlertCircle className="h-3.5 w-3.5 text-destructive" />}
+        {item.status === 'active' && <Loader2 className="size-3.5 text-info animate-spin" />}
+        {item.status === 'completed' && <CheckCircle2 className="size-3.5 text-success" />}
+        {item.status === 'error' && <AlertCircle className="size-3.5 text-destructive" />}
       </div>
 
       {/* Retry (error only) */}
@@ -282,7 +283,7 @@ const TransferRow = memo(function TransferRow({
           className="flex-shrink-0 rounded p-0.5 text-muted-foreground/50 hover:text-foreground cursor-pointer"
           aria-label="Retry transfer"
         >
-          <RotateCw className="h-3 w-3" />
+          <RotateCw className="size-3" />
         </button>
       )}
 
@@ -293,7 +294,7 @@ const TransferRow = memo(function TransferRow({
         className="flex-shrink-0 rounded p-0.5 text-muted-foreground/50 hover:text-foreground cursor-pointer"
         aria-label={isInProgress ? 'Cancel transfer' : 'Remove'}
       >
-        <X className="h-3 w-3" />
+        <X className="size-3" />
       </button>
     </div>
   );

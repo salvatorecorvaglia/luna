@@ -29,6 +29,7 @@ import { connectToHost } from '@/lib/ssh';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { toastArgs } from '@shared/error-messages';
 
 interface Command {
   id: string;
@@ -118,7 +119,7 @@ export function CommandPalette() {
         id: 'new-connection',
         label: 'New Connection',
         description: 'Create a new SSH connection',
-        icon: <Plus className="h-4 w-4" aria-hidden="true" />,
+        icon: <Plus className="size-4" aria-hidden="true" />,
         category: 'Connections',
         action: () => openCreateForm(),
         keywords: ['add', 'create', 'ssh'],
@@ -128,7 +129,7 @@ export function CommandPalette() {
         id: 'delete-all-connections',
         label: 'Delete All Connections',
         description: 'Permanently remove all connections and credentials',
-        icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
+        icon: <Trash2 className="size-4" aria-hidden="true" />,
         category: 'Connections',
         action: () => setConfirmDeleteAll(true),
         keywords: ['purge', 'clear', 'reset', 'delete'],
@@ -136,7 +137,7 @@ export function CommandPalette() {
       {
         id: 'view-local',
         label: 'Switch to Local Terminal',
-        icon: <Monitor className="h-4 w-4" aria-hidden="true" />,
+        icon: <Monitor className="size-4" aria-hidden="true" />,
         category: 'Views',
         action: () => setActiveView('local'),
         keywords: ['terminal', 'local', 'view'],
@@ -145,7 +146,7 @@ export function CommandPalette() {
       {
         id: 'view-terminal',
         label: 'Switch to SSH Terminal',
-        icon: <Terminal className="h-4 w-4" aria-hidden="true" />,
+        icon: <Terminal className="size-4" aria-hidden="true" />,
         category: 'Views',
         action: () => setActiveView('terminal'),
         keywords: ['ssh', 'tab', 'view'],
@@ -154,7 +155,7 @@ export function CommandPalette() {
       {
         id: 'view-sftp',
         label: 'Switch to SFTP',
-        icon: <FolderOpen className="h-4 w-4" aria-hidden="true" />,
+        icon: <FolderOpen className="size-4" aria-hidden="true" />,
         category: 'Views',
         action: () => setActiveView('sftp'),
         keywords: ['files', 'browse', 'view'],
@@ -163,7 +164,7 @@ export function CommandPalette() {
       {
         id: 'toggle-sidebar',
         label: 'Toggle Sidebar',
-        icon: <PanelLeft className="h-4 w-4" aria-hidden="true" />,
+        icon: <PanelLeft className="size-4" aria-hidden="true" />,
         category: 'Interface',
         action: toggleSidebar,
         keywords: ['panel', 'hide', 'show'],
@@ -172,7 +173,7 @@ export function CommandPalette() {
       {
         id: 'theme-dracula',
         label: 'Terminal Theme: Dracula',
-        icon: <Palette className="h-4 w-4" />,
+        icon: <Palette className="size-4" />,
         category: 'Terminal',
         action: () => setTerminalTheme('dracula'),
         keywords: ['theme', 'color'],
@@ -180,7 +181,7 @@ export function CommandPalette() {
       {
         id: 'theme-nord',
         label: 'Terminal Theme: Nord',
-        icon: <Palette className="h-4 w-4" />,
+        icon: <Palette className="size-4" />,
         category: 'Terminal',
         action: () => setTerminalTheme('nord'),
         keywords: ['theme', 'color'],
@@ -188,7 +189,7 @@ export function CommandPalette() {
       {
         id: 'theme-tokyo-night',
         label: 'Terminal Theme: Tokyo Night',
-        icon: <Palette className="h-4 w-4" />,
+        icon: <Palette className="size-4" />,
         category: 'Terminal',
         action: () => setTerminalTheme('tokyo-night'),
         keywords: ['theme', 'color'],
@@ -196,7 +197,7 @@ export function CommandPalette() {
       {
         id: 'settings',
         label: 'Open Settings',
-        icon: <Settings className="h-4 w-4" aria-hidden="true" />,
+        icon: <Settings className="size-4" aria-hidden="true" />,
         category: 'Interface',
         action: () => setSettingsOpen(true),
         keywords: ['preferences', 'config'],
@@ -205,7 +206,7 @@ export function CommandPalette() {
       {
         id: 'keyboard-shortcuts',
         label: 'Keyboard Shortcuts',
-        icon: <Keyboard className="h-4 w-4" aria-hidden="true" />,
+        icon: <Keyboard className="size-4" aria-hidden="true" />,
         category: 'Interface',
         action: () => setShortcutsHelpOpen(true),
         keywords: ['help', 'keys', 'shortcuts'],
@@ -215,9 +216,9 @@ export function CommandPalette() {
         id: 'sftp-toggle-hidden',
         label: showHiddenFiles ? 'Hide Hidden Files' : 'Show Hidden Files',
         icon: showHiddenFiles ? (
-          <EyeOff className="h-4 w-4" aria-hidden="true" />
+          <EyeOff className="size-4" aria-hidden="true" />
         ) : (
-          <Eye className="h-4 w-4" aria-hidden="true" />
+          <Eye className="size-4" aria-hidden="true" />
         ),
         category: 'Storage',
         action: () => {
@@ -229,7 +230,7 @@ export function CommandPalette() {
       {
         id: 'sftp-refresh',
         label: 'Refresh File Browser',
-        icon: <RefreshCw className="h-4 w-4" aria-hidden="true" />,
+        icon: <RefreshCw className="size-4" aria-hidden="true" />,
         category: 'Storage',
         action: () => {
           setActiveView('sftp');
@@ -250,7 +251,7 @@ export function CommandPalette() {
         {
           id: 'terminal-close-tab',
           label: 'Close Active Terminal Tab',
-          icon: <X className="h-4 w-4" aria-hidden="true" />,
+          icon: <X className="size-4" aria-hidden="true" />,
           category: 'Terminal',
           action: () => closeTab(activeTabId),
           keywords: ['close', 'tab', 'kill'],
@@ -259,7 +260,7 @@ export function CommandPalette() {
         {
           id: 'terminal-next-tab',
           label: 'Next Terminal Tab',
-          icon: <ChevronRight className="h-4 w-4" aria-hidden="true" />,
+          icon: <ChevronRight className="size-4" aria-hidden="true" />,
           category: 'Terminal',
           action: () => setActiveTab(next),
           shortcut: [MOD, '⇧', ']'],
@@ -267,7 +268,7 @@ export function CommandPalette() {
         {
           id: 'terminal-prev-tab',
           label: 'Previous Terminal Tab',
-          icon: <ChevronLeft className="h-4 w-4" aria-hidden="true" />,
+          icon: <ChevronLeft className="size-4" aria-hidden="true" />,
           category: 'Terminal',
           action: () => setActiveTab(prev),
           shortcut: [MOD, '⇧', '['],
@@ -297,7 +298,7 @@ export function CommandPalette() {
         id: `connect-${conn.id}`,
         label: `Connect: ${conn.name}`,
         description: `${conn.username}@${conn.host}:${conn.port}`,
-        icon: <Server className="h-4 w-4" aria-hidden="true" />,
+        icon: <Server className="size-4" aria-hidden="true" />,
         category: 'Connections',
         action: () => {
           setActiveView('terminal');
@@ -412,7 +413,7 @@ export function CommandPalette() {
             <div className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-xl">
               {/* Search input */}
               <div className="flex items-center border-b border-border/60 px-3 rounded-t-xl">
-                <Search className="h-4 w-4 text-muted-foreground/60 flex-shrink-0" tabIndex={-1} />
+                <Search className="size-4 text-muted-foreground/60 flex-shrink-0" tabIndex={-1} />
                 <input
                   type="text"
                   placeholder="Type a command..."
@@ -427,7 +428,7 @@ export function CommandPalette() {
                   className="btn-icon !p-1.5 ml-1"
                   aria-label="Close command palette"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="size-4" />
                 </button>
               </div>
 
@@ -535,9 +536,7 @@ export function CommandPalette() {
             setConfirmDeleteAll(false);
             setCommandPaletteOpen(false);
           } catch (err: unknown) {
-            toast.error(
-              `Failed to delete connections: ${err instanceof Error ? err.message : String(err)}`,
-            );
+            toast.error(...toastArgs(err, 'Failed to delete connections'));
           }
         }}
         onCancel={() => setConfirmDeleteAll(false)}

@@ -34,7 +34,7 @@ export function Toggle({ label, enabled, onToggle, disabled = false }: TogglePro
       >
         <div
           className={cn(
-            'h-4 w-4 rounded-full bg-white shadow-sm transition-transform',
+            'size-4 rounded-full bg-white shadow-sm transition-transform',
             enabled ? 'translate-x-[14px]' : 'translate-x-0',
           )}
         />

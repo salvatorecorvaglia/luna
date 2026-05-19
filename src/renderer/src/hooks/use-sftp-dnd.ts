@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { toast } from 'sonner';
+import { toastArgs } from '@shared/error-messages';
 import type { FileEntry } from '@/components/sftp/FilePane';
 import { useTransferStore } from '@/stores/transfer-store';
 
@@ -92,7 +93,7 @@ export function useSftpDnd({
           sessionId: activeSessionId,
         });
       } catch (err: unknown) {
-        toast.error(`Download failed: ${err instanceof Error ? err.message : String(err)}`);
+        toast.error(...toastArgs(err, 'Download failed'));
       }
     },
     [activeSessionId, localPath, addTransfer, sanitizeFilename],
@@ -139,7 +140,7 @@ export function useSftpDnd({
           sessionId: activeSessionId,
         });
       } catch (err: unknown) {
-        toast.error(`Upload failed: ${err instanceof Error ? err.message : String(err)}`);
+        toast.error(...toastArgs(err, 'Upload failed'));
       }
     },
     [activeSessionId, remotePath, addTransfer, sanitizeFilename],

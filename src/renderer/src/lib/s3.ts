@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'sonner';
+import { toastArgs } from '@shared/error-messages';
 import { useStorageStore } from '@/stores/storage-store';
 import { useUIStore } from '@/stores/ui-store';
 
@@ -81,7 +82,7 @@ export async function connectToS3(connectionId: string): Promise<string | null> 
     setActiveSessionId(sessionId);
     return sessionId;
   } catch (err: unknown) {
-    toast.error(`S3 connection failed: ${err instanceof Error ? err.message : String(err)}`);
+    toast.error(...toastArgs(err, 'S3 connection failed'));
     removeStorageSession(sessionId);
     return null;
   }

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
 import { toast } from 'sonner';
+import { toastArgs } from '@shared/error-messages';
 import { cn } from '@/lib/utils';
 import { Z } from '@/lib/z-layers';
 import { Toggle } from '@/components/ui';
@@ -172,13 +173,13 @@ export function SettingsPanel() {
                 style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                 aria-label="Close settings"
               >
-                <X className="h-4.5 w-4.5" />
+                <X className="size-4.5" />
               </button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-5 space-y-6">
               {/* Terminal */}
-              <Section title="Terminal" icon={<Terminal className="h-4 w-4" />}>
+              <Section title="Terminal" icon={<Terminal className="size-4" />}>
                 <div>
                   <label className="text-xs font-medium text-muted-foreground mb-2.5 block">
                     Color Theme
@@ -238,7 +239,7 @@ export function SettingsPanel() {
               </Section>
 
               {/* SSH */}
-              <Section title="SSH" icon={<Wifi className="h-4 w-4" />}>
+              <Section title="SSH" icon={<Wifi className="size-4" />}>
                 <Toggle
                   label="Auto-reconnect"
                   enabled={autoReconnect}
@@ -282,7 +283,7 @@ export function SettingsPanel() {
               </Section>
 
               {/* Transfers */}
-              <Section title="Transfers" icon={<Upload className="h-4 w-4" />}>
+              <Section title="Transfers" icon={<Upload className="size-4" />}>
                 <EditableNumberRow
                   label="Concurrent transfers"
                   value={concurrency}
@@ -296,7 +297,7 @@ export function SettingsPanel() {
               </Section>
 
               {/* Data */}
-              <Section title="Data" icon={<Database className="h-4 w-4" />}>
+              <Section title="Data" icon={<Database className="size-4" />}>
                 <div className="flex gap-2">
                   <button
                     onClick={async () => {
@@ -319,14 +320,12 @@ export function SettingsPanel() {
                         });
                         if (saved) toast.success(`Exported ${connections.length} connections`);
                       } catch (err: unknown) {
-                        toast.error(
-                          `Export failed: ${err instanceof Error ? err.message : String(err)}`,
-                        );
+                        toast.error(...toastArgs(err, 'Export failed'));
                       }
                     }}
                     className="btn-outline flex-1"
                   >
-                    <Download className="h-3.5 w-3.5" />
+                    <Download className="size-3.5" />
                     Export
                   </button>
                   <button
@@ -353,14 +352,12 @@ export function SettingsPanel() {
                           toast.warning(`Skipped "${s.name}": ${s.reason}`);
                         }
                       } catch (err: unknown) {
-                        toast.error(
-                          `Import failed: ${err instanceof Error ? err.message : String(err)}`,
-                        );
+                        toast.error(...toastArgs(err, 'Import failed'));
                       }
                     }}
                     className="btn-outline flex-1"
                   >
-                    <Upload className="h-3.5 w-3.5" />
+                    <Upload className="size-3.5" />
                     Import
                   </button>
                 </div>
@@ -368,15 +365,15 @@ export function SettingsPanel() {
                   onClick={() => setConfirmDeleteAll(true)}
                   className="btn-outline w-full !text-destructive-strong !border-destructive-strong/40 hover:!bg-destructive-strong/10 hover:!border-destructive-strong/80 transition-colors"
                 >
-                  <Trash2 className="h-3.5 w-3.5 !text-destructive-strong" />
+                  <Trash2 className="size-3.5 !text-destructive-strong" />
                   Delete all connections
                 </button>
               </Section>
 
               {/* Logs */}
-              <Section title="Diagnostics" icon={<FileText className="h-4 w-4" />}>
+              <Section title="Diagnostics" icon={<FileText className="size-4" />}>
                 <button onClick={() => window.api.app.openLogFile()} className="btn-outline w-full">
-                  <FileText className="h-3.5 w-3.5" />
+                  <FileText className="size-3.5" />
                   Open log file
                 </button>
                 <p className="text-[11px] text-muted-foreground/60">
@@ -385,9 +382,9 @@ export function SettingsPanel() {
               </Section>
 
               {/* About */}
-              <Section title="About" icon={<Info className="h-4 w-4" />}>
+              <Section title="About" icon={<Info className="size-4" />}>
                 <div className="rounded-lg border border-border/60 bg-background/50 p-4 text-center">
-                  <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center">
+                  <div className="mx-auto mb-3 flex size-16 items-center justify-center">
                     <img
                       src={lunarLogo}
                       alt="Lunar Logo"
@@ -417,9 +414,7 @@ export function SettingsPanel() {
                 toast.success('All connections deleted');
                 setConfirmDeleteAll(false);
               } catch (err: unknown) {
-                toast.error(
-                  `Failed to delete connections: ${err instanceof Error ? err.message : String(err)}`,
-                );
+                toast.error(...toastArgs(err, 'Failed to delete connections'));
               }
             }}
             onCancel={() => setConfirmDeleteAll(false)}
@@ -492,9 +487,9 @@ function EditableNumberRow({
           onClick={() => onChange(clamp(value - step))}
           disabled={value <= min}
           aria-label={`Decrease ${label}`}
-          className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex size-7 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
         >
-          <Minus className="h-3 w-3" />
+          <Minus className="size-3" />
         </button>
         <input
           id={inputId}
@@ -514,9 +509,9 @@ function EditableNumberRow({
           onClick={() => onChange(clamp(value + step))}
           disabled={value >= max}
           aria-label={`Increase ${label}`}
-          className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex size-7 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
         >
-          <Plus className="h-3 w-3" />
+          <Plus className="size-3" />
         </button>
         {suffix && <span className="ml-1 text-[11px] text-muted-foreground">{suffix.trim()}</span>}
       </div>

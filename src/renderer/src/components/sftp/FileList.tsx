@@ -43,13 +43,13 @@ interface FileListProps {
 }
 
 function getFileIcon(entry: FileEntry) {
-  if (entry.isDirectory) return <Folder className="h-4 w-4 text-info" aria-hidden="true" />;
-  if (entry.isSymlink) return <Link2 className="h-4 w-4 text-brand-cyan" aria-hidden="true" />;
+  if (entry.isDirectory) return <Folder className="size-4 text-info" aria-hidden="true" />;
+  if (entry.isSymlink) return <Link2 className="size-4 text-brand-cyan" aria-hidden="true" />;
 
   const ext = entry.name.split('.').pop()?.toLowerCase();
 
   if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp'].includes(ext || ''))
-    return <FileImage className="h-4 w-4 text-brand-pink" aria-hidden="true" />;
+    return <FileImage className="size-4 text-brand-pink" aria-hidden="true" />;
   if (
     [
       'js',
@@ -68,9 +68,9 @@ function getFileIcon(entry: FileEntry) {
       'bash',
     ].includes(ext || '')
   )
-    return <FileCode className="h-4 w-4 text-success" aria-hidden="true" />;
+    return <FileCode className="size-4 text-success" aria-hidden="true" />;
   if (['zip', 'tar', 'gz', 'bz2', 'xz', '7z', 'rar'].includes(ext || ''))
-    return <FileArchive className="h-4 w-4 text-warning" aria-hidden="true" />;
+    return <FileArchive className="size-4 text-warning" aria-hidden="true" />;
   if (
     [
       'md',
@@ -87,9 +87,9 @@ function getFileIcon(entry: FileEntry) {
       'conf',
     ].includes(ext || '')
   )
-    return <FileText className="h-4 w-4 text-muted-foreground" aria-hidden="true" />;
+    return <FileText className="size-4 text-muted-foreground" aria-hidden="true" />;
 
-  return <File className="h-4 w-4 text-muted-foreground" aria-hidden="true" />;
+  return <File className="size-4 text-muted-foreground" aria-hidden="true" />;
 }
 
 export function FileList({
@@ -141,9 +141,9 @@ export function FileList({
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) return null;
     return sortDir === 'asc' ? (
-      <ChevronUp className="h-3 w-3" />
+      <ChevronUp className="size-3" />
     ) : (
-      <ChevronDown className="h-3 w-3" />
+      <ChevronDown className="size-3" />
     );
   };
 
@@ -174,28 +174,28 @@ export function FileList({
       if (!entry.isDirectory && onPreview) {
         items.push({
           label: 'Preview',
-          icon: <Eye className="h-3.5 w-3.5" />,
+          icon: <Eye className="size-3.5" />,
           onClick: () => onPreview(entry),
         });
       }
       if (!entry.isDirectory && onDownload) {
         items.push({
           label: downloadLabel || 'Download',
-          icon: <Download className="h-3.5 w-3.5" />,
+          icon: <Download className="size-3.5" />,
           onClick: () => onDownload(entry),
         });
       }
       if (onCopyPath) {
         items.push({
           label: 'Copy Path',
-          icon: <Copy className="h-3.5 w-3.5" />,
+          icon: <Copy className="size-3.5" />,
           onClick: () => onCopyPath(entry),
         });
       }
       if (onRename) {
         items.push({
           label: 'Rename',
-          icon: <Pencil className="h-3.5 w-3.5" />,
+          icon: <Pencil className="size-3.5" />,
           onClick: () => onRename(entry),
           separator: true,
         });
@@ -203,7 +203,7 @@ export function FileList({
       if (onDelete) {
         items.push({
           label: 'Delete',
-          icon: <Trash2 className="h-3.5 w-3.5" />,
+          icon: <Trash2 className="size-3.5" />,
           onClick: () => onDelete(entry),
           destructive: true,
         });
@@ -298,7 +298,7 @@ export function FileList({
         className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground"
         role="status"
       >
-        <FolderOpen className="h-8 w-8 text-muted-foreground/60" />
+        <FolderOpen className="size-8 text-muted-foreground/60" />
         <span className="text-xs">{emptyMessage}</span>
       </div>
     );

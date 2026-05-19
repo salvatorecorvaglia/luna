@@ -32,9 +32,9 @@ export function StatusBar() {
         {activeSession ? (
           <div className="flex min-w-0 items-center gap-1.5">
             {activeSession.status === 'connected' ? (
-              <Wifi className="h-3.5 w-3.5 flex-shrink-0 text-emerald-500" />
+              <Wifi className="size-3.5 flex-shrink-0 text-emerald-500" />
             ) : (
-              <WifiOff className="h-3.5 w-3.5 flex-shrink-0 text-destructive" />
+              <WifiOff className="size-3.5 flex-shrink-0 text-destructive" />
             )}
             <span
               className="max-w-[240px] truncate font-medium text-foreground/90"
@@ -63,7 +63,7 @@ export function StatusBar() {
           <>
             <div className="h-3 w-px bg-border/60" />
             <div className="flex items-center gap-1">
-              <Activity className="h-3 w-3" />
+              <Activity className="size-3" />
               <span>{activeSessions} sessions</span>
             </div>
           </>
@@ -77,7 +77,7 @@ export function StatusBar() {
             onClick={toggleQueueExpanded}
             className="flex items-center gap-1.5 rounded px-1.5 py-0.5 hover:bg-accent hover:text-foreground cursor-pointer"
           >
-            <Upload className="h-3 w-3" />
+            <Upload className="size-3" />
             <span className="font-medium">
               {activeTransfers.length} transfer{activeTransfers.length !== 1 ? 's' : ''}
             </span>

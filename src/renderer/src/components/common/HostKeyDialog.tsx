@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, Copy, Fingerprint, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { Spinner } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { Z } from '@/lib/z-layers';
 import { toast } from 'sonner';
+import { toastArgs } from '@shared/error-messages';
 import type { SshHostKeyChangeEvent } from '@shared/types/terminal';
 import { connectToHost } from '@/lib/ssh';
 
@@ -59,7 +61,7 @@ export function HostKeyDialog() {
         toast.error('Failed to trust host key');
       }
     } catch (err) {
-      toast.error(`Trust failed: ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(...toastArgs(err, 'Trust failed'));
     } finally {
       setLoading(false);
     }
@@ -122,14 +124,14 @@ export function HostKeyDialog() {
               <div className="flex items-start gap-3">
                 <div
                   className={cn(
-                    'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full',
+                    'flex size-10 flex-shrink-0 items-center justify-center rounded-full',
                     event.isFirst ? 'bg-info/10' : 'bg-destructive/10',
                   )}
                 >
                   {event.isFirst ? (
-                    <ShieldCheck className="h-5 w-5 text-info" />
+                    <ShieldCheck className="size-5 text-info" />
                   ) : (
-                    <ShieldAlert className="h-5 w-5 text-destructive" />
+                    <ShieldAlert className="size-5 text-destructive" />
                   )}
                 </div>
                 <div className="min-w-0">
@@ -150,12 +152,12 @@ export function HostKeyDialog() {
               {/* Fingerprint details */}
               <div className="mt-4 space-y-2.5 rounded-lg border border-border/60 bg-background/50 p-3">
                 <div className="flex items-center gap-2 text-xs">
-                  <Fingerprint className="h-3.5 w-3.5 text-muted-foreground/60 flex-shrink-0" />
+                  <Fingerprint className="size-3.5 text-muted-foreground/60 flex-shrink-0" />
                   <span className="text-muted-foreground/70">Algorithm:</span>
                   <span className="font-mono text-foreground">{event.algorithm}</span>
                 </div>
                 <div className="flex items-start gap-2 text-xs">
-                  <Fingerprint className="h-3.5 w-3.5 text-muted-foreground/60 flex-shrink-0 mt-0.5" />
+                  <Fingerprint className="size-3.5 text-muted-foreground/60 flex-shrink-0 mt-0.5" />
                   <div className="min-w-0 flex-1">
                     <span className="text-muted-foreground/70">
                       {event.isFirst
@@ -172,9 +174,9 @@ export function HostKeyDialog() {
                         title="Copy fingerprint"
                       >
                         {copied ? (
-                          <Check className="h-3 w-3 text-success" />
+                          <Check className="size-3 text-success" />
                         ) : (
-                          <Copy className="h-3 w-3" />
+                          <Copy className="size-3" />
                         )}
                       </button>
                     </div>
@@ -183,7 +185,7 @@ export function HostKeyDialog() {
 
                 {!event.isFirst && event.storedFingerprint && (
                   <div className="flex items-start gap-2 text-xs border-t border-border/60 pt-2.5">
-                    <Fingerprint className="h-3.5 w-3.5 text-destructive/60 flex-shrink-0 mt-0.5" />
+                    <Fingerprint className="size-3.5 text-destructive/60 flex-shrink-0 mt-0.5" />
                     <div className="min-w-0 flex-1">
                       <span className="text-muted-foreground/70">
                         Previously trusted fingerprint:
@@ -212,12 +214,14 @@ export function HostKeyDialog() {
                 <button
                   onClick={handleTrust}
                   disabled={loading}
+                  aria-busy={loading}
                   className={cn(
                     event.isFirst ? 'btn-primary' : 'btn-destructive',
                     loading && 'opacity-60 pointer-events-none',
                   )}
                 >
-                  {loading ? 'Trusting…' : event.isFirst ? 'Trust & Connect' : 'Trust New Key'}
+                  {loading && <Spinner size="sm" />}
+                  {event.isFirst ? 'Trust & Connect' : 'Trust New Key'}
                 </button>
               </div>
             </div>

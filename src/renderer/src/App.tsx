@@ -78,7 +78,7 @@ export default function App() {
       if (status.backend === 'plaintext') {
         toast.warning(
           'Credentials are stored with a plaintext master key on this machine. Install gnome-keyring or libsecret-1-0 and restart to migrate to OS-protected storage.',
-          { duration: 12000, icon: <ShieldAlert className="h-4 w-4" aria-hidden="true" /> },
+          { duration: 12000, icon: <ShieldAlert className="size-4" aria-hidden="true" /> },
         );
       }
       setWarnedAboutBackend(true);
@@ -97,7 +97,7 @@ export default function App() {
         `Stored credential for ${event.connectionId.slice(0, 8)}… could not be decrypted and was dropped. Re-enter it in the connection form.`,
         {
           duration: 16000,
-          icon: <ShieldAlert className="h-4 w-4" aria-hidden="true" />,
+          icon: <ShieldAlert className="size-4" aria-hidden="true" />,
           description: event.reason,
         },
       );

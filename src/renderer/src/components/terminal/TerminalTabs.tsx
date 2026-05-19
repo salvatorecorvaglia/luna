@@ -167,28 +167,28 @@ const Tab = memo(function Tab({
     () => [
       {
         label: 'Rename Tab',
-        icon: <Pencil className="h-3.5 w-3.5" />,
+        icon: <Pencil className="size-3.5" />,
         onClick: () => onRename(sessionId),
       },
       {
         label: 'Duplicate Session',
-        icon: <Copy className="h-3.5 w-3.5" />,
+        icon: <Copy className="size-3.5" />,
         onClick: () => onDuplicate(sessionId),
       },
       {
         label: 'Close Other Tabs',
-        icon: <XCircle className="h-3.5 w-3.5" />,
+        icon: <XCircle className="size-3.5" />,
         onClick: () => onCloseOthers(sessionId),
         separator: true,
       },
       {
         label: 'Close Tabs to the Right',
-        icon: <ArrowRightToLine className="h-3.5 w-3.5" />,
+        icon: <ArrowRightToLine className="size-3.5" />,
         onClick: () => onCloseToRight(sessionId),
       },
       {
         label: 'Close',
-        icon: <X className="h-3.5 w-3.5" />,
+        icon: <X className="size-3.5" />,
         onClick: () => onClose(sessionId),
         separator: true,
         destructive: true,
@@ -207,14 +207,14 @@ const Tab = memo(function Tab({
     const inner = (() => {
       switch (session.status) {
         case 'connected':
-          return <div className="h-2 w-2 rounded-full bg-emerald-500" />;
+          return <div className="size-2 rounded-full bg-emerald-500" />;
         case 'connecting':
         case 'reconnecting':
-          return <Loader2 className="h-3 w-3 text-amber-500 animate-spin" />;
+          return <Loader2 className="size-3 text-amber-500 animate-spin" />;
         case 'error':
-          return <WifiOff className="h-3 w-3 text-destructive" />;
+          return <WifiOff className="size-3 text-destructive" />;
         default:
-          return <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />;
+          return <div className="size-2 rounded-full bg-muted-foreground/30" />;
       }
     })();
     return (
@@ -265,7 +265,7 @@ const Tab = memo(function Tab({
             aria-label={`Close tab ${session.title || session.connectionName}`}
             title="Close tab"
           >
-            <X className="h-3 w-3" />
+            <X className="size-3" />
           </button>
         </div>
       </ContextMenu>

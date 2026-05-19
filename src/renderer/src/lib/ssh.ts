@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'sonner';
+import { toastArgs } from '@shared/error-messages';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { useUIStore } from '@/stores/ui-store';
 
@@ -88,11 +89,11 @@ async function connectToHostImpl(connectionId: string): Promise<void> {
     });
 
     if (!result.success) {
-      toast.error(`Connection failed: ${result.error}`);
+      toast.error('Connection failed', { description: result.error });
       updateSessionStatus(sessionId, 'error');
     }
   } catch (err: unknown) {
-    toast.error(`Connection error: ${err instanceof Error ? err.message : String(err)}`);
+    toast.error(...toastArgs(err, 'Connection error'));
     updateSessionStatus(sessionId, 'error');
   }
 }
