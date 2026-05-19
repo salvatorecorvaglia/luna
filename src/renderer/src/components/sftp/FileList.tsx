@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
 import { formatDate, formatSize } from '@/lib/format';
 import type { FileEntry } from '@shared/types/sftp';
 import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
+import { EmptyState } from '@/components/ui';
 
 type SortField = 'name' | 'size' | 'modifiedAt';
 type SortDir = 'asc' | 'desc';
@@ -106,7 +107,7 @@ export function FileList({
   downloadLabel,
   showPermissions = false,
   onSelectAll,
-  emptyMessage = 'No files',
+  emptyMessage = 'This directory is empty',
 }: FileListProps) {
   // Opt out of React Compiler memoization for the whole component because
   // useVirtualizer's internal refs/effects are incompatible with auto-memo
@@ -294,12 +295,8 @@ export function FileList({
 
   if (entries.length === 0) {
     return (
-      <div
-        className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground"
-        role="status"
-      >
-        <FolderOpen className="size-8 text-muted-foreground/60" />
-        <span className="text-xs">{emptyMessage}</span>
+      <div className="flex h-full items-center justify-center">
+        <EmptyState icon={<FolderOpen />} title={emptyMessage} />
       </div>
     );
   }

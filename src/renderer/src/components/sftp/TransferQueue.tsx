@@ -65,7 +65,20 @@ export function TransferQueue() {
 
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   const items = Array.from(transfers.values());
-  if (items.length === 0) return null;
+
+  // Empty state stays visible (not `return null`) so the queue surface is
+  // discoverable. Without it new users have no signal that drag-and-drop
+  // between the panes is what kicks transfers off.
+  if (items.length === 0) {
+    return (
+      <div className="border-t border-border/60 bg-card/80">
+        <div className="flex items-center justify-center gap-2 px-3 py-1.5 text-[11px] text-muted-foreground/70 no-select">
+          <Upload className="size-3" aria-hidden="true" />
+          <span>No transfers — drag files between panes to start</span>
+        </div>
+      </div>
+    );
+  }
 
   const activeCount = items.filter((t) => t.status === 'active' || t.status === 'queued').length;
   const completedCount = items.filter((t) => t.status === 'completed').length;

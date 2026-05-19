@@ -68,10 +68,6 @@
   --color-brand-cyan: hsl(189 94% 43%);
   --color-brand-pink: hsl(330 81% 60%);
   --color-brand-emerald: hsl(160 84% 39%);
-  /* Brighter destructive for outline/ghost contexts where the dark
-     `--color-destructive` (hsl 0 62.8% 30.6%) would read as washed-out
-     on the dark background. Used by the "Delete all" action. */
-  --color-destructive-strong: hsl(347 77% 50%);
 }
 
 /* ──────────────────────────────────────────────────
