@@ -282,12 +282,12 @@ export function ConnectionItem({
               Connecting: spinner. Disconnected: hollow ring. */}
           <div className="relative flex-shrink-0" aria-hidden="true">
             {isConnecting ? (
-              <Loader2 className="size-3 text-amber-500 animate-spin" strokeWidth={2.5} />
+              <Loader2 className="size-3 text-warning animate-spin" strokeWidth={2.5} />
             ) : isConnected ? (
               <div
                 className={cn(
-                  'size-2.5 rounded-full ring-2 ring-emerald-500/30',
-                  !connection.colorTag && 'bg-emerald-500',
+                  'size-2.5 rounded-full ring-2 ring-success/30',
+                  !connection.colorTag && 'bg-success',
                 )}
                 style={connection.colorTag ? { backgroundColor: connection.colorTag } : undefined}
               />

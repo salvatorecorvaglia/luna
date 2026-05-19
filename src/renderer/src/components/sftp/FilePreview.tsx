@@ -88,11 +88,11 @@ export function FilePreview() {
             <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
               <div className="flex items-center gap-2.5">
                 {isImageType(previewFile.type) ? (
-                  <FileImage className="size-4 text-pink-400" />
+                  <FileImage className="size-4 text-brand-pink" />
                 ) : previewFile.type === 'application/pdf' ? (
-                  <FileText className="size-4 text-red-400" />
+                  <FileText className="size-4 text-destructive" />
                 ) : (
-                  <FileCode className="size-4 text-green-400" />
+                  <FileCode className="size-4 text-success" />
                 )}
                 <span className="text-sm font-medium text-foreground">{previewFile.name}</span>
                 <span className="rounded-md bg-muted/80 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">

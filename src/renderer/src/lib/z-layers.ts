@@ -27,6 +27,12 @@ export const Z = {
    * the highest *interactive* layer below toasts.
    */
   confirm: 'z-[110]',
+  /**
+   * Help tooltips that must surface above an open modal/form so contextual
+   * hints are visible while a user is filling in a dialog. Sits below confirm
+   * dialogs so a destructive prompt is never obscured.
+   */
+  tooltipOverlay: 'z-[100]',
   /** Drag chips and ephemeral floating UI during a drag gesture. */
   drag: 'z-[200]',
 } as const;

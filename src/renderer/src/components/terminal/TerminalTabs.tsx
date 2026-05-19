@@ -207,10 +207,10 @@ const Tab = memo(function Tab({
     const inner = (() => {
       switch (session.status) {
         case 'connected':
-          return <div className="size-2 rounded-full bg-emerald-500" />;
+          return <div className="size-2 rounded-full bg-success" />;
         case 'connecting':
         case 'reconnecting':
-          return <Loader2 className="size-3 text-amber-500 animate-spin" />;
+          return <Loader2 className="size-3 text-warning animate-spin" />;
         case 'error':
           return <WifiOff className="size-3 text-destructive" />;
         default:

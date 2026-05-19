@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { Z } from '@/lib/z-layers';
 
 export interface ContextMenuItem {
   label: string;
@@ -96,7 +97,10 @@ export function ContextMenu({ items, children }: ContextMenuProps) {
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.1 }}
             role="menu"
-            className="fixed z-[70] min-w-[160px] rounded-lg border border-border/80 bg-card p-1 shadow-xl"
+            className={cn(
+              'fixed min-w-[160px] rounded-lg border border-border/80 bg-card p-1 shadow-xl',
+              Z.modal,
+            )}
             style={{ left: position.x, top: position.y }}
           >
             {items.map((item, i) => (

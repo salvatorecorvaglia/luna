@@ -32,7 +32,7 @@ export function StatusBar() {
         {activeSession ? (
           <div className="flex min-w-0 items-center gap-1.5">
             {activeSession.status === 'connected' ? (
-              <Wifi className="size-3.5 flex-shrink-0 text-emerald-500" />
+              <Wifi className="size-3.5 flex-shrink-0 text-success" />
             ) : (
               <WifiOff className="size-3.5 flex-shrink-0 text-destructive" />
             )}
@@ -46,10 +46,10 @@ export function StatusBar() {
               className={cn(
                 'flex-shrink-0 rounded-full px-1.5 py-px text-[10px] font-semibold uppercase tracking-wider',
                 activeSession.status === 'connected'
-                  ? 'bg-emerald-500/10 text-emerald-500'
+                  ? 'bg-success/10 text-success'
                   : activeSession.status === 'error'
-                    ? 'bg-red-500/10 text-red-400'
-                    : 'bg-amber-500/10 text-amber-500',
+                    ? 'bg-destructive/10 text-destructive'
+                    : 'bg-warning/10 text-warning',
               )}
             >
               {activeSession.status}
