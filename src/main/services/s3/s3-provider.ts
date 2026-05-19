@@ -151,7 +151,7 @@ class S3StorageProvider implements StorageProvider {
       const entries: StorageEntry[] = [];
       let ContinuationToken: string | undefined;
       try {
-        do {
+        outer: do {
           const out = await client.send(
             new ListObjectsV2Command({
               Bucket: bucket,
@@ -165,6 +165,14 @@ class S3StorageProvider implements StorageProvider {
             // strip the listing prefix and the trailing slash
             const name = full.slice(prefix.length).replace(/\/$/, '');
             if (!name) continue;
+            // Check the cap *before* pushing so a single S3 page (up to 1000
+            // CommonPrefixes + 1000 Contents) can't blow past the limit. The
+            // previous post-loop check let entries.length overshoot by up to
+            // one full page on a fan-out prefix.
+            if (entries.length >= LIMITS.MAX_S3_LIST_ENTRIES) {
+              truncated = true;
+              break outer;
+            }
             entries.push(prefixToEntry(bucket, full, name));
           }
           for (const obj of out.Contents ?? []) {
@@ -175,15 +183,13 @@ class S3StorageProvider implements StorageProvider {
             // Treat trailing-slash markers as prefix entries to avoid showing
             // them as zero-byte files alongside the prefix they represent.
             if (name.endsWith('/')) continue;
+            if (entries.length >= LIMITS.MAX_S3_LIST_ENTRIES) {
+              truncated = true;
+              break outer;
+            }
             entries.push(objectToEntry(bucket, obj, name));
           }
           ContinuationToken = out.IsTruncated ? out.NextContinuationToken : undefined;
-          // Safety cap: stop pagination if we've accumulated too many entries
-          // to prevent OOM on buckets with millions of keys at a given prefix.
-          if (entries.length >= LIMITS.MAX_S3_LIST_ENTRIES) {
-            truncated = true;
-            ContinuationToken = undefined;
-          }
         } while (ContinuationToken);
       } catch (err) {
         throw wrapS3Error('list-objects', err);
@@ -550,7 +556,7 @@ class S3StorageProvider implements StorageProvider {
     // process could exit (or the next op start) while AbortMultipartUpload is
     // still in flight, occasionally leaving orphaned parts behind despite
     // leavePartsOnError: false.
-    let abortPromise: Promise<unknown> | null = null;
+    let abortPromise: Promise<void> | null = null;
     const onAbort = (): void => {
       try {
         abortPromise = upload.abort().catch((err) => {

@@ -23,12 +23,22 @@ export class AbortError extends Error {
 }
 
 export class S3StorageError extends LunarError {
+  /**
+   * True when the underlying SDK error is one the caller can reasonably
+   * retry (throttling, 5xx, transient network). Always-false for auth
+   * failures, NoSuchBucket, AccessDenied, etc. — re-issuing those would
+   * just burn another round-trip with the same result.
+   */
+  public readonly retryable: boolean;
+
   constructor(
     message: string,
     public readonly cause?: unknown,
-    metadata?: Record<string, unknown>,
+    metadata?: Record<string, unknown> & { retryable?: boolean },
   ) {
-    super(message, ErrorCode.S3_ERROR, { ...metadata, cause });
+    const retryable = metadata?.retryable === true;
+    super(message, ErrorCode.S3_ERROR, { ...metadata, cause, retryable });
     this.name = 'S3StorageError';
+    this.retryable = retryable;
   }
 }

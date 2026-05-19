@@ -92,4 +92,29 @@ describe('wrapS3Error', () => {
     const wrapped = wrapS3Error('upload', 'plain string failure');
     expect(wrapped.message).toBe('S3 upload failed: plain string failure');
   });
+
+  it('tags throttling codes as retryable', () => {
+    const err = Object.assign(new Error('slow down'), { name: 'SlowDown' });
+    const wrapped = wrapS3Error('upload', err) as S3StorageError;
+    expect(wrapped).toBeInstanceOf(S3StorageError);
+    expect(wrapped.retryable).toBe(true);
+  });
+
+  it('tags 5xx by HTTP status as retryable', () => {
+    const err = Object.assign(new Error('boom'), {
+      name: 'InternalError',
+      $metadata: { httpStatusCode: 503 },
+    });
+    expect((wrapS3Error('list', err) as S3StorageError).retryable).toBe(true);
+  });
+
+  it('does not tag auth/notfound errors as retryable', () => {
+    const err = Object.assign(new Error('nope'), { name: 'AccessDenied' });
+    expect((wrapS3Error('list', err) as S3StorageError).retryable).toBe(false);
+  });
+
+  it('expired-token errors are not retryable', () => {
+    const err = Object.assign(new Error('forbidden'), { name: 'ExpiredToken' });
+    expect((wrapS3Error('list', err) as S3StorageError).retryable).toBe(false);
+  });
 });
