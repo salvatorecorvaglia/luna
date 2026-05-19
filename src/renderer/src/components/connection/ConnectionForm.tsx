@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, Cloud, FolderClosed, Palette, Server, Wifi, X } from 'lucide-react';
+import {
+  AlertCircle,
+  Check,
+  CheckCircle2,
+  Cloud,
+  FolderClosed,
+  Palette,
+  Server,
+  Wifi,
+  X,
+} from 'lucide-react';
 import { Spinner } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { attachFocusTrap } from '@/lib/focus-trap';
@@ -59,6 +69,12 @@ export function ConnectionForm() {
    */
   const [privateKeyProbeError, setPrivateKeyProbeError] = useState<string | undefined>(undefined);
   const [testing, setTesting] = useState(false);
+  // Inline result of the most recent Test Connection run. Surfaced beneath
+  // the footer Test button so users can read it at their own pace, instead
+  // of relying on a toast that disappears after a few seconds.
+  const [testResult, setTestResult] = useState<
+    { status: 'success' | 'error'; message: string } | null
+  >(null);
   // Holds the test-connection AbortController so the user can cancel a hung
   // test before the IPC reply (10 s+ for unreachable hosts).
   const testRunRef = useRef<{ controller: AbortController; runId: number } | null>(null);
@@ -134,6 +150,17 @@ export function ConnectionForm() {
     if (connectionFormOpen) return;
     clearSecrets();
   }, [connectionFormOpen, clearSecrets]);
+
+  // Drop the inline test outcome whenever the form re-opens. Using the
+  // render-time prevState pattern (vs. setState-in-effect) keeps the update
+  // in the same commit as the open transition — no extra paint, no lint
+  // warning. A stale "Connection successful" tied to the previous host
+  // would otherwise mislead the user when they edit a different connection.
+  const [prevFormOpen, setPrevFormOpen] = useState(connectionFormOpen);
+  if (prevFormOpen !== connectionFormOpen) {
+    setPrevFormOpen(connectionFormOpen);
+    if (!connectionFormOpen) setTestResult(null);
+  }
 
   // Guarded close: prompt to confirm discard if the user has typed anything.
   const requestClose = useCallback(() => {
@@ -397,7 +424,7 @@ export function ConnectionForm() {
     run.controller.abort();
     testRunRef.current = null;
     setTesting(false);
-    toast.info('Connection test cancelled');
+    setTestResult(null);
   }
 
   /**
@@ -414,6 +441,9 @@ export function ConnectionForm() {
       cancelTest();
       return;
     }
+    // Clear stale result so the panel doesn't show a misleading prior success
+    // while a fresh run is in flight.
+    setTestResult(null);
 
     const runId = ++testRunCounter.current;
     const controller = new AbortController();
@@ -423,7 +453,10 @@ export function ConnectionForm() {
       controller.abort();
       testRunRef.current = null;
       setTesting(false);
-      toast.error('Connection test timed out — main process not responding');
+      setTestResult({
+        status: 'error',
+        message: 'Test timed out — main process not responding',
+      });
     }, TEST_HARD_TIMEOUT_MS);
     controller.signal.addEventListener('abort', () => clearTimeout(watchdog), { once: true });
 
@@ -432,7 +465,10 @@ export function ConnectionForm() {
 
     if (common.provider === 'sftp') {
       if (!sftp.host.trim() || !sftp.username.trim()) {
-        toast.error('Host and Username are required to test');
+        setTestResult({
+          status: 'error',
+          message: 'Host and Username are required to test',
+        });
         testRunRef.current = null;
         return;
       }
@@ -465,9 +501,12 @@ export function ConnectionForm() {
         });
         if (!isStillCurrent()) return;
         if (result.ok) {
-          toast.success('Connection successful');
+          setTestResult({ status: 'success', message: 'Connection successful' });
         } else {
-          toast.error(result.error || 'Connection failed');
+          setTestResult({
+            status: 'error',
+            message: result.error || 'Connection failed',
+          });
         }
       } finally {
         clearTimeout(watchdog);
@@ -479,7 +518,10 @@ export function ConnectionForm() {
     } else {
       const useStored = isEditing && !s3.accessKeyId.trim() && !s3.secretAccessKey.trim();
       if (!useStored && (!s3.accessKeyId.trim() || !s3.secretAccessKey.trim())) {
-        toast.error('Access Key ID and Secret Access Key are required to test');
+        setTestResult({
+          status: 'error',
+          message: 'Access Key ID and Secret Access Key are required to test',
+        });
         testRunRef.current = null;
         return;
       }
@@ -504,9 +546,12 @@ export function ConnectionForm() {
         );
         if (!isStillCurrent()) return;
         if (result.ok) {
-          toast.success('S3 connection successful');
+          setTestResult({ status: 'success', message: 'S3 connection successful' });
         } else {
-          toast.error(result.error || 'S3 connection failed');
+          setTestResult({
+            status: 'error',
+            message: result.error || 'S3 connection failed',
+          });
         }
       } finally {
         clearTimeout(watchdog);
@@ -833,6 +878,50 @@ export function ConnectionForm() {
                     </div>
                   </FormField>
                 </div>
+
+                {/* Inline test result — persistent panel above the footer so
+                    users can read success/failure at their own pace instead of
+                    relying on a toast that auto-dismisses. */}
+                {testResult && (
+                  <div
+                    role="status"
+                    aria-live="polite"
+                    className={cn(
+                      'mx-5 mb-3 flex items-start gap-2.5 rounded-lg border px-3 py-2',
+                      testResult.status === 'success'
+                        ? 'border-success/30 bg-success/5'
+                        : 'border-destructive/30 bg-destructive/5',
+                    )}
+                  >
+                    {testResult.status === 'success' ? (
+                      <CheckCircle2
+                        className="size-4 shrink-0 text-success mt-0.5"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <AlertCircle
+                        className="size-4 shrink-0 text-destructive mt-0.5"
+                        aria-hidden="true"
+                      />
+                    )}
+                    <p
+                      className={cn(
+                        'flex-1 text-xs leading-relaxed',
+                        testResult.status === 'success' ? 'text-foreground' : 'text-destructive',
+                      )}
+                    >
+                      {testResult.message}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setTestResult(null)}
+                      aria-label="Dismiss test result"
+                      className="btn-icon !p-0.5 !min-w-0 !min-h-0 -mr-0.5 -mt-0.5"
+                    >
+                      <X className="size-3" aria-hidden="true" />
+                    </button>
+                  </div>
+                )}
 
                 {/* Fixed Footer */}
                 <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border/60 bg-muted/5 px-5 py-4">

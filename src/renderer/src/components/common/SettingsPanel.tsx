@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   Database,
   Download,
   FileText,
@@ -361,13 +362,6 @@ export function SettingsPanel() {
                     Import
                   </button>
                 </div>
-                <button
-                  onClick={() => setConfirmDeleteAll(true)}
-                  className="btn-outline w-full !text-destructive-strong !border-destructive-strong/40 hover:!bg-destructive-strong/10 hover:!border-destructive-strong/80 transition-colors"
-                >
-                  <Trash2 className="size-3.5 !text-destructive-strong" />
-                  Delete all connections
-                </button>
               </Section>
 
               {/* Logs */}
@@ -396,6 +390,33 @@ export function SettingsPanel() {
                     Your place in one calm workspace.
                   </p>
                   <p className="mt-1 text-[11px] text-muted-foreground/60">v{appVersion}</p>
+                </div>
+              </Section>
+
+              {/* Danger zone — destructive actions live at the bottom, tinted
+                  and visually separated so they're not adjacent to routine
+                  preferences a user might be scanning quickly. */}
+              <Section
+                title="Danger zone"
+                icon={<AlertTriangle className="size-4" />}
+                tone="danger"
+              >
+                <div className="rounded-lg border border-destructive/30 bg-destructive/[0.04] p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-foreground">Delete all connections</p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground leading-relaxed">
+                        Permanently removes every saved connection and credential. Cannot be undone.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setConfirmDeleteAll(true)}
+                      className="btn-destructive flex-shrink-0"
+                    >
+                      <Trash2 className="size-3.5" />
+                      Delete all
+                    </button>
+                  </div>
                 </div>
               </Section>
             </div>
@@ -428,17 +449,27 @@ export function SettingsPanel() {
 function Section({
   title,
   icon,
+  tone = 'default',
   children,
 }: {
   title: string;
   icon: React.ReactNode;
+  tone?: 'default' | 'danger';
   children: React.ReactNode;
 }) {
+  const danger = tone === 'danger';
   return (
     <section className="border-t border-border/60 pt-5 first:border-t-0 first:pt-0">
       <div className="flex items-center gap-2 mb-3.5">
-        <span className="text-muted-foreground">{icon}</span>
-        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        <span className={danger ? 'text-destructive' : 'text-muted-foreground'}>{icon}</span>
+        <h3
+          className={cn(
+            'text-base font-semibold tracking-tight',
+            danger ? 'text-destructive' : 'text-foreground',
+          )}
+        >
+          {title}
+        </h3>
       </div>
       <div className="space-y-3 pl-6">{children}</div>
     </section>
