@@ -20,6 +20,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Z } from '@/lib/z-layers';
 import { useUIStore } from '@/stores/ui-store';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { useConnectionStore } from '@/stores/connection-store';
@@ -401,14 +402,17 @@ export function CommandPalette() {
             animate="animate"
             exit="exit"
             onClick={() => setCommandPaletteOpen(false)}
-            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+            className={cn('fixed inset-0 bg-black/50 backdrop-blur-sm', Z.modal)}
           />
           <motion.div
             variants={dialogVariants}
             initial="initial"
             animate="animate"
             exit="exit"
-            className="no-drag fixed left-1/2 top-[20%] z-50 w-full max-w-lg -translate-x-1/2"
+            className={cn(
+              'no-drag fixed left-1/2 top-[20%] w-full max-w-lg -translate-x-1/2',
+              Z.modal,
+            )}
           >
             <div className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-xl">
               {/* Search input */}
