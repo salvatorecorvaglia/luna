@@ -1,0 +1,389 @@
+import { useState } from 'react';
+import { Reorder, useDragControls } from 'framer-motion';
+import type { DragControls } from 'framer-motion';
+import {
+  ChevronRight,
+  Copy,
+  Eye,
+  EyeOff,
+  GripVertical,
+  Loader2,
+  LogOut,
+  Pencil,
+  RefreshCw,
+  Terminal,
+  Trash2,
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import { useConnectionStore } from '@/stores/connection-store';
+import { useTerminalStore } from '@/stores/terminal-store';
+import { useUIStore } from '@/stores/ui-store';
+import { useStorageStore } from '@/stores/storage-store';
+import { useConnections, useDeleteConnection, useUpdateConnection } from '@/hooks/use-connections';
+import { connectToHost } from '@/lib/ssh';
+import { connectToS3 } from '@/lib/s3';
+import type { Connection } from '@shared/types/ipc';
+import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+
+/**
+ * Reorder.Item wrapper so each connection row can participate in framer-motion's
+ * drag-to-reorder without leaking the drag controls back up to the parent.
+ */
+export function DraggableConnectionItem({
+  connection,
+  disabled,
+  onDragStart,
+  onDragEnd,
+}: {
+  connection: Connection;
+  disabled: boolean;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+}) {
+  const controls = useDragControls();
+  return (
+    <Reorder.Item
+      value={connection}
+      dragListener={false}
+      dragControls={controls}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      className="bg-sidebar"
+    >
+      <ConnectionItem connection={connection} disabled={disabled} dragControls={controls} />
+    </Reorder.Item>
+  );
+}
+
+export function ConnectionItem({
+  connection,
+  compact = false,
+  disabled = false,
+  dragControls,
+}: {
+  connection: Connection;
+  compact?: boolean;
+  disabled?: boolean;
+  dragControls: DragControls;
+}) {
+  const { activeConnectionId, setActiveConnectionId, openEditForm, openDuplicateForm } =
+    useConnectionStore();
+  const { setActiveView } = useUIStore();
+  const { sessions } = useTerminalStore();
+  const { data: allConnections } = useConnections();
+  // The bastion may have been deleted (FK is ON DELETE SET NULL on the
+  // server, but the renderer's cached row can briefly out-pace that) — fall
+  // back to a generic "via jump host" label so the badge still signals the
+  // chain even when the lookup misses.
+  const jumpHostName = connection.jumpHostConnectionId
+    ? allConnections?.find((c) => c.id === connection.jumpHostConnectionId)?.name
+    : undefined;
+  const storageSessions = useStorageStore((s) => s.storageSessions);
+  const setActiveSessionId = useStorageStore((s) => s.setActiveSessionId);
+  const deleteMutation = useDeleteConnection();
+  const updateMutation = useUpdateConnection();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const isS3 = connection.provider === 's3';
+  const isConnected = isS3
+    ? Array.from(storageSessions.values()).some(
+        (s) => s.connectionId === connection.id && s.status === 'connected',
+      )
+    : Array.from(sessions.values()).some(
+        (s) => s.connectionId === connection.id && s.status === 'connected',
+      );
+  const isConnecting = isS3
+    ? Array.from(storageSessions.values()).some(
+        (s) => s.connectionId === connection.id && s.status === 'connecting',
+      )
+    : Array.from(sessions.values()).some(
+        (s) =>
+          s.connectionId === connection.id &&
+          (s.status === 'connecting' || s.status === 'reconnecting'),
+      );
+  const isActive = activeConnectionId === connection.id && (isConnected || isConnecting);
+
+  const handleConnect = () => {
+    if (disabled) return;
+    setActiveConnectionId(connection.id);
+
+    if (isS3) {
+      // S3 connections have no terminal — open the file browser directly.
+      setActiveView('sftp');
+      const latestStorageSessions = useStorageStore.getState().storageSessions;
+      const existing = Array.from(latestStorageSessions.values()).find(
+        (s) => s.connectionId === connection.id && s.status !== 'error',
+      );
+      if (existing) {
+        setActiveSessionId(existing.id);
+        return;
+      }
+      void connectToS3(connection.id);
+      return;
+    }
+
+    setActiveView('terminal');
+
+    // If already connected, switch to the existing tab instead of opening a new one
+    const latestSessions = useTerminalStore.getState().sessions;
+    const existingSession = Array.from(latestSessions.values()).find(
+      (s) =>
+        s.connectionId === connection.id &&
+        (s.status === 'connected' || s.status === 'connecting' || s.status === 'reconnecting'),
+    );
+    if (existingSession) {
+      useTerminalStore.getState().setActiveTab(existingSession.id);
+      return;
+    }
+
+    void connectToHost(connection.id);
+  };
+
+  const handleDisconnect = async () => {
+    try {
+      if (isS3) {
+        const existing = Array.from(useStorageStore.getState().storageSessions.values()).find(
+          (s) => s.connectionId === connection.id,
+        );
+        if (existing) {
+          window.api.transfers?.cancelBySession?.(existing.id).catch(() => {});
+          await window.api.s3.disconnect(existing.id);
+          useStorageStore.getState().removeStorageSession(existing.id);
+          if (useStorageStore.getState().activeSessionId === existing.id) {
+            useStorageStore.getState().setActiveSessionId(null);
+            useUIStore.getState().setActiveView('welcome');
+          }
+          toast.success('S3 session closed');
+        }
+      } else {
+        const activeSshSessions = Array.from(useTerminalStore.getState().sessions.values()).filter(
+          (s) => s.connectionId === connection.id,
+        );
+        for (const s of activeSshSessions) {
+          window.api.transfers?.cancelBySession?.(s.id).catch(() => {});
+          useTerminalStore.getState().closeTab(s.id);
+        }
+        if (useTerminalStore.getState().sessions.size === 0) {
+          useUIStore.getState().setActiveView('welcome');
+        }
+        if (activeSshSessions.length > 0) {
+          toast.success('SSH session disconnected');
+        }
+      }
+    } catch (err) {
+      console.error('Disconnect failed:', err);
+      toast.error('Failed to disconnect cleanly');
+    }
+  };
+
+  const handleReconnect = async () => {
+    try {
+      const sessionId = isS3
+        ? Array.from(useStorageStore.getState().storageSessions.values()).find(
+            (s) => s.connectionId === connection.id,
+          )?.id
+        : Array.from(useTerminalStore.getState().sessions.values()).find(
+            (s) => s.connectionId === connection.id,
+          )?.id;
+
+      if (sessionId) {
+        window.api.transfers?.cancelBySession?.(sessionId).catch(() => {});
+        if (isS3) {
+          await window.api.s3.disconnect(sessionId);
+          useStorageStore.getState().removeStorageSession(sessionId);
+        } else {
+          void window.api.ssh.disconnect(sessionId);
+          useTerminalStore.getState().removeSession(sessionId);
+        }
+      }
+
+      // Re-connect after cleanup
+      setTimeout(() => {
+        handleConnect();
+      }, 150);
+    } catch (err) {
+      console.error('Reconnect failed:', err);
+      toast.error('Failed to reconnect');
+    }
+  };
+
+  const contextMenuItems: ContextMenuItem[] = [
+    ...(!isConnected
+      ? [
+          {
+            label: 'Connect',
+            icon: <Terminal className="size-3.5" />,
+            onClick: handleConnect,
+          },
+        ]
+      : []),
+    ...(isConnected || isConnecting
+      ? [
+          {
+            label: 'Reconnect',
+            icon: <RefreshCw className="size-3.5" />,
+            onClick: handleReconnect,
+          },
+          {
+            label: 'Disconnect',
+            icon: <LogOut className="size-3.5" />,
+            onClick: handleDisconnect,
+          },
+        ]
+      : []),
+    {
+      label: 'Edit',
+      icon: <Pencil className="size-3.5" />,
+      onClick: () => openEditForm(connection.id),
+    },
+    {
+      label: 'Duplicate',
+      icon: <Copy className="size-3.5" />,
+      onClick: () => openDuplicateForm(connection.id),
+    },
+    {
+      label: connection.isHidden ? 'Show in Sidebar' : 'Hide from Sidebar',
+      icon: connection.isHidden ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />,
+      onClick: () => {
+        updateMutation.mutate({
+          id: connection.id,
+          isHidden: !connection.isHidden,
+        });
+      },
+    },
+    {
+      label: 'Delete',
+      icon: <Trash2 className="size-3.5" />,
+      onClick: () => setConfirmDelete(true),
+      destructive: true,
+      separator: true,
+    },
+  ];
+
+  const statusLabel = isConnected ? 'connected' : isConnecting ? 'connecting' : 'disconnected';
+
+  return (
+    <>
+      <ContextMenu items={contextMenuItems}>
+        <button
+          onClick={handleConnect}
+          aria-label={`${connection.name} (${connection.username}@${connection.host}) — ${statusLabel}`}
+          className={cn(
+            'group flex w-full items-center gap-2.5 rounded-lg px-2.5 text-left cursor-pointer transition-colors',
+            compact ? 'py-[7px]' : 'py-2',
+            isActive
+              ? 'bg-sidebar-accent border-l-[3px] border-l-sidebar-primary pl-[7px]'
+              : 'hover:bg-sidebar-accent/60',
+          )}
+        >
+          {/* Status indicator — shape + color so colorblind users can
+              still distinguish states. Connected: solid dot with ring.
+              Connecting: spinner. Disconnected: hollow ring. */}
+          <div className="relative flex-shrink-0" aria-hidden="true">
+            {isConnecting ? (
+              <Loader2 className="size-3 text-amber-500 animate-spin" strokeWidth={2.5} />
+            ) : isConnected ? (
+              <div
+                className={cn(
+                  'size-2.5 rounded-full ring-2 ring-emerald-500/30',
+                  !connection.colorTag && 'bg-emerald-500',
+                )}
+                style={connection.colorTag ? { backgroundColor: connection.colorTag } : undefined}
+              />
+            ) : (
+              <div
+                className={cn(
+                  'size-2.5 rounded-full border-[1.5px] border-muted-foreground/60',
+                  connection.colorTag && 'opacity-60',
+                )}
+                style={
+                  connection.colorTag
+                    ? { borderColor: connection.colorTag, backgroundColor: 'transparent' }
+                    : undefined
+                }
+              />
+            )}
+          </div>
+          <span className="sr-only" aria-live="polite">
+            {statusLabel}
+          </span>
+
+          <div className="min-w-0 flex-1">
+            <div
+              className="truncate text-[13px] font-medium text-sidebar-foreground"
+              title={connection.name}
+            >
+              {connection.name}
+            </div>
+            {!compact && (
+              <div
+                className="truncate text-[11px] text-muted-foreground"
+                title={
+                  isS3
+                    ? `${connection.endpoint || connection.region || 'S3 Storage'}${
+                        connection.defaultBucket ? ' / ' + connection.defaultBucket : ''
+                      }`
+                    : `${connection.username}@${connection.host}${
+                        connection.port !== 22 ? ':' + connection.port : ''
+                      }`
+                }
+              >
+                {isS3 ? (
+                  <>
+                    {connection.endpoint || connection.region || 'S3 Storage'}
+                    {connection.defaultBucket && ` / ${connection.defaultBucket}`}
+                  </>
+                ) : (
+                  <>
+                    {connection.username}@{connection.host}
+                    {connection.port !== 22 && `:${connection.port}`}
+                    {connection.jumpHostConnectionId && (
+                      <span
+                        className="ml-1.5 inline-flex items-center rounded border border-border/50 bg-muted/40 px-1 py-px text-[9px] uppercase tracking-wide text-muted-foreground/80"
+                        title={`Tunneled via jump host${jumpHostName ? ` "${jumpHostName}"` : ''}`}
+                      >
+                        via {jumpHostName ?? 'jump'}
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          <ChevronRight
+            aria-hidden="true"
+            className="size-3.5 text-muted-foreground/30 group-hover:text-muted-foreground/70 flex-shrink-0 transition-colors"
+          />
+          <div
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              dragControls.start(e);
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="cursor-grab active:cursor-grabbing px-1 py-2 -mr-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <GripVertical className="size-3 text-muted-foreground/40" />
+          </div>
+        </button>
+      </ContextMenu>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Delete connection?"
+        message={`"${connection.name}" will be permanently deleted. This cannot be undone.`}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => {
+          deleteMutation.mutate(connection.id, {
+            onSuccess: () => toast.success('Connection deleted'),
+            onError: () => toast.error('Failed to delete connection'),
+          });
+          setConfirmDelete(false);
+        }}
+        onCancel={() => setConfirmDelete(false)}
+      />
+    </>
+  );
+}

@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import { toastArgs } from '@shared/error-messages';
 import { cn } from '@/lib/utils';
 import { Z } from '@/lib/z-layers';
+import { attachFocusTrap } from '@/lib/focus-trap';
 import { Toggle } from '@/components/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUIStore } from '@/stores/ui-store';
@@ -99,40 +100,28 @@ export function SettingsPanel() {
 
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Focus trap + Escape
+  // Read confirmDeleteAll through a ref so the focus trap doesn't tear down
+  // and reattach (losing the captured "previously-focused" element) every
+  // time the nested confirm toggles. The trap's onEscape closure reads the
+  // ref on each keydown so the suppression remains live.
+  const confirmDeleteAllRef = useRef(confirmDeleteAll);
+  useEffect(() => {
+    confirmDeleteAllRef.current = confirmDeleteAll;
+  }, [confirmDeleteAll]);
+
   useEffect(() => {
     if (!settingsOpen) return;
     const panel = panelRef.current;
     if (!panel) return;
-
-    const handler = (e: KeyboardEvent) => {
-      // If a nested dialog (like Delete All) is open, let its own focus trap
-      // handle Escape. Otherwise, we'd close both at once.
-      if (confirmDeleteAll) return;
-
-      if (e.key === 'Escape') {
+    return attachFocusTrap(panel, {
+      onEscape: () => {
+        // If the nested Delete-all confirm is open, let its own trap handle
+        // Escape — otherwise both close at once.
+        if (confirmDeleteAllRef.current) return;
         setSettingsOpen(false);
-        return;
-      }
-      if (e.key === 'Tab') {
-        const focusable = panel.querySelectorAll<HTMLElement>(
-          'input:not([disabled]), button:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-        );
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last?.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first?.focus();
-        }
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [settingsOpen, setSettingsOpen, confirmDeleteAll]);
+      },
+    });
+  }, [settingsOpen, setSettingsOpen]);
 
   return (
     <AnimatePresence>
