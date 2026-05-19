@@ -246,7 +246,7 @@ const TransferRow = memo(function TransferRow({
               <div
                 className={cn(
                   'h-full rounded-full transition-all duration-300',
-                  item.type === 'upload' ? 'bg-blue-500' : 'bg-emerald-500',
+                  item.type === 'upload' ? 'bg-info' : 'bg-success',
                 )}
                 style={{ width: `${percent}%` }}
               />

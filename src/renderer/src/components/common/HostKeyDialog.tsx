@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Check, Copy, Fingerprint, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { attachFocusTrap } from '@/lib/focus-trap';
+import { Z } from '@/lib/z-layers';
 import { toast } from 'sonner';
 import type { SshHostKeyChangeEvent } from '@shared/types/terminal';
 import { connectToHost } from '@/lib/ssh';
@@ -99,14 +100,14 @@ export function HostKeyDialog() {
             initial="initial"
             animate="animate"
             exit="exit"
-            className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm"
+            className={`fixed inset-0 ${Z.hostKeyDialog} bg-black/60 backdrop-blur-sm`}
           />
           <motion.div
             variants={dialogVariants}
             initial="initial"
             animate="animate"
             exit="exit"
-            className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+            className={`fixed inset-0 ${Z.hostKeyDialog} flex items-center justify-center p-4`}
           >
             <div
               ref={dialogRef}
@@ -122,11 +123,11 @@ export function HostKeyDialog() {
                 <div
                   className={cn(
                     'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full',
-                    event.isFirst ? 'bg-blue-500/10' : 'bg-destructive/10',
+                    event.isFirst ? 'bg-info/10' : 'bg-destructive/10',
                   )}
                 >
                   {event.isFirst ? (
-                    <ShieldCheck className="h-5 w-5 text-blue-500" />
+                    <ShieldCheck className="h-5 w-5 text-info" />
                   ) : (
                     <ShieldAlert className="h-5 w-5 text-destructive" />
                   )}
@@ -171,7 +172,7 @@ export function HostKeyDialog() {
                         title="Copy fingerprint"
                       >
                         {copied ? (
-                          <Check className="h-3 w-3 text-emerald-500" />
+                          <Check className="h-3 w-3 text-success" />
                         ) : (
                           <Copy className="h-3 w-3" />
                         )}

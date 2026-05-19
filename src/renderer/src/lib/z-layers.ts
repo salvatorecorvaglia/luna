@@ -16,6 +16,12 @@ export const Z = {
   /** Settings/side-panel sheets that take over the right edge of the window. */
   panel: 'z-[90]',
   /**
+   * Host-key trust/change alert. Sits above standard modals so it surfaces
+   * even when a ConnectionForm or other modal is open at the moment a
+   * connect attempt triggers verification.
+   */
+  hostKeyDialog: 'z-[100]',
+  /**
    * Confirmation dialogs that intentionally stack ABOVE another modal
    * (e.g. discard-changes prompt over an open ConnectionForm). Keep this
    * the highest *interactive* layer below toasts.
