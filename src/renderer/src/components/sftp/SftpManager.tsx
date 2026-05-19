@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { toast } from 'sonner';
+import { toastArgs } from '@shared/error-messages';
 import { Plus, Unplug, WifiOff } from 'lucide-react';
 import { useStorageStore } from '@/stores/storage-store';
 import { useTerminalStore } from '@/stores/terminal-store';
@@ -232,7 +233,7 @@ export function SftpManager() {
         });
         toast.success(`Download started: ${entry.name}`);
       } catch (err: unknown) {
-        toast.error(`Download failed: ${err instanceof Error ? err.message : String(err)}`);
+        toast.error(...toastArgs(err, 'Download failed'));
       }
     },
     [activeSessionId, localPath, addTransfer],
@@ -264,7 +265,7 @@ export function SftpManager() {
         });
         toast.success(`Upload started: ${entry.name}`);
       } catch (err: unknown) {
-        toast.error(`Upload failed: ${err instanceof Error ? err.message : String(err)}`);
+        toast.error(...toastArgs(err, 'Upload failed'));
       }
     },
     [activeSessionId, remotePath, addTransfer],
@@ -290,7 +291,7 @@ export function SftpManager() {
         const type = mimeForExt(ext, ext === 'pdf');
         setPreviewFile({ name: entry.name, content, type });
       } catch (err: unknown) {
-        toast.error(`Preview failed: ${err instanceof Error ? err.message : String(err)}`);
+        toast.error(...toastArgs(err, 'Preview failed'));
       }
     },
     [activeSessionId, setPreviewFile],
@@ -319,7 +320,7 @@ export function SftpManager() {
 
         setPreviewFile({ name: entry.name, content, type });
       } catch (err: unknown) {
-        toast.error(`Preview failed: ${err instanceof Error ? err.message : String(err)}`);
+        toast.error(...toastArgs(err, 'Preview failed'));
       }
     },
     [setPreviewFile],
@@ -347,7 +348,7 @@ export function SftpManager() {
         toast.success(`Renamed to ${newName}`);
         invalidateSftp(activeSessionId, remotePath);
       } catch (err: unknown) {
-        toast.error(`Rename failed: ${err instanceof Error ? err.message : String(err)}`);
+        toast.error(...toastArgs(err, 'Rename failed'));
       }
     },
     [activeSessionId, remotePath, invalidateSftp, renameTarget],
@@ -372,7 +373,7 @@ export function SftpManager() {
       toast.success(`Deleted ${entry.name}`);
       invalidateSftp(activeSessionId, remotePath);
     } catch (err: unknown) {
-      toast.error(`Delete failed: ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(...toastArgs(err, 'Delete failed'));
     }
   }, [activeSessionId, remotePath, invalidateSftp, deleteTarget]);
 
@@ -398,7 +399,7 @@ export function SftpManager() {
         toast.success(`Created folder "${name}"`);
         invalidateSftp(activeSessionId, remotePath);
       } catch (err: unknown) {
-        toast.error(`Failed to create folder: ${err instanceof Error ? err.message : String(err)}`);
+        toast.error(...toastArgs(err, 'Failed to create folder'));
       }
     },
     [activeSessionId, remotePath, invalidateSftp],
@@ -447,8 +448,8 @@ export function SftpManager() {
   ) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 text-muted-foreground">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/50">
-          <Unplug className="h-7 w-7 text-muted-foreground/30" />
+        <div className="flex size-14 items-center justify-center rounded-2xl bg-muted/50">
+          <Unplug className="size-7 text-muted-foreground/30" />
         </div>
         <div className="text-center">
           <p className="text-sm font-medium text-foreground/60">No active connection</p>
@@ -460,7 +461,7 @@ export function SftpManager() {
           onClick={() => useConnectionStore.getState().openCreateForm()}
           className="btn-outline mt-1"
         >
-          <Plus className="h-3.5 w-3.5" />
+          <Plus className="size-3.5" />
           New Connection
         </button>
       </div>
@@ -493,7 +494,7 @@ export function SftpManager() {
           aria-live="polite"
         >
           <div className="text-center">
-            <WifiOff className="h-8 w-8 mx-auto text-destructive/60 mb-2" aria-hidden="true" />
+            <WifiOff className="size-8 mx-auto text-destructive/60 mb-2" aria-hidden="true" />
             <p className="text-sm font-medium text-foreground/80">Connection lost</p>
             <p className="mt-1 text-xs text-muted-foreground/60">{overlayMessage}</p>
           </div>

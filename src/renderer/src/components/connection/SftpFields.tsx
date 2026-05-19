@@ -43,7 +43,7 @@ export function SftpFields({
         <div className="col-span-2">
           <FormField
             label="Host"
-            icon={<Globe className="h-3.5 w-3.5" aria-hidden="true" />}
+            icon={<Globe className="size-3.5" aria-hidden="true" />}
             required
             id={`${fieldId}-host`}
             error={visibleError('host')}
@@ -66,7 +66,7 @@ export function SftpFields({
         </div>
         <FormField
           label="Port"
-          icon={<Hash className="h-3.5 w-3.5" aria-hidden="true" />}
+          icon={<Hash className="size-3.5" aria-hidden="true" />}
           id={`${fieldId}-port`}
           error={visibleError('port')}
         >
@@ -93,7 +93,7 @@ export function SftpFields({
       {/* Username */}
       <FormField
         label="Username"
-        icon={<User className="h-3.5 w-3.5" aria-hidden="true" />}
+        icon={<User className="size-3.5" aria-hidden="true" />}
         required
         id={`${fieldId}-user`}
         error={visibleError('username')}
@@ -117,7 +117,7 @@ export function SftpFields({
       {/* Auth Type */}
       <div>
         <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          <Key className="h-3.5 w-3.5" />
+          <Key className="size-3.5" />
           Authentication
         </label>
         <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Authentication type">
@@ -152,11 +152,7 @@ export function SftpFields({
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.15 }}
           >
-            <FormField
-              label="Password"
-              icon={<Lock className="h-3.5 w-3.5" />}
-              id={`${fieldId}-pass`}
-            >
+            <FormField label="Password" icon={<Lock className="size-3.5" />} id={`${fieldId}-pass`}>
               <div className="relative">
                 <input
                   id={`${fieldId}-pass`}
@@ -177,9 +173,9 @@ export function SftpFields({
                   tabIndex={-1}
                 >
                   {sftp.showPassword ? (
-                    <EyeOff className="h-3.5 w-3.5" />
+                    <EyeOff className="size-3.5" />
                   ) : (
-                    <Eye className="h-3.5 w-3.5" />
+                    <Eye className="size-3.5" />
                   )}
                 </button>
               </div>
@@ -198,7 +194,7 @@ export function SftpFields({
           >
             <FormField
               label="Private Key Path"
-              icon={<FileKey className="h-3.5 w-3.5" aria-hidden="true" />}
+              icon={<FileKey className="size-3.5" aria-hidden="true" />}
               required
               id={`${fieldId}-key`}
               error={visibleError('privateKeyPath')}
@@ -230,7 +226,7 @@ export function SftpFields({
             {sftp.authType === 'key+passphrase' && (
               <FormField
                 label="Passphrase"
-                icon={<Lock className="h-3.5 w-3.5" />}
+                icon={<Lock className="size-3.5" />}
                 id={`${fieldId}-phrase`}
               >
                 <input
@@ -254,7 +250,7 @@ export function SftpFields({
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <Waypoints className="h-3.5 w-3.5" />
+            <Waypoints className="size-3.5" />
             Jump Host / Tunnel
           </label>
           <div className="flex rounded-md bg-muted/50 p-0.5" role="tablist">
@@ -300,7 +296,7 @@ export function SftpFields({
             >
               <FormField
                 label="Select Connection"
-                icon={<Waypoints className="h-3.5 w-3.5" />}
+                icon={<Waypoints className="size-3.5" />}
                 optional
                 id={`${fieldId}-jump`}
               >
@@ -332,7 +328,7 @@ export function SftpFields({
                 <div className="col-span-2">
                   <FormField
                     label="Jump Host"
-                    icon={<Globe className="h-3.5 w-3.5" />}
+                    icon={<Globe className="size-3.5" />}
                     id={`${fieldId}-jh-host`}
                     error={visibleError('jumpHostHost')}
                   >
@@ -349,7 +345,7 @@ export function SftpFields({
                 </div>
                 <FormField
                   label="Port"
-                  icon={<Hash className="h-3.5 w-3.5" />}
+                  icon={<Hash className="size-3.5" />}
                   id={`${fieldId}-jh-port`}
                   error={visibleError('jumpHostPort')}
                 >
@@ -367,7 +363,7 @@ export function SftpFields({
 
               <FormField
                 label="Username"
-                icon={<User className="h-3.5 w-3.5" />}
+                icon={<User className="size-3.5" />}
                 id={`${fieldId}-jh-user`}
                 error={visibleError('jumpHostUsername')}
               >
@@ -425,9 +421,9 @@ export function SftpFields({
                           className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground cursor-pointer"
                         >
                           {jumpHost.showPassword ? (
-                            <EyeOff className="h-3 w-3" />
+                            <EyeOff className="size-3" />
                           ) : (
-                            <Eye className="h-3 w-3" />
+                            <Eye className="size-3" />
                           )}
                         </button>
                       </div>

@@ -96,8 +96,8 @@ export function TerminalView() {
 
         {sshTabs.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center gap-4 text-muted-foreground">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/50">
-              <TerminalIcon className="h-7 w-7 text-muted-foreground/30" />
+            <div className="flex size-14 items-center justify-center rounded-2xl bg-muted/50">
+              <TerminalIcon className="size-7 text-muted-foreground/30" />
             </div>
             <div className="text-center">
               <p className="text-sm font-medium text-foreground/60">No active sessions</p>
@@ -106,7 +106,7 @@ export function TerminalView() {
               </p>
             </div>
             <button onClick={handleNewTab} className="btn-outline mt-1">
-              <Plus className="h-3.5 w-3.5" />
+              <Plus className="size-3.5" />
               New Session
             </button>
           </div>

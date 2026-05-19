@@ -94,10 +94,10 @@ export function LocalTerminalTabs() {
 
       <button
         onClick={handleNewLocalTab}
-        className="flex h-9 w-9 items-center justify-center border-l border-border/40 text-muted-foreground hover:bg-background/50 hover:text-foreground transition-colors cursor-pointer"
+        className="flex size-9 items-center justify-center border-l border-border/40 text-muted-foreground hover:bg-background/50 hover:text-foreground transition-colors cursor-pointer"
         title="New Local Terminal"
       >
-        <Plus className="h-4 w-4" />
+        <Plus className="size-4" />
       </button>
 
       <PromptDialog
@@ -131,12 +131,12 @@ const Tab = memo(function Tab({ sessionId, isActive, onActivate, onClose, onRena
     () => [
       {
         label: 'Rename Tab',
-        icon: <Pencil className="h-3.5 w-3.5" />,
+        icon: <Pencil className="size-3.5" />,
         onClick: () => onRename(sessionId),
       },
       {
         label: 'Close',
-        icon: <XCircle className="h-3.5 w-3.5" />,
+        icon: <XCircle className="size-3.5" />,
         onClick: () => onClose(sessionId),
         separator: true,
         destructive: true,
@@ -168,7 +168,7 @@ const Tab = memo(function Tab({ sessionId, isActive, onActivate, onClose, onRena
         <div className="flex h-full w-full items-center gap-2">
           {isActive && <div className="absolute inset-x-0 top-0 h-[2px] bg-primary" />}
           <Monitor
-            className={cn('h-3 w-3', isActive ? 'text-primary' : 'text-muted-foreground/50')}
+            className={cn('size-3', isActive ? 'text-primary' : 'text-muted-foreground/50')}
           />
           <span className="truncate font-medium">{session.title || 'Local'}</span>
           <button
@@ -184,7 +184,7 @@ const Tab = memo(function Tab({ sessionId, isActive, onActivate, onClose, onRena
             )}
             aria-label="Close tab"
           >
-            <X className="h-3 w-3" />
+            <X className="size-3" />
           </button>
         </div>
       </ContextMenu>

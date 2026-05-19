@@ -79,13 +79,13 @@ export function TerminalSearchBar({
         title="Previous"
         aria-label="Previous match"
       >
-        <ChevronUp className="h-3.5 w-3.5" />
+        <ChevronUp className="size-3.5" />
       </button>
       <button onClick={onFindNext} className="btn-icon !p-0.5" title="Next" aria-label="Next match">
-        <ChevronDown className="h-3.5 w-3.5" />
+        <ChevronDown className="size-3.5" />
       </button>
       <button onClick={onClose} className="btn-icon !p-0.5" title="Close" aria-label="Close search">
-        <X className="h-3.5 w-3.5" />
+        <X className="size-3.5" />
       </button>
     </div>
   );

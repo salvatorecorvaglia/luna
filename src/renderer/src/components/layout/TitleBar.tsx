@@ -63,7 +63,7 @@ export function TitleBar() {
           title="Toggle sidebar"
           aria-label="Toggle sidebar"
         >
-          <PanelLeft className="h-4 w-4" />
+          <PanelLeft className="size-4" />
         </button>
 
         {/* View Switcher */}
@@ -71,19 +71,19 @@ export function TitleBar() {
           <ViewTab
             active={activeView === 'local'}
             onClick={() => setActiveView('local')}
-            icon={<Monitor className="h-3.5 w-3.5" />}
+            icon={<Monitor className="size-3.5" />}
             label="Local"
           />
           <ViewTab
             active={activeView === 'terminal'}
             onClick={() => setActiveView('terminal')}
-            icon={<Terminal className="h-3.5 w-3.5" />}
+            icon={<Terminal className="size-3.5" />}
             label="Terminal"
           />
           <ViewTab
             active={activeView === 'sftp'}
             onClick={() => setActiveView('sftp')}
-            icon={<FolderOpen className="h-3.5 w-3.5" />}
+            icon={<FolderOpen className="size-3.5" />}
             label="SFTP"
           />
         </div>
@@ -99,7 +99,7 @@ export function TitleBar() {
             <div className="mx-1.5 h-3.5 w-px bg-border/60" />
 
             <button onClick={handleMinimize} className="btn-icon" aria-label="Minimize">
-              <Minus className="h-3.5 w-3.5" />
+              <Minus className="size-3.5" />
             </button>
             <button
               onClick={handleMaximize}
@@ -107,9 +107,9 @@ export function TitleBar() {
               aria-label={isMaximized ? 'Restore' : 'Maximize'}
             >
               {isMaximized ? (
-                <Minimize2 className="h-3.5 w-3.5" />
+                <Minimize2 className="size-3.5" />
               ) : (
-                <Maximize2 className="h-3.5 w-3.5" />
+                <Maximize2 className="size-3.5" />
               )}
             </button>
             <button
@@ -117,7 +117,7 @@ export function TitleBar() {
               className="btn-icon hover:!bg-red-500/90 hover:!text-white"
               aria-label="Close"
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="size-3.5" />
             </button>
           </>
         )}

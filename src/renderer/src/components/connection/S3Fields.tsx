@@ -26,7 +26,7 @@ export function S3Fields({
       <div className="grid grid-cols-4 gap-3">
         <FormField
           label="Protocol"
-          icon={<Globe className="h-3.5 w-3.5" />}
+          icon={<Globe className="size-3.5" />}
           id={`${fieldId}-protocol`}
         >
           <select
@@ -42,7 +42,7 @@ export function S3Fields({
         <div className="col-span-2">
           <FormField
             label="Endpoint Host"
-            icon={<Globe className="h-3.5 w-3.5" />}
+            icon={<Globe className="size-3.5" />}
             optional
             id={`${fieldId}-host`}
           >
@@ -59,7 +59,7 @@ export function S3Fields({
         </div>
         <FormField
           label="Port"
-          icon={<Hash className="h-3.5 w-3.5" />}
+          icon={<Hash className="size-3.5" />}
           optional
           id={`${fieldId}-port`}
           error={visibleError('port')}
@@ -84,7 +84,7 @@ export function S3Fields({
 
       <FormField
         label="Region"
-        icon={<Hash className="h-3.5 w-3.5" />}
+        icon={<Hash className="size-3.5" />}
         id={`${fieldId}-region`}
         error={visibleError('region')}
       >
@@ -101,7 +101,7 @@ export function S3Fields({
 
       <FormField
         label="Access Key ID"
-        icon={<Key className="h-3.5 w-3.5" />}
+        icon={<Key className="size-3.5" />}
         required={!isEditing}
         id={`${fieldId}-akid`}
         error={visibleError('accessKeyId')}
@@ -122,7 +122,7 @@ export function S3Fields({
 
       <FormField
         label="Secret Access Key"
-        icon={<Lock className="h-3.5 w-3.5" />}
+        icon={<Lock className="size-3.5" />}
         required={!isEditing}
         id={`${fieldId}-sak`}
         error={visibleError('secretAccessKey')}
@@ -146,18 +146,14 @@ export function S3Fields({
             className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground/60 hover:text-foreground cursor-pointer"
             tabIndex={-1}
           >
-            {s3.showSecretKey ? (
-              <EyeOff className="h-3.5 w-3.5" />
-            ) : (
-              <Eye className="h-3.5 w-3.5" />
-            )}
+            {s3.showSecretKey ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
           </button>
         </div>
       </FormField>
 
       <FormField
         label="Session Token"
-        icon={<Lock className="h-3.5 w-3.5" />}
+        icon={<Lock className="size-3.5" />}
         optional
         id={`${fieldId}-stok`}
       >
@@ -176,7 +172,7 @@ export function S3Fields({
         <div className="flex-1">
           <FormField
             label="Default Bucket"
-            icon={<FolderClosed className="h-3.5 w-3.5" />}
+            icon={<FolderClosed className="size-3.5" />}
             optional
             id={`${fieldId}-bucket`}
           >
@@ -192,7 +188,7 @@ export function S3Fields({
           </FormField>
         </div>
         <label className="group flex h-[38.5px] flex-1 cursor-pointer items-center gap-2.5 rounded-lg px-2 transition-all hover:bg-accent/40 active:scale-[0.98] select-none">
-          <div className="relative flex h-4 w-4 shrink-0 items-center justify-center rounded border border-border bg-card transition-all group-hover:border-primary/50">
+          <div className="relative flex size-4 shrink-0 items-center justify-center rounded border border-border bg-card transition-all group-hover:border-primary/50">
             <input
               type="checkbox"
               checked={s3.forcePathStyle}
@@ -201,7 +197,7 @@ export function S3Fields({
             />
             <div className="absolute inset-0 rounded bg-primary opacity-0 transition-opacity peer-checked:opacity-100" />
             <Check
-              className="relative h-3 w-3 text-white scale-0 transition-transform peer-checked:scale-100"
+              className="relative size-3 text-white scale-0 transition-transform peer-checked:scale-100"
               strokeWidth={3}
             />
           </div>

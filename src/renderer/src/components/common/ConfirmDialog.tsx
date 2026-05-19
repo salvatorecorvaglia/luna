@@ -94,8 +94,8 @@ export function ConfirmDialog({
             >
               <div className="flex items-start gap-3">
                 {destructive && (
-                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-destructive/10">
-                    <AlertTriangle className="h-4.5 w-4.5 text-destructive" />
+                  <div className="flex size-9 flex-shrink-0 items-center justify-center rounded-full bg-destructive/10">
+                    <AlertTriangle className="size-4.5 text-destructive" />
                   </div>
                 )}
                 <div className="min-w-0">

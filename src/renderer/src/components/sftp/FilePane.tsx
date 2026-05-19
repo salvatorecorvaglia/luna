@@ -200,7 +200,7 @@ export function FilePane({
         <div className="flex items-center gap-1.5">
           <span
             className={cn(
-              'inline-block h-2 w-2 rounded-full',
+              'inline-block size-2 rounded-full',
               side === 'local' ? 'bg-info' : 'bg-success',
             )}
           />
@@ -211,7 +211,7 @@ export function FilePane({
               ambiguous between "no entries" and "still fetching". */}
           {isLoading && (
             <Loader2
-              className="h-3 w-3 animate-spin text-muted-foreground/70"
+              className="size-3 animate-spin text-muted-foreground/70"
               aria-label="Loading directory"
               role="status"
             />
@@ -225,7 +225,7 @@ export function FilePane({
               title="New folder"
               aria-label="New folder"
             >
-              <FolderPlus className="h-3.5 w-3.5" aria-hidden="true" />
+              <FolderPlus className="size-3.5" aria-hidden="true" />
             </button>
           )}
           {onToggleHidden && (
@@ -236,9 +236,9 @@ export function FilePane({
               aria-label={showHidden ? 'Hide dotfiles' : 'Show dotfiles'}
             >
               {showHidden ? (
-                <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+                <Eye className="size-3.5" aria-hidden="true" />
               ) : (
-                <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
+                <EyeOff className="size-3.5" aria-hidden="true" />
               )}
             </button>
           )}
@@ -249,10 +249,10 @@ export function FilePane({
             aria-label="Filter files"
             aria-pressed={filterOpen}
           >
-            <Search className="h-3.5 w-3.5" aria-hidden="true" />
+            <Search className="size-3.5" aria-hidden="true" />
           </button>
           <button onClick={navigateUp} className="btn-icon !p-1" title="Go up" aria-label="Go up">
-            <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
+            <ArrowUp className="size-3.5" aria-hidden="true" />
           </button>
           <button
             onClick={onRefresh}
@@ -260,10 +260,7 @@ export function FilePane({
             title="Refresh"
             aria-label="Refresh"
           >
-            <RefreshCw
-              className={cn('h-3.5 w-3.5', isLoading && 'animate-spin')}
-              aria-hidden="true"
-            />
+            <RefreshCw className={cn('size-3.5', isLoading && 'animate-spin')} aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -288,14 +285,14 @@ export function FilePane({
             title="Root"
             aria-label="Navigate to root directory"
           >
-            <Home className="h-3 w-3" />
+            <Home className="size-3" />
           </button>
           {breadcrumbs.slice(1).map((crumb, idx, arr) => {
             const isCurrent = idx === arr.length - 1;
             return (
               <span key={crumb.path} className="flex items-center gap-0.5">
                 <ChevronRight
-                  className="h-3 w-3 text-muted-foreground/60 flex-shrink-0"
+                  className="size-3 text-muted-foreground/60 flex-shrink-0"
                   aria-hidden="true"
                 />
                 <button
@@ -318,7 +315,7 @@ export function FilePane({
         <div className="border-b border-border/60 bg-muted/10 px-2 py-1.5">
           <div className="relative">
             <Search
-              className="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground/50"
+              className="absolute left-2 top-1/2 size-3 -translate-y-1/2 text-muted-foreground/50"
               aria-hidden="true"
             />
             <input
@@ -342,7 +339,7 @@ export function FilePane({
                 className="input-clear-btn"
                 aria-label="Clear filter"
               >
-                <X className="h-3 w-3" aria-hidden="true" />
+                <X className="size-3" aria-hidden="true" />
               </button>
             )}
           </div>
@@ -357,7 +354,7 @@ export function FilePane({
             aria-live="polite"
             className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center"
           >
-            <WifiOff className="h-8 w-8 text-muted-foreground/30" aria-hidden="true" />
+            <WifiOff className="size-8 text-muted-foreground/30" aria-hidden="true" />
             <span className="max-w-[280px] text-xs font-medium text-destructive/90 leading-relaxed">
               {error.message
                 .replace(/^S3StorageError:\s*/i, '')
@@ -414,7 +411,7 @@ function FilePaneSkeleton({ showPermissions }: { showPermissions: boolean }) {
         {Array.from({ length: 12 }).map((_, i) => (
           <div key={i} className="flex h-8 items-center border-b border-transparent">
             <div className="flex flex-1 items-center gap-2 px-3">
-              <div className="skeleton h-4 w-4 rounded-sm" />
+              <div className="skeleton size-4 rounded-sm" />
               <div className="skeleton h-3" style={{ width: `${40 + ((i * 13) % 40)}%` }} />
             </div>
             <div className="w-20 px-2 text-right">

@@ -56,7 +56,7 @@ export function WelcomeView() {
       >
         {/* Logo */}
         <motion.div variants={fadeUp} className="mx-auto mb-6">
-          <div className="mx-auto flex h-24 w-24 items-center justify-center">
+          <div className="mx-auto flex size-24 items-center justify-center">
             <img
               src={lunarLogo}
               alt="Lunar Logo"
@@ -84,15 +84,15 @@ export function WelcomeView() {
               className="group flex w-full items-center gap-3.5 rounded-xl border border-border/80 bg-card/80 p-4 text-left hover:border-border hover:bg-accent/50 cursor-pointer"
             >
               <div
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${action.bg}`}
+                className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${action.bg}`}
               >
-                <action.icon className={`h-5 w-5 ${action.color}`} />
+                <action.icon className={`size-5 ${action.color}`} />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-medium text-foreground">{action.title}</div>
                 <div className="text-xs text-muted-foreground/80">{action.desc}</div>
               </div>
-              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground/30 group-hover:text-muted-foreground/70" />
+              <ArrowRight className="size-4 shrink-0 text-muted-foreground/30 group-hover:text-muted-foreground/70" />
             </motion.button>
           ))}
         </motion.div>
@@ -105,7 +105,7 @@ export function WelcomeView() {
           <kbd className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
             {/Mac|iPod|iPhone|iPad/.test(navigator.userAgent) ? (
               <>
-                <Command className="h-2.5 w-2.5" />K
+                <Command className="size-2.5" />K
               </>
             ) : (
               'Ctrl+K'

@@ -89,8 +89,8 @@ export function ShortcutsHelp() {
               {/* Header */}
               <div className="flex items-center justify-between border-b border-border/40 px-6 py-4 bg-muted/20">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <Keyboard className="h-4 w-4" />
+                  <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Keyboard className="size-4" />
                   </div>
                   <div>
                     <h2 className="text-sm font-bold text-foreground">Keyboard Shortcuts</h2>
@@ -101,7 +101,7 @@ export function ShortcutsHelp() {
                   onClick={() => setOpen(false)}
                   className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="size-4" />
                 </button>
               </div>
 
@@ -124,7 +124,7 @@ export function ShortcutsHelp() {
               {/* Footer */}
               <div className="bg-muted/10 border-t border-border/40 px-8 py-4">
                 <div className="flex items-center gap-2 text-[11px] text-muted-foreground/60">
-                  <div className="h-1.5 w-1.5 rounded-full bg-primary/40" />
+                  <div className="size-1.5 rounded-full bg-primary/40" />
                   <span>
                     Press{' '}
                     <kbd className="mx-1 rounded border border-border/40 bg-muted/40 px-1 font-mono text-[10px] font-medium text-foreground">

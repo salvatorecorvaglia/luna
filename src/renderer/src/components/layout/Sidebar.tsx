@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { toastArgs } from '@shared/error-messages';
 import { useUIStore } from '@/stores/ui-store';
 import { useConnectionStore } from '@/stores/connection-store';
 import { useTerminalStore } from '@/stores/terminal-store';
@@ -189,9 +190,9 @@ export function Sidebar() {
                 }
               >
                 {showHiddenConnections ? (
-                  <Eye className="h-3.5 w-3.5" />
+                  <Eye className="size-3.5" />
                 ) : (
-                  <EyeOff className="h-3.5 w-3.5" />
+                  <EyeOff className="size-3.5" />
                 )}
               </button>
               <button
@@ -200,7 +201,7 @@ export function Sidebar() {
                 title="New connection"
                 aria-label="New connection"
               >
-                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                <Plus className="size-3.5" aria-hidden="true" />
               </button>
             </div>
           </div>
@@ -210,7 +211,7 @@ export function Sidebar() {
             <div className="px-2 pb-1.5">
               <div className="relative">
                 <Search
-                  className="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground/50"
+                  className="absolute left-2 top-1/2 size-3 -translate-y-1/2 text-muted-foreground/50"
                   aria-hidden="true"
                 />
                 <input
@@ -227,7 +228,7 @@ export function Sidebar() {
                     className="input-clear-btn"
                     aria-label="Clear search"
                   >
-                    <X className="h-3 w-3" aria-hidden="true" />
+                    <X className="size-3" aria-hidden="true" />
                   </button>
                 )}
               </div>
@@ -240,9 +241,9 @@ export function Sidebar() {
               <div className="space-y-2 px-2 py-1">
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="flex items-center gap-2.5">
-                    <div className="skeleton h-2.5 w-2.5 rounded-full" />
+                    <div className="skeleton size-2.5 rounded-full" />
                     <div className="flex-1 space-y-1.5">
-                      <div className="skeleton h-3 w-3/4" />
+                      <div className="skeleton size-3/4" />
                       <div className="skeleton h-2.5 w-1/2" />
                     </div>
                   </div>
@@ -250,7 +251,7 @@ export function Sidebar() {
               </div>
             ) : filteredConnections.length === 0 ? (
               <div className="px-3 py-10 text-center">
-                <Server className="mx-auto h-8 w-8 text-muted-foreground/30" />
+                <Server className="mx-auto size-8 text-muted-foreground/30" />
                 <p className="mt-3 text-xs font-medium text-muted-foreground/70">
                   {debouncedSearchQuery ? 'No matching connections' : 'No connections'}
                 </p>
@@ -259,7 +260,7 @@ export function Sidebar() {
                     onClick={() => openCreateForm()}
                     className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-sidebar-primary hover:underline cursor-pointer"
                   >
-                    <Plus className="h-3 w-3" />
+                    <Plus className="size-3" />
                     Add your first connection
                   </button>
                 )}
@@ -297,7 +298,7 @@ export function Sidebar() {
               onClick={() => setSettingsOpen(true)}
               className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
             >
-              <Settings className="h-3.5 w-3.5" />
+              <Settings className="size-3.5" />
               Settings
             </button>
           </div>
@@ -405,10 +406,10 @@ function SidebarSection({
         className="flex items-center justify-between px-2.5 pb-1 cursor-grab active:cursor-grabbing group/section"
       >
         <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50 group-hover/section:text-muted-foreground/80 transition-colors">
-          {isSsh ? <Terminal className="h-3 w-3" /> : <FolderClosed className="h-3 w-3" />}
+          {isSsh ? <Terminal className="size-3" /> : <FolderClosed className="size-3" />}
           <span>{isSsh ? 'SSH Sessions' : 'S3 Storage'}</span>
         </div>
-        <GripVertical className="h-3 w-3 text-muted-foreground/20 opacity-0 group-hover/section:opacity-100 transition-opacity" />
+        <GripVertical className="size-3 text-muted-foreground/20 opacity-0 group-hover/section:opacity-100 transition-opacity" />
       </div>
 
       <div className="space-y-1">
@@ -457,7 +458,7 @@ function FolderGroup({
   const contextMenuItems: ContextMenuItem[] = [
     {
       label: 'Rename Group',
-      icon: <Pencil className="h-3.5 w-3.5" />,
+      icon: <Pencil className="size-3.5" />,
       onClick: () => setShowRenameDialog(true),
     },
   ];
@@ -473,11 +474,11 @@ function FolderGroup({
             >
               <ChevronRight
                 className={cn(
-                  'h-3 w-3 text-muted-foreground/30 group-hover/folder:text-muted-foreground/60 transition-transform',
+                  'size-3 text-muted-foreground/30 group-hover/folder:text-muted-foreground/60 transition-transform',
                   isOpen && 'rotate-90',
                 )}
               />
-              <FolderClosed className="h-3 w-3 text-muted-foreground/40 group-hover/folder:text-muted-foreground/70" />
+              <FolderClosed className="size-3 text-muted-foreground/40 group-hover/folder:text-muted-foreground/70" />
               <span className="truncate">{name}</span>
               <span className="ml-auto text-[10px] text-muted-foreground/20 group-hover/folder:text-muted-foreground/50 tabular-nums">
                 {connections.length}
@@ -500,9 +501,7 @@ function FolderGroup({
                     setShowRenameDialog(false);
                   },
                   onError: (err) => {
-                    toast.error(
-                      `Rename failed: ${err instanceof Error ? err.message : String(err)}`,
-                    );
+                    toast.error(...toastArgs(err, 'Rename failed'));
                   },
                 },
               );
@@ -729,7 +728,7 @@ function ConnectionItem({
       ? [
           {
             label: 'Connect',
-            icon: <Terminal className="h-3.5 w-3.5" />,
+            icon: <Terminal className="size-3.5" />,
             onClick: handleConnect,
           },
         ]
@@ -738,33 +737,29 @@ function ConnectionItem({
       ? [
           {
             label: 'Reconnect',
-            icon: <RefreshCw className="h-3.5 w-3.5" />,
+            icon: <RefreshCw className="size-3.5" />,
             onClick: handleReconnect,
           },
           {
             label: 'Disconnect',
-            icon: <LogOut className="h-3.5 w-3.5" />,
+            icon: <LogOut className="size-3.5" />,
             onClick: handleDisconnect,
           },
         ]
       : []),
     {
       label: 'Edit',
-      icon: <Pencil className="h-3.5 w-3.5" />,
+      icon: <Pencil className="size-3.5" />,
       onClick: () => openEditForm(connection.id),
     },
     {
       label: 'Duplicate',
-      icon: <Copy className="h-3.5 w-3.5" />,
+      icon: <Copy className="size-3.5" />,
       onClick: () => openDuplicateForm(connection.id),
     },
     {
       label: connection.isHidden ? 'Show in Sidebar' : 'Hide from Sidebar',
-      icon: connection.isHidden ? (
-        <Eye className="h-3.5 w-3.5" />
-      ) : (
-        <EyeOff className="h-3.5 w-3.5" />
-      ),
+      icon: connection.isHidden ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />,
       onClick: () => {
         updateMutation.mutate({
           id: connection.id,
@@ -774,7 +769,7 @@ function ConnectionItem({
     },
     {
       label: 'Delete',
-      icon: <Trash2 className="h-3.5 w-3.5" />,
+      icon: <Trash2 className="size-3.5" />,
       onClick: () => setConfirmDelete(true),
       destructive: true,
       separator: true,
@@ -802,11 +797,11 @@ function ConnectionItem({
               Connecting: spinner. Disconnected: hollow ring. */}
           <div className="relative flex-shrink-0" aria-hidden="true">
             {isConnecting ? (
-              <Loader2 className="h-3 w-3 text-amber-500 animate-spin" strokeWidth={2.5} />
+              <Loader2 className="size-3 text-amber-500 animate-spin" strokeWidth={2.5} />
             ) : isConnected ? (
               <div
                 className={cn(
-                  'h-2.5 w-2.5 rounded-full ring-2 ring-emerald-500/30',
+                  'size-2.5 rounded-full ring-2 ring-emerald-500/30',
                   !connection.colorTag && 'bg-emerald-500',
                 )}
                 style={connection.colorTag ? { backgroundColor: connection.colorTag } : undefined}
@@ -814,7 +809,7 @@ function ConnectionItem({
             ) : (
               <div
                 className={cn(
-                  'h-2.5 w-2.5 rounded-full border-[1.5px] border-muted-foreground/60',
+                  'size-2.5 rounded-full border-[1.5px] border-muted-foreground/60',
                   connection.colorTag && 'opacity-60',
                 )}
                 style={
@@ -874,7 +869,7 @@ function ConnectionItem({
 
           <ChevronRight
             aria-hidden="true"
-            className="h-3.5 w-3.5 text-muted-foreground/30 group-hover:text-muted-foreground/70 flex-shrink-0 transition-colors"
+            className="size-3.5 text-muted-foreground/30 group-hover:text-muted-foreground/70 flex-shrink-0 transition-colors"
           />
           <div
             onPointerDown={(e) => {
@@ -884,7 +879,7 @@ function ConnectionItem({
             onClick={(e) => e.stopPropagation()}
             className="cursor-grab active:cursor-grabbing px-1 py-2 -mr-1 opacity-0 group-hover:opacity-100 transition-opacity"
           >
-            <GripVertical className="h-3 w-3 text-muted-foreground/40" />
+            <GripVertical className="size-3 text-muted-foreground/40" />
           </div>
         </button>
       </ContextMenu>

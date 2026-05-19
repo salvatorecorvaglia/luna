@@ -2,12 +2,12 @@ import { FileKey, Key, Lock } from 'lucide-react';
 import type { AuthType } from '@shared/types/connection';
 
 export const AUTH_TYPES: { value: AuthType; label: string; icon: React.ReactNode }[] = [
-  { value: 'password', label: 'Password', icon: <Lock className="h-4 w-4" /> },
-  { value: 'key', label: 'SSH Key', icon: <Key className="h-4 w-4" /> },
+  { value: 'password', label: 'Password', icon: <Lock className="size-4" /> },
+  { value: 'key', label: 'SSH Key', icon: <Key className="size-4" /> },
   {
     value: 'key+passphrase',
     label: 'Key + Pass',
-    icon: <FileKey className="h-4 w-4" />,
+    icon: <FileKey className="size-4" />,
   },
 ];
 
