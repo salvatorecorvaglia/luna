@@ -364,6 +364,33 @@ export function SettingsPanel() {
                 </p>
               </Section>
 
+              {/* Danger zone — destructive actions live at the bottom, tinted
+                  and visually separated so they're not adjacent to routine
+                  preferences a user might be scanning quickly. */}
+              <Section
+                title="Danger zone"
+                icon={<AlertTriangle className="size-4" />}
+                tone="danger"
+              >
+                <div className="rounded-lg border border-destructive/30 bg-destructive/[0.04] p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-foreground">Delete all connections</p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground leading-relaxed">
+                        Permanently removes every saved connection and credential. Cannot be undone.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setConfirmDeleteAll(true)}
+                      className="btn-destructive flex-shrink-0"
+                    >
+                      <Trash2 className="size-3.5" />
+                      Delete all
+                    </button>
+                  </div>
+                </div>
+              </Section>
+
               {/* About */}
               <Section title="About" icon={<Info className="size-4" />}>
                 <div className="rounded-lg border border-border/60 bg-background/50 p-4 text-center">
@@ -379,33 +406,6 @@ export function SettingsPanel() {
                     Your place in one calm workspace.
                   </p>
                   <p className="mt-1 text-[11px] text-muted-foreground/60">v{appVersion}</p>
-                </div>
-              </Section>
-
-              {/* Danger zone — destructive actions live at the bottom, tinted
-                  and visually separated so they're not adjacent to routine
-                  preferences a user might be scanning quickly. */}
-              <Section
-                title="Danger zone"
-                icon={<AlertTriangle className="size-4" />}
-                tone="danger"
-              >
-                <div className="rounded-lg border border-destructive/30 bg-destructive/[0.04] p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-foreground">Delete all connections</p>
-                      <p className="mt-0.5 text-[11px] text-muted-foreground leading-relaxed">
-                        Permanently removes every saved connection and credential. Cannot be undone.
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setConfirmDeleteAll(true)}
-                      className="btn-destructive flex-shrink-0"
-                    >
-                      <Trash2 className="size-3.5" />
-                      Delete all
-                    </button>
-                  </div>
                 </div>
               </Section>
             </div>
