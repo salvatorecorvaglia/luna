@@ -77,12 +77,52 @@ export function objectToEntry(bucket: string, obj: _Object, name: string): Stora
 }
 
 /**
+ * AWS SDK error codes that callers can reasonably retry. Throttling and 5xx
+ * fall into this bucket; auth/permission/notfound errors do not — re-issuing
+ * them just re-incurs the same failure. Matches the codes the AWS SDK itself
+ * treats as retryable in its default retry strategy.
+ */
+const RETRYABLE_ERROR_CODES = new Set([
+  'ThrottlingException',
+  'Throttling',
+  'RequestThrottled',
+  'RequestThrottledException',
+  'TooManyRequestsException',
+  'ProvisionedThroughputExceededException',
+  'SlowDown',
+  'RequestTimeout',
+  'RequestTimeoutException',
+  'PriorRequestNotComplete',
+  'ServiceUnavailable',
+  'InternalError',
+  'InternalServerError',
+]);
+
+function isRetryableS3Error(err: unknown, code: string | undefined): boolean {
+  if (code && RETRYABLE_ERROR_CODES.has(code)) return true;
+  // Fall back to HTTP status: 429 (throttling) and 5xx (server). The AWS SDK
+  // attaches the status on $metadata.httpStatusCode; older shapes use statusCode.
+  const status =
+    (err as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode ??
+    (err as { statusCode?: number })?.statusCode ??
+    (err as { $response?: { statusCode?: number } })?.$response?.statusCode;
+  if (typeof status === 'number' && (status === 429 || (status >= 500 && status < 600))) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Normalise an arbitrary thrown value into an `S3StorageError` with a
  * user-readable message. Preserves abort and already-wrapped errors as-is.
  *
  * Specifically detects expired STS session tokens because AWS returns a
  * generic 403 message and users would otherwise chase a non-existent
  * network error instead of refreshing credentials.
+ *
+ * The wrapper also tags retryable causes (`error.retryable === true`) so a
+ * caller wrapping a transfer in backoff doesn't have to re-classify the SDK
+ * error shape itself.
  */
 export function wrapS3Error(op: string, err: unknown): Error {
   if (err instanceof S3StorageError || err instanceof AbortError) return err;
@@ -92,7 +132,11 @@ export function wrapS3Error(op: string, err: unknown): Error {
     return new S3StorageError(
       `S3 ${op} failed: AWS session token has expired. Re-enter credentials and reconnect.`,
       err,
+      { code, retryable: false },
     );
   }
-  return new S3StorageError(`S3 ${op} failed: ${msg}`, err);
+  return new S3StorageError(`S3 ${op} failed: ${msg}`, err, {
+    code,
+    retryable: isRetryableS3Error(err, code),
+  });
 }
