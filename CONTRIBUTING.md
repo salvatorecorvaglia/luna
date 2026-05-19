@@ -69,7 +69,7 @@ Lunar is an Electron application built with `electron-vite`:
 - **Main Process** (`src/main/`): system-level operations, SSH/SFTP logic, S3 client lifecycle, database management, and migration framework.
 - **Renderer Process** (`src/renderer/`): React application providing the user interface.
 - **Preload Scripts** (`src/preload/`): exposes the typed `window.api` bridge to the renderer.
-- **Shared Modules** (`src/shared/`): types and constants shared between processes.
+- **Shared Modules** (`src/shared/`): types, custom error classes (such as `LunarError`), and constants shared between processes.
 
 ### Storage Providers
 
@@ -86,13 +86,23 @@ When adding a new provider, implement `StorageProvider`, add a `*-connect` IPC h
 - `src/main/services/__tests__/transfer-queue.test.ts` — mocks `storage/registry` with a stub provider; covers dedupe, saturation, cancel, abort drain, re-entrancy, `cancelAll`, and live concurrency adjustment.
 - `src/main/services/s3/__tests__/s3-paths.test.ts` — round-trips for the `/`, `/bucket`, `/bucket/key/...` path convention.
 - `src/main/services/__tests__/database.test.ts` — asserts migration `008_provider_columns` rebuilds the table and preserves existing SFTP rows.
+- `src/test/design-tokens.test.ts` — guards against UI styling drift by ensuring all React components use design tokens and predefined z-layers.
+- `src/main/lib/__tests__/rate-limiter.test.ts` — covers session bucket eviction caps and clock skew protection.
+- `src/main/services/__tests__/credential-store-backend.test.ts` — verifies security and encryption of backend credentials.
+- `src/main/lib/__tests__/validate.test.ts` — verifies IPC validation and request boundaries.
 
 ### Key Principles
 
 - **Process Isolation**: All sensitive operations (SSH, SFTP, S3, credentials, database) run in the main process. The renderer communicates exclusively through typed IPC via the preload bridge.
 - **Credential Security**: SSH passwords/passphrases and S3 access keys are encrypted with a local AES-256-GCM key, never stored in plain text. S3 secrets are persisted as a JSON blob (`{accessKeyId, secretAccessKey, sessionToken?}`) inside the same encrypted column.
 - **Host Key Verification**: Trust-on-first-use (TOFU) with a secure host key verification store — new host keys trigger a dialog for explicit user confirmation; changed keys show a clear warning to prevent MITM attacks.
-- **Input & Payload Validation**: Strict validation for all IPC arguments, including path traversal guards and payload size limits.
+- **Input & Payload Validation**: Strict validation for all IPC arguments, including path traversal guards, settings whitelisting, and custom error boundaries (via `LunarError`).
+- **Rate Limiting**: Protects IPC communication and connection methods with clock skew handling and session bucket eviction limits.
+- **UI Design System & Stacking**: Avoid design-system drift and uncontrolled layout nesting by adhering strictly to predefined design tokens. React components must:
+  1. Use CSS variables and semantic tokens from `assets/main.css` (like `text-success` or `text-brand-blue`) instead of raw Tailwind colors (like `text-red-500`).
+  2. Avoid hardcoded hex codes inside class names (like `bg-[#1a202c]`).
+  3. Reference the central z-index registry (`Z` from `@/lib/z-layers`) instead of hardcoded `z-[N]` classes.
+     _This is enforced automatically by the design-token test suite._
 
 ### Testing S3 Locally
 
