@@ -16,6 +16,8 @@ import {
 import { ConfirmDialog } from './ConfirmDialog';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { Z } from '@/lib/z-layers';
+import { Toggle } from '@/components/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUIStore } from '@/stores/ui-store';
 import { useTerminalStore } from '@/stores/terminal-store';
@@ -140,7 +142,7 @@ export function SettingsPanel() {
             animate="animate"
             exit="exit"
             onClick={() => setSettingsOpen(false)}
-            className="fixed inset-0 z-[998] bg-black/60 backdrop-blur-sm"
+            className={`fixed inset-0 ${Z.panel} bg-black/60 backdrop-blur-sm`}
           />
           <motion.div
             variants={panelVariants}
@@ -151,7 +153,10 @@ export function SettingsPanel() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="settings-dialog-title"
-            className="no-drag fixed right-0 top-0 z-[999] flex h-full w-full max-w-md flex-col border-l border-border/60 bg-card shadow-xl pointer-events-auto"
+            className={cn(
+              'no-drag fixed right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-border/60 bg-card shadow-xl pointer-events-auto',
+              Z.panel,
+            )}
           >
             {/* Header */}
             <div
@@ -234,7 +239,7 @@ export function SettingsPanel() {
 
               {/* SSH */}
               <Section title="SSH" icon={<Wifi className="h-4 w-4" />}>
-                <ToggleRow
+                <Toggle
                   label="Auto-reconnect"
                   enabled={autoReconnect}
                   onToggle={(v) => {
@@ -361,9 +366,9 @@ export function SettingsPanel() {
                 </div>
                 <button
                   onClick={() => setConfirmDeleteAll(true)}
-                  className="btn-outline w-full !text-[#C41E3A] !border-[#C41E3A]/40 hover:!bg-[#C41E3A]/10 hover:!border-[#C41E3A]/80 transition-colors"
+                  className="btn-outline w-full !text-destructive-strong !border-destructive-strong/40 hover:!bg-destructive-strong/10 hover:!border-destructive-strong/80 transition-colors"
                 >
-                  <Trash2 className="h-3.5 w-3.5 !text-[#C41E3A]" />
+                  <Trash2 className="h-3.5 w-3.5 !text-destructive-strong" />
                   Delete all connections
                 </button>
               </Section>
@@ -450,49 +455,6 @@ function SettingRow({ label, value }: { label: string; value: string }) {
     <div className="flex items-center justify-between py-1">
       <span className="text-xs text-muted-foreground/70">{label}</span>
       <span className="text-xs text-muted-foreground/70">{value}</span>
-    </div>
-  );
-}
-
-function ToggleRow({
-  label,
-  enabled,
-  onToggle,
-  disabled = false,
-}: {
-  label: string;
-  enabled: boolean;
-  onToggle?: (value: boolean) => void;
-  disabled?: boolean;
-}) {
-  // Use React.useId for stable, unique IDs instead of module-level counter
-  const labelId = useId();
-
-  return (
-    <div className="flex items-center justify-between py-1">
-      <span id={labelId} className={cn('text-xs text-muted-foreground', disabled && 'opacity-60')}>
-        {label}
-      </span>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={enabled}
-        aria-labelledby={labelId}
-        disabled={disabled}
-        onClick={() => !disabled && onToggle?.(!enabled)}
-        className={cn(
-          'flex h-5 w-9 items-center rounded-full px-0.5 transition-colors',
-          enabled ? 'bg-emerald-500' : 'bg-muted',
-          disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
-        )}
-      >
-        <div
-          className={cn(
-            'h-4 w-4 rounded-full bg-white shadow-sm transition-transform',
-            enabled ? 'translate-x-[14px]' : 'translate-x-0',
-          )}
-        />
-      </button>
     </div>
   );
 }

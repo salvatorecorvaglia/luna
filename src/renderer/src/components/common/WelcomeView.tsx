@@ -17,16 +17,16 @@ const actions = [
   {
     key: 'new',
     icon: Plus,
-    color: 'text-blue-500',
-    bg: 'bg-blue-500/10 group-hover:bg-blue-500/15',
+    color: 'text-brand-blue',
+    bg: 'bg-brand-blue/10 group-hover:bg-brand-blue/15',
     title: 'New Connection',
     desc: 'Set up an SSH connection to a server',
   },
   {
     key: 'sftp',
     icon: FolderOpen,
-    color: 'text-violet-500',
-    bg: 'bg-violet-500/10 group-hover:bg-violet-500/15',
+    color: 'text-brand-violet',
+    bg: 'bg-brand-violet/10 group-hover:bg-brand-violet/15',
     title: 'SFTP Browser',
     desc: 'Browse and transfer files over SSH',
   },
@@ -45,7 +45,7 @@ export function WelcomeView() {
     <div className="flex h-full items-center justify-center bg-background">
       {/* Subtle radial glow behind content */}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <div className="h-[500px] w-[500px] rounded-full bg-gradient-to-br from-indigo-500/[0.07] to-violet-500/[0.07] blur-3xl" />
+        <div className="h-[500px] w-[500px] rounded-full bg-gradient-to-br from-brand-blue/[0.07] to-brand-violet/[0.07] blur-3xl" />
       </div>
 
       <motion.div

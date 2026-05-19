@@ -58,6 +58,20 @@
   --color-sidebar-accent-foreground: hsl(240 4.8% 95.9%);
   --color-sidebar-border: hsl(240 3.7% 15.9%);
   --color-sidebar-ring: hsl(217.2 91.2% 59.8%);
+
+  /* Brand / accent colors — used for decorative chips, icon swatches,
+     direction indicators (upload/download), and file-type glyphs.
+     Distinct from semantic tokens (info/success/warning/destructive) so
+     intent stays readable at call sites. */
+  --color-brand-blue: hsl(217 91% 60%);
+  --color-brand-violet: hsl(258 90% 66%);
+  --color-brand-cyan: hsl(189 94% 43%);
+  --color-brand-pink: hsl(330 81% 60%);
+  --color-brand-emerald: hsl(160 84% 39%);
+  /* Brighter destructive for outline/ghost contexts where the dark
+     `--color-destructive` (hsl 0 62.8% 30.6%) would read as washed-out
+     on the dark background. Used by the "Delete all" action. */
+  --color-destructive-strong: hsl(347 77% 50%);
 }
 
 /* ──────────────────────────────────────────────────

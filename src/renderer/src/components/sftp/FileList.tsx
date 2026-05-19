@@ -44,12 +44,12 @@ interface FileListProps {
 
 function getFileIcon(entry: FileEntry) {
   if (entry.isDirectory) return <Folder className="h-4 w-4 text-info" aria-hidden="true" />;
-  if (entry.isSymlink) return <Link2 className="h-4 w-4 text-cyan-500" aria-hidden="true" />;
+  if (entry.isSymlink) return <Link2 className="h-4 w-4 text-brand-cyan" aria-hidden="true" />;
 
   const ext = entry.name.split('.').pop()?.toLowerCase();
 
   if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp'].includes(ext || ''))
-    return <FileImage className="h-4 w-4 text-pink-500" aria-hidden="true" />;
+    return <FileImage className="h-4 w-4 text-brand-pink" aria-hidden="true" />;
   if (
     [
       'js',

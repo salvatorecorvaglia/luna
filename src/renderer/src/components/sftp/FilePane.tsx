@@ -201,7 +201,7 @@ export function FilePane({
           <span
             className={cn(
               'inline-block h-2 w-2 rounded-full',
-              side === 'local' ? 'bg-blue-500' : 'bg-emerald-500',
+              side === 'local' ? 'bg-info' : 'bg-success',
             )}
           />
           <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
