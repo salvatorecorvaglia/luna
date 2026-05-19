@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.4] - 2026-05-19
+
+### Fixed
+
+- **Security & Path Validation**: Secured `readFile` operations by using the `O_NOFOLLOW` flag to prevent symlink traversal attacks outside the sandbox jail.
+- **Transfer Stability**: Prevented potential transfer race conditions in the file/storage queues.
+- **Settings Management**: Resolved an issue by allowing null settings values in database storage configurations.
+
+### Improved
+
+- **Error Handling & Stability**: Replaced generic errors with a structured custom `LunarError` class across core services and optimized connection name validation for better main process stability.
+- **S3 & Storage Integration**: Centralized S3 client configuration, improved transfer queue error handling, and corrected related linter warnings.
+- **UI State Persistence**: Refactored the UI store to exclude the `activeView` from persistent storage, ensuring state is cleanly reset on app startup.
+- **Connection Logic**: Modularized connection validation routines.
+
 ## [0.7.3] - 2026-05-18
 
 ### Added
