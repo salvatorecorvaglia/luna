@@ -16,14 +16,18 @@ import type { IpcChannel, IpcRequest, IpcResponse } from '@shared/types/ipc';
  */
 const MAX_IPC_PAYLOAD_BYTES = 4 * 1024 * 1024;
 
-function payloadByteSize(args: unknown[]): number {
+/**
+ * Returns the serialized byte size, or `null` if the args are not
+ * JSON-serializable (cyclic reference, BigInt, etc.). The caller treats
+ * `null` as a hard reject: a renderer that sends un-serializable input is
+ * either buggy or hostile, and silently passing it through would let a
+ * crafted cyclic object bypass the size cap entirely.
+ */
+function payloadByteSize(args: unknown[]): number | null {
   try {
     return Buffer.byteLength(JSON.stringify(args), 'utf-8');
   } catch {
-    // Cyclic / un-serializable values are tiny by construction (we'd hit a
-    // throw, not an OOM) — fall back to "0" so the size check passes and
-    // the actual handler can surface the real shape error.
-    return 0;
+    return null;
   }
 }
 
@@ -55,6 +59,12 @@ export function registerHandler<C extends IpcChannel>(
   ipcMain.handle(channel, async (event, ...args) => {
     try {
       const size = payloadByteSize(args);
+      if (size === null) {
+        throw new LunarError(
+          `IPC payload on channel ${channel} is not JSON-serializable (cyclic or unsupported value).`,
+          ErrorCode.VALIDATION_ERROR,
+        );
+      }
       if (size > MAX_IPC_PAYLOAD_BYTES) {
         throw new LunarError(
           `IPC payload too large on channel ${channel}: ${size} bytes (max ${MAX_IPC_PAYLOAD_BYTES}).`,

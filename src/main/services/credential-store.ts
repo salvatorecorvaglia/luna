@@ -94,6 +94,11 @@ function getEncryptionKey(): Buffer {
             log.warn('[Credentials] Could not remove plaintext key file after wrapping', unlinkErr);
           }
         } catch (err) {
+          // safeStorage was available but wrap failed. We keep using the
+          // plaintext key (so existing creds remain accessible) but flip the
+          // backend flag so the renderer banner exposes the downgrade — a
+          // silent fallback would hide the security regression from the user.
+          usingPlaintextKey = true;
           log.warn('[Credentials] Could not wrap existing key with safeStorage', err);
         }
       } else {
