@@ -811,7 +811,10 @@ export function ConnectionForm() {
                               initial={{ opacity: 0, y: 4, scale: 0.98 }}
                               animate={{ opacity: 1, y: 0, scale: 1 }}
                               exit={{ opacity: 0, y: 4, scale: 0.98 }}
-                              className="absolute top-full left-0 right-0 z-50 mt-1 max-h-48 overflow-auto rounded-lg border border-border bg-popover p-1 shadow-xl backdrop-blur-sm scrollbar-none"
+                              className={cn(
+                                'absolute top-full left-0 right-0 mt-1 max-h-48 overflow-auto rounded-lg border border-border bg-popover p-1 shadow-xl backdrop-blur-sm scrollbar-none',
+                                Z.dropdown,
+                              )}
                             >
                               {filteredFolders.map((f) => (
                                 <button
