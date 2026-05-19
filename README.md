@@ -44,22 +44,6 @@ Lunar is a high-performance, cross-platform desktop application designed to stre
 
 ---
 
-## 🏗️ Architecture & Security
-
-Lunar has undergone a rigorous architectural audit to ensure the highest standards of safety and performance:
-
-- **Type-Safe IPC Bridge**: The renderer process communicates with the main process through a strictly typed IPC bridge, eliminating "any" casts and ensuring compile-time safety across process boundaries.
-- **Pluggable Storage Providers**: A unified `StorageProvider` abstraction with a session-keyed registry routes the transfer queue and `storage:*` IPC channels to the right backend (SFTP or S3).
-- **Sandboxed Execution**: Renderer processes are fully sandboxed with no direct access to the filesystem or network.
-- **Input Validation**: All IPC arguments undergo strict validation, including path traversal guards and settings whitelisting.
-- **Zero Circular Dependencies**: A clean, modular architecture ensures long-term maintainability.
-- **Credential Protection**: SSH passwords/passphrases and S3 access keys are encrypted using **AES-256-GCM** — never stored in plain text.
-- **Host Key Auditing**: Secure host key verification store with **TOFU (Trust On First Use)** support to prevent man-in-the-middle attacks.
-- **Database Migrations**: Integrated migration framework ensures seamless schema updates across versions.
-- **IPC Logging & Validation**: Robust logging for monitoring communication with strict payload size validation.
-
----
-
 ## 🚀 Getting Started
 
 ### Prerequisites
