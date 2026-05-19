@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Z } from '@/lib/z-layers';
 
 interface HelpTooltipProps {
   content: string;
@@ -32,7 +33,10 @@ export function HelpTooltip({ content, className, iconClassName }: HelpTooltipPr
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 2, scale: 0.95 }}
             transition={{ duration: 0.1, ease: 'easeOut' }}
-            className="absolute bottom-full left-1/2 z-[100] mb-2 w-52 -translate-x-1/2 rounded-md border border-border/60 bg-popover p-2.5 shadow-xl backdrop-blur-md"
+            className={cn(
+              'absolute bottom-full left-1/2 mb-2 w-52 -translate-x-1/2 rounded-md border border-border/60 bg-popover p-2.5 shadow-xl backdrop-blur-md',
+              Z.tooltipOverlay,
+            )}
           >
             {/* Arrow */}
             <div className="absolute -bottom-[5px] left-1/2 size-2.5 -translate-x-1/2 rotate-45 border-b border-r border-border/60 bg-popover" />

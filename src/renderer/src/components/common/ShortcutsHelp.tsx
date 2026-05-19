@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { Keyboard, X } from 'lucide-react';
 import { useUIStore } from '@/stores/ui-store';
+import { Z } from '@/lib/z-layers';
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 const MOD = isMac ? '⌘' : 'Ctrl';
@@ -77,13 +78,13 @@ export function ShortcutsHelp() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setOpen(false)}
-            className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-md"
+            className={`fixed inset-0 ${Z.modal} bg-black/60 backdrop-blur-md`}
           />
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="fixed left-1/2 top-1/2 z-[70] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 p-4"
+            className={`fixed left-1/2 top-1/2 ${Z.modal} w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 p-4`}
           >
             <div className="overflow-hidden rounded-2xl border border-border/80 bg-card/95 shadow-2xl backdrop-blur-xl">
               {/* Header */}
