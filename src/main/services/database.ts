@@ -119,10 +119,23 @@ export function getDatabase(): Database.Database {
     handle.pragma('journal_mode = WAL');
     handle.pragma('foreign_keys = ON');
 
-    // Check database integrity
+    // Check database integrity. A corrupt sqlite file would otherwise let
+    // every later read return undefined or partial rows, silently producing
+    // a broken UI. Throw so the main process can surface a recoverable
+    // dialog (restore from backup / reset data dir) instead of proceeding
+    // against a damaged store.
     const integrityResult = handle.pragma('integrity_check') as { integrity_check: string }[];
     if (integrityResult[0]?.integrity_check !== 'ok') {
-      log.warn('[database] Integrity check failed:', integrityResult);
+      log.error('[database] Integrity check failed:', integrityResult);
+      try {
+        handle.close();
+      } catch {
+        // ignore — about to throw anyway
+      }
+      throw new Error(
+        `Database integrity check failed: ${JSON.stringify(integrityResult)}. ` +
+          `The lunar.db file may be corrupt; restore from backup or remove the data directory.`,
+      );
     }
 
     // Install the handle *before* migrations run so any helper that calls

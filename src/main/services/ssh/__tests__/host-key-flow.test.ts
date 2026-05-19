@@ -100,13 +100,18 @@ describe('PendingHostKeyRegistry', () => {
     expect(reg.trust('h64', 22)).not.toBeNull();
   });
 
-  it('trust() refuses to commit a candidate with a disallowed algorithm', () => {
+  it('remember() refuses to store a candidate with a disallowed algorithm', () => {
     const reg = new PendingHostKeyRegistry();
-    reg.remember('host', 22, Buffer.from('aa', 'hex'), 'ssh-dss');
+    const stored = reg.remember('host', 22, Buffer.from('aa', 'hex'), 'ssh-dss');
+    expect(stored).toBe(false);
+    // The candidate was never stored, so trust() finds nothing — no committed update.
     expect(reg.trust('host', 22)).toBeNull();
     expect(updates).toEqual([]);
-    // candidate is dropped so a retry can't paper over the rejection
-    expect(reg.trust('host', 22)).toBeNull();
+  });
+
+  it('remember() returns true for allowed algorithms', () => {
+    const reg = new PendingHostKeyRegistry();
+    expect(reg.remember('host', 22, Buffer.from('aa', 'hex'), 'ssh-ed25519')).toBe(true);
   });
 
   it('forget() drops a candidate without trusting it', () => {

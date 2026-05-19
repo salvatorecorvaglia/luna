@@ -31,7 +31,14 @@ export class PendingHostKeyRegistry {
   private static readonly MAX = 64;
   private map = new Map<string, PendingHostKey>();
 
-  remember(host: string, port: number, key: Buffer, algorithm: string): void {
+  /**
+   * Record a host key awaiting user trust. Returns `false` if the algorithm
+   * is not on the allowlist — the candidate is dropped without being stored,
+   * so a later `trust()` call can't be coerced into committing a weak key by
+   * exploiting a refactor that bypassed `trust()`'s own algorithm check.
+   */
+  remember(host: string, port: number, key: Buffer, algorithm: string): boolean {
+    if (!isAllowedHostKeyAlgorithm(algorithm)) return false;
     const k = formatHostKey(host, port);
     if (this.map.has(k)) this.map.delete(k);
     this.map.set(k, { key: Buffer.from(key), algorithm });
@@ -40,6 +47,7 @@ export class PendingHostKeyRegistry {
       if (oldest === undefined) break;
       this.map.delete(oldest);
     }
+    return true;
   }
 
   /**
