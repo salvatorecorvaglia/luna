@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-05-20
+
+### Added
+
+- **Testing**: Added comprehensive unit test suites for rate-limiting, credential store backends, and IPC request validation.
+- **Design Tokens**: Added design-token enforcement tests to ensure consistent UI styling.
+
+### Improved
+
+- **Security & Validation**: Hardened error handling and input validation across SSH, IPC, credential, and database services.
+- **Rate Limiting**: Implemented session bucket eviction cap and clock skew protection.
+- **S3 Storage**: Added retryable classification to S3 errors and implemented strict limit enforcement during listing operations.
+- **UI Design System**: Standardized UI design tokens, semantic colors, and z-index management (using Z layers) across components like `CommandPalette` and `ConnectionForm`.
+- **UI Layout & Components**:
+  - Reordered settings sections and aligned danger zone controls.
+  - Modularized Sidebar by extracting parts to a dedicated folder.
+  - Replaced toast notifications with inline status feedback in connection settings and form.
+  - Modernized layout using Tailwind size utilities and unified error handling via shared toast helpers.
+
 ## [0.7.4] - 2026-05-19
 
 ### Fixed
