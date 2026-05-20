@@ -139,6 +139,29 @@ function Icon({ name, size = 16 }) {
           <path d="M3 5l7-1v8H3zM10 4l11-2v11H10zM3 13h7v7l-7-1zM10 13h11v9l-11-2z" />
         </svg>
       );
+    case 'link':
+      return (
+        <svg {...props}>
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+        </svg>
+      );
+    case 'download':
+      return (
+        <svg {...props}>
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+      );
+    case 'layout':
+      return (
+        <svg {...props}>
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+          <line x1="9" y1="3" x2="9" y2="21" />
+          <line x1="9" y1="9" x2="21" y2="9" />
+        </svg>
+      );
     default:
       return null;
   }

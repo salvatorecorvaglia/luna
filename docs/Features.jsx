@@ -54,6 +54,24 @@ function Features() {
       title: 'Encrypted Credentials',
       desc: 'AES-256-GCM at rest. Trust-on-first-use host keys with explicit warnings on mismatch.',
     },
+    {
+      icon: 'link',
+      tint: '#6366f1',
+      title: 'Multi-Hop SSH Tunnels',
+      desc: 'Configure secure jump host proxies and SSH tunnels with dedicated authentication in advanced settings.',
+    },
+    {
+      icon: 'download',
+      tint: '#f97316',
+      title: 'Configuration Importers',
+      desc: 'Easily import existing connections and settings from PuTTY, MobaXterm, and WinSCP files.',
+    },
+    {
+      icon: 'layout',
+      tint: '#14b8a6',
+      title: 'Workspace Customization',
+      desc: 'Group, reorder, rename, or toggle visibility of sessions directly within the sidebar for a clutter-free view.',
+    },
   ];
   return (
     <section id="features" className="lunar-section">
