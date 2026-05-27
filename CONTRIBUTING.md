@@ -90,6 +90,9 @@ When adding a new provider, implement `StorageProvider`, add a `*-connect` IPC h
 - `src/main/lib/__tests__/rate-limiter.test.ts` — covers session bucket eviction caps and clock skew protection.
 - `src/main/services/__tests__/credential-store-backend.test.ts` — verifies security and encryption of backend credentials.
 - `src/main/lib/__tests__/validate.test.ts` — verifies IPC validation and request boundaries.
+- `src/main/services/ssh/__tests__/host-key-flow.test.ts` / `host-key-tofu.test.ts` — covers secure host key verification flow, including TOFU (Trust On First Use) confirmation dialogs and MITM warning handlers.
+- `src/main/lib/__tests__/redact.test.ts` — covers error message formatting and credential log redaction to ensure secrets never leak into log files.
+- `src/main/lib/importers/__tests__/mobaxterm.test.ts` — verifies connection profile import parsing and secure decryption of MobaXterm configurations.
 
 ### Key Principles
 
