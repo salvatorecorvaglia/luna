@@ -117,4 +117,5 @@ claude-settings.json
 .prompts/
 .prompt-cache/
 .ai/
+.antigravitycli/
 CLAUDE.md
