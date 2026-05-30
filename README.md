@@ -1,4 +1,4 @@
-# Lunar
+# Lunar 🌑
 
 **A modern SSH terminal, local terminal, SFTP file manager, and S3-compatible object storage browser.**
 
