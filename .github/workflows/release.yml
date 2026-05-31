@@ -12,8 +12,6 @@ concurrency:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
   actions: write
 
 env:
@@ -206,19 +204,3 @@ jobs:
             --notes "$RELEASE_NOTES" \
             --repo "$GITHUB_REPOSITORY"
 
-  # ──────────────────────────────────────────────
-  # Deploy Pages – update docs after release
-  # ──────────────────────────────────────────────
-  deploy-pages:
-    name: Deploy Pages
-    needs: finalize
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Trigger Pages Deployment on Main
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh workflow run deploy-pages.yml --ref main
