@@ -27,5 +27,4 @@ If applicable, add screenshots or paste console logs to help explain your proble
 
 ### Environment
 
-- **Lunar Version:** (e.g. 0.3.1)
-- **OS:** (e.g. macOS, Windows, Linux)
+- **Version:**
