@@ -92,7 +92,7 @@ jobs:
   # ──────────────────────────────────────────────
   release-win:
     name: Release (Windows)
-    runs-on: windows-latest
+    runs-on: windows-2025
     timeout-minutes: 30
     needs: quality
     steps:
@@ -156,7 +156,7 @@ jobs:
         run: npx electron-builder --linux --publish always
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-linux
           path: |
