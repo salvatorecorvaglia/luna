@@ -123,11 +123,7 @@ export function FilePreview() {
                   src={`data:application/pdf;base64,${previewFile.content}#toolbar=0`}
                   className="h-full w-full rounded border-none bg-white"
                   title={previewFile.name}
-                  // Sandbox: deny scripts, top-level navigation, popups, form
-                  // submission, and same-origin access. A maliciously crafted
-                  // PDF should be unable to execute JavaScript or escape the
-                  // frame even if Chromium's PDF viewer has a flaw.
-                  sandbox=""
+                  sandbox="allow-scripts"
                   referrerPolicy="no-referrer"
                 />
               ) : (

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   ChevronDown,
@@ -29,7 +29,7 @@ type SortDir = 'asc' | 'desc';
 interface FileListProps {
   entries: FileEntry[];
   selection: Set<string>;
-  onSelect: (name: string, multi?: boolean, range?: boolean) => void;
+  onSelect: (selection: Set<string>) => void;
   onOpen: (entry: FileEntry) => void;
   onDragStart?: (entry: FileEntry, e: React.DragEvent) => void;
   onRename?: (entry: FileEntry) => void;
@@ -118,6 +118,13 @@ export function FileList({
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [focusedIndex, setFocusedIndex] = useState(-1);
+  const [anchorIndex, setAnchorIndex] = useState(-1);
+
+  // Reset focus/anchor when the entries change (e.g., navigated to a different directory)
+  useEffect(() => {
+    setFocusedIndex(-1);
+    setAnchorIndex(-1);
+  }, [entries]);
 
   const sorted = useMemo(() => {
     return [...entries].sort((a, b) => {
@@ -148,11 +155,6 @@ export function FileList({
     );
   };
 
-  // Estimate matches the default row geometry. Actual measurement happens via
-  // `measureElement` below, so a CSS row-height tweak no longer silently
-  // miscalculates totalSize. Overscan dropped from 10 → 5 because the small
-  // lists where we previously over-allocated outnumber the giant lists where
-  // 5 vs 10 matters perceptibly.
   const ROW_HEIGHT_ESTIMATE = 32;
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -165,10 +167,6 @@ export function FileList({
     measureElement: (el) => el.getBoundingClientRect().height,
   });
 
-  // Build a per-entry ContextMenuItem array once per (entry, callback)
-  // tuple. Without this, every render of a 1000-entry list allocated 1000
-  // fresh arrays even when nothing changed. The callbacks are stable refs
-  // from the parent, so the memo only invalidates when the parent rebinds.
   const buildContextItems = useCallback(
     (entry: FileEntry): ContextMenuItem[] => {
       const items: ContextMenuItem[] = [];
@@ -214,6 +212,47 @@ export function FileList({
     [onPreview, onCopyPath, onRename, onDelete, onDownload, downloadLabel],
   );
 
+  const handleSelect = useCallback(
+    (index: number, ctrlKey: boolean, shiftKey: boolean) => {
+      if (index < 0 || index >= sorted.length) return;
+      const entry = sorted[index];
+      const name = entry.name;
+      let newSelection: Set<string>;
+
+      if (shiftKey && anchorIndex !== -1) {
+        const start = Math.min(anchorIndex, index);
+        const end = Math.max(anchorIndex, index);
+        const rangeNames = sorted.slice(start, end + 1).map((e) => e.name);
+
+        if (ctrlKey) {
+          newSelection = new Set(selection);
+          for (const n of rangeNames) {
+            newSelection.add(n);
+          }
+        } else {
+          newSelection = new Set(rangeNames);
+        }
+        setFocusedIndex(index);
+      } else if (ctrlKey) {
+        newSelection = new Set(selection);
+        if (newSelection.has(name)) {
+          newSelection.delete(name);
+        } else {
+          newSelection.add(name);
+        }
+        setFocusedIndex(index);
+        setAnchorIndex(index);
+      } else {
+        newSelection = new Set([name]);
+        setFocusedIndex(index);
+        setAnchorIndex(index);
+      }
+
+      onSelect(newSelection);
+    },
+    [sorted, selection, anchorIndex, onSelect],
+  );
+
   const handleListKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (sorted.length === 0) return;
@@ -222,49 +261,41 @@ export function FileList({
         case 'ArrowDown': {
           e.preventDefault();
           const next = Math.min(focusedIndex + 1, sorted.length - 1);
-          setFocusedIndex(next);
-          onSelect(sorted[next].name, e.metaKey || e.ctrlKey, e.shiftKey);
+          handleSelect(next, e.metaKey || e.ctrlKey, e.shiftKey);
           virtualizer.scrollToIndex(next, { align: 'auto' });
           break;
         }
         case 'ArrowUp': {
           e.preventDefault();
           const prev = Math.max(focusedIndex - 1, 0);
-          setFocusedIndex(prev);
-          onSelect(sorted[prev].name, e.metaKey || e.ctrlKey, e.shiftKey);
+          handleSelect(prev, e.metaKey || e.ctrlKey, e.shiftKey);
           virtualizer.scrollToIndex(prev, { align: 'auto' });
           break;
         }
         case 'Home': {
           e.preventDefault();
-          setFocusedIndex(0);
-          onSelect(sorted[0].name, e.metaKey || e.ctrlKey, e.shiftKey);
+          handleSelect(0, e.metaKey || e.ctrlKey, e.shiftKey);
           virtualizer.scrollToIndex(0, { align: 'start' });
           break;
         }
         case 'End': {
           e.preventDefault();
           const last = sorted.length - 1;
-          setFocusedIndex(last);
-          onSelect(sorted[last].name, e.metaKey || e.ctrlKey, e.shiftKey);
+          handleSelect(last, e.metaKey || e.ctrlKey, e.shiftKey);
           virtualizer.scrollToIndex(last, { align: 'end' });
           break;
         }
         case 'PageDown': {
           e.preventDefault();
-          // 10 rows per page matches roughly one viewport at the default row
-          // height; cheap heuristic, no need to compute against the virtualizer.
           const next = Math.min(focusedIndex + 10, sorted.length - 1);
-          setFocusedIndex(next);
-          onSelect(sorted[next].name, e.metaKey || e.ctrlKey, e.shiftKey);
+          handleSelect(next, e.metaKey || e.ctrlKey, e.shiftKey);
           virtualizer.scrollToIndex(next, { align: 'auto' });
           break;
         }
         case 'PageUp': {
           e.preventDefault();
           const prev = Math.max(focusedIndex - 10, 0);
-          setFocusedIndex(prev);
-          onSelect(sorted[prev].name, e.metaKey || e.ctrlKey, e.shiftKey);
+          handleSelect(prev, e.metaKey || e.ctrlKey, e.shiftKey);
           virtualizer.scrollToIndex(prev, { align: 'auto' });
           break;
         }
@@ -290,7 +321,7 @@ export function FileList({
         }
       }
     },
-    [sorted, focusedIndex, onSelect, onOpen, onDelete, onSelectAll, virtualizer],
+    [sorted, focusedIndex, handleSelect, onOpen, onDelete, onSelectAll, virtualizer],
   );
 
   if (entries.length === 0) {
@@ -370,9 +401,6 @@ export function FileList({
                 key={entry.path}
                 role="option"
                 tabIndex={focusedIndex === virtualRow.index ? 0 : -1}
-                // data-index + ref let the virtualizer's measureElement read
-                // the rendered row height directly, so CSS changes to row
-                // styling don't desync the scroll metrics from layout.
                 data-index={virtualRow.index}
                 ref={virtualizer.measureElement}
                 style={{
@@ -391,26 +419,20 @@ export function FileList({
                   focusedIndex === virtualRow.index && 'ring-1 ring-inset ring-ring/50',
                 )}
                 onClick={(e) => {
-                  setFocusedIndex(virtualRow.index);
-                  onSelect(entry.name, e.metaKey || e.ctrlKey, e.shiftKey);
+                  handleSelect(virtualRow.index, e.metaKey || e.ctrlKey, e.shiftKey);
                 }}
                 onDoubleClick={() => onOpen(entry)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') onOpen(entry);
                   if (e.key === ' ') {
                     e.preventDefault();
-                    onSelect(entry.name, e.metaKey || e.ctrlKey, e.shiftKey);
+                    handleSelect(virtualRow.index, e.metaKey || e.ctrlKey, e.shiftKey);
                   }
                 }}
                 draggable={!!onDragStart}
                 onDragStart={(e) => onDragStart?.(entry, e)}
               >
                 <div
-                  // min-w-0 is the canonical fix for "truncate doesn't work
-                  // inside a flex child" — without it the child claims its
-                  // intrinsic content width and the row wraps in Safari/FF,
-                  // which would defeat the virtualizer's fixed-row-height
-                  // assumption.
                   className="flex min-w-0 flex-1 items-center gap-2 truncate px-3 py-[7px]"
                   title={entry.path}
                 >

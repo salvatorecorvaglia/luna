@@ -87,8 +87,6 @@ export function SftpManager() {
     storageSessions,
     setLocalPath,
     setRemotePath,
-    toggleLocalSelection,
-    toggleRemoteSelection,
     setActiveSessionId,
     setLocalSelection,
     setRemoteSelection,
@@ -104,8 +102,6 @@ export function SftpManager() {
       storageSessions: s.storageSessions,
       setLocalPath: s.setLocalPath,
       setRemotePath: s.setRemotePath,
-      toggleLocalSelection: s.toggleLocalSelection,
-      toggleRemoteSelection: s.toggleRemoteSelection,
       setActiveSessionId: s.setActiveSessionId,
       setLocalSelection: s.setLocalSelection,
       setRemoteSelection: s.setRemoteSelection,
@@ -283,12 +279,23 @@ export function SftpManager() {
     async (entry: FileEntry) => {
       if (!activeSessionId) return;
       try {
+        const ext = entry.name.split('.').pop()?.toLowerCase() || '';
+        const isPdf = ext === 'pdf';
+
+        if (
+          !(TEXT_EXTS as readonly string[]).includes(ext) &&
+          !(IMAGE_EXTS as readonly string[]).includes(ext) &&
+          !isPdf
+        ) {
+          toast.info(`Cannot preview .${ext} files. Use download to open.`);
+          return;
+        }
+
         const { content } = await window.api.storage.readFile({
           sessionId: activeSessionId,
           path: entry.path,
         });
-        const ext = entry.name.split('.').pop()?.toLowerCase() || '';
-        const type = mimeForExt(ext, ext === 'pdf');
+        const type = mimeForExt(ext, isPdf);
         setPreviewFile({ name: entry.name, content, type });
       } catch (err: unknown) {
         toast.error(...toastArgs(err, 'Preview failed'));
@@ -512,13 +519,7 @@ export function SftpManager() {
             error={localError}
             selection={localSelection}
             onPathChange={setLocalPath}
-            onSelect={(name, multi) => {
-              if (multi) {
-                toggleLocalSelection(name);
-              } else {
-                setLocalSelection(new Set([name]));
-              }
-            }}
+            onSelect={(selection) => setLocalSelection(selection)}
             onRefresh={() => invalidateLocal(localPath)}
             onDragStart={handleLocalDragStart}
             onDrop={handleLocalDrop}
@@ -573,13 +574,7 @@ export function SftpManager() {
             error={remoteError}
             selection={remoteSelection}
             onPathChange={setRemotePath}
-            onSelect={(name, multi) => {
-              if (multi) {
-                toggleRemoteSelection(name);
-              } else {
-                setRemoteSelection(new Set([name]));
-              }
-            }}
+            onSelect={(selection) => setRemoteSelection(selection)}
             onRefresh={() => invalidateSftp(activeSessionId!, remotePath)}
             onDragStart={handleRemoteDragStart}
             onDrop={handleRemoteDrop}

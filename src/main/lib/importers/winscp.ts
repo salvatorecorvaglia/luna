@@ -65,7 +65,6 @@ export function importFromWinSCP(content: string): ExportedConnection[] {
         provider: 's3',
         endpoint: host,
         folder: 'WinSCP',
-        jumpHostName,
       });
     }
   }

@@ -81,7 +81,13 @@ interface HSL {
 }
 
 function hexToHsl(hex: string): HSL {
-  const clean = hex.replace('#', '');
+  let clean = hex.replace('#', '');
+  if (clean.length === 3) {
+    clean = clean
+      .split('')
+      .map((c) => c + c)
+      .join('');
+  }
   const r = parseInt(clean.slice(0, 2), 16) / 255;
   const g = parseInt(clean.slice(2, 4), 16) / 255;
   const b = parseInt(clean.slice(4, 6), 16) / 255;

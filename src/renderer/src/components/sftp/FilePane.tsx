@@ -28,7 +28,7 @@ interface FilePaneProps {
   error: Error | null;
   selection: Set<string>;
   onPathChange: (path: string) => void;
-  onSelect: (name: string, multi?: boolean, range?: boolean) => void;
+  onSelect: (selection: Set<string>) => void;
   onRefresh: () => void;
   onDragStart?: (entry: FileEntry, e: React.DragEvent) => void;
   onDrop?: (e: React.DragEvent) => void;

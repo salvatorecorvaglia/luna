@@ -72,7 +72,7 @@ To guarantee stability, protect against remote server abuse/DoS, and prevent mem
   - _Refill Rate_: `10` tokens per second.
   - _Memory Safety_: Maximum of `1024` tracked session buckets; least-recently-created buckets are evicted to prevent leaks.
   - _Clock Skew Guard_: Automatic reset logic if the system clock jumps backward.
-- **File Previews**: Hard cap of `50 MB` (`MAX_PREVIEW_BYTES`). Lunar refuses to read/preview any files larger than this size to avoid rendering freezes.
+- **File Previews**: Hard cap of `5 MB` (`MAX_PREVIEW_BYTES`). Lunar refuses to read/preview any files larger than this size to avoid rendering freezes.
 - **SSH Connectivity**: Handshake timeout is capped at `60` seconds to avoid stranding connection pools.
 - **Transfer Queue Boundaries**: Capped at `1,000` queued transfers. Active/in-flight transfers are capped at `10` max concurrency.
 - **S3 Bucket Listing**: Capped at a maximum of `50,000` entries returned from a single S3 list operation to avoid Out-Of-Memory (OOM) situations on massive folders/buckets. Shows a warning banner if truncated.

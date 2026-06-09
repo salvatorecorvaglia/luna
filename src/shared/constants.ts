@@ -110,7 +110,7 @@ export const IPC = {
 /** Resource limits — centralised so renderer + main agree. */
 export const LIMITS = {
   /** Maximum file preview size (bytes). Larger files are refused at the storage layer (SFTP/S3). */
-  MAX_PREVIEW_BYTES: 50 * 1024 * 1024,
+  MAX_PREVIEW_BYTES: 5 * 1024 * 1024,
   /** Hard cap on terminal scrollback lines (settings UI clamps to this). */
   MAX_SCROLLBACK: 100_000,
   /** Minimum terminal scrollback lines. Must match the clamp in SETTINGS_SET. */
