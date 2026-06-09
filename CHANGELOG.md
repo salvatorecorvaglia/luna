@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-06-09
+
+### Added
+
+- **SFTP File List**: Added multi-select support using Shift and Ctrl/Cmd modifiers.
+- **Themes**: Added support for hex shorthand color values when converting terminal themes to UI themes.
+- **Documentation**: Added dedicated testing documentation for secure flows and detailed application configuration settings/safety limits.
+
+### Improved
+
+- **File Preview**: Reduced the SFTP file preview size limit to 5MB to optimize memory usage.
+- **CI/CD**: Streamlined CI and release workflows for consistency and release reliability.
+
+### Changed
+
+- **Project Branding**: Removed the "— all in one" tagline from the project description and welcome UI.
+
+### Removed
+
+- **Documentation Site**: Removed the unused static documentation site, related assets, and its deployment workflow.
+
 ## [0.8.0] - 2026-05-20
 
 ### Added

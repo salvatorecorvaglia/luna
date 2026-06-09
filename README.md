@@ -1,4 +1,4 @@
-# Lunar 🌑
+# Lunar 🌙
 
 **A modern SSH terminal, local terminal, SFTP file manager, and S3-compatible object storage browser.**
 
@@ -6,76 +6,75 @@ Lunar is a high-performance, cross-platform desktop application designed to stre
 
 ---
 
-## ✨ Key Features
+## 📋 Table of Contents
 
-### 💻 Advanced Terminal (SSH & Local)
-
-- **Native Local Shell**: Access your local machine's shell (bash, zsh, powershell) directly within Lunar using `node-pty`.
-- **High Performance**: Powered by **xterm.js** with **WebGL rendering** for buttery-smooth scrolling and zero-lag input.
-- **Multi-Session Management**: Organize your work with tabs and multi-pane splits (horizontal/vertical).
-- **Professional Theming**: Built-in themes including Dracula, Nord, Tokyo Night, Gruvbox, Monokai, and One Dark.
-- **Unicode 11 Support**: Robust character rendering for modern CLI tools and emojis.
-- **Terminal Search**: Integrated search with match counts and highlight support.
-- **Jump Host Support**: Securely connect to remote servers through intermediate gateway hosts (SSH tunneling).
-- **Resilient Connectivity**: Automatic reconnection with exponential backoff and configurable retry limits for SSH.
-
-### 📁 Integrated SFTP Browser
-
-- **Dual-Pane Workflow**: Effortlessly transfer files between local and remote systems.
-- **Drag & Drop**: Seamlessly move files into the cloud or down to your machine.
-- **Queue Management**: Concurrent transfer engine with real-time progress monitoring, cancel confirmation, and abort support.
-- **Upload Verification**: Automatic verification of file completion for SFTP transfers.
-- **In-App Preview**: Securely preview configuration files without leaving the application.
-- **Session Recovery**: Persistent session state across application restarts.
-
-### ☁️ S3-Compatible Object Storage
-
-- **First-Class Provider**: AWS S3 and any S3-compatible service (MinIO, Cloudflare R2, Backblaze B2, Wasabi) sit alongside SFTP.
-- **Multipart Uploads**: Large files stream through `@aws-sdk/lib-storage` with live progress and abort support.
-- **Bucket Management**: List, create, and delete buckets; pin a default bucket or browse the whole account.
-- **Optimized Storage**: Operation timeouts, query caching, and listing truncation alerts for large directories.
-
-### 🛠️ Developer-First Tools
-
-- **Command Palette**: Access every action instantly with `Cmd+K` (macOS) or `Ctrl+K` (Linux/Windows).
-- **Connection Manager**: Securely store SSH/SFTP and S3 connections. Organize via folders, tags, and reorderable sections with advanced SSH tunnel (jump host) support.
-- **Customizable Sidebar**: Reorderable connection sections with persistent drag-and-drop state.
-- **Auto-Update**: Stay current with integrated GitHub-based updates and interactive notifications.
+- [Features](#-features)
+  - [SSH & Local Terminals](#1-ssh--local-terminals)
+  - [SFTP File Manager](#2-sftp-file-manager)
+  - [S3-Compatible Object Storage Browser](#3-s3-compatible-object-storage-browser)
+  - [Security & Credentials Management](#4-security--credentials-management)
+  - [Command Palette & Global Shortcuts](#5-command-palette--global-shortcuts)
+  - [Session Recovery](#6-session-recovery)
+- [Tech Stack](#-tech-stack)
+- [Getting Started](#-getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Development Scripts](#development-scripts)
+- [Project Architecture](#-project-architecture)
+- [Contributing](#-contributing)
+- [Security](#-security)
+- [License](#-license)
 
 ---
 
-## ⚙️ Configuration Settings
+## ✨ Features
 
-Lunar is highly configurable through the application settings. Below are the available keys, their types, default values, and safe boundaries:
+### 1. SSH & Local Terminals
+* **Tabbed Interface & Splits**: Manage multiple terminal sessions with rich tabs and horizontal/vertical split panes.
+* **xterm.js Integration**: Fully featured terminal emulation powered by `xterm.js` and `node-pty`.
+* **Hardware Acceleration**: High-performance rendering with Canvas and WebGL addons.
+* **Terminal Search**: Built-in search bar for traversing terminal scrollback buffers.
+* **Dynamic Theme Sync**: Terminal theme colors are automatically built and applied as CSS variables to the rest of the application shell.
 
-| Setting Key                | Type      | Default Value                                  | Description / Range                                                                    |
-| -------------------------- | --------- | ---------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `terminal.fontFamily`      | `string`  | `"JetBrains Mono, Menlo, Consolas, monospace"` | The font family used inside terminal windows.                                          |
-| `terminal.fontSize`        | `number`  | `14`                                           | Font size in pixels. Range: `8` to `72` px.                                            |
-| `terminal.theme`           | `string`  | `"dracula"`                                    | Active terminal color palette theme.                                                   |
-| `terminal.scrollback`      | `number`  | `10000`                                        | Lines of scrollback buffer history. Range: `1,000` to `1,000,000`.                     |
-| `transfer.concurrency`     | `number`  | `3`                                            | Max concurrent files transferred in parallel. Range: `1` to `10`.                      |
-| `ssh.autoReconnect`        | `boolean` | `true`                                         | Enable automatic reconnection upon sudden disconnects.                                 |
-| `ssh.keepAliveInterval`    | `number`  | `10000`                                        | Interval in ms to send SSH keepalive packets. Range: `0` to `600,000` ms (0 disables). |
-| `ssh.maxReconnectAttempts` | `number`  | `5`                                            | Maximum number of reconnect retries before bailing. Range: `0` to `100`.               |
-| `ssh.readyTimeout`         | `number`  | `30000`                                        | Maximum time in ms to wait for the SSH handshake. Range: `1,000` to `600,000` ms.      |
-| `ui.applyTerminalTheme`    | `boolean` | `true`                                         | Sync the overall application UI theme with the active terminal theme.                  |
+### 2. SFTP File Manager
+* **Dual-Pane File Explorer**: Modern layout for navigating remote directories side-by-side or alongside terminals.
+* **Transfer Queue**: Active upload and download tracking with real-time transfer progress indicator.
+* **File Previews**: Quick preview panel for supported file formats.
+* **Robust Fallback**: Graceful handling of SSH-level disruptions with session-level fallback handling.
+
+### 3. S3-Compatible Object Storage Browser
+* **Universal S3 Support**: Browser compatible with Amazon S3 and all S3-compatible storage endpoints (MinIO, Cloudflare R2, DigitalOcean Spaces, etc.).
+* **OOM & Truncation Safety**: Built-in limit safety that caps single prefix queries to prevent application crashes on directories/buckets with millions of keys, prompting you to drill into sub-prefixes instead.
+* **Bucket & Object Management**: Seamlessly browse buckets, traverse key prefixes, upload files, and download objects.
+
+### 4. Security & Credentials Management
+* **OS Keychain Integration**: Credentials are securely saved to the OS-level credential store (via `keytar`/native API), with auto-detection that prompts a warning toast when falling back to plaintext storage (e.g. Linux machines missing `libsecret`).
+* **Tamper Detection**: Cryptographic integrity validation on startup ensures that corrupted or manually altered credential rows are immediately isolated and reported to prevent credential hijack/leak.
+* **Host Key Verification**: Interactive fingerprint verification alerts on connecting to a new host to prevent man-in-the-middle attacks.
+
+### 5. Command Palette & Global Shortcuts
+* **Mouse-Free Navigation**: Trigger the unified command palette anywhere using `Cmd+K` (or `Ctrl+K`).
+* **Instant Shortcuts Help**: Tap `?` (when not focusing input elements) to view the global shortcut mappings.
+* **Sidebar Toggle**: Collapse the navigation sidebar using `Cmd+B` to maximize workspace real estate.
+
+### 6. Session Recovery
+* **Crash-Resilient Stateful Shell**: In-flight SSH shell connection, local shell, and SFTP directory structures are tracked in the main process, allowing session state recovery after manual restarts or reload actions (`Cmd+R`).
 
 ---
 
-## 🛡️ Resource & Safety Limits
+## 🛠 Tech Stack
 
-To guarantee stability, protect against remote server abuse/DoS, and prevent memory exhaustion, Lunar enforces the following resource boundaries:
+Lunar is built on a modern, robust, and lightning-fast developer stack:
 
-- **Storage Rate Limiting**: All metadata storage operations (`list`, `stat`, `mkdir`, `delete`, `rename`, `readFile`) are throttled per active session using a token-bucket rate limiter.
-  - _Capacity_: `30` tokens.
-  - _Refill Rate_: `10` tokens per second.
-  - _Memory Safety_: Maximum of `1024` tracked session buckets; least-recently-created buckets are evicted to prevent leaks.
-  - _Clock Skew Guard_: Automatic reset logic if the system clock jumps backward.
-- **File Previews**: Hard cap of `5 MB` (`MAX_PREVIEW_BYTES`). Lunar refuses to read/preview any files larger than this size to avoid rendering freezes.
-- **SSH Connectivity**: Handshake timeout is capped at `60` seconds to avoid stranding connection pools.
-- **Transfer Queue Boundaries**: Capped at `1,000` queued transfers. Active/in-flight transfers are capped at `10` max concurrency.
-- **S3 Bucket Listing**: Capped at a maximum of `50,000` entries returned from a single S3 list operation to avoid Out-Of-Memory (OOM) situations on massive folders/buckets. Shows a warning banner if truncated.
+* **Framework**: [Electron](https://www.electronjs.org/) (Main, Preload, and Renderer structure)
+* **Build Tooling**: [electron-vite](https://electron-vite.org/)
+* **Frontend Library**: [React](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
+* **Styling**: [Tailwind CSS v4](https://tailwindcss.com/) + [Framer Motion](https://www.framer.com/motion/)
+* **State Management**: [Zustand](https://zustand-demo.pmnd.rs/) (Client UI, connection, and terminal states)
+* **Data Fetching**: [@tanstack/react-query](https://tanstack.com/query/latest) (Caching remote file hierarchies and lists)
+* **Terminal Engine**: [xterm.js](https://xtermjs.org/) + [node-pty](https://github.com/microsoft/node-pty)
+* **Database**: [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) (Local database storage)
+* **Object Storage**: AWS SDK v3 (`@aws-sdk/client-s3`)
 
 ---
 
@@ -83,40 +82,55 @@ To guarantee stability, protect against remote server abuse/DoS, and prevent mem
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (v22 or higher)
-- [npm](https://www.npmjs.com/)
+* **Node.js** (v22 recommended)
+* **npm** (comes packaged with Node.js)
 
 ### Installation
 
-```bash
-# Clone the repository
-git clone https://github.com/salvatorecorvaglia/lunar.git
-cd lunar
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/salvatorecorvaglia/lunar.git
+   cd lunar
+   ```
 
-# Install dependencies
-npm install
-```
+2. **Install dependencies**:
+   ```bash
+   npm install
+   ```
+   *Note: This will automatically build native modules (like `better-sqlite3` and `node-pty`) via `electron-builder install-app-deps` in the postinstall script.*
 
-### Development
+3. **Start the application in development mode**:
+   ```bash
+   npm run dev
+   ```
 
-```bash
-# Start the application with HMR
-npm run dev
-```
+### Development Scripts
+
+The following scripts are available in the project:
+
+| Script | Command | Description |
+|---|---|---|
+| `npm run dev` | `electron-vite dev --noSandbox` | Starts the app with hot-reloading and logs |
+| `npm run build` | `electron-vite build` | Compiles code for production distribution |
+| `npm run preview` | `electron-vite preview` | Previews the compiled production build |
+| `npm run lint` | `eslint src/` | Runs ESLint analysis over the codebase |
+| `npm run format` | `prettier --write "src/**/*"` | Automatically formats files using Prettier |
+| `npm run typecheck` | `npm run typecheck:node && ...` | Full Node and Web TypeScript type checks |
+| `npm run test` | `vitest run` | Runs unit and integration tests |
+| `npm run test:coverage`| `vitest run --coverage` | Evaluates test code coverage |
 
 ---
 
-## 🧪 Quality & Testing
+## 📂 Project Architecture
 
-Lunar maintains a high bar for code quality with comprehensive testing and automated formatting:
-
-```bash
-npm test               # Execute Vitest suite
-npm run test:watch     # Run tests in watch mode
-npm run test:coverage  # Run tests with coverage report
-npm run typecheck      # Run TypeScript compiler checks
-npm run lint           # Static analysis with ESLint
-npm run format         # Format code with Prettier
+```
+src/
+├── main/       # Electron main process (IPC controllers, SSH connection manager, database setup)
+├── preload/    # Preload scripts (securely bridging node logic/APIs to the renderer window)
+├── renderer/   # React frontend source files (pages, UI layout, components, global state stores)
+│   └── src/    # React codebase roots (components, themes, hooks, services, state management)
+├── shared/     # Unified TypeScript types, constants, schemas, and schemas common to main/renderer
+└── test/       # Test suites, mocking utilities, and Vitest configuration presets
 ```
 
 ---

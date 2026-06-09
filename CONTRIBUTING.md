@@ -1,132 +1,163 @@
-# Contributing to Lunar 🌑
+# Contributing to Lunar 🌙
 
-Thank you for your interest in contributing to Lunar! We're excited to see what you'll bring to this modern SSH terminal, SFTP file manager, and S3-compatible object storage browser.
+Thank you for your interest in contributing to **Lunar**! Lunar is a modern SSH terminal, local terminal, SFTP file manager, and S3-compatible object storage browser.
 
-## 🌈 Ways to Contribute
-
-### Bug Reports 🐛
-
-If you encounter a bug, please check the [existing issues](https://github.com/salvatorecorvaglia/lunar/issues) to see if it's already been reported. If not, open a new issue and include:
-
-- A clear, descriptive title.
-- Steps to reproduce the bug.
-- Your OS version and any relevant environment details.
-- Logs from `electron-log` if available (open from **Settings → Open Log File**).
-
-### Feature Requests 💡
-
-Have an idea for a new feature?
-
-- Check the [issues](https://github.com/salvatorecorvaglia/lunar/issues) for similar proposals.
-- Open a new issue with the "enhancement" label and describe your vision.
-
-### Pull Requests 🚀
-
-1. **Fork** the repository and create your feature branch from `main`.
-2. **Install dependencies**: `npm install`.
-3. **Develop**: Use `npm run dev` to start the application with hot-module replacement.
-4. **Quality Checks**:
-   - Run tests: `npm test`
-   - Check types: `npm run typecheck`
-   - Format your code: `npm run format`
-   - Lint your code: `npm run lint`
-5. **Commit**: Follow [Conventional Commits](https://www.conventionalcommits.org/) (e.g., `feat(terminal): add support for custom font ligatures`, `fix(sftp): resolve drag-and-drop ghosting issue`, or `feat(s3): paginate prefix deletion`).
-6. **Submit**: Push to your fork and open a Pull Request to the `main` branch.
-
-## 🛠️ Local Development
-
-### Prerequisites
-
-- Node.js ≥ 22.0.0
-- npm
-
-### Setup
-
-```bash
-git clone https://github.com/salvatorecorvaglia/lunar.git
-cd lunar
-npm install
-```
-
-### Useful Scripts
-
-| Script                  | Description                                         |
-| ----------------------- | --------------------------------------------------- |
-| `npm run dev`           | Start Electron with HMR for the renderer            |
-| `npm run build`         | Build the application for production (no packaging) |
-| `npm run preview`       | Preview the production build locally                |
-| `npm test`              | Run all tests using Vitest                          |
-| `npm run test:watch`    | Run tests in watch mode                             |
-| `npm run test:coverage` | Run tests with coverage report                      |
-| `npm run typecheck`     | Run TypeScript type checking (main + renderer)      |
-| `npm run lint`          | Run ESLint                                          |
-| `npm run format`        | Format code with Prettier                           |
-
-## 🏛️ Project Architecture
-
-Lunar is an Electron application built with `electron-vite`:
-
-- **Main Process** (`src/main/`): system-level operations, SSH/SFTP logic, S3 client lifecycle, database management, and migration framework.
-- **Renderer Process** (`src/renderer/`): React application providing the user interface.
-- **Preload Scripts** (`src/preload/`): exposes the typed `window.api` bridge to the renderer.
-- **Shared Modules** (`src/shared/`): types, custom error classes (such as `LunarError`), and constants shared between processes.
-
-### Storage Providers
-
-Remote backends live behind a single `StorageProvider` interface (`src/main/services/storage/types.ts`). Each session id is registered with the `storageRegistry`, and the transfer queue + `storage:*` IPC handlers dispatch through that registry — so the SFTP and S3 code paths share the same queue, progress events, and renderer UI.
-
-- **SFTP** (`src/main/services/sftp-manager.ts`) — wrapped by `sftpStorageProvider` and registered on `ssh:connect`.
-- **S3** (`src/main/services/s3/s3-provider.ts`) — uses `@aws-sdk/client-s3` + `@aws-sdk/lib-storage`. Registered on `s3:connect`. Path convention: `/` lists buckets, `/bucket/key/...` for objects/prefixes.
-
-When adding a new provider, implement `StorageProvider`, add a `*-connect` IPC handler that calls `storageRegistry.register`, and surface it in `ConnectionForm` via the provider toggle. The renderer stays untouched.
-
-#### Tests around the abstraction
-
-- `src/main/services/storage/__tests__/registry.test.ts` — round-trip register/get, `require()` failure mode, kind discrimination across sessions.
-- `src/main/services/__tests__/transfer-queue.test.ts` — mocks `storage/registry` with a stub provider; covers dedupe, saturation, cancel, abort drain, re-entrancy, `cancelAll`, and live concurrency adjustment.
-- `src/main/services/s3/__tests__/s3-paths.test.ts` — round-trips for the `/`, `/bucket`, `/bucket/key/...` path convention.
-- `src/main/services/__tests__/database.test.ts` — asserts migration `008_provider_columns` rebuilds the table and preserves existing SFTP rows.
-- `src/test/design-tokens.test.ts` — guards against UI styling drift by ensuring all React components use design tokens and predefined z-layers.
-- `src/main/lib/__tests__/rate-limiter.test.ts` — covers session bucket eviction caps and clock skew protection.
-- `src/main/services/__tests__/credential-store-backend.test.ts` — verifies security and encryption of backend credentials.
-- `src/main/lib/__tests__/validate.test.ts` — verifies IPC validation and request boundaries.
-- `src/main/services/ssh/__tests__/host-key-flow.test.ts` / `host-key-tofu.test.ts` — covers secure host key verification flow, including TOFU (Trust On First Use) confirmation dialogs and MITM warning handlers.
-- `src/main/lib/__tests__/redact.test.ts` — covers error message formatting and credential log redaction to ensure secrets never leak into log files.
-- `src/main/lib/importers/__tests__/mobaxterm.test.ts` — verifies connection profile import parsing and secure decryption of MobaXterm configurations.
-
-### Key Principles
-
-- **Process Isolation**: All sensitive operations (SSH, SFTP, S3, credentials, database) run in the main process. The renderer communicates exclusively through typed IPC via the preload bridge.
-- **Credential Security**: SSH passwords/passphrases and S3 access keys are encrypted with a local AES-256-GCM key, never stored in plain text. S3 secrets are persisted as a JSON blob (`{accessKeyId, secretAccessKey, sessionToken?}`) inside the same encrypted column.
-- **Host Key Verification**: Trust-on-first-use (TOFU) with a secure host key verification store — new host keys trigger a dialog for explicit user confirmation; changed keys show a clear warning to prevent MITM attacks.
-- **Input & Payload Validation**: Strict validation for all IPC arguments, including path traversal guards, settings whitelisting, and custom error boundaries (via `LunarError`).
-- **Rate Limiting**: Protects IPC communication and connection methods with clock skew handling and session bucket eviction limits.
-- **UI Design System & Stacking**: Avoid design-system drift and uncontrolled layout nesting by adhering strictly to predefined design tokens. React components must:
-  1. Use CSS variables and semantic tokens from `assets/main.css` (like `text-success` or `text-brand-blue`) instead of raw Tailwind colors (like `text-red-500`).
-  2. Avoid hardcoded hex codes inside class names (like `bg-[#1a202c]`).
-  3. Reference the central z-index registry (`Z` from `@/lib/z-layers`) instead of hardcoded `z-[N]` classes.
-     _This is enforced automatically by the design-token test suite._
-
-### Testing S3 Locally
-
-The fastest way to exercise the S3 provider end-to-end is with a local MinIO container:
-
-```bash
-docker run -p 9000:9000 -p 9001:9001 minio/minio server /data --console-address ":9001"
-```
-
-In Lunar, create an S3 connection with:
-
-- Endpoint: `http://localhost:9000`
-- Region: `us-east-1`
-- Force path-style URLs: **on** (required for MinIO)
-- Access Key / Secret: the MinIO defaults (`minioadmin` / `minioadmin`)
-- Default bucket: optional
-
-## 📜 Code of Conduct
-
-Please maintain a respectful and professional tone in all communications.
+We welcome all kinds of contributions, whether it's reporting bugs, suggesting new features, improving documentation, or writing code.
 
 ---
 
-Happy coding! 🌑
+## 📋 Table of Contents
+
+- [Getting Started](#-getting-started)
+- [Development Guidelines](#-development-guidelines)
+  - [Folder Structure](#folder-structure)
+  - [Scripts](#scripts)
+- [Code Quality & Standards](#-code-quality--standards)
+  - [Linting & Formatting](#linting--formatting)
+  - [Type-Checking](#type-checking)
+  - [Testing](#testing)
+- [Submitting a Pull Request](#-submitting-a-pull-request)
+- [Security Vulnerabilities](#-security-vulnerabilities)
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+To set up the development environment, make sure you have the following installed:
+- **Node.js** (v22 is recommended, matching the CI environment)
+- **npm** (comes packaged with Node.js)
+
+### Setting Up the Project
+
+1. **Fork the repository** on GitHub.
+2. **Clone your fork** locally:
+   ```bash
+   git clone https://github.com/your-username/lunar.git
+   cd lunar
+   ```
+3. **Install dependencies**:
+   ```bash
+   npm install
+   ```
+   *Note: On post-install, this runs `electron-builder install-app-deps` to set up native node dependencies like `better-sqlite3` and `node-pty`.*
+
+---
+
+## 💻 Development Guidelines
+
+### Folder Structure
+
+The application follows the standard `electron-vite` project layout under the `src` directory:
+
+```
+src/
+├── main/       # Electron main process (IPC handlers, SSH/PTY logic, database setup)
+├── preload/    # Electron preload scripts (securely exposing main process APIs to renderer)
+├── renderer/   # React frontend source files (pages, components, styles, state management)
+│   └── src/    # Main React source directory
+├── shared/     # Shared TS types, constants, and utilities used by main & renderer
+└── test/       # Test setup files and configuration
+```
+
+### Scripts
+
+Use the following npm scripts during development:
+
+- **Run in development mode**:
+  ```bash
+  npm run dev
+  ```
+  Runs the Electron app with hot-reloading and development logs.
+- **Build for production**:
+  ```bash
+  npm run build
+  ```
+  Compiles the TypeScript/React code and bundles the Electron app for production.
+- **Preview build**:
+  ```bash
+  npm run preview
+  ```
+
+---
+
+## 🛠 Code Quality & Standards
+
+To keep the codebase maintainable and clean, we enforce linting, formatting, type-checking, and tests.
+
+### Linting & Formatting
+
+We use **ESLint** and **Prettier** to check and format the codebase.
+
+- **Check lint issues**:
+  ```bash
+  npm run lint
+  ```
+- **Automatically format code**:
+  ```bash
+  npm run format
+  ```
+
+### Type-Checking
+
+The project uses TypeScript across the main (Node) and renderer (Web) processes. Always verify type correctness before pushing:
+
+- **Type-check everything**:
+  ```bash
+  npm run typecheck
+  ```
+- **Type-check Node (main/preload) process**:
+  ```bash
+  npm run typecheck:node
+  ```
+- **Type-check Web (renderer) process**:
+  ```bash
+  npm run typecheck:web
+  ```
+
+### Testing
+
+We use **Vitest** for running unit and integration tests.
+
+- **Run tests once**:
+  ```bash
+  npm run test
+  ```
+- **Run tests in watch mode**:
+  ```bash
+  npm run test:watch
+  ```
+- **Check test coverage**:
+  ```bash
+  npm run test:coverage
+  ```
+  *Note: Please make sure coverage thresholds (lines, functions, branches, statements) are maintained or improved when adding new tests.*
+
+---
+
+## 📥 Submitting a Pull Request
+
+1. **Create a branch** for your work from `develop` or `main` (usually `feature/feature-name` or `bugfix/bug-name`).
+2. **Write clean code** and adhere to the project's formatting and quality standards.
+3. **Write/update tests** to cover your changes where applicable.
+4. **Run all checks** locally before pushing:
+   ```bash
+   npm run format
+   ```
+   ```bash
+   npm run lint
+   ```
+   ```bash
+   npm run typecheck
+   ```
+   ```bash
+   npm run test
+   ```
+5. **Commit your changes** with descriptive commit messages.
+6. **Submit a Pull Request** (PR) to the upstream repository.
+7. Fill out the [Pull Request Template](.github/PULL_REQUEST_TEMPLATE/PULL_REQUEST_TEMPLATE.md) completely, referencing any related issue (e.g. `Fixes #123`).
+
+---
+
+Happy coding! 🌙
