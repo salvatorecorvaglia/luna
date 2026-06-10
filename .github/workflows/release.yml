@@ -12,12 +12,27 @@ concurrency:
 
 permissions:
   contents: write
-  actions: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
+  ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.cache/electron-builder
 
 jobs:
+  # ──────────────────────────────────────────────
+  # Validate Tag Ref
+  # ──────────────────────────────────────────────
+  validate:
+    name: Validate Tag Ref
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if tag ref
+        run: |
+          if [[ "$GITHUB_REF" != refs/tags/* ]]; then
+            echo "::error::Release workflow must be run on a tag ref (e.g. refs/tags/v1.0.0)"
+            exit 1
+          fi
+
   # ──────────────────────────────────────────────
   # Quality Gate – run before building any artifact
   # ──────────────────────────────────────────────
@@ -25,6 +40,7 @@ jobs:
     name: Quality Gate
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    needs: validate
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -58,6 +74,16 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+
+      - name: Cache Electron Binaries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/.cache/electron
+            ${{ github.workspace }}/.cache/electron-builder
+          key: ${{ runner.os }}-electron-cache-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-electron-cache-
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -99,6 +125,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Cache Electron Binaries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/.cache/electron
+            ${{ github.workspace }}/.cache/electron-builder
+          key: ${{ runner.os }}-electron-cache-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-electron-cache-
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -137,6 +173,16 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+
+      - name: Cache Electron Binaries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/.cache/electron
+            ${{ github.workspace }}/.cache/electron-builder
+          key: ${{ runner.os }}-electron-cache-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-electron-cache-
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
