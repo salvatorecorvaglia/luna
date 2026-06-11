@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-06-11
+
+### Added
+
+- **SFTP File List**: Added a warning banner in the SFTP remote file pane when a folder contains more items than the safety limit.
+- **CI/CD**: Added a tag verification step to the release workflow.
+
+### Improved
+
+- **Credential Store**: Gracefully fall back to temporary in-memory encryption keys if the OS-level secret storage (`safeStorage`) is unavailable, instead of crashing on startup. Added a warning toast in the UI indicating that saving connection passwords is disabled under this fallback.
+- **SFTP File List**: Corrected timestamp formatting by converting UNIX epoch seconds to milliseconds.
+- **CI/CD**: Integrated caching of Electron and electron-builder binaries in release workflows to optimize build times.
+
+### Changed
+
+- **Database & Connections**: Wrapped connection creation and updates in SQLite transactions to ensure database consistency.
+
+### Removed
+
+- **Terminal**: Removed unused terminal split pane state and components.
+
 ## [0.9.0] - 2026-06-09
 
 ### Added
