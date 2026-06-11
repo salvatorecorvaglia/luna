@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Credential Store**: Gracefully fall back to temporary in-memory encryption keys if the OS-level secret storage (`safeStorage`) is unavailable, instead of crashing on startup. Added a warning toast in the UI indicating that saving connection passwords is disabled under this fallback.
 - **SFTP File List**: Corrected timestamp formatting by converting UNIX epoch seconds to milliseconds.
-- **CI/CD**: Integrated caching of Electron and electron-builder binaries in release workflows to optimize build times.
+- **CI/CD**: Integrated caching of Electron and electron-builder binaries in release workflows using actions/cache@v5 to resolve Node.js 20 deprecation warnings.
 
 ### Changed
 
