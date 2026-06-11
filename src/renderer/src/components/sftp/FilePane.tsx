@@ -9,12 +9,14 @@ import {
   Loader2,
   RefreshCw,
   Search,
+  ShieldAlert,
   WifiOff,
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { FileList } from './FileList';
 import type { FileEntry } from '@shared/types/sftp';
+import { useStorageStore } from '@/stores/storage-store';
 
 export type { FileEntry };
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
@@ -91,6 +93,11 @@ export function FilePane({
   side,
   remoteKind,
 }: FilePaneProps) {
+  const activeSessionId = useStorageStore((s) => s.activeSessionId);
+  const isTruncated = useStorageStore((s) =>
+    activeSessionId ? s.truncatedPaths.has(`${activeSessionId}\0${path}`) : false,
+  );
+
   // Unix permissions don't exist on S3 objects, so the perms column is
   // suppressed there. Local panes and SFTP remote panes show it.
   const showPermissions = side === 'remote' ? remoteKind !== 's3' : true;
@@ -309,6 +316,17 @@ export function FilePane({
           })}
         </div>
       </div>
+
+      {side === 'remote' && isTruncated && (
+        <div className="flex items-center gap-2 border-b border-warning/20 bg-warning/5 px-3 py-2 text-xs text-warning/90 no-select">
+          <ShieldAlert className="size-4 flex-shrink-0 text-warning" aria-hidden="true" />
+          <div className="flex-1">
+            <span className="font-semibold text-warning">List Truncated:</span> This folder contains
+            more items than the display safety limit. Please create or navigate into a subfolder to
+            view all items.
+          </div>
+        </div>
+      )}
 
       {/* Filter */}
       {filterOpen && (

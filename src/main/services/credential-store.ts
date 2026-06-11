@@ -28,6 +28,11 @@ let encryptionKey: Buffer | null = null;
  * reads this via getCredentialBackendStatus() to surface a security banner.
  */
 let usingPlaintextKey = false;
+/**
+ * Tracks whether the credential store had to fall back to an in-memory random
+ * key because OS-level secret storage was unavailable (fresh Linux install).
+ */
+let usingInMemoryKey = false;
 
 /**
  * Load the per-user encryption key. When Electron's safeStorage is available
@@ -128,14 +133,16 @@ function getEncryptionKey(): Buffer {
       }
     } else {
       // Fresh install on a platform without safeStorage (e.g. Linux without
-      // libsecret). Refuse to persist a plaintext master key — credential
-      // storage is opt-in and the user must install a keyring backend first.
-      throw new LunarError(
-        'Cannot initialize credential storage: OS-level secret storage (safeStorage) is ' +
-          'unavailable. On Linux, install gnome-keyring or libsecret-1-0 and restart.',
-        ErrorCode.FORBIDDEN,
-        { reason: 'safe-storage-unavailable' },
+      // libsecret). Relax the startup check: log a warning, fall back to an
+      // in-memory key, and track this so we can throw a clear error when saving
+      // connections/credentials.
+      log.warn(
+        '[Credentials] OS-level secret storage (safeStorage) is unavailable. ' +
+          'Falling back to in-memory credential encryption for the current session. ' +
+          'Saving credentials to disk is disabled.',
       );
+      usingInMemoryKey = true;
+      encryptionKey = randomBytes(32);
     }
   }
   return encryptionKey;
@@ -250,6 +257,14 @@ function decrypt(data: Buffer): string {
 }
 
 export function storeCredential(connectionId: string, secret: string): void {
+  if (usingInMemoryKey) {
+    throw new LunarError(
+      'Cannot save connection credentials: OS-level secret storage (safeStorage) is unavailable. ' +
+        'On Linux, install gnome-keyring or libsecret-1-0 and restart, or connect on-demand without saving credentials.',
+      ErrorCode.FORBIDDEN,
+      { reason: 'safe-storage-unavailable' },
+    );
+  }
   ensureTable();
   const db = getDatabase();
   const encrypted = encrypt(secret);
@@ -260,6 +275,7 @@ export function storeCredential(connectionId: string, secret: string): void {
 }
 
 export function retrieveCredential(connectionId: string): string | null {
+  if (usingInMemoryKey) return null;
   ensureTable();
   const db = getDatabase();
 
@@ -342,9 +358,10 @@ export function retrieveS3Credential(connectionId: string): S3CredentialBlob | n
  * stored credentials are not OS-protected.
  */
 export function getCredentialBackendStatus(): {
-  backend: 'safeStorage' | 'plaintext' | 'uninitialized';
+  backend: 'safeStorage' | 'plaintext' | 'inMemory' | 'uninitialized';
 } {
   if (!encryptionKey) return { backend: 'uninitialized' };
+  if (usingInMemoryKey) return { backend: 'inMemory' };
   return { backend: usingPlaintextKey ? 'plaintext' : 'safeStorage' };
 }
 

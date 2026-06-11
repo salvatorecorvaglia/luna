@@ -190,7 +190,10 @@ export async function assertSafeRealAbsolutePath(value: unknown, name: string): 
 
 /**
  * Expand a leading `~` to the user's real home directory and validate that the
- * private key path is an absolute path that exists (no home confinement).
+ * private key path is an absolute path that exists. Note: private keys are
+ * intentionally exempt from home-confinement validation, allowing users to
+ * target keys located in standard system directories (e.g., /etc/ssh/ or custom
+ * secure mount points) outside their home subtree.
  */
 export async function expandAndValidatePrivateKeyPath(
   rawPath: string,

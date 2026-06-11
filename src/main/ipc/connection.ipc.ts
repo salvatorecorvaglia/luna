@@ -131,71 +131,75 @@ export function registerConnectionHandlers(): void {
       assertValidManualJumpHost(input.jumpHostConfig);
     }
 
-    db.prepare(
-      `
-      INSERT INTO connections (
-        id, name, provider, host, port, username, auth_type, private_key_path,
-        endpoint, region, default_bucket, force_path_style,
-        folder, color_tag, jump_host_connection_id,
-        jump_host_host, jump_host_port, jump_host_username,
-        jump_host_auth_type, jump_host_private_key_path,
-        is_hidden,
-        created_at, updated_at
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `,
-    ).run(
-      id,
-      input.name,
-      provider,
-      provider === 'sftp' ? (input.host ?? null) : null,
-      provider === 'sftp' ? (input.port ?? null) : null,
-      provider === 'sftp' ? (input.username ?? null) : null,
-      provider === 'sftp' ? (input.authType ?? null) : null,
-      provider === 'sftp' ? input.privateKeyPath || null : null,
-      provider === 's3' ? input.endpoint || null : null,
-      provider === 's3' ? input.region || null : null,
-      provider === 's3' ? input.defaultBucket || null : null,
-      provider === 's3' ? (input.forcePathStyle ? 1 : 0) : null,
-      input.folder || 'default',
-      input.colorTag || null,
-      jumpHostId,
-      input.jumpHostConfig?.host || null,
-      input.jumpHostConfig?.port || null,
-      input.jumpHostConfig?.username || null,
-      input.jumpHostConfig?.authType || null,
-      input.jumpHostConfig?.privateKeyPath || null,
-      input.isHidden ? 1 : 0,
-      now,
-      now,
-    );
-
-    // Store credentials.
-    if (provider === 'sftp') {
-      if (input.password) {
-        storeCredential(id, input.password);
-      } else if (input.passphrase) {
-        storeCredential(id, input.passphrase);
-      }
-
-      if (input.jumpHostConfig) {
-        const { password, passphrase } = input.jumpHostConfig;
-        if (password) {
-          storeCredential(`jumphost:${id}`, password);
-        } else if (passphrase) {
-          storeCredential(`jumphost:${id}`, passphrase);
-        }
-      }
-    } else if (provider === 's3') {
-      storeCredential(
+    const createTx = db.transaction(() => {
+      db.prepare(
+        `
+        INSERT INTO connections (
+          id, name, provider, host, port, username, auth_type, private_key_path,
+          endpoint, region, default_bucket, force_path_style,
+          folder, color_tag, jump_host_connection_id,
+          jump_host_host, jump_host_port, jump_host_username,
+          jump_host_auth_type, jump_host_private_key_path,
+          is_hidden,
+          created_at, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      ).run(
         id,
-        JSON.stringify({
-          accessKeyId: input.accessKeyId,
-          secretAccessKey: input.secretAccessKey,
-          sessionToken: input.sessionToken || undefined,
-        }),
+        input.name,
+        provider,
+        provider === 'sftp' ? (input.host ?? null) : null,
+        provider === 'sftp' ? (input.port ?? null) : null,
+        provider === 'sftp' ? (input.username ?? null) : null,
+        provider === 'sftp' ? (input.authType ?? null) : null,
+        provider === 'sftp' ? input.privateKeyPath || null : null,
+        provider === 's3' ? input.endpoint || null : null,
+        provider === 's3' ? input.region || null : null,
+        provider === 's3' ? input.defaultBucket || null : null,
+        provider === 's3' ? (input.forcePathStyle ? 1 : 0) : null,
+        input.folder || 'default',
+        input.colorTag || null,
+        jumpHostId,
+        input.jumpHostConfig?.host || null,
+        input.jumpHostConfig?.port || null,
+        input.jumpHostConfig?.username || null,
+        input.jumpHostConfig?.authType || null,
+        input.jumpHostConfig?.privateKeyPath || null,
+        input.isHidden ? 1 : 0,
+        now,
+        now,
       );
-    }
+
+      // Store credentials.
+      if (provider === 'sftp') {
+        if (input.password) {
+          storeCredential(id, input.password);
+        } else if (input.passphrase) {
+          storeCredential(id, input.passphrase);
+        }
+
+        if (input.jumpHostConfig) {
+          const { password, passphrase } = input.jumpHostConfig;
+          if (password) {
+            storeCredential(`jumphost:${id}`, password);
+          } else if (passphrase) {
+            storeCredential(`jumphost:${id}`, passphrase);
+          }
+        }
+      } else if (provider === 's3') {
+        storeCredential(
+          id,
+          JSON.stringify({
+            accessKeyId: input.accessKeyId,
+            secretAccessKey: input.secretAccessKey,
+            sessionToken: input.sessionToken || undefined,
+          }),
+        );
+      }
+    });
+
+    createTx();
 
     const row = db
       .prepare(`SELECT ${CONNECTION_COLUMNS} FROM connections WHERE id = ?`)
@@ -324,45 +328,49 @@ export function registerConnectionHandlers(): void {
 
     values.push(input.id);
 
-    db.prepare(`UPDATE connections SET ${assignments.join(', ')} WHERE id = ?`).run(...values);
+    const updateTx = db.transaction(() => {
+      db.prepare(`UPDATE connections SET ${assignments.join(', ')} WHERE id = ?`).run(...values);
 
-    const provider = input.provider ?? existing.provider ?? 'sftp';
-    const providerChanged = input.provider != null && input.provider !== existing.provider;
-    const authTypeChanged =
-      provider === 'sftp' && input.authType != null && input.authType !== existing.auth_type;
-    if (providerChanged || authTypeChanged) {
-      deleteCredential(input.id);
-    }
-    if (provider === 'sftp') {
-      if (input.password) {
-        storeCredential(input.id, input.password);
-      } else if (input.passphrase) {
-        storeCredential(input.id, input.passphrase);
+      const provider = input.provider ?? existing.provider ?? 'sftp';
+      const providerChanged = input.provider != null && input.provider !== existing.provider;
+      const authTypeChanged =
+        provider === 'sftp' && input.authType != null && input.authType !== existing.auth_type;
+      if (providerChanged || authTypeChanged) {
+        deleteCredential(input.id);
       }
-
-      if (input.jumpHostConfig) {
-        const { password, passphrase } = input.jumpHostConfig;
-        if (password) {
-          storeCredential(`jumphost:${input.id}`, password);
-        } else if (passphrase) {
-          storeCredential(`jumphost:${input.id}`, passphrase);
+      if (provider === 'sftp') {
+        if (input.password) {
+          storeCredential(input.id, input.password);
+        } else if (input.passphrase) {
+          storeCredential(input.id, input.passphrase);
         }
-      } else if (input.jumpHostConfig === null) {
-        deleteCredential(`jumphost:${input.id}`);
+
+        if (input.jumpHostConfig) {
+          const { password, passphrase } = input.jumpHostConfig;
+          if (password) {
+            storeCredential(`jumphost:${input.id}`, password);
+          } else if (passphrase) {
+            storeCredential(`jumphost:${input.id}`, passphrase);
+          }
+        } else if (input.jumpHostConfig === null) {
+          deleteCredential(`jumphost:${input.id}`);
+        }
+      } else if (provider === 's3' && (input.accessKeyId || input.secretAccessKey)) {
+        // Merge partial updates with the existing credential blob so supplying
+        // only one of accessKeyId/secretAccessKey doesn't blank the other field.
+        const prev = retrieveS3Credential(input.id);
+        storeCredential(
+          input.id,
+          JSON.stringify({
+            accessKeyId: input.accessKeyId ?? prev?.accessKeyId,
+            secretAccessKey: input.secretAccessKey ?? prev?.secretAccessKey,
+            sessionToken: input.sessionToken ?? prev?.sessionToken ?? undefined,
+          }),
+        );
       }
-    } else if (provider === 's3' && (input.accessKeyId || input.secretAccessKey)) {
-      // Merge partial updates with the existing credential blob so supplying
-      // only one of accessKeyId/secretAccessKey doesn't blank the other field.
-      const prev = retrieveS3Credential(input.id);
-      storeCredential(
-        input.id,
-        JSON.stringify({
-          accessKeyId: input.accessKeyId ?? prev?.accessKeyId,
-          secretAccessKey: input.secretAccessKey ?? prev?.secretAccessKey,
-          sessionToken: input.sessionToken ?? prev?.sessionToken ?? undefined,
-        }),
-      );
-    }
+    });
+
+    updateTx();
 
     const row = db
       .prepare(`SELECT ${CONNECTION_COLUMNS} FROM connections WHERE id = ?`)
@@ -483,10 +491,9 @@ export function registerConnectionHandlers(): void {
     try {
       return expandAndConfineToHomeSync(input, 'privateKeyPath');
     } catch (err) {
-      // If the path is outside home, we still allow importing the raw string
-      // so the connection isn't lost. The security check will still trigger
-      // at connection time via buildConnectConfig, prompting the user to
-      // move their key then.
+      // so the connection isn't lost. Connection-time validation resolves
+      // tilde expansion and verifies file existence but does not restrict the
+      // key from being outside the home directory.
       if (err instanceof LunarError && err.code === ErrorCode.FORBIDDEN) {
         return input;
       }

@@ -26,6 +26,7 @@ interface StorageState {
   activeSessionId: string | null;
   /** Active non-SSH storage sessions (currently: S3). Keyed by session id. */
   storageSessions: Map<string, StorageSession>;
+  truncatedPaths: Set<string>;
 
   toggleHiddenFiles: () => void;
   setLocalPath: (path: string) => void;
@@ -40,6 +41,7 @@ interface StorageState {
   addStorageSession: (session: StorageSession) => void;
   updateStorageSessionStatus: (id: string, status: StorageSession['status']) => void;
   removeStorageSession: (id: string) => void;
+  setPathTruncated: (sessionId: string, path: string, truncated: boolean) => void;
 }
 
 export const useStorageStore = create<StorageState>()(
@@ -53,6 +55,7 @@ export const useStorageStore = create<StorageState>()(
       previewFile: null,
       activeSessionId: null,
       storageSessions: new Map(),
+      truncatedPaths: new Set(),
 
       toggleHiddenFiles: () => set((s) => ({ showHiddenFiles: !s.showHiddenFiles })),
       setLocalPath: (path) => set({ localPath: path, localSelection: new Set() }),
@@ -99,6 +102,17 @@ export const useStorageStore = create<StorageState>()(
           const next = new Map(s.storageSessions);
           next.delete(id);
           return { storageSessions: next };
+        }),
+      setPathTruncated: (sessionId, path, truncated) =>
+        set((s) => {
+          const next = new Set(s.truncatedPaths);
+          const key = `${sessionId}\0${path}`;
+          if (truncated) {
+            next.add(key);
+          } else {
+            next.delete(key);
+          }
+          return { truncatedPaths: next };
         }),
     }),
     {

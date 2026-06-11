@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { PaneNode, SessionStatus, TerminalThemeName } from '@shared/types/terminal';
+import type { SessionStatus, TerminalThemeName } from '@shared/types/terminal';
 import { LIMITS } from '@shared/constants';
 
 function clampFontSize(size: number): number {
@@ -52,7 +52,6 @@ interface TerminalState {
   sessions: Map<string, TerminalSession>;
   tabOrder: string[];
   activeTabId: string | null;
-  splitTree: PaneNode | null;
   terminalTheme: TerminalThemeName;
   fontSize: number;
   scrollback: number;
@@ -62,7 +61,6 @@ interface TerminalState {
   updateSessionStatus: (sessionId: string, status: SessionStatus) => void;
   setActiveTab: (sessionId: string) => void;
   setTabOrder: (order: string[]) => void;
-  setSplitTree: (tree: PaneNode | null) => void;
   setTerminalTheme: (theme: TerminalThemeName) => void;
   setFontSize: (size: number) => void;
   setScrollback: (lines: number) => void;
@@ -76,7 +74,6 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   sessions: new Map(),
   tabOrder: [],
   activeTabId: null,
-  splitTree: null,
   terminalTheme: getInitialTerminalTheme(),
   fontSize: getInitialFontSize(),
   scrollback: 10000,
@@ -99,13 +96,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       const tabOrder = s.tabOrder.filter((id) => id !== sessionId);
       const activeTabId =
         s.activeTabId === sessionId ? tabOrder[tabOrder.length - 1] || null : s.activeTabId;
-      const splitTree =
-        tabOrder.length === 0
-          ? null
-          : activeTabId
-            ? { type: 'terminal' as const, sessionId: activeTabId }
-            : null;
-      return { sessions, tabOrder, activeTabId, splitTree };
+      return { sessions, tabOrder, activeTabId };
     }),
 
   updateSessionStatus: (sessionId, status) =>
@@ -124,8 +115,6 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     })),
 
   setTabOrder: (order) => set({ tabOrder: order }),
-
-  setSplitTree: (tree) => set({ splitTree: tree }),
 
   setTerminalTheme: (theme) => {
     try {
@@ -171,13 +160,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       const tabOrder = s.tabOrder.filter((id) => id !== sessionId);
       const activeTabId =
         s.activeTabId === sessionId ? tabOrder[tabOrder.length - 1] || null : s.activeTabId;
-      const splitTree =
-        tabOrder.length === 0
-          ? null
-          : activeTabId
-            ? { type: 'terminal' as const, sessionId: activeTabId }
-            : null;
-      return { sessions, tabOrder, activeTabId, splitTree };
+      return { sessions, tabOrder, activeTabId };
     });
     if (type === 'local') {
       void window.api.localTerminal.kill(sessionId);
@@ -206,7 +189,6 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
         sessions,
         tabOrder: newTabOrder,
         activeTabId: sessionId,
-        splitTree: { type: 'terminal' as const, sessionId },
       };
     });
   },
@@ -236,7 +218,6 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
         sessions,
         tabOrder: newTabOrder,
         activeTabId,
-        splitTree: activeTabId ? { type: 'terminal' as const, sessionId: activeTabId } : null,
       };
     });
   },

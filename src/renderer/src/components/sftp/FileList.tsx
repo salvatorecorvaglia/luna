@@ -457,7 +457,7 @@ export function FileList({
                 )}
                 <div
                   className="w-36 px-3 py-[7px] text-right text-muted-foreground tabular-nums"
-                  title={new Date(entry.modifiedAt).toLocaleString()}
+                  title={new Date(entry.modifiedAt * 1000).toLocaleString()}
                 >
                   {formatDate(entry.modifiedAt)}
                 </div>

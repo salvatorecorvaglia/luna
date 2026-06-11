@@ -2,6 +2,7 @@
 /// <reference types="@testing-library/jest-dom" />
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { useStorageStore } from '@/stores/storage-store';
 
 // FileList renders @tanstack/react-virtual which depends on layout APIs that
 // jsdom only partially implements. Stub it to a deterministic table-of-names
@@ -119,5 +120,29 @@ describe('FilePane error and empty states', () => {
   it('renders nothing through the FileList stub when entries is empty', () => {
     render(<FilePane {...baseProps} path="/home/me" entries={[]} />);
     expect(screen.queryByText('notes.txt')).not.toBeInTheDocument();
+  });
+});
+
+describe('FilePane list truncation banner', () => {
+  beforeEach(() => {
+    useStorageStore.getState().setPathTruncated('session-123', '/remote/path', false);
+    useStorageStore.getState().setActiveSessionId(null);
+  });
+
+  it('renders a warning banner when isTruncated is true and side is remote', () => {
+    useStorageStore.getState().setActiveSessionId('session-123');
+    useStorageStore.getState().setPathTruncated('session-123', '/remote/path', true);
+
+    const remoteProps = {
+      ...baseProps,
+      side: 'remote' as const,
+    };
+
+    const { rerender } = render(<FilePane {...remoteProps} path="/remote/path" entries={[]} />);
+    expect(screen.getByText(/List Truncated:/i)).toBeInTheDocument();
+
+    // Rerender with a non-truncated path and ensure banner disappears
+    rerender(<FilePane {...remoteProps} path="/other/path" entries={[]} />);
+    expect(screen.queryByText(/List Truncated:/i)).not.toBeInTheDocument();
   });
 });

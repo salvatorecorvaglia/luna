@@ -5,6 +5,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { useUIStore } from '@/stores/ui-store';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { useConnectionStore } from '@/stores/connection-store';
+import { useStorageStore } from '@/stores/storage-store';
 import { WelcomeView } from '@/components/common/WelcomeView';
 // HostKeyDialog stays eager — it subscribes to host-key change IPC events on
 // mount and must be alive at startup to catch the first one.
@@ -80,6 +81,11 @@ export default function App() {
           'Credentials are stored with a plaintext master key on this machine. Install gnome-keyring or libsecret-1-0 and restart to migrate to OS-protected storage.',
           { duration: 12000, icon: <ShieldAlert className="size-4" aria-hidden="true" /> },
         );
+      } else if (status.backend === 'inMemory') {
+        toast.warning(
+          'OS-level secret storage is unavailable. Saving connection passwords is disabled. Install gnome-keyring or libsecret-1-0 and restart to enable.',
+          { duration: 12000, icon: <ShieldAlert className="size-4" aria-hidden="true" /> },
+        );
       }
       setWarnedAboutBackend(true);
     });
@@ -111,6 +117,7 @@ export default function App() {
   // has no way to know they need to drill into a sub-prefix to see the rest.
   useEffect(() => {
     const cleanup = window.api.storage.onListTruncated((event) => {
+      useStorageStore.getState().setPathTruncated(event.sessionId, event.path, true);
       toast.warning(
         `Showing the first ${event.returned.toLocaleString()} entries of ${event.path}. The bucket has more — open a sub-prefix to see them.`,
         { duration: 8000 },

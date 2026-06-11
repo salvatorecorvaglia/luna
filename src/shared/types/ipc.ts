@@ -193,7 +193,7 @@ export interface IpcHandlerMap {
   };
   'app:get-credential-backend': {
     request: void;
-    response: { backend: 'safeStorage' | 'plaintext' | 'uninitialized' };
+    response: { backend: 'safeStorage' | 'plaintext' | 'inMemory' | 'uninitialized' };
   };
 
   // Logging
