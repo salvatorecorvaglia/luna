@@ -40,6 +40,12 @@ export const DEFAULTS = {
   S3_UPLOAD_QUEUE_SIZE: 4,
   /** Bytes per multipart part. Must be ≥ 5 MiB per S3 spec. */
   S3_UPLOAD_PART_SIZE_BYTES: 5 * 1024 * 1024,
+  /** Read/write chunk size for SFTP stream transfers. Default is 256 KiB. */
+  SFTP_TRANSFER_CHUNK_SIZE_BYTES: 256 * 1024,
+  /** Concurrency level for SFTP stream transfers. Default is 64. */
+  SFTP_TRANSFER_CONCURRENCY: 64,
+  /** Internal stream buffer highWaterMark for SFTP transfers. Default is 1 MiB. */
+  SFTP_TRANSFER_HIGH_WATER_MARK_BYTES: 1024 * 1024,
 } as const;
 
 type DefaultsShape = typeof DEFAULTS;
@@ -53,6 +59,9 @@ export const SETTING_KEYS: Record<keyof DefaultsShape, string> = {
   SSH_RECONNECT_MAX_DELAY_MS: 'ssh.reconnectMaxDelayMs',
   S3_UPLOAD_QUEUE_SIZE: 's3.uploadQueueSize',
   S3_UPLOAD_PART_SIZE_BYTES: 's3.uploadPartSizeBytes',
+  SFTP_TRANSFER_CHUNK_SIZE_BYTES: 'sftp.transferChunkSizeBytes',
+  SFTP_TRANSFER_CONCURRENCY: 'sftp.transferConcurrency',
+  SFTP_TRANSFER_HIGH_WATER_MARK_BYTES: 'sftp.transferHighWaterMarkBytes',
 };
 
 /**
@@ -92,6 +101,15 @@ export function getRuntimeNumber<K extends keyof DefaultsShape>(name: K): number
       break;
     case 'S3_UPLOAD_QUEUE_SIZE':
       if (raw < 1 || raw > 32) return DEFAULTS[name];
+      break;
+    case 'SFTP_TRANSFER_CHUNK_SIZE_BYTES':
+      if (raw < 4 * 1024 || raw > 4 * 1024 * 1024) return DEFAULTS[name];
+      break;
+    case 'SFTP_TRANSFER_CONCURRENCY':
+      if (raw < 1 || raw > 256) return DEFAULTS[name];
+      break;
+    case 'SFTP_TRANSFER_HIGH_WATER_MARK_BYTES':
+      if (raw < 16 * 1024 || raw > 16 * 1024 * 1024) return DEFAULTS[name];
       break;
     case 'SFTP_ABORT_CLEANUP_DELAY_MS':
       if (raw < 25 || raw > 1_000) return DEFAULTS[name];

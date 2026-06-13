@@ -83,12 +83,18 @@ describe('local-terminal IPC — spawn', () => {
   });
 
   it('forwards stdout chunks to the renderer via on-data', async () => {
-    await handlers.get(IPC.LOCAL_TERMINAL_SPAWN)!({}, { sessionId: 's1', cols: 80, rows: 24 });
-    ptyInstances[0].__dataCb?.('hello');
-    expect(send).toHaveBeenCalledWith(IPC.LOCAL_TERMINAL_ON_DATA, {
-      sessionId: 's1',
-      data: 'hello',
-    });
+    vi.useFakeTimers();
+    try {
+      await handlers.get(IPC.LOCAL_TERMINAL_SPAWN)!({}, { sessionId: 's1', cols: 80, rows: 24 });
+      ptyInstances[0].__dataCb?.('hello');
+      vi.advanceTimersByTime(16);
+      expect(send).toHaveBeenCalledWith(IPC.LOCAL_TERMINAL_ON_DATA, {
+        sessionId: 's1',
+        data: 'hello',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('emits on-exit and clears the session when the PTY exits', async () => {

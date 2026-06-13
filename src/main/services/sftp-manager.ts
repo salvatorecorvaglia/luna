@@ -455,9 +455,17 @@ class SftpManager {
       // size unknown — progress will lack a denominator
     }
 
+    const chunkSize = getRuntimeNumber('SFTP_TRANSFER_CHUNK_SIZE_BYTES');
+    const concurrency = getRuntimeNumber('SFTP_TRANSFER_CONCURRENCY');
+    const highWaterMark = getRuntimeNumber('SFTP_TRANSFER_HIGH_WATER_MARK_BYTES');
+
     let transferred = 0;
-    const readStream = sftp.createReadStream(remotePath);
-    const writeStream = createWriteStream(localPath);
+    const readStream = sftp.createReadStream(remotePath, {
+      chunkSize,
+      concurrency,
+      highWaterMark,
+    } as any);
+    const writeStream = createWriteStream(localPath, { highWaterMark });
 
     // Race guard: an abort landing microseconds after the last byte hit disk
     // would otherwise destroy() the writeStream (preventing 'finish') and
@@ -561,10 +569,18 @@ class SftpManager {
       // size unknown
     }
 
+    const chunkSize = getRuntimeNumber('SFTP_TRANSFER_CHUNK_SIZE_BYTES');
+    const concurrency = getRuntimeNumber('SFTP_TRANSFER_CONCURRENCY');
+    const highWaterMark = getRuntimeNumber('SFTP_TRANSFER_HIGH_WATER_MARK_BYTES');
+
     let transferred = 0;
     let writeClosed = false;
-    const readStream = createReadStream(localPath);
-    const writeStream = sftp.createWriteStream(remotePath);
+    const readStream = createReadStream(localPath, { highWaterMark });
+    const writeStream = sftp.createWriteStream(remotePath, {
+      chunkSize,
+      concurrency,
+      highWaterMark,
+    } as any);
 
     // Race guard: if 'close' has already been emitted (upload completed
     // on the remote), an abort landing immediately after must NOT unlink

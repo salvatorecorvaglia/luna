@@ -1,4 +1,5 @@
 import { Client, type ClientChannel } from 'ssh2';
+import { StringDecoder } from 'string_decoder';
 import { v4 as uuidv4 } from 'uuid';
 import { IPC, LIMITS } from '@shared/constants';
 import { emitToRenderer } from './emit';
@@ -77,6 +78,12 @@ interface SshSession {
 const MAX_RECONNECT_DELAY_MS = getRuntimeNumber('SSH_RECONNECT_MAX_DELAY_MS');
 /** Base delay for the first reconnect attempt (ms). */
 const RECONNECT_BASE_DELAY_MS = getRuntimeNumber('SSH_RECONNECT_BASE_DELAY_MS');
+
+interface SshBuffer {
+  buffers: Buffer[];
+  timer: NodeJS.Timeout | null;
+}
+const sshBuffers = new Map<string, SshBuffer>();
 
 class SshManager {
   private sessions = new Map<string, SshSession>();
@@ -323,11 +330,57 @@ class SshManager {
 
           session.shell = stream;
 
+          const queueSshData = (chunk: Buffer): void => {
+            let sb = sshBuffers.get(sessionId);
+            if (!sb) {
+              sb = { buffers: [], timer: null };
+              sshBuffers.set(sessionId, sb);
+            }
+            sb.buffers.push(chunk);
+
+            if (!sb.timer) {
+              sb.timer = setTimeout(() => {
+                const currentSb = sshBuffers.get(sessionId);
+                if (!currentSb) return;
+                const combinedBuf = Buffer.concat(currentSb.buffers);
+                currentSb.buffers = [];
+                currentSb.timer = null;
+
+                if (combinedBuf.length > 0) {
+                  // Chunk it if it exceeds 1MB
+                  const limitBytes = 1024 * 1024;
+                  if (combinedBuf.length <= limitBytes) {
+                    emitToRenderer(IPC.SSH_ON_DATA, {
+                      sessionId,
+                      data: combinedBuf.toString('utf-8'),
+                    });
+                  } else {
+                    const decoder = new StringDecoder('utf8');
+                    for (let offset = 0; offset < combinedBuf.length; offset += limitBytes) {
+                      const slice = combinedBuf.subarray(offset, offset + limitBytes);
+                      const chunkStr = decoder.write(slice);
+                      if (chunkStr.length > 0) {
+                        emitToRenderer(IPC.SSH_ON_DATA, {
+                          sessionId,
+                          data: chunkStr,
+                        });
+                      }
+                    }
+                    const tail = decoder.end();
+                    if (tail.length > 0) {
+                      emitToRenderer(IPC.SSH_ON_DATA, {
+                        sessionId,
+                        data: tail,
+                      });
+                    }
+                  }
+                }
+              }, 16);
+            }
+          };
+
           const onData = (data: Buffer): void => {
-            emitToRenderer(IPC.SSH_ON_DATA, {
-              sessionId,
-              data: data.toString('utf-8'),
-            });
+            queueSshData(data);
           };
 
           const onShellClose = (): void => {
@@ -335,10 +388,7 @@ class SshManager {
           };
 
           const onStderrData = (data: Buffer): void => {
-            emitToRenderer(IPC.SSH_ON_DATA, {
-              sessionId,
-              data: data.toString('utf-8'),
-            });
+            queueSshData(data);
           };
 
           stream.on('data', onData);
@@ -435,6 +485,11 @@ class SshManager {
       session.shell.removeListener('close', onClose);
       session.shell.stderr.removeListener('data', onStderrData);
       session._streamListeners = undefined;
+    }
+    const sb = sshBuffers.get(session.id);
+    if (sb) {
+      if (sb.timer) clearTimeout(sb.timer);
+      sshBuffers.delete(session.id);
     }
   }
 

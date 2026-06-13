@@ -35,47 +35,61 @@ export function registerShellHandlers(): void {
     const entries = await readdir(normalized, { withFileTypes: true });
     const results: LocalFileEntry[] = [];
 
-    for (const entry of entries) {
-      const fullPath = join(normalized, entry.name);
-      try {
-        // Use lstat for symlinks so we don't disclose metadata of files outside
-        // the home jail via symlink targets. For symlinks we also stat()
-        // to determine whether the target is a directory (used for navigation),
-        // but only when the target resolves *within* the home subtree.
-        const ls = await lstat(fullPath);
-        let targetIsDirectory = ls.isDirectory();
-        let size = ls.size;
-        let mtimeMs = ls.mtimeMs;
-        if (ls.isSymbolicLink()) {
+    const limit = 50; // Batch limit to prevent OS file descriptor exhaustion
+    const chunks: typeof entries[] = [];
+    for (let i = 0; i < entries.length; i += limit) {
+      chunks.push(entries.slice(i, i + limit));
+    }
+
+    for (const chunk of chunks) {
+      const chunkResults = await Promise.all(
+        chunk.map(async (entry) => {
+          const fullPath = join(normalized, entry.name);
           try {
-            const target = await stat(fullPath);
-            // realpath dereferences symlinks; resolve() only canonicalises the
-            // path string, so a symlink targeting /etc would slip past the
-            // home-jail check.
-            const targetPath = await realpath(fullPath);
-            const stillUnderHome = isInsideDir(targetPath, home);
-            if (stillUnderHome) {
-              targetIsDirectory = target.isDirectory();
-              size = target.size;
-              mtimeMs = target.mtimeMs;
-            } else {
-              targetIsDirectory = false;
+            // Use lstat for symlinks so we don't disclose metadata of files outside
+            // the home jail via symlink targets. For symlinks we also stat()
+            // to determine whether the target is a directory (used for navigation),
+            // but only when the target resolves *within* the home subtree.
+            const ls = await lstat(fullPath);
+            let targetIsDirectory = ls.isDirectory();
+            let size = ls.size;
+            let mtimeMs = ls.mtimeMs;
+            if (ls.isSymbolicLink()) {
+              try {
+                const target = await stat(fullPath);
+                // realpath dereferences symlinks; resolve() only canonicalises the
+                // path string, so a symlink targeting /etc would slip past the
+                // home-jail check.
+                const targetPath = await realpath(fullPath);
+                const stillUnderHome = isInsideDir(targetPath, home);
+                if (stillUnderHome) {
+                  targetIsDirectory = target.isDirectory();
+                  size = target.size;
+                  mtimeMs = target.mtimeMs;
+                } else {
+                  targetIsDirectory = false;
+                }
+              } catch {
+                // Broken symlink: keep lstat values, treat as non-directory.
+                targetIsDirectory = false;
+              }
             }
+            return {
+              name: entry.name,
+              path: fullPath,
+              size,
+              modifiedAt: Math.floor(mtimeMs / 1000),
+              isDirectory: targetIsDirectory,
+              isSymlink: entry.isSymbolicLink(),
+            };
           } catch {
-            // Broken symlink: keep lstat values, treat as non-directory.
-            targetIsDirectory = false;
+            // Skip files we can't stat (permission errors, broken symlinks)
+            return null;
           }
-        }
-        results.push({
-          name: entry.name,
-          path: fullPath,
-          size,
-          modifiedAt: Math.floor(mtimeMs / 1000),
-          isDirectory: targetIsDirectory,
-          isSymlink: entry.isSymbolicLink(),
-        });
-      } catch {
-        // Skip files we can't stat (permission errors, broken symlinks)
+        })
+      );
+      for (const res of chunkResults) {
+        if (res) results.push(res);
       }
     }
 

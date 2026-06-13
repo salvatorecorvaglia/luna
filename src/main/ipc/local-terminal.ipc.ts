@@ -15,6 +15,13 @@ interface LocalPtySession {
 
 const sessions = new Map<string, LocalPtySession>();
 
+interface TerminalBuffer {
+  data: string[];
+  timer: NodeJS.Timeout | null;
+}
+
+const localTerminalBuffers = new Map<string, TerminalBuffer>();
+
 /** Upper bound on a single PTY write from the renderer. Matches the SSH cap. */
 const MAX_PTY_SEND_BYTES = 65536;
 /**
@@ -102,28 +109,53 @@ export function registerLocalTerminalHandlers(): void {
       ptyProcess.onData((data: string) => {
         const win = getMainWindow();
         if (!win || win.isDestroyed()) return;
-        const buf = Buffer.from(data, 'utf8');
-        if (buf.byteLength <= MAX_PTY_EMIT_BYTES) {
-          win.webContents.send(IPC.LOCAL_TERMINAL_ON_DATA, { sessionId, data });
-          return;
+
+        let tb = localTerminalBuffers.get(sessionId);
+        if (!tb) {
+          tb = { data: [], timer: null };
+          localTerminalBuffers.set(sessionId, tb);
         }
-        // Chunk on byte boundaries; StringDecoder reassembles UTF-8 sequences
-        // straddling chunk edges so a 4-byte emoji can't be corrupted.
-        for (let offset = 0; offset < buf.byteLength; offset += MAX_PTY_EMIT_BYTES) {
-          const slice = buf.subarray(offset, offset + MAX_PTY_EMIT_BYTES);
-          const chunk = decoder.write(slice);
-          if (chunk.length > 0) {
-            win.webContents.send(IPC.LOCAL_TERMINAL_ON_DATA, { sessionId, data: chunk });
-          }
-        }
-        const tail = decoder.end();
-        if (tail.length > 0) {
-          win.webContents.send(IPC.LOCAL_TERMINAL_ON_DATA, { sessionId, data: tail });
+        tb.data.push(data);
+
+        if (!tb.timer) {
+          tb.timer = setTimeout(() => {
+            const currentTb = localTerminalBuffers.get(sessionId);
+            if (!currentTb) return;
+            const combined = currentTb.data.join('');
+            currentTb.data = [];
+            currentTb.timer = null;
+
+            if (combined.length > 0) {
+              const buf = Buffer.from(combined, 'utf8');
+              if (buf.byteLength <= MAX_PTY_EMIT_BYTES) {
+                win.webContents.send(IPC.LOCAL_TERMINAL_ON_DATA, { sessionId, data: combined });
+              } else {
+                // Chunk on byte boundaries; StringDecoder reassembles UTF-8 sequences
+                // straddling chunk edges so a 4-byte emoji can't be corrupted.
+                for (let offset = 0; offset < buf.byteLength; offset += MAX_PTY_EMIT_BYTES) {
+                  const slice = buf.subarray(offset, offset + MAX_PTY_EMIT_BYTES);
+                  const chunk = decoder.write(slice);
+                  if (chunk.length > 0) {
+                    win.webContents.send(IPC.LOCAL_TERMINAL_ON_DATA, { sessionId, data: chunk });
+                  }
+                }
+                const tail = decoder.end();
+                if (tail.length > 0) {
+                  win.webContents.send(IPC.LOCAL_TERMINAL_ON_DATA, { sessionId, data: tail });
+                }
+              }
+            }
+          }, 16);
         }
       });
 
       ptyProcess.onExit(({ exitCode }: { exitCode: number }) => {
         sessions.delete(sessionId);
+        const buffer = localTerminalBuffers.get(sessionId);
+        if (buffer) {
+          if (buffer.timer) clearTimeout(buffer.timer);
+          localTerminalBuffers.delete(sessionId);
+        }
         const win = getMainWindow();
         if (win && !win.isDestroyed()) {
           win.webContents.send(IPC.LOCAL_TERMINAL_ON_EXIT, { sessionId, exitCode });
@@ -146,6 +178,11 @@ export function registerLocalTerminalHandlers(): void {
       log.warn(`[LocalTerminal] Error killing session ${sessionId}:`, err);
     }
     sessions.delete(sessionId);
+    const buffer = localTerminalBuffers.get(sessionId);
+    if (buffer) {
+      if (buffer.timer) clearTimeout(buffer.timer);
+      localTerminalBuffers.delete(sessionId);
+    }
   });
 
   // Send data to a session
@@ -198,4 +235,8 @@ export function disposeLocalTerminals(): void {
     log.info(`[LocalTerminal] Disposed session ${id} on quit`);
   }
   sessions.clear();
+  for (const buffer of localTerminalBuffers.values()) {
+    if (buffer.timer) clearTimeout(buffer.timer);
+  }
+  localTerminalBuffers.clear();
 }
