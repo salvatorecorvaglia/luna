@@ -535,7 +535,7 @@ class S3StorageProvider implements StorageProvider {
     const body = createReadStream(localPath);
     let partSize = getRuntimeNumber('S3_UPLOAD_PART_SIZE_BYTES');
     const maxS3Parts = 10000;
-    if (total > 0 && (total / partSize) > maxS3Parts) {
+    if (total > 0 && total / partSize > maxS3Parts) {
       // S3 has a strict limit of 10,000 parts per multipart upload. If the file
       // size is larger than (10,000 * defaultPartSize), we must scale partSize
       // to avoid throwing a part count error.

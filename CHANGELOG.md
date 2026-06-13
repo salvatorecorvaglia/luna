@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-06-13
+
+### Added
+
+- **Terminal Performance**: Implemented throttled data emission for both SSH and local terminal sessions, batching rapid output chunks (~16 ms) to reduce IPC overhead and improve rendering throughput.
+- **SFTP Transfer Tuning**: Added configurable runtime parameters for SFTP transfers — chunk size, concurrency, and stream high-water mark — with safe bounds validation.
+
+### Improved
+
+- **S3 Uploads**: Dynamically scales multipart upload part size for files exceeding the S3 10,000-part limit, preventing upload failures for very large objects.
+- **Local File Listing**: Batched directory stat calls in chunks of 50 using `Promise.all` to avoid OS file-descriptor exhaustion on large directories.
+- **Type Safety**: Replaced `as any` casts in SFTP stream options with properly typed `ReadStreamOptions` and `WriteStreamOptions` imports from `ssh2`.
+
 ## [0.10.0] - 2026-06-11
 
 ### Added

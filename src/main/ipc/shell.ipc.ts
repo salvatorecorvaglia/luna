@@ -36,7 +36,7 @@ export function registerShellHandlers(): void {
     const results: LocalFileEntry[] = [];
 
     const limit = 50; // Batch limit to prevent OS file descriptor exhaustion
-    const chunks: typeof entries[] = [];
+    const chunks: (typeof entries)[] = [];
     for (let i = 0; i < entries.length; i += limit) {
       chunks.push(entries.slice(i, i + limit));
     }
@@ -86,7 +86,7 @@ export function registerShellHandlers(): void {
             // Skip files we can't stat (permission errors, broken symlinks)
             return null;
           }
-        })
+        }),
       );
       for (const res of chunkResults) {
         if (res) results.push(res);

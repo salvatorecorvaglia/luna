@@ -1,6 +1,6 @@
 {
   "name": "lunar",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "A modern SSH terminal, local terminal, SFTP file manager, and S3-compatible object storage browser",
   "main": "./out/main/index.js",
   "author": "Salvatore Corvaglia",
@@ -74,5 +74,8 @@
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.59.0",
     "vitest": "^4.1.5"
+  },
+  "overrides": {
+    "esbuild": "0.28.1"
   }
 }
