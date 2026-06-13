@@ -1,4 +1,4 @@
-import type { SFTPWrapper } from 'ssh2';
+import type { SFTPWrapper, ReadStreamOptions, WriteStreamOptions } from 'ssh2';
 import { createReadStream, createWriteStream } from 'fs';
 import { stat as fsStat, unlink } from 'fs/promises';
 import { sshManager } from './ssh-manager';
@@ -464,7 +464,7 @@ class SftpManager {
       chunkSize,
       concurrency,
       highWaterMark,
-    } as any);
+    } as unknown as ReadStreamOptions);
     const writeStream = createWriteStream(localPath, { highWaterMark });
 
     // Race guard: an abort landing microseconds after the last byte hit disk
@@ -580,7 +580,7 @@ class SftpManager {
       chunkSize,
       concurrency,
       highWaterMark,
-    } as any);
+    } as unknown as WriteStreamOptions);
 
     // Race guard: if 'close' has already been emitted (upload completed
     // on the remote), an abort landing immediately after must NOT unlink
