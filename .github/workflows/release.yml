@@ -246,7 +246,7 @@ jobs:
           VERSION="${TAG#v}"
           gh release edit "$TAG" \
             --draft=false \
-            --title "Lunar $VERSION" \
+            --title "Lunar v$VERSION" \
             --notes "$RELEASE_NOTES" \
             --repo "$GITHUB_REPOSITORY"
 
