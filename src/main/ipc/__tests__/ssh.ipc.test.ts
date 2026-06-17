@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IPC } from '@shared/constants';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // IPC handlers are registered at import time of `registerSshHandlers`.
 // We capture them in a map and exercise the validation paths directly.
@@ -31,10 +31,12 @@ vi.mock('../../services/ssh-manager', () => ({
 
 import { sshManager } from '../../services/ssh-manager';
 import { registerSshHandlers } from '../ssh.ipc';
+
 const sshManagerMock = sshManager as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
 beforeEach(() => {
   handlers.clear();
+  // biome-ignore lint/suspicious/useIterableCallbackReturn: suppressed during migration
   Object.values(sshManagerMock).forEach((fn) => 'mockClear' in fn && fn.mockClear());
   registerSshHandlers();
 });

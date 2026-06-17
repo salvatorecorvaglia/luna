@@ -1,18 +1,18 @@
+import { is } from '@electron-toolkit/utils';
+import { ErrorCode, LunarError } from '@shared/errors';
 import { app, BrowserWindow, dialog, session, shell } from 'electron';
 import { join } from 'path';
-import { is } from '@electron-toolkit/utils';
 import icon from '../../resources/lunar.png?asset';
 import { registerAllHandlers } from './ipc';
 import { setMainWindow } from './ipc/app.ipc';
 import { disposeLocalTerminals } from './ipc/local-terminal.ipc';
-import { closeDatabase, getDatabase, MigrationError } from './services/database';
+import log from './lib/logger';
 import { initializeCredentialStore } from './services/credential-store';
-import { sshManager } from './services/ssh-manager';
+import { closeDatabase, getDatabase, MigrationError } from './services/database';
 import { sftpManager } from './services/sftp-manager';
+import { sshManager } from './services/ssh-manager';
 import { transferQueue } from './services/transfer-queue';
 import { initAutoUpdater } from './services/updater';
-import log from './lib/logger';
-import { LunarError, ErrorCode } from '@shared/errors';
 
 // Global error handlers. After an uncaughtException the process state is
 // undefined per Node best practice — flush logs and exit so a supervisor /

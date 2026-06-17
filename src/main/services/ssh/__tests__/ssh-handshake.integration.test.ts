@@ -8,11 +8,11 @@
  * coverage (TOFU mismatch, reconnect backoff, key auth) is deferred —
  * see docs-internal/DEFERRED_WORK.md.
  */
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { createServer } from 'net';
+
 import { generateKeyPairSync } from 'crypto';
+import type { AddressInfo, createServer } from 'net';
 import { Client, Server, type ServerConfig } from 'ssh2';
-import type { AddressInfo } from 'net';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../database', () => ({
   // ssh-config reads keepalive + readyTimeout; provide tight defaults so the
@@ -41,8 +41,8 @@ vi.mock('../../../lib/logger', () => ({
   default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-import { buildConnectConfig } from '../ssh-config';
 import { PendingHostKeyRegistry } from '../host-key-flow';
+import { buildConnectConfig } from '../ssh-config';
 
 // Generate an ephemeral host key for the test server. ssh2's Server only
 // accepts PEM-format keys; export accordingly.

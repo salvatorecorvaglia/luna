@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { FileCode, FileImage, FileText, X } from 'lucide-react';
+import { useEffect } from 'react';
 import { Z } from '@/lib/z-layers';
 import { useStorageStore } from '@/stores/storage-store';
 
@@ -99,6 +99,7 @@ export function FilePreview() {
                   {detectLanguage(previewFile.name)}
                 </span>
               </div>
+              {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
               <button
                 onClick={() => setPreviewFile(null)}
                 className="btn-icon"

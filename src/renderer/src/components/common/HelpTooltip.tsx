@@ -1,6 +1,6 @@
-import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { HelpCircle } from 'lucide-react';
+import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Z } from '@/lib/z-layers';
 
@@ -14,6 +14,7 @@ export function HelpTooltip({ content, className, iconClassName }: HelpTooltipPr
   const [isVisible, setIsVisible] = useState(false);
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: suppressed during migration
     <div
       className={cn('relative inline-flex items-center', className)}
       onMouseEnter={() => setIsVisible(true)}

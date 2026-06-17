@@ -1,7 +1,7 @@
 import { IPC } from '@shared/constants';
-import { transferQueue } from '../services/transfer-queue';
-import { assertNonEmptyString } from '../lib/validate';
 import { registerHandler } from '../lib/ipc-handler';
+import { assertNonEmptyString } from '../lib/validate';
+import { transferQueue } from '../services/transfer-queue';
 
 export function registerTransferHandlers(): void {
   registerHandler(IPC.TRANSFER_CANCEL, (_event, transferId: string) => {

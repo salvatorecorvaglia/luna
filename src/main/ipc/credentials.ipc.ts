@@ -1,4 +1,7 @@
 import { IPC } from '@shared/constants';
+import { ErrorCode, LunarError } from '@shared/errors';
+import { registerHandler } from '../lib/ipc-handler';
+import { assertNonEmptyString } from '../lib/validate';
 import {
   deleteCredential,
   onCredentialTamper,
@@ -6,9 +9,6 @@ import {
   storeCredential,
 } from '../services/credential-store';
 import { getMainWindow } from './app.ipc';
-import { assertNonEmptyString } from '../lib/validate';
-import { registerHandler } from '../lib/ipc-handler';
-import { ErrorCode, LunarError } from '@shared/errors';
 
 /**
  * Sliding-window rate limit on credential retrievals so a compromised renderer

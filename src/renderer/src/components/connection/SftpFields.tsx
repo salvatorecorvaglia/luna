@@ -1,7 +1,7 @@
+import type { Connection } from '@shared/types/connection';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Eye, EyeOff, FileKey, Globe, Hash, Key, Lock, User, Waypoints } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { Connection } from '@shared/types/connection';
 import { AUTH_TYPES } from './connection-form.constants';
 import { FormField } from './FormField';
 import type { JumpHostState, Patch, SftpState } from './use-connection-form-state';
@@ -116,12 +116,14 @@ export function SftpFields({
 
       {/* Auth Type */}
       <div>
+        {/** biome-ignore lint/a11y/noLabelWithoutControl: suppressed during migration */}
         <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <Key className="size-3.5" />
           Authentication
         </label>
         <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Authentication type">
           {AUTH_TYPES.map((type) => (
+            // biome-ignore lint/a11y/useSemanticElements: suppressed during migration
             <button
               key={type.value}
               type="button"
@@ -249,6 +251,7 @@ export function SftpFields({
       {/* Jump Host Section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
+          {/** biome-ignore lint/a11y/noLabelWithoutControl: suppressed during migration */}
           <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <Waypoints className="size-3.5" />
             Jump Host / Tunnel

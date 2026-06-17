@@ -1,5 +1,5 @@
-import type { StorageProviderKind } from '@shared/types/storage-provider';
 import { ErrorCode, LunarError } from '@shared/errors';
+import type { StorageProviderKind } from '@shared/types/storage-provider';
 import type { StorageProvider } from './types';
 
 /**

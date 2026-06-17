@@ -74,6 +74,7 @@ export function importFromMobaXterm(content: string): ExportedConnection[] {
         const candidatePortStr = parts[i + 1]?.trim();
         const candidatePort = parseInt(candidatePortStr, 10);
         if (
+          // biome-ignore lint/suspicious/noGlobalIsNan: suppressed during migration
           !isNaN(candidatePort) &&
           candidatePort > 0 &&
           candidatePort <= 65535 &&

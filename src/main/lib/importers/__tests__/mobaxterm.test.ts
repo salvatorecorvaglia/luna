@@ -72,6 +72,7 @@ describe('importFromMobaXterm — jump host', () => {
   it('emits no bastion (and no jumpHostName) when MobaXterm leaves gateway fields empty', () => {
     const ini = [
       '[Bookmarks]',
+      // biome-ignore lint/style/useTemplate: suppressed during migration
       'web=' + sshLine({ host: 'web.internal', port: 22, user: 'deploy' }),
     ].join('\n');
 
@@ -97,6 +98,7 @@ describe('importFromMobaXterm — jump host', () => {
     // so the synthetic gateway must pick "Jump: deploy@bastion:22 (2)".
     const ini = [
       '[Bookmarks]',
+      // biome-ignore lint/style/useTemplate: suppressed during migration
       'Jump: deploy@bastion:22=' + sshLine({ host: 'unrelated', port: 22, user: 'deploy' }),
       'web=' +
         sshLine({

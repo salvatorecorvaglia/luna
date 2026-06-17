@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IPC } from '@shared/constants';
 import { ErrorCode } from '@shared/errors';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>();
 
@@ -36,7 +36,7 @@ describe('registerHandler payload validation', () => {
     const handler = vi.fn(() => 'ok');
     // Cast through unknown — the channel-args type doesn't matter for this
     // boundary test; we just need a registered channel to invoke.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // biome-ignore lint/suspicious/noExplicitAny: suppressed during migration
     registerHandler(IPC.LOG_MESSAGE as any, handler as any);
     const fn = handlers.get(IPC.LOG_MESSAGE)!;
 
@@ -51,7 +51,7 @@ describe('registerHandler payload validation', () => {
 
   it('rejects payloads exceeding the size cap', async () => {
     const handler = vi.fn(() => 'ok');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // biome-ignore lint/suspicious/noExplicitAny: suppressed during migration
     registerHandler(IPC.LOG_MESSAGE as any, handler as any);
     const fn = handlers.get(IPC.LOG_MESSAGE)!;
 
@@ -71,7 +71,7 @@ describe('registerHandler payload validation', () => {
 
   it('passes well-formed args through to the handler', async () => {
     const handler = vi.fn(() => 'ok');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // biome-ignore lint/suspicious/noExplicitAny: suppressed during migration
     registerHandler(IPC.LOG_MESSAGE as any, handler as any);
     const fn = handlers.get(IPC.LOG_MESSAGE)!;
 

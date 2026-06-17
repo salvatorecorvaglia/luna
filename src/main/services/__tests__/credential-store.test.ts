@@ -1,7 +1,7 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { mkdtempSync, rmSync } from 'fs';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Set up a per-test userData dir so safeStorage / on-disk key writes don't
 // collide between runs. Mock electron *before* importing the module under test.
@@ -48,11 +48,11 @@ vi.mock('../../lib/logger', () => ({
 
 import {
   __test__,
+  type CredentialTamperEvent,
   deleteCredential,
   onCredentialTamper,
   retrieveCredential,
   storeCredential,
-  type CredentialTamperEvent,
 } from '../credential-store';
 
 beforeEach(() => {

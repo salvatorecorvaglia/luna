@@ -1,14 +1,14 @@
-import { stat } from 'fs/promises';
-import { basename } from 'path';
-import { v4 as uuidv4 } from 'uuid';
 import { IPC, LIMITS } from '@shared/constants';
 import { ErrorCode, LunarError } from '@shared/errors';
 import type { TransferType } from '@shared/types/transfer';
-import { storageRegistry } from './storage/registry';
-import { emitToRenderer } from './emit';
-import { AbortError } from '../lib/errors';
+import { stat } from 'fs/promises';
+import { basename } from 'path';
+import { v4 as uuidv4 } from 'uuid';
 import { classifyTransferError } from '../lib/error-map';
+import { AbortError } from '../lib/errors';
 import log from '../lib/logger';
+import { emitToRenderer } from './emit';
+import { storageRegistry } from './storage/registry';
 
 interface QueuedTransfer {
   id: string;

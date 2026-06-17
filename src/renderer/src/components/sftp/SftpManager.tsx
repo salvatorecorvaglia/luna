@@ -1,12 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useShallow } from 'zustand/react/shallow';
-import { toast } from 'sonner';
 import { toastArgs } from '@shared/error-messages';
 import { Plus, Unplug, WifiOff } from 'lucide-react';
-import { useStorageStore } from '@/stores/storage-store';
-import { useTerminalStore } from '@/stores/terminal-store';
-import { useTransferStore } from '@/stores/transfer-store';
-import { useConnectionStore } from '@/stores/connection-store';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
+import { useShallow } from 'zustand/react/shallow';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { PromptDialog } from '@/components/common/PromptDialog';
 import {
   useInvalidateLocalDir,
   useInvalidateSftp,
@@ -14,12 +12,14 @@ import {
   useSftpDirectory,
 } from '@/hooks/use-sftp';
 import { useSftpDnd } from '@/hooks/use-sftp-dnd';
-import { resolveSftpSession } from './sftp-session-fallback';
+import { useConnectionStore } from '@/stores/connection-store';
+import { useStorageStore } from '@/stores/storage-store';
+import { useTerminalStore } from '@/stores/terminal-store';
+import { useTransferStore } from '@/stores/transfer-store';
 import { type FileEntry, FilePane } from './FilePane';
-import { TransferQueue } from './TransferQueue';
 import { FilePreview } from './FilePreview';
-import { PromptDialog } from '@/components/common/PromptDialog';
-import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { resolveSftpSession } from './sftp-session-fallback';
+import { TransferQueue } from './TransferQueue';
 
 // Pulled to module scope so they're allocated once at module load instead of
 // rebuilt on every preview-open render. Both lists are immutable and shared
@@ -464,6 +464,7 @@ export function SftpManager() {
             Connect to a server first, then switch to SFTP view
           </p>
         </div>
+        {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
         <button
           onClick={() => useConnectionStore.getState().openCreateForm()}
           className="btn-outline mt-1"
@@ -534,6 +535,7 @@ export function SftpManager() {
         </div>
 
         {/* Resize handle */}
+        {/** biome-ignore lint/a11y/useSemanticElements: suppressed during migration */}
         <div
           className="relative w-px flex-shrink-0 cursor-col-resize"
           role="separator"
@@ -558,6 +560,7 @@ export function SftpManager() {
             className={`absolute inset-0 bg-border ${resizing ? 'bg-primary/60' : 'hover:bg-primary/40'}`}
             style={{ transition: 'background-color 150ms' }}
           />
+          {/** biome-ignore lint/a11y/noStaticElementInteractions: suppressed during migration */}
           <div
             onMouseDown={handleResizeMouseDown}
             className="absolute -left-1.5 -right-1.5 inset-y-0 cursor-col-resize"

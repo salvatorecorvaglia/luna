@@ -1,6 +1,6 @@
+import type { StorageProviderKind } from '@shared/types/storage-provider';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { StorageProviderKind } from '@shared/types/storage-provider';
 
 /** Tracks a non-SSH storage session (e.g. an open S3 client). SFTP sessions
  * piggyback on the terminal session map, but S3 has no terminal so its

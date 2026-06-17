@@ -44,8 +44,8 @@ vi.mock('../../host-key-store', () => ({
   },
 }));
 
-import { buildConnectConfig } from '../ssh-config';
 import { PendingHostKeyRegistry } from '../host-key-flow';
+import { buildConnectConfig } from '../ssh-config';
 
 /** Construct a minimal wire-format key buffer whose first field is the algorithm. */
 function makeKey(algorithm: string, suffix: string): Buffer {

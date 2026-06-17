@@ -1,9 +1,9 @@
 import { IPC, LIMITS } from '@shared/constants';
-import { getDatabase } from '../services/database';
-import { transferQueue } from '../services/transfer-queue';
 import type { AppSettings } from '@shared/types/settings';
 import { registerHandler } from '../lib/ipc-handler';
 import { validationError } from '../lib/validate';
+import { getDatabase } from '../services/database';
+import { transferQueue } from '../services/transfer-queue';
 
 /** Per-key value type guards. Values arrive from the renderer as JSON-encoded
  * strings (`'14'`, `'"dracula"'`, `'true'`); after parsing we enforce shape so

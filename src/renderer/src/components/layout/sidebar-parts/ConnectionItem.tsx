@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { Reorder, useDragControls } from 'framer-motion';
+import type { Connection } from '@shared/types/ipc';
 import type { DragControls } from 'framer-motion';
+import { Reorder, useDragControls } from 'framer-motion';
 import {
   ChevronRight,
   Copy,
@@ -14,18 +14,18 @@ import {
   Terminal,
   Trash2,
 } from 'lucide-react';
+import { useState } from 'react';
 import { toast } from 'sonner';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
+import { useConnections, useDeleteConnection, useUpdateConnection } from '@/hooks/use-connections';
+import { connectToS3 } from '@/lib/s3';
+import { connectToHost } from '@/lib/ssh';
 import { cn } from '@/lib/utils';
 import { useConnectionStore } from '@/stores/connection-store';
+import { useStorageStore } from '@/stores/storage-store';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { useUIStore } from '@/stores/ui-store';
-import { useStorageStore } from '@/stores/storage-store';
-import { useConnections, useDeleteConnection, useUpdateConnection } from '@/hooks/use-connections';
-import { connectToHost } from '@/lib/ssh';
-import { connectToS3 } from '@/lib/s3';
-import type { Connection } from '@shared/types/ipc';
-import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
-import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 
 /**
  * Reorder.Item wrapper so each connection row can participate in framer-motion's
@@ -266,6 +266,7 @@ export function ConnectionItem({
   return (
     <>
       <ContextMenu items={contextMenuItems}>
+        {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
         <button
           onClick={handleConnect}
           aria-label={`${connection.name} (${connection.username}@${connection.host}) — ${statusLabel}`}
@@ -322,9 +323,11 @@ export function ConnectionItem({
                 title={
                   isS3
                     ? `${connection.endpoint || connection.region || 'S3 Storage'}${
+                        // biome-ignore lint/style/useTemplate: suppressed during migration
                         connection.defaultBucket ? ' / ' + connection.defaultBucket : ''
                       }`
                     : `${connection.username}@${connection.host}${
+                        // biome-ignore lint/style/useTemplate: suppressed during migration
                         connection.port !== 22 ? ':' + connection.port : ''
                       }`
                 }
@@ -356,6 +359,8 @@ export function ConnectionItem({
             aria-hidden="true"
             className="size-3.5 text-muted-foreground/30 group-hover:text-muted-foreground/70 flex-shrink-0 transition-colors"
           />
+          {/** biome-ignore lint/a11y/useKeyWithClickEvents: suppressed during migration */}
+          {/** biome-ignore lint/a11y/noStaticElementInteractions: suppressed during migration */}
           <div
             onPointerDown={(e) => {
               e.stopPropagation();

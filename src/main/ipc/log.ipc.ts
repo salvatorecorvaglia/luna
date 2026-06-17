@@ -1,6 +1,6 @@
 import { IPC } from '@shared/constants';
-import log from '../lib/logger';
 import { registerHandler } from '../lib/ipc-handler';
+import log from '../lib/logger';
 
 export function registerLogHandlers(): void {
   registerHandler(
@@ -17,7 +17,7 @@ export function registerLogHandlers(): void {
         context?: Record<string, unknown>;
       },
     ) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // biome-ignore lint/suspicious/noExplicitAny: suppressed during migration
       const data: any[] = [`[Renderer] ${message}`];
       if (context) data.push(context);
 

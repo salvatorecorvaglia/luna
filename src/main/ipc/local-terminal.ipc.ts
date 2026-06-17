@@ -1,13 +1,12 @@
+import { IPC } from '@shared/constants';
+import { ErrorCode, LunarError } from '@shared/errors';
+import * as pty from 'node-pty';
 import { homedir } from 'os';
 import { StringDecoder } from 'string_decoder';
-import { IPC } from '@shared/constants';
-import { getMainWindow } from './app.ipc';
-import { assertBoundedInt, assertNonEmptyString } from '../lib/validate';
-import { ErrorCode, LunarError } from '@shared/errors';
 import { registerHandler } from '../lib/ipc-handler';
 import log from '../lib/logger';
-
-import * as pty from 'node-pty';
+import { assertBoundedInt, assertNonEmptyString } from '../lib/validate';
+import { getMainWindow } from './app.ipc';
 
 interface LocalPtySession {
   pty: pty.IPty;
@@ -87,6 +86,7 @@ export function registerLocalTerminalHandlers(): void {
         'CHROME_DESKTOP',
         'DESKTOP_STARTUP_ID',
       ];
+      // biome-ignore lint/suspicious/useIterableCallbackReturn: suppressed during migration
       electronVars.forEach((v) => delete cleanEnv[v]);
 
       const ptyProcess = pty.spawn(shell, args, {

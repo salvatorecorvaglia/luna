@@ -1,12 +1,12 @@
-import { Client, type ClientChannel } from 'ssh2';
 import { LIMITS } from '@shared/constants';
-import { type ConnectionRow, getDatabase, getSetting } from '../database';
+import type { ManualJumpHostConfig } from '@shared/types/connection';
+import { Client, type ClientChannel } from 'ssh2';
 import { describeSshError } from '../../lib/error-map';
-import { TimeoutError, withTimeout } from '../../lib/with-timeout';
 import log from '../../lib/logger';
+import { TimeoutError, withTimeout } from '../../lib/with-timeout';
+import { type ConnectionRow, getDatabase, getSetting } from '../database';
 import type { PendingHostKeyRegistry } from './host-key-flow';
 import { buildConnectConfig } from './ssh-config';
-import type { ManualJumpHostConfig } from '@shared/types/connection';
 
 export interface OpenJumpChannelParams {
   /** Connection id of the bastion row in the `connections` table. */

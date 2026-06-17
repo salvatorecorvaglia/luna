@@ -1,14 +1,14 @@
-import { useState } from 'react';
+import { toastArgs } from '@shared/error-messages';
+import type { Connection } from '@shared/types/ipc';
+import type { UseMutationResult } from '@tanstack/react-query';
 import { AnimatePresence, motion, Reorder } from 'framer-motion';
 import { ChevronRight, FolderClosed, Pencil } from 'lucide-react';
-import type { UseMutationResult } from '@tanstack/react-query';
+import { useState } from 'react';
 import { toast } from 'sonner';
-import { toastArgs } from '@shared/error-messages';
-import { cn } from '@/lib/utils';
-import { useRenameFolder } from '@/hooks/use-connections';
-import type { Connection } from '@shared/types/ipc';
 import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
 import { PromptDialog } from '@/components/common/PromptDialog';
+import { useRenameFolder } from '@/hooks/use-connections';
+import { cn } from '@/lib/utils';
 import { DraggableConnectionItem } from './ConnectionItem';
 
 interface FolderGroupProps {
@@ -50,6 +50,7 @@ export function FolderGroup({
       {!isDefault && (
         <>
           <ContextMenu items={contextMenuItems}>
+            {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
             <button
               onClick={() => setIsOpen(!isOpen)}
               className="group/folder flex w-full items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium text-muted-foreground/60 hover:text-muted-foreground transition-colors cursor-pointer"

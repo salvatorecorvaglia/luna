@@ -88,13 +88,13 @@ To keep the codebase maintainable and clean, we enforce linting, formatting, typ
 
 ### Linting & Formatting
 
-We use **ESLint** and **Prettier** to check and format the codebase.
+We use **Biome** to check and format the codebase.
 
-- **Check lint issues**:
+- **Check lint & format issues**:
   ```bash
   npm run lint
   ```
-- **Automatically format code**:
+- **Automatically format and fix code issues**:
   ```bash
   npm run format
   ```

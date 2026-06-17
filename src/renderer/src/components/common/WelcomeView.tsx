@@ -1,8 +1,8 @@
-import { ArrowRight, Command, FolderOpen, Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
-import lunarLogo from '../../../../../resources/lunar.png';
+import { ArrowRight, Command, FolderOpen, Plus } from 'lucide-react';
 import { useConnectionStore } from '@/stores/connection-store';
 import { useUIStore } from '@/stores/ui-store';
+import lunarLogo from '../../../../../resources/lunar.png';
 
 const stagger = {
   animate: { transition: { staggerChildren: 0.08 } },

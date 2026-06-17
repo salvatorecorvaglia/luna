@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { toastArgs } from '@shared/error-messages';
+import { useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   ChevronLeft,
@@ -6,6 +7,7 @@ import {
   Eye,
   EyeOff,
   FolderOpen,
+  Keyboard,
   Monitor,
   Palette,
   PanelLeft,
@@ -15,22 +17,20 @@ import {
   Server,
   Settings,
   Terminal,
-  X,
-  Keyboard,
   Trash2,
+  X,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Z } from '@/lib/z-layers';
-import { useUIStore } from '@/stores/ui-store';
-import { useTerminalStore } from '@/stores/terminal-store';
-import { useConnectionStore } from '@/stores/connection-store';
-import { useStorageStore } from '@/stores/storage-store';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { useConnections } from '@/hooks/use-connections';
 import { connectToHost } from '@/lib/ssh';
-import { ConfirmDialog } from '@/components/common/ConfirmDialog';
-import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
-import { toastArgs } from '@shared/error-messages';
+import { cn } from '@/lib/utils';
+import { Z } from '@/lib/z-layers';
+import { useConnectionStore } from '@/stores/connection-store';
+import { useStorageStore } from '@/stores/storage-store';
+import { useTerminalStore } from '@/stores/terminal-store';
+import { useUIStore } from '@/stores/ui-store';
 
 interface Command {
   id: string;
@@ -96,10 +96,8 @@ export function CommandPalette() {
       // Resetting query/selection when the palette toggles open is exactly
       // the "synchronize React state with an external trigger" case that
       // useEffect is for; the lint rule's general guidance doesn't fit.
-      /* eslint-disable react-hooks/set-state-in-effect */
       setQuery('');
       setSelectedIndex(0);
-      /* eslint-enable react-hooks/set-state-in-effect */
     } else if (previouslyFocusedRef.current) {
       const el = previouslyFocusedRef.current;
       previouslyFocusedRef.current = null;
@@ -352,12 +350,13 @@ export function CommandPalette() {
 
   // Reset selection to the top whenever the search query changes so the
   // first result is always the active one.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: suppressed during migration
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedIndex(0);
   }, [query]);
 
   // Scroll selected item into view
+  // biome-ignore lint/correctness/useExhaustiveDependencies: suppressed during migration
   useEffect(() => {
     if (!listRef.current) return;
     const selected = listRef.current.querySelector('[data-selected="true"]');
@@ -425,8 +424,10 @@ export function CommandPalette() {
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={handleKeyDown}
                   className="flex-1 border-none bg-transparent py-3 pl-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 !outline-none !ring-0 focus:!outline-none focus:!ring-0 focus:!shadow-none focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!shadow-none rounded-lg transition-all duration-200"
+                  // biome-ignore lint/a11y/noAutofocus: suppressed during migration
                   autoFocus
                 />
+                {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
                 <button
                   onClick={() => setCommandPaletteOpen(false)}
                   className="btn-icon !p-1.5 ml-1"
@@ -452,6 +453,7 @@ export function CommandPalette() {
                         const index = flatIndexMap.get(cmd.id) ?? 0;
                         const isSelected = index === selectedIndex;
                         return (
+                          // biome-ignore lint/a11y/useButtonType: suppressed during migration
                           <button
                             key={cmd.id}
                             data-selected={isSelected}

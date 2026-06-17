@@ -55,7 +55,7 @@ function makeFakeDb(opts: { failOn?: string } = {}): {
 describe('database migrations', () => {
   it('applies all migrations successfully on a fresh DB', () => {
     const db = makeFakeDb();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // biome-ignore lint/suspicious/noExplicitAny: suppressed during migration
     expect(() => __test__.runMigrations(db as any)).not.toThrow();
     // Should have recorded every migration name from getMigrations().
     expect(db.applied).toEqual(__test__.getMigrations().map((m) => m.name));
@@ -65,7 +65,7 @@ describe('database migrations', () => {
     const db = makeFakeDb();
     // Pre-seed `applied` so `prepare(...).all()` reports them as done.
     db.applied.push(...__test__.getMigrations().map((m) => m.name));
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // biome-ignore lint/suspicious/noExplicitAny: suppressed during migration
     expect(() => __test__.runMigrations(db as any)).not.toThrow();
     // No new entries beyond the seed.
     expect(db.applied).toHaveLength(__test__.getMigrations().length);
@@ -98,7 +98,7 @@ describe('database migrations', () => {
     // Override pragma to report corruption so the post-apply check trips.
     db.pragma = (cmd: string) =>
       cmd === 'integrity_check' ? [{ integrity_check: '*** in database main ***' }] : undefined;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // biome-ignore lint/suspicious/noExplicitAny: suppressed during migration
     const run = (): void => __test__.runMigrations(db as any);
     expect(run).toThrow(MigrationError);
   });
@@ -106,7 +106,7 @@ describe('database migrations', () => {
   it('throws MigrationError naming the offending migration on SQL failure', () => {
     // Force exec() to throw on a fingerprint that only appears in 002_settings.
     const db = makeFakeDb({ failOn: 'CREATE TABLE IF NOT EXISTS settings' });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // biome-ignore lint/suspicious/noExplicitAny: suppressed during migration
     const run = (): void => __test__.runMigrations(db as any);
     expect(run).toThrow(MigrationError);
     try {

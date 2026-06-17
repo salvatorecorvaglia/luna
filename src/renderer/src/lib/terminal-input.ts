@@ -6,10 +6,11 @@
  * two panes byte-for-byte consistent in clipboard and keyboard behavior — past
  * drift between them (e.g. only SSH warned on multi-line paste) was a bug.
  */
+
+import { LIMITS } from '@shared/constants';
 import type { Terminal } from '@xterm/xterm';
 import { toast } from 'sonner';
 import { useTerminalStore } from '@/stores/terminal-store';
-import { LIMITS } from '@shared/constants';
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 const isLinux = typeof navigator !== 'undefined' && /Linux/.test(navigator.platform);

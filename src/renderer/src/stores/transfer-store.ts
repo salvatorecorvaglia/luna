@@ -1,5 +1,5 @@
-import { create } from 'zustand';
 import type { TransferItem } from '@shared/types/transfer';
+import { create } from 'zustand';
 
 /** Single progress sample passed to applyProgressBatch. */
 export interface ProgressSample {

@@ -1,7 +1,7 @@
 import { Check, Eye, EyeOff, FolderClosed, Globe, Hash, Key, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { FormField } from './FormField';
 import { HelpTooltip } from '../common/HelpTooltip';
+import { FormField } from './FormField';
 import type { Patch, S3State } from './use-connection-form-state';
 
 interface S3FieldsProps {

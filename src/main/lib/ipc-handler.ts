@@ -1,7 +1,7 @@
-import { ipcMain } from 'electron';
-import log from './logger';
 import { ErrorCode, LunarError } from '@shared/errors';
 import type { IpcChannel, IpcRequest, IpcResponse } from '@shared/types/ipc';
+import { ipcMain } from 'electron';
+import log from './logger';
 
 /**
  * Hard cap on the serialized size of a single IPC request. The renderer

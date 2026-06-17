@@ -1,6 +1,5 @@
-import { createReadStream, createWriteStream } from 'fs';
-import { stat as fsStat, unlink } from 'fs/promises';
 import {
+  type CommonPrefix,
   CopyObjectCommand,
   CreateBucketCommand,
   DeleteBucketCommand,
@@ -12,20 +11,21 @@ import {
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
-  type CommonPrefix,
 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
-import type { Readable } from 'stream';
 import { BINARY_PREVIEW_EXTENSIONS, IPC, LIMITS } from '@shared/constants';
 import type { StorageEntry, StorageStatResult } from '@shared/types/storage-provider';
-import type { StepCallback, StorageProvider } from '../storage/types';
-import { AbortError, S3StorageError } from '../../lib/errors';
-import { TimeoutError, withTimeout } from '../../lib/with-timeout';
+import { createReadStream, createWriteStream } from 'fs';
+import { stat as fsStat, unlink } from 'fs/promises';
+import type { Readable } from 'stream';
 import { getRuntimeNumber } from '../../config/runtime';
-import { emitToRenderer } from '../emit';
+import { AbortError, S3StorageError } from '../../lib/errors';
 import log from '../../lib/logger';
-import { parseS3Path } from './s3-paths';
+import { TimeoutError, withTimeout } from '../../lib/with-timeout';
+import { emitToRenderer } from '../emit';
+import type { StepCallback, StorageProvider } from '../storage/types';
 import { buildS3ClientConfig, objectToEntry, prefixToEntry, wrapS3Error } from './s3-helpers';
+import { parseS3Path } from './s3-paths';
 
 interface S3Session {
   client: S3Client;
@@ -389,6 +389,7 @@ class S3StorageProvider implements StorageProvider {
       if (!bucket || !key) throw new S3StorageError('Cannot read a non-key path');
       const limit = Math.min(maxSize || LIMITS.MAX_PREVIEW_BYTES, LIMITS.MAX_PREVIEW_BYTES);
 
+      // biome-ignore lint/suspicious/noImplicitAnyLet: suppressed during migration
       let head;
       try {
         head = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));

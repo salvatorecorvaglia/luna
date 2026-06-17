@@ -11,7 +11,7 @@ vi.mock('../../host-key-store', () => ({
   },
 }));
 
-import { parseHostKeyAlgorithm, PendingHostKeyRegistry } from '../host-key-flow';
+import { PendingHostKeyRegistry, parseHostKeyAlgorithm } from '../host-key-flow';
 
 beforeEach(() => {
   updates.length = 0;

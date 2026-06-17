@@ -1,17 +1,17 @@
+import { CanvasAddon } from '@xterm/addon-canvas';
+import { FitAddon } from '@xterm/addon-fit';
+import { SearchAddon } from '@xterm/addon-search';
+import { Unicode11Addon } from '@xterm/addon-unicode11';
+import { WebLinksAddon } from '@xterm/addon-web-links';
+import { WebglAddon } from '@xterm/addon-webgl';
+import { Terminal } from '@xterm/xterm';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Terminal } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
-import { WebLinksAddon } from '@xterm/addon-web-links';
-import { SearchAddon } from '@xterm/addon-search';
-import { WebglAddon } from '@xterm/addon-webgl';
-import { CanvasAddon } from '@xterm/addon-canvas';
-import { Unicode11Addon } from '@xterm/addon-unicode11';
 import '@xterm/xterm/css/xterm.css';
-import { useTerminalStore } from '@/stores/terminal-store';
 import { logger } from '@/lib/logger';
-import { terminalThemes } from '@/themes/terminal';
 import { buildTerminalKeyHandler, installXtermPointerHandlers } from '@/lib/terminal-input';
+import { useTerminalStore } from '@/stores/terminal-store';
+import { terminalThemes } from '@/themes/terminal';
 
 export interface TerminalTransport {
   /** Send keystrokes to the underlying transport (SSH stream / local PTY). */
@@ -36,6 +36,8 @@ export interface TerminalSessionOptions {
    * (e.g. SSH close/error/status, local-PTY exit) or to spawn a backing process.
    * Return a cleanup; it runs alongside the rest of the teardown.
    */
+
+  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   onReady?(ctx: { sessionId: string; terminal: Terminal }): (() => void) | void;
 }
 
@@ -113,6 +115,7 @@ export function useTerminalSession(opts: TerminalSessionOptions): TerminalSessio
       // `terminal.element` is set once the terminal has been opened into the
       // DOM and a renderer is wired up — public-API replacement for an older
       // `(terminal as any)._core._renderService` probe.
+      // biome-ignore lint/complexity/useOptionalChain: suppressed during migration
       if (fitAddon && terminal && terminal.element) {
         try {
           fitAddon.fit();

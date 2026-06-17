@@ -1,12 +1,12 @@
 import { IPC } from '@shared/constants';
+import { ErrorCode, LunarError } from '@shared/errors';
+import { registerHandler } from '../lib/ipc-handler';
+import { assertValidJumpHost, assertValidManualJumpHost } from '../lib/jump-host-validate';
+import { assertBoundedInt, assertNonEmptyString } from '../lib/validate';
+import { getDatabase } from '../services/database';
 import { sshManager } from '../services/ssh-manager';
 import { storageRegistry } from '../services/storage/registry';
 import { sftpStorageProvider } from '../services/storage/sftp-storage-provider';
-import { getDatabase } from '../services/database';
-import { ErrorCode, LunarError } from '@shared/errors';
-import { assertBoundedInt, assertNonEmptyString } from '../lib/validate';
-import { assertValidJumpHost, assertValidManualJumpHost } from '../lib/jump-host-validate';
-import { registerHandler } from '../lib/ipc-handler';
 
 const VALID_AUTH_TYPES = new Set(['password', 'key', 'key+passphrase']);
 /** Cap on the size of a single transient secret accepted from the renderer. */
@@ -18,8 +18,9 @@ const MAX_SECRET_LEN = 4096;
  * from streaming hundreds of MB into the shell write buffer.
  */
 const MAX_SSH_SEND_BYTES = 65536;
-import type { SshConnectParams, SshResizeParams, SshSendDataParams } from '@shared/types/terminal';
+
 import type { AuthType, ManualJumpHostConfig } from '@shared/types/connection';
+import type { SshConnectParams, SshResizeParams, SshSendDataParams } from '@shared/types/terminal';
 
 export function registerSshHandlers(): void {
   sshManager.onSessionConnect((_sessionId) => {

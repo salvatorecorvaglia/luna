@@ -1,10 +1,12 @@
-import { dialog } from 'electron';
-import { access, lstat, open, readdir, realpath, stat, writeFile } from 'fs/promises';
-import { constants as fsConstants } from 'fs';
-import { basename, isAbsolute, join, resolve } from 'path';
-import { homedir } from 'os';
 import { BINARY_PREVIEW_EXTENSIONS, IPC } from '@shared/constants';
 import { ErrorCode, LunarError } from '@shared/errors';
+import type { LocalFileEntry } from '@shared/types/sftp';
+import { dialog } from 'electron';
+import { constants as fsConstants } from 'fs';
+import { access, lstat, open, readdir, realpath, stat, writeFile } from 'fs/promises';
+import { homedir } from 'os';
+import { basename, isAbsolute, join, resolve } from 'path';
+import { registerHandler } from '../lib/ipc-handler';
 import {
   assertSafeAbsolutePath,
   assertValidPath,
@@ -12,8 +14,6 @@ import {
   expandAndValidatePrivateKeyPath,
   isInsideDir,
 } from '../lib/validate';
-import { registerHandler } from '../lib/ipc-handler';
-import type { LocalFileEntry } from '@shared/types/sftp';
 
 export function registerShellHandlers(): void {
   registerHandler(IPC.SHELL_READDIR, async (_event, dirPath: string) => {

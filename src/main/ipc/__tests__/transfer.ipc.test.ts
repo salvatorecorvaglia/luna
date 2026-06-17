@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IPC } from '@shared/constants';
-import { registerTransferHandlers } from '../transfer.ipc';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { transferQueue } from '../../services/transfer-queue';
+import { registerTransferHandlers } from '../transfer.ipc';
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>();
 

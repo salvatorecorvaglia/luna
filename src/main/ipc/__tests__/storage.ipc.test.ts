@@ -1,9 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IPC } from '@shared/constants';
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { homedir } from 'os';
-import { mkdtempSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
-import { afterAll } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Capture the handlers as they're registered so we can drive them directly.
 const handlers = new Map<string, (...args: unknown[]) => unknown>();

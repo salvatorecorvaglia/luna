@@ -1,9 +1,9 @@
+import { Monitor, Plus } from 'lucide-react';
 import { useCallback, useEffect, useRef } from 'react';
-import { Plus, Monitor } from 'lucide-react';
+import { v4 as uuidv4 } from 'uuid';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { terminalThemes } from '@/themes/terminal';
 import { LocalTerminalPane } from './LocalTerminalPane';
-import { v4 as uuidv4 } from 'uuid';
 import { LocalTerminalTabs } from './LocalTerminalTabs';
 
 export function LocalTerminalView() {
@@ -98,6 +98,7 @@ export function LocalTerminalView() {
                 Open a local terminal to run commands on your machine
               </p>
             </div>
+            {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
             <button onClick={handleNewLocalTab} className="btn-outline mt-1">
               <Plus className="size-3.5" />
               New Local Terminal

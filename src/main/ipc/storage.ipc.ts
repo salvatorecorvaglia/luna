@@ -1,16 +1,17 @@
 import { IPC, LIMITS } from '@shared/constants';
-import { storageRegistry } from '../services/storage/registry';
-import { transferQueue } from '../services/transfer-queue';
+import { takeStorageToken } from '../lib/rate-limiter';
 import {
   assertBoundedInt,
   assertNonEmptyString,
   assertSafeRealAbsolutePath,
   assertValidPath,
 } from '../lib/validate';
-import { takeStorageToken } from '../lib/rate-limiter';
+import { storageRegistry } from '../services/storage/registry';
+import { transferQueue } from '../services/transfer-queue';
+
 export { __resetStorageRateLimiter } from '../lib/rate-limiter';
+
 import { ErrorCode, LunarError } from '@shared/errors';
-import { registerHandler } from '../lib/ipc-handler';
 import type {
   StorageDeleteParams,
   StorageListParams,
@@ -20,6 +21,7 @@ import type {
   StorageStatParams,
   StorageTransferParams,
 } from '@shared/types/storage-provider';
+import { registerHandler } from '../lib/ipc-handler';
 
 /**
  * Provider-agnostic IPC handlers. Each call resolves the StorageProvider for

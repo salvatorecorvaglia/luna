@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { FileEntry } from '@shared/types/sftp';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   ChevronDown,
@@ -17,11 +17,11 @@ import {
   Pencil,
   Trash2,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { formatDate, formatSize } from '@/lib/format';
-import type { FileEntry } from '@shared/types/sftp';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
 import { EmptyState } from '@/components/ui';
+import { formatDate, formatSize } from '@/lib/format';
+import { cn } from '@/lib/utils';
 
 type SortField = 'name' | 'size' | 'modifiedAt';
 type SortDir = 'asc' | 'desc';
@@ -121,6 +121,7 @@ export function FileList({
   const [anchorIndex, setAnchorIndex] = useState(-1);
 
   // Reset focus/anchor when the entries change (e.g., navigated to a different directory)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: suppressed during migration
   useEffect(() => {
     setFocusedIndex(-1);
     setAnchorIndex(-1);
@@ -158,7 +159,6 @@ export function FileList({
   const ROW_HEIGHT_ESTIMATE = 32;
   const parentRef = useRef<HTMLDivElement>(null);
 
-  // eslint-disable-next-line react-hooks/incompatible-library -- opted out of memoization via "use no memo"
   const virtualizer = useVirtualizer({
     count: sorted.length,
     getScrollElement: () => parentRef.current,
@@ -343,10 +343,14 @@ export function FileList({
     >
       {/* Header — semantic columnheaders so the file table is announced
           correctly by assistive tech. */}
+      {/** biome-ignore lint/a11y/useFocusableInteractive: suppressed during migration */}
+      {/** biome-ignore lint/a11y/useSemanticElements: suppressed during migration */}
       <div
         role="row"
         className="flex items-center border-b border-border/60 bg-muted/20 text-[11px] font-medium text-muted-foreground no-select"
       >
+        {/** biome-ignore lint/a11y/useSemanticElements: suppressed during migration */}
+        {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
         <button
           role="columnheader"
           aria-sort={
@@ -357,6 +361,8 @@ export function FileList({
         >
           Name <SortIcon field="name" />
         </button>
+        {/** biome-ignore lint/a11y/useSemanticElements: suppressed during migration */}
+        {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
         <button
           role="columnheader"
           aria-sort={
@@ -368,10 +374,14 @@ export function FileList({
           Size <SortIcon field="size" />
         </button>
         {showPermissions && (
+          // biome-ignore lint/a11y/useFocusableInteractive: suppressed during migration
+          // biome-ignore lint/a11y/useSemanticElements: suppressed during migration
           <div role="columnheader" className="w-[84px] px-2 py-1.5 text-right">
             Perms
           </div>
         )}
+        {/** biome-ignore lint/a11y/useSemanticElements: suppressed during migration */}
+        {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
         <button
           role="columnheader"
           aria-sort={

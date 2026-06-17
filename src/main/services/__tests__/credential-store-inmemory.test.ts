@@ -1,7 +1,7 @@
-import { afterAll, describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { mkdtempSync, rmSync } from 'fs';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 
 const userData = mkdtempSync(join(tmpdir(), 'lunar-cred-inmemory-'));
 
@@ -30,8 +30,8 @@ vi.mock('../../lib/logger', () => ({
 import {
   getCredentialBackendStatus,
   initializeCredentialStore,
-  storeCredential,
   retrieveCredential,
+  storeCredential,
 } from '../credential-store';
 
 describe('credential-store in-memory fallback', () => {

@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IPC } from '@shared/constants';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>();
 
@@ -15,8 +15,9 @@ vi.mock('../../lib/logger', () => ({
   default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-import { registerLogHandlers } from '../log.ipc';
 import log from '../../lib/logger';
+import { registerLogHandlers } from '../log.ipc';
+
 const info = log.info as ReturnType<typeof vi.fn>;
 const warn = log.warn as ReturnType<typeof vi.fn>;
 const error = log.error as ReturnType<typeof vi.fn>;

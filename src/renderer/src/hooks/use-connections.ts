@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Connection, CreateConnectionInput, UpdateConnectionInput } from '@shared/types/ipc';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 export function useConnections() {
   return useQuery<Connection[]>({

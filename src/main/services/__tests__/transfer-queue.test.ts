@@ -1,8 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { stat as fsStat } from 'fs/promises';
 import { IPC, LIMITS } from '@shared/constants';
-import { transferQueue } from '../transfer-queue';
+import { stat as fsStat } from 'fs/promises';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { emitToRenderer } from '../emit';
+import { transferQueue } from '../transfer-queue';
 
 // Mock peers before importing the module under test. We make stream operations
 // hang forever so transfers stay either queued or active for the duration of a

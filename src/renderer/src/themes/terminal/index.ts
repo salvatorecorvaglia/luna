@@ -1,11 +1,11 @@
+import type { TerminalThemeName } from '@shared/types/terminal';
 import type { ITheme } from '@xterm/xterm';
 import { draculaTheme } from './dracula';
-import { nordTheme } from './nord';
-import { tokyoNightTheme } from './tokyo-night';
 import { gruvboxTheme } from './gruvbox';
-import { oneDarkTheme } from './one-dark';
 import { monokaiTheme } from './monokai';
-import type { TerminalThemeName } from '@shared/types/terminal';
+import { nordTheme } from './nord';
+import { oneDarkTheme } from './one-dark';
+import { tokyoNightTheme } from './tokyo-night';
 
 export const terminalThemes: Record<TerminalThemeName, ITheme> = {
   dracula: draculaTheme,
@@ -16,4 +16,4 @@ export const terminalThemes: Record<TerminalThemeName, ITheme> = {
   monokai: monokaiTheme,
 };
 
-export { draculaTheme, nordTheme, tokyoNightTheme, gruvboxTheme, oneDarkTheme, monokaiTheme };
+export { draculaTheme, gruvboxTheme, monokaiTheme, nordTheme, oneDarkTheme, tokyoNightTheme };

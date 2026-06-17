@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * Renderer-side logger that forwards messages to the main process logger.
  * This ensures all logs (Main and Renderer) end up in the same log file.
@@ -19,6 +18,7 @@ function forward(
 
 export const logger = {
   info: (message: string, context?: Record<string, unknown>) => {
+    // biome-ignore lint/suspicious/noConsole: suppressed during migration
     console.info(`[info] ${message}`, context || '');
     forward('info', message, context);
   },
@@ -31,6 +31,7 @@ export const logger = {
     forward('error', message, context);
   },
   debug: (message: string, context?: Record<string, unknown>) => {
+    // biome-ignore lint/suspicious/noConsole: suppressed during migration
     console.debug(`[debug] ${message}`, context || '');
     forward('debug', message, context);
   },

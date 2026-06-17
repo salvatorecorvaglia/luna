@@ -1,13 +1,5 @@
-import { contextBridge, ipcRenderer } from 'electron';
 import { IPC } from '@shared/constants';
-import type {
-  IpcChannel,
-  IpcEventChannel,
-  IpcEventPayload,
-  IpcRequest,
-  IpcResponse,
-} from '@shared/types/ipc';
-import type { SshConnectParams, SshResizeParams, SshSendDataParams } from '@shared/types/terminal';
+import { ErrorCode, LunarError } from '@shared/errors';
 import type {
   AuthType,
   CreateConnectionInput,
@@ -15,6 +7,13 @@ import type {
   ManualJumpHostConfig,
   UpdateConnectionInput,
 } from '@shared/types/connection';
+import type {
+  IpcChannel,
+  IpcEventChannel,
+  IpcEventPayload,
+  IpcRequest,
+  IpcResponse,
+} from '@shared/types/ipc';
 // No sftp imports needed here anymore
 import type {
   S3ConnectParams,
@@ -27,7 +26,8 @@ import type {
   StorageStatParams,
   StorageTransferParams,
 } from '@shared/types/storage-provider';
-import { LunarError, ErrorCode } from '@shared/errors';
+import type { SshConnectParams, SshResizeParams, SshSendDataParams } from '@shared/types/terminal';
+import { contextBridge, ipcRenderer } from 'electron';
 
 type CleanupFn = () => void;
 
@@ -85,6 +85,7 @@ function invoke<K extends IpcChannel>(
   request?: IpcRequest<K>,
 ): Promise<IpcResponse<K>> {
   const result =
+    // biome-ignore lint/complexity/noArguments: suppressed during migration
     arguments.length > 1
       ? (ipcRenderer.invoke(channel, request) as Promise<IpcResponse<K>>)
       : (ipcRenderer.invoke(channel) as Promise<IpcResponse<K>>);

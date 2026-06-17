@@ -1,5 +1,5 @@
-import type Database from 'better-sqlite3';
 import type { ManualJumpHostConfig } from '@shared/types/connection';
+import type Database from 'better-sqlite3';
 import { assertBoundedInt, assertNonEmptyString, validationError } from './validate';
 
 /**

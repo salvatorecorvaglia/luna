@@ -1,24 +1,5 @@
-import { dialog } from 'electron';
-import { readFile } from 'fs/promises';
-import { v4 as uuidv4 } from 'uuid';
 import { IPC } from '@shared/constants';
 import { ErrorCode, LunarError } from '@shared/errors';
-import { CONNECTION_COLUMNS, type ConnectionRow, getDatabase } from '../services/database';
-import log from '../lib/logger';
-import { detectAndImport } from '../lib/importers';
-import {
-  deleteCredential,
-  storeCredential,
-  retrieveS3Credential,
-} from '../services/credential-store';
-import { registerHandler } from '../lib/ipc-handler';
-import {
-  assertBoundedInt,
-  assertNonEmptyString,
-  expandAndConfineToHomeSync,
-  validationError,
-} from '../lib/validate';
-import { assertValidJumpHost, assertValidManualJumpHost } from '../lib/jump-host-validate';
 import type {
   AuthType,
   Connection,
@@ -26,6 +7,25 @@ import type {
   ExportedConnection,
   UpdateConnectionInput,
 } from '@shared/types/connection';
+import { dialog } from 'electron';
+import { readFile } from 'fs/promises';
+import { v4 as uuidv4 } from 'uuid';
+import { detectAndImport } from '../lib/importers';
+import { registerHandler } from '../lib/ipc-handler';
+import { assertValidJumpHost, assertValidManualJumpHost } from '../lib/jump-host-validate';
+import log from '../lib/logger';
+import {
+  assertBoundedInt,
+  assertNonEmptyString,
+  expandAndConfineToHomeSync,
+  validationError,
+} from '../lib/validate';
+import {
+  deleteCredential,
+  retrieveS3Credential,
+  storeCredential,
+} from '../services/credential-store';
+import { CONNECTION_COLUMNS, type ConnectionRow, getDatabase } from '../services/database';
 
 const VALID_AUTH_TYPES = ['password', 'key', 'key+passphrase'] as const;
 
@@ -386,7 +386,9 @@ export function registerConnectionHandlers(): void {
       _event,
       { oldName, newName, provider }: { oldName: string; newName: string; provider: 'sftp' | 's3' },
     ) => {
+      // biome-ignore lint/complexity/useOptionalChain: suppressed during migration
       if (!oldName || !oldName.trim()) throw validationError('Old folder name is required');
+      // biome-ignore lint/complexity/useOptionalChain: suppressed during migration
       if (!newName || !newName.trim()) throw validationError('New folder name is required');
       if (newName.includes('\0')) throw validationError('Folder name must not contain null bytes');
 

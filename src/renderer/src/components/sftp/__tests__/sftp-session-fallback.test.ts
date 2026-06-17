@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { resolveSftpSession } from '../sftp-session-fallback';
-import type { TerminalSession } from '@/stores/terminal-store';
 import type { StorageSession } from '@/stores/storage-store';
+import type { TerminalSession } from '@/stores/terminal-store';
+import { resolveSftpSession } from '../sftp-session-fallback';
 
 function ssh(id: string, connectionId: string, status: TerminalSession['status']): TerminalSession {
   return {

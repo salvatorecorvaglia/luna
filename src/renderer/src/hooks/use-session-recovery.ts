@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import { useTerminalStore } from '@/stores/terminal-store';
 import { useStorageStore } from '@/stores/storage-store';
+import { useTerminalStore } from '@/stores/terminal-store';
 
 /**
  * Syncs the renderer stores with the active sessions in the main process.

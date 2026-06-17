@@ -1,12 +1,12 @@
-import { app, BrowserWindow, shell, type WebContents } from 'electron';
 import { IPC } from '@shared/constants';
-import { checkForUpdate, installUpdate } from '../services/updater';
-import { sshManager } from '../services/ssh-manager';
-import { s3StorageProvider } from '../services/s3/s3-provider';
-import { getCredentialBackendStatus } from '../services/credential-store';
-import log from '../lib/logger';
-import { registerHandler } from '../lib/ipc-handler';
 import { ErrorCode, LunarError } from '@shared/errors';
+import { app, BrowserWindow, shell, type WebContents } from 'electron';
+import { registerHandler } from '../lib/ipc-handler';
+import log from '../lib/logger';
+import { getCredentialBackendStatus } from '../services/credential-store';
+import { s3StorageProvider } from '../services/s3/s3-provider';
+import { sshManager } from '../services/ssh-manager';
+import { checkForUpdate, installUpdate } from '../services/updater';
 
 let mainWindowRef: BrowserWindow | null = null;
 

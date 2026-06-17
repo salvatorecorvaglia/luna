@@ -1,6 +1,6 @@
+import { toastArgs } from '@shared/error-messages';
 import { useCallback } from 'react';
 import { toast } from 'sonner';
-import { toastArgs } from '@shared/error-messages';
 import type { FileEntry } from '@/components/sftp/FilePane';
 import { useTransferStore } from '@/stores/transfer-store';
 
@@ -40,7 +40,7 @@ export function useSftpDnd({
     const trimmed = base.trim();
     // Reject NUL / control chars (U+0000–U+001F, U+007F): no legitimate
     // filename uses them and many file systems mishandle them.
-    // eslint-disable-next-line no-control-regex
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: suppressed during migration
     const CONTROL_CHARS = /[\x00-\x1f\x7f]/;
     if (!trimmed || trimmed === '.' || trimmed === '..' || CONTROL_CHARS.test(trimmed)) {
       return null;

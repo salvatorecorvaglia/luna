@@ -1,11 +1,11 @@
-import Database from 'better-sqlite3';
-import { app } from 'electron';
-import { join } from 'path';
-import { existsSync, mkdirSync } from 'fs';
 import type { AuthType } from '@shared/types/connection';
 import type { StorageProviderKind } from '@shared/types/storage-provider';
-import { migrations as migrationList, type Migration } from './db/migrations';
+import Database from 'better-sqlite3';
+import { app } from 'electron';
+import { existsSync, mkdirSync } from 'fs';
+import { join } from 'path';
 import log from '../lib/logger';
+import { type Migration, migrations as migrationList } from './db/migrations';
 
 /**
  * Explicit column list for `SELECT` against `connections` when the caller

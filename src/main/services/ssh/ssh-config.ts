@@ -1,16 +1,16 @@
-import { readFile, stat } from 'fs/promises';
-import type { Duplex } from 'stream';
-import { utils, type ConnectConfig, type CipherAlgorithm } from 'ssh2';
-import type { AuthType } from '@shared/types/connection';
 import { IPC } from '@shared/constants';
+import type { AuthType } from '@shared/types/connection';
+import { getCiphers } from 'crypto';
+import { readFile, stat } from 'fs/promises';
+import { type CipherAlgorithm, type ConnectConfig, utils } from 'ssh2';
+import type { Duplex } from 'stream';
+import log from '../../lib/logger';
+import { expandAndValidatePrivateKeyPath } from '../../lib/validate';
+import { retrieveCredential } from '../credential-store';
+import { getSetting } from '../database';
 import { emitToRenderer } from '../emit';
 import { fingerprintKey, getStoredHostKey, verifyHostKey } from '../host-key-store';
-import { getSetting } from '../database';
-import { retrieveCredential } from '../credential-store';
-import { expandAndValidatePrivateKeyPath } from '../../lib/validate';
-import { getCiphers } from 'crypto';
-import log from '../../lib/logger';
-import { parseHostKeyAlgorithm, type PendingHostKeyRegistry } from './host-key-flow';
+import { type PendingHostKeyRegistry, parseHostKeyAlgorithm } from './host-key-flow';
 
 /**
  * Defense-in-depth cap on credential length. The IPC layer rejects secrets

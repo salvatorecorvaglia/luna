@@ -1,8 +1,0 @@
-node_modules
-out
-build
-coverage
-dist
-package-lock.json
-*.log
-.DS_Store

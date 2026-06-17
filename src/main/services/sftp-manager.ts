@@ -1,15 +1,15 @@
-import type { SFTPWrapper, ReadStreamOptions, WriteStreamOptions } from 'ssh2';
+import { BINARY_PREVIEW_EXTENSIONS, LIMITS } from '@shared/constants';
+import type { SftpEntry } from '@shared/types/sftp';
 import { createReadStream, createWriteStream } from 'fs';
 import { stat as fsStat, unlink } from 'fs/promises';
-import { sshManager } from './ssh-manager';
-import type { SftpEntry } from '@shared/types/sftp';
-import { BINARY_PREVIEW_EXTENSIONS, LIMITS } from '@shared/constants';
-import { withTimeout } from '../lib/with-timeout';
-import log from '../lib/logger';
-import { AbortError, SftpTransferError, SshConnectionError } from '../lib/errors';
-import { releaseStorageBucket } from '../lib/rate-limiter';
-import { formatPermissions, isSessionFatal } from './sftp/sftp-helpers';
+import type { ReadStreamOptions, SFTPWrapper, WriteStreamOptions } from 'ssh2';
 import { getRuntimeNumber } from '../config/runtime';
+import { AbortError, SftpTransferError, SshConnectionError } from '../lib/errors';
+import log from '../lib/logger';
+import { releaseStorageBucket } from '../lib/rate-limiter';
+import { withTimeout } from '../lib/with-timeout';
+import { formatPermissions, isSessionFatal } from './sftp/sftp-helpers';
+import { sshManager } from './ssh-manager';
 
 // Deliberately do NOT import transferQueue here — that created a cycle
 // (sftp-manager ↔ transfer-queue). Transfer enqueueing is the IPC layer's

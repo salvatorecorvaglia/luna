@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import type { FileEntry } from '@shared/types/sftp';
 import {
   ArrowUp,
   ChevronRight,
@@ -13,12 +13,13 @@ import {
   WifiOff,
   X,
 } from 'lucide-react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { FileList } from './FileList';
-import type { FileEntry } from '@shared/types/sftp';
 import { useStorageStore } from '@/stores/storage-store';
+import { FileList } from './FileList';
 
 export type { FileEntry };
+
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 const MOD = isMac ? '⌘' : 'Ctrl';
 
@@ -60,6 +61,7 @@ function splitBreadcrumbs(path: string): { name: string; path: string }[] {
 
   let current = '';
   for (const part of parts) {
+    // biome-ignore lint/style/useTemplate: suppressed during migration
     current += '/' + part;
     crumbs.push({ name: part, path: current });
   }
@@ -178,6 +180,7 @@ export function FilePane({
     [onDrop],
   );
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: suppressed during migration
   const handlePaneKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
@@ -192,6 +195,7 @@ export function FilePane({
   );
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: suppressed during migration
     <div
       className={cn(
         'flex h-full flex-col overflow-hidden',
@@ -226,6 +230,7 @@ export function FilePane({
         </div>
         <div className="flex items-center gap-0.5">
           {onMkdir && (
+            // biome-ignore lint/a11y/useButtonType: suppressed during migration
             <button
               onClick={onMkdir}
               className="btn-icon !p-1"
@@ -236,6 +241,7 @@ export function FilePane({
             </button>
           )}
           {onToggleHidden && (
+            // biome-ignore lint/a11y/useButtonType: suppressed during migration
             <button
               onClick={onToggleHidden}
               className="btn-icon !p-1"
@@ -249,6 +255,7 @@ export function FilePane({
               )}
             </button>
           )}
+          {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
           <button
             onClick={toggleFilter}
             className={cn('btn-icon !p-1', filterOpen && 'text-foreground bg-accent')}
@@ -258,9 +265,11 @@ export function FilePane({
           >
             <Search className="size-3.5" aria-hidden="true" />
           </button>
+          {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
           <button onClick={navigateUp} className="btn-icon !p-1" title="Go up" aria-label="Go up">
             <ArrowUp className="size-3.5" aria-hidden="true" />
           </button>
+          {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
           <button
             onClick={onRefresh}
             className="btn-icon !p-1"
@@ -286,6 +295,7 @@ export function FilePane({
               'linear-gradient(to right, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%)',
           }}
         >
+          {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
           <button
             onClick={() => onPathChange('/')}
             className="flex-shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer"
@@ -302,6 +312,7 @@ export function FilePane({
                   className="size-3 text-muted-foreground/60 flex-shrink-0"
                   aria-hidden="true"
                 />
+                {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
                 <button
                   onClick={() => onPathChange(crumb.path)}
                   className="truncate text-muted-foreground hover:text-foreground max-w-[120px] cursor-pointer"
@@ -352,6 +363,7 @@ export function FilePane({
               }}
             />
             {filterQuery && (
+              // biome-ignore lint/a11y/useButtonType: suppressed during migration
               <button
                 onClick={() => setFilterQuery('')}
                 className="input-clear-btn"
@@ -379,6 +391,7 @@ export function FilePane({
                 .replace(/^SftpStorageError:\s*/i, '')
                 .replace(/^Error:\s*/i, '') || 'Failed to load directory'}
             </span>
+            {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
             <button
               onClick={onRefresh}
               className="mt-2 rounded-full bg-accent px-4 py-1.5 text-[11px] font-semibold text-accent-foreground hover:bg-accent/80 transition-colors"
@@ -427,6 +440,7 @@ function FilePaneSkeleton({ showPermissions }: { showPermissions: boolean }) {
       </div>
       <div className="flex-1 overflow-hidden">
         {Array.from({ length: 12 }).map((_, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: suppressed during migration
           <div key={i} className="flex h-8 items-center border-b border-transparent">
             <div className="flex flex-1 items-center gap-2 px-3">
               <div className="skeleton size-4 rounded-sm" />

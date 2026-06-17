@@ -1,10 +1,10 @@
-import { app, safeStorage } from 'electron';
+import { ErrorCode, LunarError } from '@shared/errors';
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
+import { app, safeStorage } from 'electron';
 import { appendFileSync, existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { ErrorCode, LunarError } from '@shared/errors';
-import { getDatabase } from './database';
 import log from '../lib/logger';
+import { getDatabase } from './database';
 
 // The credentials table is created by migration 004_known_hosts_and_credentials.
 // A fallback CREATE IF NOT EXISTS is kept for databases initialized before that

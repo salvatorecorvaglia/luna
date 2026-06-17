@@ -1,18 +1,18 @@
+import { IPC, LIMITS } from '@shared/constants';
+import type { AuthType } from '@shared/types/connection';
+import type { SessionStatus } from '@shared/types/terminal';
 import { Client, type ClientChannel } from 'ssh2';
 import { StringDecoder } from 'string_decoder';
 import { v4 as uuidv4 } from 'uuid';
-import { IPC, LIMITS } from '@shared/constants';
-import { emitToRenderer } from './emit';
-import type { SessionStatus } from '@shared/types/terminal';
-import type { AuthType } from '@shared/types/connection';
-import { type ConnectionRow, getDatabase, getSetting } from './database';
-import { PendingHostKeyRegistry } from './ssh/host-key-flow';
-import { buildConnectConfig } from './ssh/ssh-config';
-import { openJumpChannel } from './ssh/jump-host';
-import { TimeoutError, withTimeout } from '../lib/with-timeout';
-import { describeSshError } from '../lib/error-map';
 import { getRuntimeNumber } from '../config/runtime';
+import { describeSshError } from '../lib/error-map';
 import log from '../lib/logger';
+import { TimeoutError, withTimeout } from '../lib/with-timeout';
+import { type ConnectionRow, getDatabase, getSetting } from './database';
+import { emitToRenderer } from './emit';
+import { PendingHostKeyRegistry } from './ssh/host-key-flow';
+import { openJumpChannel } from './ssh/jump-host';
+import { buildConnectConfig } from './ssh/ssh-config';
 
 /**
  * Columns needed to build an SSH `ConnectConfig` from the connections table —
@@ -535,7 +535,7 @@ class SshManager {
     session.reconnecting = true;
     session.reconnectAttempts++;
     const delay = Math.min(
-      RECONNECT_BASE_DELAY_MS * Math.pow(2, session.reconnectAttempts - 1),
+      RECONNECT_BASE_DELAY_MS * 2 ** (session.reconnectAttempts - 1),
       MAX_RECONNECT_DELAY_MS,
     );
 

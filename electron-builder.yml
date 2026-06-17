@@ -10,7 +10,7 @@ files:
   - '!**/.vscode/*'
   - '!src/*'
   - '!electron.vite.config.*'
-  - '!{.eslintignore,.eslintrc.cjs,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{biome.json,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
   - '!{.github,tests,coverage,vitest.config.*}'
 

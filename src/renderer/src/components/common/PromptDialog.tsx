@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useEffect, useRef, useState } from 'react';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { Z } from '@/lib/z-layers';
 
@@ -53,7 +53,6 @@ export function PromptDialog({
   // dialog concerns to every caller.
   useEffect(() => {
     if (open) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setValue(defaultValue);
       requestAnimationFrame(() => {
         inputRef.current?.focus();
@@ -95,6 +94,7 @@ export function PromptDialog({
             exit="exit"
             className={`fixed inset-0 ${Z.modal} flex items-center justify-center p-4`}
           >
+            {/** biome-ignore lint/a11y/useKeyWithClickEvents: suppressed during migration */}
             <div
               ref={dialogRef}
               role="dialog"

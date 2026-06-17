@@ -1,7 +1,7 @@
-import { useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertTriangle } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { Z } from '@/lib/z-layers';
 
@@ -83,6 +83,7 @@ export function ConfirmDialog({
             exit="exit"
             className={`fixed inset-0 ${Z.confirm} flex items-center justify-center p-4`}
           >
+            {/** biome-ignore lint/a11y/useKeyWithClickEvents: suppressed during migration */}
             <div
               ref={dialogRef}
               role="dialog"
@@ -117,9 +118,11 @@ export function ConfirmDialog({
                 <div className="flex gap-2">
                   {/* Outline cancel — not ghost — so the "safe" choice has
                       visible weight when paired with a destructive action. */}
+                  {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
                   <button data-cancel onClick={onCancel} className="btn-outline">
                     {cancelLabel}
                   </button>
+                  {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
                   <button
                     onClick={onConfirm}
                     className={destructive ? 'btn-destructive' : 'btn-primary'}

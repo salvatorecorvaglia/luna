@@ -1,8 +1,8 @@
 import { useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 import { useTerminalStore } from '@/stores/terminal-store';
-import { useTerminalSession, type TerminalTransport } from './use-terminal-session';
 import { TerminalSearchBar } from './TerminalSearchBar';
+import { type TerminalTransport, useTerminalSession } from './use-terminal-session';
 
 interface LocalTerminalPaneProps {
   sessionId: string;

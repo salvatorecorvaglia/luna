@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { PropsWithChildren } from 'react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   useConnections,
   useCreateConnection,
   useDeleteConnection,
+  useRenameFolder,
   useReorderConnections,
   useUpdateConnection,
-  useRenameFolder,
 } from '../use-connections';
 
 const list = vi.fn();

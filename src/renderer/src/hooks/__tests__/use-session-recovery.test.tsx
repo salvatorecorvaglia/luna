@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { renderHook, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const terminalSessions = new Map<string, unknown>();
 const addTerminalSession = vi.fn((s: unknown) => {

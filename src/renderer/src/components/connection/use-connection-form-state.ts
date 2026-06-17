@@ -1,6 +1,6 @@
-import { useCallback, useState } from 'react';
 import type { AuthType, Connection } from '@shared/types/connection';
 import type { StorageProviderKind } from '@shared/types/storage-provider';
+import { useCallback, useState } from 'react';
 
 /**
  * State shapes for the connection form, grouped by panel. The form previously

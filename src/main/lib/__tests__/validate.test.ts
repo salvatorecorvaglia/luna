@@ -1,7 +1,7 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'fs';
 import { homedir, tmpdir } from 'os';
 import { join } from 'path';
-import { mkdtempSync, rmSync, symlinkSync, mkdirSync, writeFileSync, realpathSync } from 'fs';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   assertBoundedInt,
   assertNonEmptyString,

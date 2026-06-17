@@ -1,6 +1,6 @@
-import { v4 as uuidv4 } from 'uuid';
-import { toast } from 'sonner';
 import { toastArgs } from '@shared/error-messages';
+import { toast } from 'sonner';
+import { v4 as uuidv4 } from 'uuid';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { useUIStore } from '@/stores/ui-store';
 

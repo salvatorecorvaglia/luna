@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Code Quality**: Migrated workspace tooling to Biome for unified, high-performance linting, formatting, and import sorting.
+
 ## [0.11.0] - 2026-06-13
 
 ### Added
@@ -124,7 +130,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Moved terminal sanitization to a dedicated module and expanded unit/integration test coverage.
 - **Database Optimization**: Replaced wildcard `SELECT *` statements with explicit column projections for all connection queries to improve efficiency and type safety.
 - **Performance & Bundling**: Optimized bundle size and startup time with Vite manualChunks and lazy-loaded components/overlays (reducing initial chunk size from ~1.7 MB to ~250 kB).
-- **Formatting**: Refactored the entire codebase for consistent formatting using Prettier.
 
 ## [0.7.0] - 2026-05-16
 

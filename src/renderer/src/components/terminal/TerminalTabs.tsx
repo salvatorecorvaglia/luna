@@ -1,12 +1,12 @@
-import { memo, useCallback, useMemo, useState } from 'react';
-import { ArrowRightToLine, Copy, Loader2, Pencil, WifiOff, X, XCircle } from 'lucide-react';
 import { Reorder } from 'framer-motion';
+import { ArrowRightToLine, Copy, Loader2, Pencil, WifiOff, X, XCircle } from 'lucide-react';
+import { memo, useCallback, useMemo, useState } from 'react';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
+import { PromptDialog } from '@/components/common/PromptDialog';
+import { connectToHost } from '@/lib/ssh';
 import { cn } from '@/lib/utils';
 import { useTerminalStore } from '@/stores/terminal-store';
-import { ConfirmDialog } from '@/components/common/ConfirmDialog';
-import { PromptDialog } from '@/components/common/PromptDialog';
-import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
-import { connectToHost } from '@/lib/ssh';
 
 export function TerminalTabs() {
   const {
@@ -27,6 +27,7 @@ export function TerminalTabs() {
     () =>
       tabOrder.filter((id) => {
         const s = sessions.get(id);
+        // biome-ignore lint/complexity/useOptionalChain: suppressed during migration
         return !s || !s.type || s.type === 'ssh';
       }),
     [tabOrder, sessions],
@@ -249,6 +250,7 @@ const Tab = memo(function Tab({
           <span className="truncate font-medium" title={session.title || session.connectionName}>
             {session.title || session.connectionName}
           </span>
+          {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
           <button
             onClick={(e) => {
               e.stopPropagation();

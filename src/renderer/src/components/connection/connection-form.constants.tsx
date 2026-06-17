@@ -1,5 +1,5 @@
-import { FileKey, Key, Lock } from 'lucide-react';
 import type { AuthType } from '@shared/types/connection';
+import { FileKey, Key, Lock } from 'lucide-react';
 
 export const AUTH_TYPES: { value: AuthType; label: string; icon: React.ReactNode }[] = [
   { value: 'password', label: 'Password', icon: <Lock className="size-4" /> },

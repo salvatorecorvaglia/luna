@@ -22,6 +22,7 @@ export function SidebarSearch({ value, onChange }: SidebarSearchProps) {
           className="form-input !py-1 !pl-7 !pr-7 !text-xs"
         />
         {value && (
+          // biome-ignore lint/a11y/useButtonType: suppressed during migration
           <button
             onClick={() => onChange('')}
             className="input-clear-btn"

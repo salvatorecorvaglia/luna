@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { RefreshCcw } from 'lucide-react';
-import { useTerminalStore } from '@/stores/terminal-store';
 import type { SessionStatus } from '@shared/types/terminal';
-import { useTerminalSession, type TerminalTransport } from './use-terminal-session';
-import { TerminalSearchBar } from './TerminalSearchBar';
-import { sanitizeTerminalText } from '@/lib/terminal-output';
+import { RefreshCcw } from 'lucide-react';
+import { useEffect, useMemo, useRef } from 'react';
 import { attachFocusTrap } from '@/lib/focus-trap';
+import { sanitizeTerminalText } from '@/lib/terminal-output';
+import { useTerminalStore } from '@/stores/terminal-store';
+import { TerminalSearchBar } from './TerminalSearchBar';
+import { type TerminalTransport, useTerminalSession } from './use-terminal-session';
 
 interface TerminalPaneProps {
   sessionId: string;
@@ -114,6 +114,7 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
                 The SSH session to the server was lost.
               </p>
             </div>
+            {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
             <button
               ref={reconnectBtnRef}
               onClick={() => {

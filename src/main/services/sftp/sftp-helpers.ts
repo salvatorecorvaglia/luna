@@ -1,5 +1,5 @@
-import { TimeoutError } from '../../lib/with-timeout';
 import { SshConnectionError } from '../../lib/errors';
+import { TimeoutError } from '../../lib/with-timeout';
 
 /** Node/ssh2 error codes that imply the SFTP channel/socket is gone. */
 const FATAL_ERR_CODES = new Set([

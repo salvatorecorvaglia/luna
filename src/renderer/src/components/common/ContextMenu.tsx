@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Z } from '@/lib/z-layers';
 
@@ -87,6 +87,7 @@ export function ContextMenu({ items, children }: ContextMenuProps) {
 
   return (
     <>
+      {/** biome-ignore lint/a11y/noStaticElementInteractions: suppressed during migration */}
       <div onContextMenu={handleContextMenu}>{children}</div>
       <AnimatePresence>
         {position && (
@@ -108,7 +109,11 @@ export function ContextMenu({ items, children }: ContextMenuProps) {
               // lists with unique labels in practice. Array index is the
               // fallback for the rare unlabeled separator-only entry.
               <div key={item.label ? `${item.label}-${i}` : `sep-${i}`}>
+                {/** biome-ignore lint/a11y/useFocusableInteractive: suppressed during migration */}
+                {/** biome-ignore lint/a11y/useSemanticElements: suppressed during migration */}
+                {/** biome-ignore lint/a11y/useAriaPropsForRole: suppressed during migration */}
                 {item.separator && <div className="my-1 h-px bg-border/60" role="separator" />}
+                {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
                 <button
                   role="menuitem"
                   tabIndex={-1}

@@ -1,14 +1,16 @@
 /**
  * @vitest-environment jsdom
  */
+
+import { fireEvent, render, screen } from '@testing-library/react';
+// biome-ignore lint/correctness/noUnusedImports: suppressed during migration
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { expect, it, vi, describe, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from '../../renderer/src/App';
-import { useUIStore } from '../../renderer/src/stores/ui-store';
 import { useTerminalStore } from '../../renderer/src/stores/terminal-store';
+import { useUIStore } from '../../renderer/src/stores/ui-store';
 
 const queryClient = new QueryClient({
   defaultOptions: {

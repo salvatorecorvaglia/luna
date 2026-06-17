@@ -1,4 +1,4 @@
-import { LunarError, ErrorCode } from '@shared/errors';
+import { ErrorCode, LunarError } from '@shared/errors';
 
 export class SshConnectionError extends LunarError {
   constructor(message: string, metadata?: Record<string, unknown>) {

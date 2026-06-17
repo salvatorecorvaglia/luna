@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IPC } from '@shared/constants';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>();
 
@@ -69,12 +69,12 @@ vi.mock('@aws-sdk/client-s3', () => {
   return { S3Client, ListBucketsCommand, __send: send, __destroy: destroy };
 });
 
-import { registerS3Handlers } from '../s3.ipc';
-import * as databaseMock from '../../services/database';
+import * as awsMock from '@aws-sdk/client-s3';
 import * as credentialMock from '../../services/credential-store';
+import * as databaseMock from '../../services/database';
 import { s3StorageProvider } from '../../services/s3/s3-provider';
 import { storageRegistry } from '../../services/storage/registry';
-import * as awsMock from '@aws-sdk/client-s3';
+import { registerS3Handlers } from '../s3.ipc';
 
 const dbRows = (databaseMock as unknown as { __dbRows: Map<string, Record<string, unknown>> })
   .__dbRows;

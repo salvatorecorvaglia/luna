@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { formatPermissions, isSessionFatal } from '../sftp-helpers';
-import { TimeoutError } from '../../../lib/with-timeout';
 import { SshConnectionError } from '../../../lib/errors';
+import { TimeoutError } from '../../../lib/with-timeout';
+import { formatPermissions, isSessionFatal } from '../sftp-helpers';
 
 describe('formatPermissions', () => {
   it('renders 0o755 as rwxr-xr-x', () => {

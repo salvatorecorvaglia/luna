@@ -1,5 +1,8 @@
+import { toastArgs } from '@shared/error-messages';
+import { DEFAULT_SETTINGS } from '@shared/types/settings';
+import type { TerminalThemeName } from '@shared/types/terminal';
+import { useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Database,
@@ -14,19 +17,16 @@ import {
   Wifi,
   X,
 } from 'lucide-react';
-import { ConfirmDialog } from './ConfirmDialog';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { toastArgs } from '@shared/error-messages';
+import { Toggle } from '@/components/ui';
+import { attachFocusTrap } from '@/lib/focus-trap';
 import { cn } from '@/lib/utils';
 import { Z } from '@/lib/z-layers';
-import { attachFocusTrap } from '@/lib/focus-trap';
-import { Toggle } from '@/components/ui';
-import { useQueryClient } from '@tanstack/react-query';
-import { useUIStore } from '@/stores/ui-store';
 import { useTerminalStore } from '@/stores/terminal-store';
-import type { TerminalThemeName } from '@shared/types/terminal';
-import { DEFAULT_SETTINGS } from '@shared/types/settings';
+import { useUIStore } from '@/stores/ui-store';
 import lunarLogo from '../../../../../resources/lunar.png';
+import { ConfirmDialog } from './ConfirmDialog';
 
 const TERMINAL_THEMES: {
   value: TerminalThemeName;
@@ -157,6 +157,7 @@ export function SettingsPanel() {
               <h2 id="settings-dialog-title" className="text-base font-semibold text-foreground">
                 Settings
               </h2>
+              {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
               <button
                 onClick={() => setSettingsOpen(false)}
                 className="btn-icon no-drag relative z-[120] -mr-2 cursor-pointer p-2 hover:bg-accent/80"
@@ -171,11 +172,13 @@ export function SettingsPanel() {
               {/* Terminal */}
               <Section title="Terminal" icon={<Terminal className="size-4" />}>
                 <div>
+                  {/** biome-ignore lint/a11y/noLabelWithoutControl: suppressed during migration */}
                   <label className="text-xs font-medium text-muted-foreground mb-2.5 block">
                     Color Theme
                   </label>
                   <div className="grid grid-cols-3 gap-2.5">
                     {TERMINAL_THEMES.map((t) => (
+                      // biome-ignore lint/a11y/useButtonType: suppressed during migration
                       <button
                         key={t.value}
                         onClick={() => setTerminalTheme(t.value)}
@@ -289,6 +292,7 @@ export function SettingsPanel() {
               {/* Data */}
               <Section title="Data" icon={<Database className="size-4" />}>
                 <div className="flex gap-2">
+                  {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
                   <button
                     onClick={async () => {
                       try {
@@ -318,6 +322,7 @@ export function SettingsPanel() {
                     <Download className="size-3.5" />
                     Export
                   </button>
+                  {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
                   <button
                     onClick={async () => {
                       try {
@@ -355,6 +360,7 @@ export function SettingsPanel() {
 
               {/* Logs */}
               <Section title="Diagnostics" icon={<FileText className="size-4" />}>
+                {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
                 <button onClick={() => window.api.app.openLogFile()} className="btn-outline w-full">
                   <FileText className="size-3.5" />
                   Open log file
@@ -380,6 +386,7 @@ export function SettingsPanel() {
                         Permanently removes every saved connection and credential. Cannot be undone.
                       </p>
                     </div>
+                    {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
                     <button
                       onClick={() => setConfirmDeleteAll(true)}
                       className="btn-destructive flex-shrink-0"
@@ -519,6 +526,7 @@ function EditableNumberRow({
           value={value}
           onChange={(e) => {
             const v = parseInt(e.target.value, 10);
+            // biome-ignore lint/suspicious/noGlobalIsNan: suppressed during migration
             if (!isNaN(v)) onChange(clamp(v));
           }}
           aria-label={label}

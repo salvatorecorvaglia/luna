@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { sshManager } from '../ssh-manager';
-
 import { getDatabase } from '../database';
+import { sshManager } from '../ssh-manager';
 
 vi.mock('ssh2', () => {
   return {
@@ -72,7 +71,7 @@ describe('sshManager', () => {
     // guards against is "iterate this.sessions.keys() while disconnect()
     // mutates this.sessions", which would skip every other entry.
     const ids = ['a', 'b', 'c', 'd', 'e'];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // biome-ignore lint/suspicious/noExplicitAny: suppressed during migration
     const m = sshManager as any as {
       sessions: Map<string, unknown>;
       disconnect: (id: string) => void;
@@ -97,7 +96,7 @@ describe('sshManager', () => {
     const removeAllListeners = vi.fn();
     const destroy = vi.fn();
     const shellClose = vi.fn();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // biome-ignore lint/suspicious/noExplicitAny: suppressed during migration
     const m = sshManager as any as { sessions: Map<string, unknown> };
     m.sessions.set('dup-session', {
       id: 'dup-session',
@@ -132,7 +131,7 @@ describe('sshManager', () => {
       prepare: vi.fn().mockReturnValue({
         get: vi.fn().mockReturnValue(undefined),
       }),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // biome-ignore lint/suspicious/noExplicitAny: suppressed during migration
     } as any);
     const result = await sshManager.testConnection({ connectionId: 'invalid-id' });
     expect(result.ok).toBe(false);

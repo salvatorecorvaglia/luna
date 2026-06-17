@@ -1,6 +1,6 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { LocalFileEntry } from '@shared/types/sftp';
 import type { StorageEntry } from '@shared/types/storage-provider';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 /**
  * Provider-agnostic remote directory hook. Routes through the unified

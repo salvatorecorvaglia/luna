@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /// <reference types="@testing-library/jest-dom" />
-import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useStorageStore } from '@/stores/storage-store';
 
 // FileList renders @tanstack/react-virtual which depends on layout APIs that
@@ -17,7 +17,7 @@ vi.mock('../FileList', () => ({
   ),
 }));
 
-import { FilePane, type FileEntry } from '../FilePane';
+import { type FileEntry, FilePane } from '../FilePane';
 
 const baseProps = {
   title: 'Local',

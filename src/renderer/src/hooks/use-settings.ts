@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AppSettings } from '@shared/types/settings';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 export function useSettings() {
   return useQuery<Partial<AppSettings>>({

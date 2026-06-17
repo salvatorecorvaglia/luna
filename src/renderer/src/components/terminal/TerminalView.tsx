@@ -1,11 +1,11 @@
-import { useCallback, useEffect } from 'react';
 import { Plus, Terminal as TerminalIcon } from 'lucide-react';
-import { useTerminalStore } from '@/stores/terminal-store';
-import { useConnectionStore } from '@/stores/connection-store';
-import { terminalThemes } from '@/themes/terminal';
+import { useCallback, useEffect } from 'react';
 import { connectToHost } from '@/lib/ssh';
-import { TerminalTabs } from './TerminalTabs';
+import { useConnectionStore } from '@/stores/connection-store';
+import { useTerminalStore } from '@/stores/terminal-store';
+import { terminalThemes } from '@/themes/terminal';
 import { TerminalPane } from './TerminalPane';
+import { TerminalTabs } from './TerminalTabs';
 
 export { connectToHost };
 
@@ -14,6 +14,7 @@ export function TerminalView() {
 
   const sshTabs = tabOrder.filter((id) => {
     const s = sessions.get(id);
+    // biome-ignore lint/complexity/useOptionalChain: suppressed during migration
     return !s || !s.type || s.type === 'ssh';
   });
   const activeSshTabId = sshTabs.includes(activeTabId || '') ? activeTabId : sshTabs[0] || null;
@@ -36,6 +37,7 @@ export function TerminalView() {
         useTerminalStore.getState();
       const sshTabs = tabOrder.filter((id) => {
         const s = sessions.get(id);
+        // biome-ignore lint/complexity/useOptionalChain: suppressed during migration
         return !s || !s.type || s.type === 'ssh';
       });
       if (sshTabs.length === 0) return;
@@ -105,6 +107,7 @@ export function TerminalView() {
                 Select a connection from the sidebar to begin
               </p>
             </div>
+            {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
             <button onClick={handleNewTab} className="btn-outline mt-1">
               <Plus className="size-3.5" />
               New Session

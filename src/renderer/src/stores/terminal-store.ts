@@ -1,6 +1,6 @@
-import { create } from 'zustand';
-import type { SessionStatus, TerminalThemeName } from '@shared/types/terminal';
 import { LIMITS } from '@shared/constants';
+import type { SessionStatus, TerminalThemeName } from '@shared/types/terminal';
+import { create } from 'zustand';
 
 function clampFontSize(size: number): number {
   if (!Number.isFinite(size)) return LIMITS.DEFAULT_FONT_SIZE;

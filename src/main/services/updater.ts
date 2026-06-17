@@ -1,8 +1,8 @@
+import { IPC } from '@shared/constants';
 import { app } from 'electron';
 import { autoUpdater } from 'electron-updater';
-import { IPC } from '@shared/constants';
-import { emitToRenderer } from './emit';
 import log from '../lib/logger';
+import { emitToRenderer } from './emit';
 
 let updateAvailable = false;
 let updateVersion = '';

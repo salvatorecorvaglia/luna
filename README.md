@@ -113,8 +113,8 @@ The following scripts are available in the project:
 | `npm run dev` | `electron-vite dev --noSandbox` | Starts the app with hot-reloading and logs |
 | `npm run build` | `electron-vite build` | Compiles code for production distribution |
 | `npm run preview` | `electron-vite preview` | Previews the compiled production build |
-| `npm run lint` | `eslint src/` | Runs ESLint analysis over the codebase |
-| `npm run format` | `prettier --write "src/**/*"` | Automatically formats files using Prettier |
+| `npm run lint` | `biome check src/` | Checks code formatting, linting, and imports using Biome |
+| `npm run format` | `biome check --write src/` | Automatically formats, fixes, and organizes imports using Biome |
 | `npm run typecheck` | `npm run typecheck:node && ...` | Full Node and Web TypeScript type checks |
 | `npm run test` | `vitest run` | Runs unit and integration tests |
 | `npm run test:coverage`| `vitest run --coverage` | Evaluates test code coverage |

@@ -1,15 +1,15 @@
+import { ShieldAlert } from 'lucide-react';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Toaster, toast } from 'sonner';
-import { ShieldAlert } from 'lucide-react';
-import { AppShell } from '@/components/layout/AppShell';
-import { useUIStore } from '@/stores/ui-store';
-import { useTerminalStore } from '@/stores/terminal-store';
-import { useConnectionStore } from '@/stores/connection-store';
-import { useStorageStore } from '@/stores/storage-store';
-import { WelcomeView } from '@/components/common/WelcomeView';
 // HostKeyDialog stays eager — it subscribes to host-key change IPC events on
 // mount and must be alive at startup to catch the first one.
 import { HostKeyDialog } from '@/components/common/HostKeyDialog';
+import { WelcomeView } from '@/components/common/WelcomeView';
+import { AppShell } from '@/components/layout/AppShell';
+import { useConnectionStore } from '@/stores/connection-store';
+import { useStorageStore } from '@/stores/storage-store';
+import { useTerminalStore } from '@/stores/terminal-store';
+import { useUIStore } from '@/stores/ui-store';
 
 // Overlays: chunk loads on first open. Each is gated on its store-managed
 // `open` flag below so the chunk isn't fetched until the user triggers it.
@@ -42,9 +42,10 @@ const LocalTerminalView = lazy(() =>
 const SftpManager = lazy(() =>
   import('@/components/sftp/SftpManager').then((m) => ({ default: m.SftpManager })),
 );
+
+import { useSessionRecovery } from '@/hooks/use-session-recovery';
 import { useTransferEventListener } from '@/hooks/use-transfers';
 import { useUpdaterEventListener } from '@/hooks/use-updater';
-import { useSessionRecovery } from '@/hooks/use-session-recovery';
 import { applyUIThemeTokens, buildUIThemeTokens } from '@/themes/ui-from-terminal';
 
 export default function App() {
@@ -203,6 +204,7 @@ export default function App() {
     () =>
       tabOrder.some((id) => {
         const s = sessions.get(id);
+        // biome-ignore lint/complexity/useOptionalChain: suppressed during migration
         return !s || !s.type || s.type === 'ssh';
       }),
     [tabOrder, sessions],

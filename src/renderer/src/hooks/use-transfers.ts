@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { useTransferStore, type ProgressSample } from '@/stores/transfer-store';
 import { useInvalidateLocalDir, useInvalidateSftp } from '@/hooks/use-sftp';
+import { type ProgressSample, useTransferStore } from '@/stores/transfer-store';
 
 /**
  * Return the parent directory of a forward-slash path. Handles both POSIX

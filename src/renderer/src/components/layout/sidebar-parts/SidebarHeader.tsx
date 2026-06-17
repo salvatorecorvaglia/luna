@@ -22,6 +22,7 @@ export function SidebarHeader({
         Connections
       </span>
       <div className="flex items-center gap-1">
+        {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
         <button
           onClick={onToggleHidden}
           className={cn(
@@ -33,6 +34,7 @@ export function SidebarHeader({
         >
           {showHiddenConnections ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
         </button>
+        {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
         <button
           onClick={onNewConnection}
           className="btn-icon !p-1"

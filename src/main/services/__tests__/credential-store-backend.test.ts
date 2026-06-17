@@ -1,8 +1,8 @@
-import { afterAll, describe, expect, it, vi } from 'vitest';
+import { randomBytes } from 'crypto';
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { mkdtempSync, rmSync, writeFileSync } from 'fs';
-import { randomBytes } from 'crypto';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 
 // Seed a plaintext key file *before* importing the module under test so the
 // migration branch (existing plaintext key + safeStorage available) is what

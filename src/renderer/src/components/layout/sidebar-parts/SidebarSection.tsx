@@ -1,8 +1,8 @@
-import { useMemo } from 'react';
+import type { Connection } from '@shared/types/ipc';
+import type { UseMutationResult } from '@tanstack/react-query';
 import { Reorder, useDragControls } from 'framer-motion';
 import { FolderClosed, GripVertical, Terminal } from 'lucide-react';
-import type { UseMutationResult } from '@tanstack/react-query';
-import type { Connection } from '@shared/types/ipc';
+import { useMemo } from 'react';
 import { FolderGroup } from './FolderGroup';
 
 interface SidebarSectionProps {

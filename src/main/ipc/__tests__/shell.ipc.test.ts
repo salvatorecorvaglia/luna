@@ -1,8 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mkdtemp, rm, symlink, writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
 import { IPC } from '@shared/constants';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'fs/promises';
 import { homedir } from 'os';
+import { join } from 'path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>();
 
@@ -181,6 +181,7 @@ describe('shell IPC — symlink jail (TOCTOU & bypass)', () => {
     // replaced with a symlink pointing outside. open(..., O_NOFOLLOW) must
     // refuse to follow the final-component link rather than silently reading
     // the attacker's target.
+    // biome-ignore lint/suspicious/noShadowRestrictedNames: suppressed during migration
     const escape = join(workdir, 'swapped');
     await symlink('/etc/hosts', escape);
     // expandAndConfineToHome resolves the symlink to /etc/hosts, which is
