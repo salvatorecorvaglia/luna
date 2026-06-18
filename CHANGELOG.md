@@ -7,9 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-06-18
+
+### Added
+
+- **SFTP Reconnection**: Added a "Reconnect" button directly within the SFTP connection-lost overlay to quickly restore interrupted SSH sessions.
+- **Terminal Settings Sync**: Implemented database synchronization for terminal settings (theme, font size, and scrollback) to prevent settings drift and restore user preferences on startup.
+
 ### Changed
 
-- **Code Quality**: Migrated workspace tooling to Biome for unified, high-performance linting, formatting, and import sorting.
+- **Code Quality**: Migrated workspace tooling from ESLint/Prettier to Biome for unified, high-performance linting, formatting, and import sorting.
+
+### Improved
+
+- **Testing**: Raised code coverage thresholds in `vitest.config.ts` for lines, functions, branches, and statements to maintain test suite rigor.
+
+### Fixed
+
+- **Security Hardening**: Hardened the INI parser against prototype pollution vulnerabilities by rejecting keys or sections matching `__proto__`, `constructor`, or `prototype`, and using prototype-free storage objects.
+- **PuTTY Importer Stability**: Gracefully handle invalid or malformed URI-encoded names in the PuTTY session parser to prevent application crashes during import.
 
 ## [0.11.0] - 2026-06-13
 
