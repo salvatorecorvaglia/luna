@@ -64,6 +64,11 @@ interface TerminalState {
   setTerminalTheme: (theme: TerminalThemeName) => void;
   setFontSize: (size: number) => void;
   setScrollback: (lines: number) => void;
+  initializeSettings: (settings: {
+    theme?: TerminalThemeName;
+    fontSize?: number;
+    scrollback?: number;
+  }) => void;
   renameTab: (sessionId: string, title: string) => void;
   closeTab: (sessionId: string) => void;
   closeOtherTabs: (sessionId: string) => void;
@@ -136,6 +141,32 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     set({ fontSize: clamped });
   },
   setScrollback: (lines) => set({ scrollback: lines }),
+  initializeSettings: (settings) => {
+    set(() => {
+      const updates: Partial<TerminalState> = {};
+      if (settings.theme) {
+        updates.terminalTheme = settings.theme;
+        try {
+          localStorage.setItem('lunar-terminal-theme', settings.theme);
+        } catch {
+          // ignore
+        }
+      }
+      if (settings.fontSize) {
+        const clamped = clampFontSize(settings.fontSize);
+        updates.fontSize = clamped;
+        try {
+          localStorage.setItem('lunar-terminal-font-size', String(clamped));
+        } catch {
+          // ignore
+        }
+      }
+      if (settings.scrollback) {
+        updates.scrollback = settings.scrollback;
+      }
+      return updates;
+    });
+  },
 
   renameTab: (sessionId, title) =>
     set((s) => {

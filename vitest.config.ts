@@ -27,10 +27,10 @@ export default defineConfig({
       // classification, and terminal-output sanitisation. Raise as new
       // tests are added rather than treating these as final goals.
       thresholds: {
-        lines: 30,
-        functions: 26,
-        branches: 21,
-        statements: 29
+        lines: 34,
+        functions: 28,
+        branches: 25,
+        statements: 33
       }
     }
   },

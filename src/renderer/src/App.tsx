@@ -1,3 +1,4 @@
+import type { TerminalThemeName } from '@shared/types/terminal';
 import { ShieldAlert } from 'lucide-react';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Toaster, toast } from 'sonner';
@@ -51,7 +52,22 @@ import { applyUIThemeTokens, buildUIThemeTokens } from '@/themes/ui-from-termina
 export default function App() {
   const activeView = useUIStore((s) => s.activeView);
   const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen);
-  const { tabOrder, terminalTheme, sessions } = useTerminalStore();
+  const { tabOrder, terminalTheme, sessions, initializeSettings } = useTerminalStore();
+
+  // Load settings from DB on mount to prevent localStorage drift
+  useEffect(() => {
+    window.api.settings
+      .getAll()
+      .then((settings) => {
+        const theme = settings['terminal.theme'] as TerminalThemeName | undefined;
+        const fontSize = settings['terminal.fontSize'] as number | undefined;
+        const scrollback = settings['terminal.scrollback'] as number | undefined;
+        initializeSettings({ theme, fontSize, scrollback });
+      })
+      .catch((err) => {
+        console.error('Failed to load settings from DB:', err);
+      });
+  }, [initializeSettings]);
 
   // Apply terminal palette to UI tokens
   useEffect(() => {

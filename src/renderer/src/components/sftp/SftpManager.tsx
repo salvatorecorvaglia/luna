@@ -1,5 +1,5 @@
 import { toastArgs } from '@shared/error-messages';
-import { Plus, Unplug, WifiOff } from 'lucide-react';
+import { Plus, RefreshCcw, Unplug, WifiOff } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
@@ -505,6 +505,27 @@ export function SftpManager() {
             <WifiOff className="size-8 mx-auto text-destructive/60 mb-2" aria-hidden="true" />
             <p className="text-sm font-medium text-foreground/80">Connection lost</p>
             <p className="mt-1 text-xs text-muted-foreground/60">{overlayMessage}</p>
+            {activeSession &&
+              (activeSession.status === 'disconnected' || activeSession.status === 'error') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (activeSession.connectionId) {
+                      useTerminalStore
+                        .getState()
+                        .updateSessionStatus(activeSessionId, 'connecting');
+                      void window.api.ssh.connect({
+                        connectionId: activeSession.connectionId,
+                        sessionId: activeSessionId,
+                      });
+                    }
+                  }}
+                  className="mt-4 flex items-center gap-2 mx-auto rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 cursor-pointer"
+                >
+                  <RefreshCcw className="size-4" />
+                  Reconnect
+                </button>
+              )}
           </div>
         </div>
       )}

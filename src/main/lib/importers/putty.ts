@@ -31,8 +31,15 @@ export function importFromPuTTY(content: string): ExportedConnection[] {
 
     const privateKeyPath = section['PublicKeyFile'] || undefined;
 
+    let decodedName = name;
+    try {
+      decodedName = decodeURIComponent(name);
+    } catch {
+      // Keep original name if decoding throws a URIError
+    }
+
     connections.push({
-      name: decodeURIComponent(name), // PuTTY registry keys are often URL-encoded
+      name: decodedName, // PuTTY registry keys are often URL-encoded
       provider: 'sftp',
       host: host.replace(/^"(.*)"$/, '$1'), // Remove quotes if present
       port,

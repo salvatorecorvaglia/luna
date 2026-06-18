@@ -4,7 +4,7 @@
  */
 export function parseIni(content: string): Record<string, Record<string, string>> {
   const lines = content.split(/\r?\n/);
-  const result: Record<string, Record<string, string>> = {};
+  const result: Record<string, Record<string, string>> = Object.create(null);
   let currentSection = 'default';
 
   for (let line of lines) {
@@ -13,9 +13,13 @@ export function parseIni(content: string): Record<string, Record<string, string>
 
     const sectionMatch = line.match(/^\[(.*)\]$/);
     if (sectionMatch) {
-      currentSection = sectionMatch[1];
+      const sec = sectionMatch[1].trim();
+      if (sec === '__proto__' || sec === 'constructor' || sec === 'prototype') {
+        continue;
+      }
+      currentSection = sec;
       if (!result[currentSection]) {
-        result[currentSection] = {};
+        result[currentSection] = Object.create(null);
       }
       continue;
     }
@@ -24,8 +28,18 @@ export function parseIni(content: string): Record<string, Record<string, string>
     if (firstEqual > 0) {
       const key = line.substring(0, firstEqual).trim();
       const value = line.substring(firstEqual + 1).trim();
+      if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+        continue;
+      }
+      if (
+        currentSection === '__proto__' ||
+        currentSection === 'constructor' ||
+        currentSection === 'prototype'
+      ) {
+        continue;
+      }
       if (!result[currentSection]) {
-        result[currentSection] = {};
+        result[currentSection] = Object.create(null);
       }
       result[currentSection][key] = value;
     }
