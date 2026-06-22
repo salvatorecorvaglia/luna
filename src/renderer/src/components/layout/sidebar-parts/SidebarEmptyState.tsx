@@ -13,8 +13,8 @@ export function SidebarEmptyState({ hasQuery, onCreate }: SidebarEmptyStateProps
         {hasQuery ? 'No matching connections' : 'No connections'}
       </p>
       {!hasQuery && (
-        // biome-ignore lint/a11y/useButtonType: suppressed during migration
         <button
+          type="button"
           onClick={onCreate}
           className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-sidebar-primary hover:underline cursor-pointer"
         >

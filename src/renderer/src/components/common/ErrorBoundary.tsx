@@ -42,7 +42,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <p className="max-w-md text-center text-sm text-muted-foreground">
             {this.state.error?.message || 'An unexpected error occurred.'}
           </p>
-          {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
+
           <button
             onClick={this.handleReload}
             className="mt-2 inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-accent cursor-pointer"

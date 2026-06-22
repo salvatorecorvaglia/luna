@@ -50,8 +50,8 @@ export function FolderGroup({
       {!isDefault && (
         <>
           <ContextMenu items={contextMenuItems}>
-            {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
             <button
+              type="button"
               onClick={() => setIsOpen(!isOpen)}
               className="group/folder flex w-full items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium text-muted-foreground/60 hover:text-muted-foreground transition-colors cursor-pointer"
             >

@@ -3,7 +3,6 @@
  */
 
 import { fireEvent, render, screen } from '@testing-library/react';
-// biome-ignore lint/correctness/noUnusedImports: suppressed during migration
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';

@@ -266,8 +266,8 @@ export function ConnectionItem({
   return (
     <>
       <ContextMenu items={contextMenuItems}>
-        {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
         <button
+          type="button"
           onClick={handleConnect}
           aria-label={`${connection.name} (${connection.username}@${connection.host}) — ${statusLabel}`}
           className={cn(
@@ -323,12 +323,10 @@ export function ConnectionItem({
                 title={
                   isS3
                     ? `${connection.endpoint || connection.region || 'S3 Storage'}${
-                        // biome-ignore lint/style/useTemplate: suppressed during migration
-                        connection.defaultBucket ? ' / ' + connection.defaultBucket : ''
+                        connection.defaultBucket ? ` / ${connection.defaultBucket}` : ''
                       }`
                     : `${connection.username}@${connection.host}${
-                        // biome-ignore lint/style/useTemplate: suppressed during migration
-                        connection.port !== 22 ? ':' + connection.port : ''
+                        connection.port !== 22 ? `:${connection.port}` : ''
                       }`
                 }
               >
@@ -359,9 +357,9 @@ export function ConnectionItem({
             aria-hidden="true"
             className="size-3.5 text-muted-foreground/30 group-hover:text-muted-foreground/70 flex-shrink-0 transition-colors"
           />
-          {/** biome-ignore lint/a11y/useKeyWithClickEvents: suppressed during migration */}
-          {/** biome-ignore lint/a11y/noStaticElementInteractions: suppressed during migration */}
-          <div
+          <button
+            type="button"
+            aria-label="Drag to reorder"
             onPointerDown={(e) => {
               e.stopPropagation();
               dragControls.start(e);
@@ -370,7 +368,7 @@ export function ConnectionItem({
             className="cursor-grab active:cursor-grabbing px-1 py-2 -mr-1 opacity-0 group-hover:opacity-100 transition-opacity"
           >
             <GripVertical className="size-3 text-muted-foreground/40" />
-          </div>
+          </button>
         </button>
       </ContextMenu>
 

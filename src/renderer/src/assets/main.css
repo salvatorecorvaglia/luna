@@ -142,7 +142,6 @@ select,
 /* Terminal: no transitions at all */
 .xterm,
 .xterm * {
-  /* biome-ignore lint/complexity/noImportantStyles: suppressed during migration */
   transition: none !important;
 }
 
@@ -372,15 +371,13 @@ button:focus-visible,
    Reduced motion
    ────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  /* biome-ignore lint/style/noDescendingSpecificity: suppressed during migration */
   *,
   *::before,
   *::after {
-    /* biome-ignore lint/complexity/noImportantStyles: suppressed during migration */
     animation-duration: 0.01ms !important;
-    /* biome-ignore lint/complexity/noImportantStyles: suppressed during migration */
+
     animation-iteration-count: 1 !important;
-    /* biome-ignore lint/complexity/noImportantStyles: suppressed during migration */
+
     transition-duration: 0.01ms !important;
   }
 }

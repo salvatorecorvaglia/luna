@@ -45,41 +45,31 @@ import type { TransferCompleteEvent, TransferErrorEvent, TransferProgressEvent }
  */
 export interface IpcHandlerMap {
   // Connections
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'connection:list': { request: void; response: Connection[] };
   'connection:get': { request: string; response: Connection | null };
   'connection:create': { request: CreateConnectionInput; response: Connection };
   'connection:update': { request: UpdateConnectionInput; response: Connection };
   'connection:rename-folder': {
     request: { oldName: string; newName: string; provider: 'sftp' | 's3' };
-    // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
     response: void;
   };
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'connection:delete': { request: string; response: void };
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'connection:delete-all': { request: void; response: void };
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'connection:reorder': { request: string[]; response: void };
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'connection:export': { request: void; response: ExportedConnection[] };
   'connection:import': {
     request: ExportedConnection[];
     response: { imported: number; skipped: { name: string; reason: string }[] };
   };
   'connection:import-from-file': {
-    // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
     request: void;
     response: { imported: number; skipped: { name: string; reason: string }[] };
   };
 
   // SSH
   'ssh:connect': { request: SshConnectParams; response: SshConnectResult };
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'ssh:disconnect': { request: string; response: void };
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'ssh:send-data': { request: SshSendDataParams; response: void };
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'ssh:resize': { request: SshResizeParams; response: void };
   'ssh:test-connection': {
     request: {
@@ -106,11 +96,8 @@ export interface IpcHandlerMap {
   // Storage (provider-agnostic)
   'storage:list': { request: StorageListParams; response: StorageEntry[] };
   'storage:stat': { request: StorageStatParams; response: StorageStatResult };
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'storage:mkdir': { request: StorageMkdirParams; response: void };
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'storage:rename': { request: StorageRenameParams; response: void };
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'storage:delete': { request: StorageDeleteParams; response: void };
   'storage:read-file': {
     request: StorageReadFileParams;
@@ -121,7 +108,6 @@ export interface IpcHandlerMap {
 
   // S3
   's3:connect': { request: S3ConnectParams; response: { sessionId: string } };
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   's3:disconnect': { request: string; response: void };
   's3:test-connection': {
     request: { connectionId?: string; config?: S3TestConnectionConfig };
@@ -130,7 +116,6 @@ export interface IpcHandlerMap {
 
   // Local filesystem
   'shell:readdir': { request: string; response: LocalFileEntry[] };
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'shell:home-dir': { request: void; response: string };
   'shell:open-file-dialog': {
     request: { filters?: { name: string; extensions: string[] }[] } | undefined;
@@ -159,62 +144,42 @@ export interface IpcHandlerMap {
   // Local terminal (PTY)
   'local-terminal:spawn': {
     request: { sessionId: string; cols: number; rows: number };
-    // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
     response: void;
   };
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'local-terminal:kill': { request: string; response: void };
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'local-terminal:send-data': { request: { sessionId: string; data: string }; response: void };
   'local-terminal:resize': {
     request: { sessionId: string; cols: number; rows: number };
-    // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
     response: void;
   };
 
   // Transfers
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'transfer:cancel': { request: string; response: void };
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'transfer:cancel-by-session': { request: string; response: void };
 
   // Credentials
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'credential:store': { request: { connectionId: string; secret: string }; response: void };
   'credential:retrieve': { request: string; response: string | null };
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'credential:delete': { request: string; response: void };
 
   // Settings
   'settings:get': { request: keyof AppSettings; response: string | null };
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'settings:set': { request: { key: keyof AppSettings; value: string }; response: void };
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'settings:get-all': { request: void; response: Partial<AppSettings> };
 
   // Window
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'window:minimize': { request: void; response: void };
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'window:maximize': { request: void; response: void };
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'window:close': { request: void; response: void };
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'window:is-maximized': { request: void; response: boolean };
 
   // App
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'app:get-version': { request: void; response: string };
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'app:check-update': { request: void; response: { available: boolean; version?: string } };
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'app:install-update': { request: void; response: void };
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'app:get-log-path': { request: void; response: string };
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   'app:open-log-file': { request: void; response: void };
   'app:get-active-sessions': {
-    // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
     request: void;
     response: {
       ssh: { id: string; connectionId: string; status: SessionStatus }[];
@@ -227,7 +192,6 @@ export interface IpcHandlerMap {
     };
   };
   'app:get-credential-backend': {
-    // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
     request: void;
     response: { backend: 'safeStorage' | 'plaintext' | 'inMemory' | 'uninitialized' };
   };
@@ -239,7 +203,6 @@ export interface IpcHandlerMap {
       message: string;
       context?: Record<string, unknown>;
     };
-    // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
     response: void;
   };
 }

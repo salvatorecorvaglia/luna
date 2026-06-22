@@ -111,7 +111,6 @@ export function HostKeyDialog() {
             exit="exit"
             className={`fixed inset-0 ${Z.hostKeyDialog} flex items-center justify-center p-4`}
           >
-            {/** biome-ignore lint/a11y/useKeyWithClickEvents: suppressed during migration */}
             <div
               ref={dialogRef}
               role="alertdialog"
@@ -169,7 +168,7 @@ export function HostKeyDialog() {
                       <code className="block break-all rounded bg-muted/50 px-1.5 py-0.5 font-mono text-xs text-foreground/80 flex-1">
                         SHA256:{event.newFingerprint}
                       </code>
-                      {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
+
                       <button
                         onClick={handleCopyFingerprint}
                         className="btn-icon flex-shrink-0 !p-1"
@@ -210,11 +209,10 @@ export function HostKeyDialog() {
 
               {/* Actions */}
               <div className="mt-4 flex justify-end gap-2">
-                {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
                 <button data-reject onClick={handleReject} className="btn-ghost">
                   Reject
                 </button>
-                {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
+
                 <button
                   onClick={handleTrust}
                   disabled={loading}

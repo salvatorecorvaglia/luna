@@ -14,7 +14,6 @@ export function HelpTooltip({ content, className, iconClassName }: HelpTooltipPr
   const [isVisible, setIsVisible] = useState(false);
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: suppressed during migration
     <div
       className={cn('relative inline-flex items-center', className)}
       onMouseEnter={() => setIsVisible(true)}

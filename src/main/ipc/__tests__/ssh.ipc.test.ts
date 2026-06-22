@@ -36,8 +36,11 @@ const sshManagerMock = sshManager as unknown as Record<string, ReturnType<typeof
 
 beforeEach(() => {
   handlers.clear();
-  // biome-ignore lint/suspicious/useIterableCallbackReturn: suppressed during migration
-  Object.values(sshManagerMock).forEach((fn) => 'mockClear' in fn && fn.mockClear());
+  for (const fn of Object.values(sshManagerMock)) {
+    if ('mockClear' in fn) {
+      fn.mockClear();
+    }
+  }
   registerSshHandlers();
 });
 

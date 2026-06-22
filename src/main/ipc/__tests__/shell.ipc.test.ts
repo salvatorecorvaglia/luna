@@ -181,13 +181,12 @@ describe('shell IPC — symlink jail (TOCTOU & bypass)', () => {
     // replaced with a symlink pointing outside. open(..., O_NOFOLLOW) must
     // refuse to follow the final-component link rather than silently reading
     // the attacker's target.
-    // biome-ignore lint/suspicious/noShadowRestrictedNames: suppressed during migration
-    const escape = join(workdir, 'swapped');
-    await symlink('/etc/hosts', escape);
+    const escapedLink = join(workdir, 'swapped');
+    await symlink('/etc/hosts', escapedLink);
     // expandAndConfineToHome resolves the symlink to /etc/hosts, which is
     // caught by the jail check before reaching the open() call. This locks
     // in the behavior that out-of-jail symlinks are never read.
-    await expect(handlers.get(IPC.SHELL_READ_FILE)!({}, escape)).rejects.toThrow(
+    await expect(handlers.get(IPC.SHELL_READ_FILE)!({}, escapedLink)).rejects.toThrow(
       /outside the home directory/,
     );
   });

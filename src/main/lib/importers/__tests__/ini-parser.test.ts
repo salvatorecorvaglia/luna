@@ -70,4 +70,37 @@ describe('INI Parser', () => {
     expect(sectionObj.prototype).toBeUndefined();
     expect(result.section.key).toBe('value');
   });
+
+  it('should handle values with multiple equal signs correctly', () => {
+    const content = `
+      [section]
+      url = http://example.com/query?param=1&other=2
+      formula = a = b = c
+    `;
+    const result = parseIni(content);
+    expect(result.section.url).toBe('http://example.com/query?param=1&other=2');
+    expect(result.section.formula).toBe('a = b = c');
+  });
+
+  it('should handle keys and values with leading/trailing spaces correctly', () => {
+    const content = `
+      [ my section ]
+      my key = my value 
+    `;
+    const result = parseIni(content);
+    expect(result['my section']).toBeDefined();
+    expect(result['my section']['my key']).toBe('my value');
+  });
+
+  it('should ignore invalid or malformed lines', () => {
+    const content = `
+      [section]
+      invalidline
+      =value_with_no_key
+      key = value
+    `;
+    const result = parseIni(content);
+    expect(result.section.key).toBe('value');
+    expect(Object.keys(result.section).length).toBe(1);
+  });
 });

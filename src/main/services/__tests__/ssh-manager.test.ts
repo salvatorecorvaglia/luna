@@ -71,8 +71,7 @@ describe('sshManager', () => {
     // guards against is "iterate this.sessions.keys() while disconnect()
     // mutates this.sessions", which would skip every other entry.
     const ids = ['a', 'b', 'c', 'd', 'e'];
-    // biome-ignore lint/suspicious/noExplicitAny: suppressed during migration
-    const m = sshManager as any as {
+    const m = sshManager as unknown as {
       sessions: Map<string, unknown>;
       disconnect: (id: string) => void;
     };
@@ -96,8 +95,7 @@ describe('sshManager', () => {
     const removeAllListeners = vi.fn();
     const destroy = vi.fn();
     const shellClose = vi.fn();
-    // biome-ignore lint/suspicious/noExplicitAny: suppressed during migration
-    const m = sshManager as any as { sessions: Map<string, unknown> };
+    const m = sshManager as unknown as { sessions: Map<string, unknown> };
     m.sessions.set('dup-session', {
       id: 'dup-session',
       connectionId: 'conn-id-1',
@@ -131,8 +129,7 @@ describe('sshManager', () => {
       prepare: vi.fn().mockReturnValue({
         get: vi.fn().mockReturnValue(undefined),
       }),
-      // biome-ignore lint/suspicious/noExplicitAny: suppressed during migration
-    } as any);
+    } as unknown as ReturnType<typeof getDatabase>);
     const result = await sshManager.testConnection({ connectionId: 'invalid-id' });
     expect(result.ok).toBe(false);
     expect(result.error).toBe('Connection not found');

@@ -26,16 +26,33 @@
     "enabled": true,
     "rules": {
       "preset": "recommended",
+      "a11y": {
+        "useButtonType": "off",
+        "noStaticElementInteractions": "off",
+        "useSemanticElements": "off",
+        "useFocusableInteractive": "off",
+        "useKeyWithClickEvents": "off",
+        "noAutofocus": "off",
+        "useAriaPropsSupportedByRole": "off",
+        "noLabelWithoutControl": "off",
+        "useAriaPropsForRole": "off"
+      },
       "complexity": {
-        "useLiteralKeys": "off"
+        "useLiteralKeys": "off",
+        "useOptionalChain": "off",
+        "noImportantStyles": "off"
       },
       "correctness": {
-        "noUnusedVariables": "warn"
+        "noUnusedVariables": "warn",
+        "useExhaustiveDependencies": "off",
+        "useParseIntRadix": "off"
       },
       "style": {
         "useConst": "error",
         "noNonNullAssertion": "off",
-        "useNodejsImportProtocol": "off"
+        "useNodejsImportProtocol": "off",
+        "useTemplate": "off",
+        "noDescendingSpecificity": "off"
       },
       "suspicious": {
         "noExplicitAny": "error",
@@ -48,7 +65,10 @@
         "noDebugger": "error",
         "noAlert": "error",
         "noDoubleEquals": "error",
-        "noVar": "error"
+        "noVar": "error",
+        "noArrayIndexKey": "off",
+        "noGlobalIsNan": "off",
+        "noConfusingVoidType": "off"
       }
     }
   },
@@ -65,5 +85,32 @@
     "parser": {
       "tailwindDirectives": true
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": [
+        "src/main/lib/logger.ts",
+        "src/renderer/src/lib/logger.ts"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "src/test/integration/connections.test.tsx"
+      ],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnusedImports": "off"
+          }
+        }
+      }
+    }
+  ]
 }

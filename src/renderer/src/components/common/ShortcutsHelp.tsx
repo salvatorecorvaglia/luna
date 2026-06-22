@@ -18,7 +18,6 @@ function ShortcutRow({ label, keys }: ShortcutRowProps) {
       <div className="flex items-center gap-1">
         {keys.map((key, i) => (
           <kbd
-            // biome-ignore lint/suspicious/noArrayIndexKey: suppressed during migration
             key={i}
             className="flex min-w-[20px] items-center justify-center rounded border border-border/60 bg-muted/50 px-1.5 py-0.5 font-mono text-[11px] font-medium text-foreground shadow-sm"
           >
@@ -99,7 +98,7 @@ export function ShortcutsHelp() {
                     <p className="text-[11px] text-muted-foreground">Speed up your workflow</p>
                   </div>
                 </div>
-                {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
+
                 <button
                   onClick={() => setOpen(false)}
                   className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"

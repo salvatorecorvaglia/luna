@@ -88,7 +88,7 @@ To keep the codebase maintainable and clean, we enforce linting, formatting, typ
 
 ### Linting & Formatting
 
-We use **Biome** to check and format the codebase.
+We use **Biome** for unified, high-performance linting, formatting, and import sorting.
 
 - **Check lint & format issues**:
   ```bash

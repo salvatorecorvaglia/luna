@@ -62,18 +62,17 @@ export function SidebarSection({
   if (!hasConnections) return null;
 
   const handleReorderFolder = (folderName: string, newOrder: Connection[]) => {
-    // Find the range in the original connections array and replace it
-    const folderItems = folders[folderName];
-    if (!folderItems) return;
-
-    // Preserve the relative order of items in other folders while updating this one
     const updatedConnections = [...connections];
-    const firstIndex = connections.findIndex((c) => (c.folder || 'default') === folderName);
-
-    if (firstIndex !== -1) {
-      updatedConnections.splice(firstIndex, folderItems.length, ...newOrder);
-      setConnections(updatedConnections);
+    const indices: number[] = [];
+    for (let i = 0; i < updatedConnections.length; i++) {
+      if ((updatedConnections[i].folder || 'default') === folderName) {
+        indices.push(i);
+      }
     }
+    for (let i = 0; i < indices.length; i++) {
+      updatedConnections[indices[i]] = newOrder[i];
+    }
+    setConnections(updatedConnections);
   };
 
   return (

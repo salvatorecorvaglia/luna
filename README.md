@@ -117,6 +117,7 @@ The following scripts are available in the project:
 | `npm run format` | `biome check --write src/` | Automatically formats, fixes, and organizes imports using Biome |
 | `npm run typecheck` | `npm run typecheck:node && ...` | Full Node and Web TypeScript type checks |
 | `npm run test` | `vitest run` | Runs unit and integration tests |
+| `npm run test:watch` | `vitest` | Runs unit and integration tests in watch mode |
 | `npm run test:coverage`| `vitest run --coverage` | Evaluates test code coverage |
 
 ---

@@ -57,7 +57,7 @@ export function TitleBar() {
         </div>
 
         {/* Sidebar toggle */}
-        {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
+
         <button
           onClick={toggleSidebar}
           className={cn('btn-icon', !sidebarOpen && 'text-muted-foreground/50')}
@@ -99,11 +99,10 @@ export function TitleBar() {
           <>
             <div className="mx-1.5 h-3.5 w-px bg-border/60" />
 
-            {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
             <button onClick={handleMinimize} className="btn-icon" aria-label="Minimize">
               <Minus className="size-3.5" />
             </button>
-            {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
+
             <button
               onClick={handleMaximize}
               className="btn-icon"
@@ -115,7 +114,7 @@ export function TitleBar() {
                 <Maximize2 className="size-3.5" />
               )}
             </button>
-            {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
+
             <button
               onClick={handleClose}
               className="btn-icon hover:!bg-red-500/90 hover:!text-white"
@@ -142,7 +141,6 @@ function ViewTab({
   label: string;
 }) {
   return (
-    // biome-ignore lint/a11y/useButtonType: suppressed during migration
     <button
       onClick={onClick}
       className={cn(

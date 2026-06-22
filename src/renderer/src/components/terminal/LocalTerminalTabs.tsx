@@ -54,7 +54,7 @@ export function LocalTerminalTabs() {
     (newOrder: string[]) => {
       const sshTabs = tabOrder.filter((id) => {
         const s = sessions.get(id);
-        // biome-ignore lint/complexity/useOptionalChain: suppressed during migration
+
         return !s || !s.type || s.type === 'ssh';
       });
       setTabOrder([...sshTabs, ...newOrder]);
@@ -93,7 +93,6 @@ export function LocalTerminalTabs() {
         })}
       </Reorder.Group>
 
-      {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
       <button
         onClick={handleNewLocalTab}
         className="flex size-9 items-center justify-center border-l border-border/40 text-muted-foreground hover:bg-background/50 hover:text-foreground transition-colors cursor-pointer"
@@ -173,7 +172,7 @@ const Tab = memo(function Tab({ sessionId, isActive, onActivate, onClose, onRena
             className={cn('size-3', isActive ? 'text-primary' : 'text-muted-foreground/50')}
           />
           <span className="truncate font-medium">{session.title || 'Local'}</span>
-          {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
+
           <button
             onClick={(e) => {
               e.stopPropagation();

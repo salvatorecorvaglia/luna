@@ -386,11 +386,18 @@ export function registerConnectionHandlers(): void {
       _event,
       { oldName, newName, provider }: { oldName: string; newName: string; provider: 'sftp' | 's3' },
     ) => {
-      // biome-ignore lint/complexity/useOptionalChain: suppressed during migration
-      if (!oldName || !oldName.trim()) throw validationError('Old folder name is required');
-      // biome-ignore lint/complexity/useOptionalChain: suppressed during migration
-      if (!newName || !newName.trim()) throw validationError('New folder name is required');
-      if (newName.includes('\0')) throw validationError('Folder name must not contain null bytes');
+      if (typeof oldName !== 'string' || !oldName.trim()) {
+        throw validationError('Old folder name is required');
+      }
+      if (oldName.includes('\0')) {
+        throw validationError('Old folder name must not contain null bytes');
+      }
+      if (typeof newName !== 'string' || !newName.trim()) {
+        throw validationError('New folder name is required');
+      }
+      if (newName.includes('\0')) {
+        throw validationError('New folder name must not contain null bytes');
+      }
 
       const updateTx = db.transaction(() => {
         if (provider === 'sftp') {

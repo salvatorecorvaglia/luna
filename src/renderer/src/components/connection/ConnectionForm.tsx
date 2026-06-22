@@ -121,7 +121,7 @@ export function ConnectionForm() {
 
   // Sync form fields when the form opens or the source connection changes.
   // setState-in-effect is intentional: the source is a remote-loaded record.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: suppressed during migration
+
   useEffect(() => {
     const source = editingConnection || duplicatingConnection;
     if (source) {
@@ -353,7 +353,7 @@ export function ConnectionForm() {
             name: common.name.trim(),
             provider: 'sftp' as const,
             host: sftp.host.trim(),
-            // biome-ignore lint/correctness/useParseIntRadix: suppressed during migration
+
             port: parseInt(sftp.port) || 22,
             username: sftp.username.trim(),
             authType: sftp.authType,
@@ -390,7 +390,7 @@ export function ConnectionForm() {
               jumpHost.mode === 'manual'
                 ? {
                     host: jumpHost.host.trim(),
-                    // biome-ignore lint/correctness/useParseIntRadix: suppressed during migration
+
                     port: parseInt(jumpHost.port) || 22,
                     username: jumpHost.username.trim(),
                     authType: jumpHost.authType,
@@ -481,7 +481,7 @@ export function ConnectionForm() {
         const result = await window.api.ssh.testConnection({
           config: {
             host: sftp.host.trim(),
-            // biome-ignore lint/correctness/useParseIntRadix: suppressed during migration
+
             port: parseInt(sftp.port) || 22,
             username: sftp.username.trim(),
             authType: sftp.authType,
@@ -494,7 +494,7 @@ export function ConnectionForm() {
               jumpHost.mode === 'manual'
                 ? {
                     host: jumpHost.host.trim(),
-                    // biome-ignore lint/correctness/useParseIntRadix: suppressed during migration
+
                     port: parseInt(jumpHost.port) || 22,
                     username: jumpHost.username.trim(),
                     authType: jumpHost.authType,
@@ -606,7 +606,6 @@ export function ConnectionForm() {
             exit="exit"
             className={`no-drag fixed inset-0 ${Z.modal} flex items-center justify-center p-4`}
           >
-            {/** biome-ignore lint/a11y/useKeyWithClickEvents: suppressed during migration */}
             <div
               ref={dialogRef}
               role="dialog"
@@ -632,7 +631,7 @@ export function ConnectionForm() {
                         : 'New Connection'}
                   </h2>
                 </div>
-                {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
+
                 <button onClick={requestClose} className="btn-icon" aria-label="Close">
                   <X className="size-4" />
                 </button>
@@ -650,13 +649,11 @@ export function ConnectionForm() {
                 <div className="flex-1 overflow-y-auto p-5 space-y-5">
                   {/* Provider toggle */}
                   <div>
-                    {/** biome-ignore lint/a11y/noLabelWithoutControl: suppressed during migration */}
                     <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                       <Cloud className="size-3.5" />
                       Provider
                     </label>
                     <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Provider">
-                      {/** biome-ignore lint/a11y/useSemanticElements: suppressed during migration */}
                       <button
                         type="button"
                         role="radio"
@@ -673,7 +670,7 @@ export function ConnectionForm() {
                         <Server className="size-4" />
                         SSH / SFTP
                       </button>
-                      {/** biome-ignore lint/a11y/useSemanticElements: suppressed during migration */}
+
                       <button
                         type="button"
                         role="radio"
@@ -745,14 +742,12 @@ export function ConnectionForm() {
 
                   {/* Color Tag */}
                   <div>
-                    {/** biome-ignore lint/a11y/noLabelWithoutControl: suppressed during migration */}
                     <label className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                       <Palette className="size-3.5" />
                       Color Tag
                     </label>
                     <div className="flex gap-2.5" role="radiogroup" aria-label="Color tag">
                       {COLOR_OPTIONS.map((color) => (
-                        // biome-ignore lint/a11y/useSemanticElements: suppressed during migration
                         <button
                           key={color.hex}
                           type="button"

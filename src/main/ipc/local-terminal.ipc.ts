@@ -86,8 +86,9 @@ export function registerLocalTerminalHandlers(): void {
         'CHROME_DESKTOP',
         'DESKTOP_STARTUP_ID',
       ];
-      // biome-ignore lint/suspicious/useIterableCallbackReturn: suppressed during migration
-      electronVars.forEach((v) => delete cleanEnv[v]);
+      for (const v of electronVars) {
+        delete cleanEnv[v];
+      }
 
       const ptyProcess = pty.spawn(shell, args, {
         name: 'xterm-256color',

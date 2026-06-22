@@ -35,14 +35,13 @@ export function useSftpDnd({
 
   const sanitizeFilename = useCallback((raw: string): string | null => {
     if (typeof raw !== 'string' || raw.length === 0) return null;
-    // Strip any path components from either separator style.
     const base = raw.split('/').pop()?.split('\\').pop() ?? '';
     const trimmed = base.trim();
-    // Reject NUL / control chars (U+0000–U+001F, U+007F): no legitimate
-    // filename uses them and many file systems mishandle them.
-    // biome-ignore lint/suspicious/noControlCharactersInRegex: suppressed during migration
-    const CONTROL_CHARS = /[\x00-\x1f\x7f]/;
-    if (!trimmed || trimmed === '.' || trimmed === '..' || CONTROL_CHARS.test(trimmed)) {
+    const hasControlChar = Array.from(trimmed).some((char) => {
+      const code = char.charCodeAt(0);
+      return (code >= 0 && code <= 31) || code === 127;
+    });
+    if (!trimmed || trimmed === '.' || trimmed === '..' || hasControlChar) {
       return null;
     }
     return trimmed;

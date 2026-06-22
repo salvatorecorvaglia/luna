@@ -27,7 +27,7 @@ export function TerminalTabs() {
     () =>
       tabOrder.filter((id) => {
         const s = sessions.get(id);
-        // biome-ignore lint/complexity/useOptionalChain: suppressed during migration
+
         return !s || !s.type || s.type === 'ssh';
       }),
     [tabOrder, sessions],
@@ -250,7 +250,7 @@ const Tab = memo(function Tab({
           <span className="truncate font-medium" title={session.title || session.connectionName}>
             {session.title || session.connectionName}
           </span>
-          {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
+
           <button
             onClick={(e) => {
               e.stopPropagation();

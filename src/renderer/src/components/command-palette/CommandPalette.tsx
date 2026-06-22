@@ -350,13 +350,13 @@ export function CommandPalette() {
 
   // Reset selection to the top whenever the search query changes so the
   // first result is always the active one.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: suppressed during migration
+
   useEffect(() => {
     setSelectedIndex(0);
   }, [query]);
 
   // Scroll selected item into view
-  // biome-ignore lint/correctness/useExhaustiveDependencies: suppressed during migration
+
   useEffect(() => {
     if (!listRef.current) return;
     const selected = listRef.current.querySelector('[data-selected="true"]');
@@ -424,10 +424,9 @@ export function CommandPalette() {
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={handleKeyDown}
                   className="flex-1 border-none bg-transparent py-3 pl-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 !outline-none !ring-0 focus:!outline-none focus:!ring-0 focus:!shadow-none focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!shadow-none rounded-lg transition-all duration-200"
-                  // biome-ignore lint/a11y/noAutofocus: suppressed during migration
                   autoFocus
                 />
-                {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
+
                 <button
                   onClick={() => setCommandPaletteOpen(false)}
                   className="btn-icon !p-1.5 ml-1"
@@ -453,7 +452,6 @@ export function CommandPalette() {
                         const index = flatIndexMap.get(cmd.id) ?? 0;
                         const isSelected = index === selectedIndex;
                         return (
-                          // biome-ignore lint/a11y/useButtonType: suppressed during migration
                           <button
                             key={cmd.id}
                             data-selected={isSelected}

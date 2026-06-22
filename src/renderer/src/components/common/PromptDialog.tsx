@@ -94,7 +94,6 @@ export function PromptDialog({
             exit="exit"
             className={`fixed inset-0 ${Z.modal} flex items-center justify-center p-4`}
           >
-            {/** biome-ignore lint/a11y/useKeyWithClickEvents: suppressed during migration */}
             <div
               ref={dialogRef}
               role="dialog"

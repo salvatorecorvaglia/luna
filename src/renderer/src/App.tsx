@@ -220,8 +220,7 @@ export default function App() {
     () =>
       tabOrder.some((id) => {
         const s = sessions.get(id);
-        // biome-ignore lint/complexity/useOptionalChain: suppressed during migration
-        return !s || !s.type || s.type === 'ssh';
+        return !s?.type || s.type === 'ssh';
       }),
     [tabOrder, sessions],
   );

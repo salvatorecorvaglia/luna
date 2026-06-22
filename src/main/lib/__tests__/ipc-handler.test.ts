@@ -36,8 +36,8 @@ describe('registerHandler payload validation', () => {
     const handler = vi.fn(() => 'ok');
     // Cast through unknown — the channel-args type doesn't matter for this
     // boundary test; we just need a registered channel to invoke.
-    // biome-ignore lint/suspicious/noExplicitAny: suppressed during migration
-    registerHandler(IPC.LOG_MESSAGE as any, handler as any);
+    const reg = registerHandler as (channel: unknown, handler: unknown) => void;
+    reg(IPC.LOG_MESSAGE, handler);
     const fn = handlers.get(IPC.LOG_MESSAGE)!;
 
     const cyclic: Record<string, unknown> = { name: 'loop' };
@@ -51,8 +51,8 @@ describe('registerHandler payload validation', () => {
 
   it('rejects payloads exceeding the size cap', async () => {
     const handler = vi.fn(() => 'ok');
-    // biome-ignore lint/suspicious/noExplicitAny: suppressed during migration
-    registerHandler(IPC.LOG_MESSAGE as any, handler as any);
+    const reg = registerHandler as (channel: unknown, handler: unknown) => void;
+    reg(IPC.LOG_MESSAGE, handler);
     const fn = handlers.get(IPC.LOG_MESSAGE)!;
 
     // 5 MiB string — comfortably over the 4 MiB cap.
@@ -71,8 +71,8 @@ describe('registerHandler payload validation', () => {
 
   it('passes well-formed args through to the handler', async () => {
     const handler = vi.fn(() => 'ok');
-    // biome-ignore lint/suspicious/noExplicitAny: suppressed during migration
-    registerHandler(IPC.LOG_MESSAGE as any, handler as any);
+    const reg = registerHandler as (channel: unknown, handler: unknown) => void;
+    reg(IPC.LOG_MESSAGE, handler);
     const fn = handlers.get(IPC.LOG_MESSAGE)!;
 
     const result = await fn({}, { level: 'info', message: 'hi' });

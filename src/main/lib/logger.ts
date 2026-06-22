@@ -32,8 +32,7 @@ log.hooks.push((message) => {
           }
           // We can't easily modify the metadata on the error object without potentially
           // causing issues if it's used elsewhere, but for logging it's fine.
-          // biome-ignore lint/suspicious/noExplicitAny: suppressed during migration
-          (v as any).metadata = redactedMetadata;
+          (v as unknown as { metadata: Record<string, unknown> }).metadata = redactedMetadata;
         }
       }
       return v;
@@ -56,8 +55,7 @@ export const logger = {
     else log.warn(message);
   },
   error: (message: string, error?: unknown, context?: Record<string, unknown>) => {
-    // biome-ignore lint/suspicious/noExplicitAny: suppressed during migration
-    const data: any[] = [message];
+    const data: unknown[] = [message];
     if (error) data.push(error);
     if (context) data.push(context);
     log.error(...data);

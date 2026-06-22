@@ -17,8 +17,7 @@ export function registerLogHandlers(): void {
         context?: Record<string, unknown>;
       },
     ) => {
-      // biome-ignore lint/suspicious/noExplicitAny: suppressed during migration
-      const data: any[] = [`[Renderer] ${message}`];
+      const data: unknown[] = [`[Renderer] ${message}`];
       if (context) data.push(context);
 
       switch (level) {

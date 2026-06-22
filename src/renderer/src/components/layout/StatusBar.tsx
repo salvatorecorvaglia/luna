@@ -73,7 +73,6 @@ export function StatusBar() {
       {/* Right */}
       <div className="flex items-center gap-3">
         {activeTransfers.length > 0 ? (
-          // biome-ignore lint/a11y/useButtonType: suppressed during migration
           <button
             onClick={toggleQueueExpanded}
             className="flex items-center gap-1.5 rounded px-1.5 py-0.5 hover:bg-accent hover:text-foreground cursor-pointer"

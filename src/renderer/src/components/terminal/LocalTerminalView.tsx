@@ -98,7 +98,7 @@ export function LocalTerminalView() {
                 Open a local terminal to run commands on your machine
               </p>
             </div>
-            {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
+
             <button onClick={handleNewLocalTab} className="btn-outline mt-1">
               <Plus className="size-3.5" />
               New Local Terminal

@@ -37,7 +37,6 @@ export interface TerminalSessionOptions {
    * Return a cleanup; it runs alongside the rest of the teardown.
    */
 
-  // biome-ignore lint/suspicious/noConfusingVoidType: suppressed during migration
   onReady?(ctx: { sessionId: string; terminal: Terminal }): (() => void) | void;
 }
 
@@ -115,7 +114,7 @@ export function useTerminalSession(opts: TerminalSessionOptions): TerminalSessio
       // `terminal.element` is set once the terminal has been opened into the
       // DOM and a renderer is wired up — public-API replacement for an older
       // `(terminal as any)._core._renderService` probe.
-      // biome-ignore lint/complexity/useOptionalChain: suppressed during migration
+
       if (fitAddon && terminal && terminal.element) {
         try {
           fitAddon.fit();

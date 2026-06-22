@@ -106,7 +106,6 @@ export function TransferQueue() {
     <div className="border-t border-border/60 bg-card/80">
       {/* Toggle bar */}
       <div className="flex w-full items-center justify-between px-3 py-1.5 text-xs text-muted-foreground no-select">
-        {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
         <button
           onClick={toggleQueueExpanded}
           aria-expanded={queueExpanded}
@@ -120,7 +119,6 @@ export function TransferQueue() {
         </button>
         <div className="flex items-center gap-2">
           {activeCount > 0 && (
-            // biome-ignore lint/a11y/useButtonType: suppressed during migration
             <button
               onClick={() => setConfirmCancelOpen(true)}
               className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-destructive cursor-pointer"
@@ -130,7 +128,7 @@ export function TransferQueue() {
               Cancel all
             </button>
           )}
-          {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
+
           <button
             onClick={toggleQueueExpanded}
             aria-label={queueExpanded ? 'Collapse transfer queue' : 'Expand transfer queue'}
@@ -166,7 +164,6 @@ export function TransferQueue() {
 
             {completedCount > 0 && (
               <div className="flex justify-end border-t border-border/60 px-3 py-1">
-                {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
                 <button
                   onClick={clearCompleted}
                   className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
@@ -294,7 +291,6 @@ const TransferRow = memo(function TransferRow({
 
       {/* Retry (error only) */}
       {item.status === 'error' && (
-        // biome-ignore lint/a11y/useButtonType: suppressed during migration
         <button
           onClick={onRetry}
           title="Retry transfer"
@@ -306,7 +302,7 @@ const TransferRow = memo(function TransferRow({
       )}
 
       {/* Cancel / Remove */}
-      {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
+
       <button
         onClick={handleRemove}
         title={isInProgress ? 'Cancel transfer' : 'Remove'}

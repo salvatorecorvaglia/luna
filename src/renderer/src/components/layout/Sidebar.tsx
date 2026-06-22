@@ -182,7 +182,6 @@ export function Sidebar() {
           {/* Settings — visually separated footer region so it isn't
               read as another connection group. */}
           <div className="border-t border-border bg-sidebar-accent/40 p-1.5">
-            {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
             <button
               onClick={() => setSettingsOpen(true)}
               className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
@@ -201,7 +200,7 @@ export function Sidebar() {
               )}
               style={{ transition: 'background-color 150ms' }}
             />
-            {/** biome-ignore lint/a11y/noStaticElementInteractions: suppressed during migration */}
+
             <div
               onMouseDown={handleResizeMouseDown}
               className="absolute -left-1 -right-1 inset-y-0 cursor-col-resize"

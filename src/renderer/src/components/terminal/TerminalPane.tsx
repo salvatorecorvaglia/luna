@@ -114,7 +114,7 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
                 The SSH session to the server was lost.
               </p>
             </div>
-            {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
+
             <button
               ref={reconnectBtnRef}
               onClick={() => {

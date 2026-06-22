@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-06-22
+
+### Added
+
+- **Testing**: Added unit tests for SFTP recursive deletion safety checks (depth and entry limits) in `sftp-recursion.test.ts`.
+- **Testing**: Added unit tests for sidebar layout components in `SidebarSection.test.tsx`.
+
+### Changed
+
+- **Code Quality**: Relaxed and globally customized Biome rules in `biome.json` to streamline linting and formatting.
+- **Code Quality**: Cleaned up the codebase by removing deprecated inline `// biome-ignore` suppressions across 50+ files.
+
+### Improved
+
+- **Dependencies**: Cleaned up package-lock to latest dependencies (such as `undici`).
+
 ## [0.12.0] - 2026-06-18
 
 ### Added

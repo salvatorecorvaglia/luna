@@ -464,7 +464,7 @@ export function SftpManager() {
             Connect to a server first, then switch to SFTP view
           </p>
         </div>
-        {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
+
         <button
           onClick={() => useConnectionStore.getState().openCreateForm()}
           className="btn-outline mt-1"
@@ -556,7 +556,7 @@ export function SftpManager() {
         </div>
 
         {/* Resize handle */}
-        {/** biome-ignore lint/a11y/useSemanticElements: suppressed during migration */}
+
         <div
           className="relative w-px flex-shrink-0 cursor-col-resize"
           role="separator"
@@ -581,7 +581,7 @@ export function SftpManager() {
             className={`absolute inset-0 bg-border ${resizing ? 'bg-primary/60' : 'hover:bg-primary/40'}`}
             style={{ transition: 'background-color 150ms' }}
           />
-          {/** biome-ignore lint/a11y/noStaticElementInteractions: suppressed during migration */}
+
           <div
             onMouseDown={handleResizeMouseDown}
             className="absolute -left-1.5 -right-1.5 inset-y-0 cursor-col-resize"

@@ -14,7 +14,7 @@ export function TerminalView() {
 
   const sshTabs = tabOrder.filter((id) => {
     const s = sessions.get(id);
-    // biome-ignore lint/complexity/useOptionalChain: suppressed during migration
+
     return !s || !s.type || s.type === 'ssh';
   });
   const activeSshTabId = sshTabs.includes(activeTabId || '') ? activeTabId : sshTabs[0] || null;
@@ -37,7 +37,7 @@ export function TerminalView() {
         useTerminalStore.getState();
       const sshTabs = tabOrder.filter((id) => {
         const s = sessions.get(id);
-        // biome-ignore lint/complexity/useOptionalChain: suppressed during migration
+
         return !s || !s.type || s.type === 'ssh';
       });
       if (sshTabs.length === 0) return;
@@ -107,7 +107,7 @@ export function TerminalView() {
                 Select a connection from the sidebar to begin
               </p>
             </div>
-            {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
+
             <button onClick={handleNewTab} className="btn-outline mt-1">
               <Plus className="size-3.5" />
               New Session

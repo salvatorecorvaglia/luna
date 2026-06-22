@@ -29,7 +29,6 @@ export function TerminalSearchBar({
   showMatchCount = true,
 }: TerminalSearchBarProps) {
   return (
-    // biome-ignore lint/a11y/useSemanticElements: suppressed during migration
     <div
       role="region"
       aria-label="Terminal search"
@@ -60,7 +59,6 @@ export function TerminalSearchBar({
         className="w-40 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground/50"
       />
       {showMatchCount && query && match && (
-        // biome-ignore lint/a11y/useAriaPropsSupportedByRole: suppressed during migration
         <span
           className={
             match.total === 0
@@ -75,7 +73,7 @@ export function TerminalSearchBar({
           {match.total === 0 ? 'no matches' : `${match.index + 1}/${match.total}`}
         </span>
       )}
-      {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
+
       <button
         onClick={onFindPrevious}
         className="btn-icon !p-0.5"
@@ -84,11 +82,11 @@ export function TerminalSearchBar({
       >
         <ChevronUp className="size-3.5" />
       </button>
-      {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
+
       <button onClick={onFindNext} className="btn-icon !p-0.5" title="Next" aria-label="Next match">
         <ChevronDown className="size-3.5" />
       </button>
-      {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
+
       <button onClick={onClose} className="btn-icon !p-0.5" title="Close" aria-label="Close search">
         <X className="size-3.5" />
       </button>

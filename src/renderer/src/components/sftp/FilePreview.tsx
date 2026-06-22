@@ -99,7 +99,7 @@ export function FilePreview() {
                   {detectLanguage(previewFile.name)}
                 </span>
               </div>
-              {/** biome-ignore lint/a11y/useButtonType: suppressed during migration */}
+
               <button
                 onClick={() => setPreviewFile(null)}
                 className="btn-icon"

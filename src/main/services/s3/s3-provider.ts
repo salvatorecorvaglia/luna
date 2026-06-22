@@ -7,6 +7,7 @@ import {
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  type HeadObjectCommandOutput,
   ListBucketsCommand,
   ListObjectsV2Command,
   PutObjectCommand,
@@ -389,8 +390,7 @@ class S3StorageProvider implements StorageProvider {
       if (!bucket || !key) throw new S3StorageError('Cannot read a non-key path');
       const limit = Math.min(maxSize || LIMITS.MAX_PREVIEW_BYTES, LIMITS.MAX_PREVIEW_BYTES);
 
-      // biome-ignore lint/suspicious/noImplicitAnyLet: suppressed during migration
-      let head;
+      let head: HeadObjectCommandOutput;
       try {
         head = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
       } catch (err) {

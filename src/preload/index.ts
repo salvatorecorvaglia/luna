@@ -82,12 +82,11 @@ function invoke<K extends IpcChannel>(
 ): Promise<IpcResponse<K>>;
 function invoke<K extends IpcChannel>(
   channel: K,
-  request?: IpcRequest<K>,
+  ...args: [IpcRequest<K>?]
 ): Promise<IpcResponse<K>> {
   const result =
-    // biome-ignore lint/complexity/noArguments: suppressed during migration
-    arguments.length > 1
-      ? (ipcRenderer.invoke(channel, request) as Promise<IpcResponse<K>>)
+    args.length > 0
+      ? (ipcRenderer.invoke(channel, args[0]) as Promise<IpcResponse<K>>)
       : (ipcRenderer.invoke(channel) as Promise<IpcResponse<K>>);
   return result.catch((err) => {
     throw unwrapIpcError(err);
