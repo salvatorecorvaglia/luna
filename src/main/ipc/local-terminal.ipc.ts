@@ -227,13 +227,17 @@ export function registerLocalTerminalHandlers(): void {
 
 /** Kill all local sessions on app quit. */
 export function disposeLocalTerminals(): void {
-  for (const [id, session] of sessions) {
-    try {
-      session.pty.kill();
-    } catch {
-      // ignore
+  const ids = Array.from(sessions.keys());
+  for (const id of ids) {
+    const session = sessions.get(id);
+    if (session) {
+      try {
+        session.pty.kill();
+      } catch {
+        // ignore
+      }
+      log.info(`[LocalTerminal] Disposed session ${id} on quit`);
     }
-    log.info(`[LocalTerminal] Disposed session ${id} on quit`);
   }
   sessions.clear();
   for (const buffer of localTerminalBuffers.values()) {

@@ -1,5 +1,13 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  cloneElement,
+  isValidElement,
+  type ReactElement,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { cn } from '@/lib/utils';
 import { Z } from '@/lib/z-layers';
 
@@ -85,9 +93,23 @@ export function ContextMenu({ items, children }: ContextMenuProps) {
     };
   }, [position, close]);
 
+  if (!isValidElement(children)) {
+    return <div onContextMenu={handleContextMenu}>{children}</div>;
+  }
+
+  const child = children as ReactElement<{ onContextMenu?: (e: React.MouseEvent) => void }>;
+  const childWithHandler = cloneElement(child, {
+    onContextMenu: (e: React.MouseEvent) => {
+      if (child.props && typeof child.props.onContextMenu === 'function') {
+        child.props.onContextMenu(e);
+      }
+      handleContextMenu(e);
+    },
+  });
+
   return (
     <>
-      <div onContextMenu={handleContextMenu}>{children}</div>
+      {childWithHandler}
       <AnimatePresence>
         {position && (
           <motion.div

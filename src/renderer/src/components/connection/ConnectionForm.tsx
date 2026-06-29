@@ -367,6 +367,21 @@ export function ConnectionForm() {
               : isEditing
                 ? null
                 : undefined,
+            jumpHostConfig:
+              jumpHost.mode === 'manual'
+                ? {
+                    host: jumpHost.host.trim(),
+
+                    port: parseInt(jumpHost.port) || 22,
+                    username: jumpHost.username.trim(),
+                    authType: jumpHost.authType,
+                    privateKeyPath: jumpHost.privateKeyPath || undefined,
+                    password: jumpHost.password || undefined,
+                    passphrase: jumpHost.passphrase || undefined,
+                  }
+                : isEditing
+                  ? null
+                  : undefined,
             folder: common.folder.trim() || 'default',
             colorTag: common.colorTag,
             isHidden: common.isHidden,
@@ -386,21 +401,6 @@ export function ConnectionForm() {
             folder: common.folder.trim() || 'default',
             colorTag: common.colorTag,
             isHidden: common.isHidden,
-            jumpHostConfig:
-              jumpHost.mode === 'manual'
-                ? {
-                    host: jumpHost.host.trim(),
-
-                    port: parseInt(jumpHost.port) || 22,
-                    username: jumpHost.username.trim(),
-                    authType: jumpHost.authType,
-                    privateKeyPath: jumpHost.privateKeyPath || undefined,
-                    password: jumpHost.password || undefined,
-                    passphrase: jumpHost.passphrase || undefined,
-                  }
-                : isEditing && !jumpHost.connectionId
-                  ? null
-                  : undefined,
           };
 
     try {
