@@ -88,7 +88,7 @@ To keep the codebase maintainable and clean, we enforce linting, formatting, typ
 
 ### Linting & Formatting
 
-We use **Biome** for unified, high-performance linting, formatting, and import sorting.
+We use **Biome** for unified, high-performance linting, formatting, and import sorting. Biome check is run automatically on CI. PRs containing any linting or formatting issues will fail the build process.
 
 - **Check lint & format issues**:
   ```bash
@@ -142,18 +142,26 @@ We use **Vitest** for running unit and integration tests.
 2. **Write clean code** and adhere to the project's formatting and quality standards.
 3. **Write/update tests** to cover your changes where applicable.
 4. **Run all checks** locally before pushing:
-   ```bash
-   npm run format
-   ```
-   ```bash
-   npm run lint
-   ```
-   ```bash
-   npm run typecheck
-   ```
-   ```bash
-   npm run test
-   ```
+   - Format and lint:
+     ```bash
+     npm run format
+     ```
+   - Double-check linting/formatting:
+     ```bash
+     npm run lint
+     ```
+   - Run type-checks:
+     ```bash
+     npm run typecheck
+     ```
+   - Run tests with coverage:
+     ```bash
+     npm run test:coverage
+     ```
+   - Verify build:
+     ```bash
+     npm run build
+     ```
 5. **Commit your changes** with descriptive commit messages.
 6. **Submit a Pull Request** (PR) to the upstream repository.
 7. Fill out the [Pull Request Template](.github/PULL_REQUEST_TEMPLATE/PULL_REQUEST_TEMPLATE.md) completely, referencing any related issue (e.g. `Fixes #123`).

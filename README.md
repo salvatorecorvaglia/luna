@@ -13,8 +13,9 @@ Lunar is a high-performance, cross-platform desktop application designed to stre
   - [SFTP File Manager](#2-sftp-file-manager)
   - [S3-Compatible Object Storage Browser](#3-s3-compatible-object-storage-browser)
   - [Security & Credentials Management](#4-security--credentials-management)
-  - [Command Palette & Global Shortcuts](#5-command-palette--global-shortcuts)
-  - [Session Recovery](#6-session-recovery)
+  - [Connection Migration & Portability](#5-connection-migration--portability)
+  - [Command Palette & Global Shortcuts](#6-command-palette--global-shortcuts)
+  - [Session Recovery](#7-session-recovery)
 - [Tech Stack](#-tech-stack)
 - [Getting Started](#-getting-started)
   - [Prerequisites](#prerequisites)
@@ -35,6 +36,7 @@ Lunar is a high-performance, cross-platform desktop application designed to stre
 * **Hardware Acceleration**: High-performance rendering with Canvas and WebGL addons.
 * **Terminal Search**: Built-in search bar for traversing terminal scrollback buffers.
 * **Dynamic Theme Sync**: Terminal theme colors are automatically built and applied as CSS variables to the rest of the application shell.
+* **Database-Synced Settings**: Key terminal settings (theme, font size, and scrollback limit) are synchronized directly to a local SQLite database to prevent local storage/preference drift.
 
 ### 2. SFTP File Manager
 * **Dual-Pane File Explorer**: Modern layout for navigating remote directories side-by-side or alongside terminals.
@@ -52,13 +54,18 @@ Lunar is a high-performance, cross-platform desktop application designed to stre
 * **Tamper Detection**: Cryptographic integrity validation on startup ensures that corrupted or manually altered credential rows are immediately isolated and reported to prevent credential hijack/leak.
 * **Host Key Verification**: Interactive fingerprint verification alerts on connecting to a new host to prevent man-in-the-middle attacks.
 
-### 5. Command Palette & Global Shortcuts
+### 5. Connection Migration & Portability
+* **Third-Party Migrator**: Directly import connection profiles from other terminal and transfer utilities: **MobaXterm** (`.mxtsessions` / `.mxtpro`), **PuTTY** Registry exports (`.reg`), and **WinSCP** config files (`.ini`).
+* **Backup & Restore**: Export your configured connections securely to JSON and import them back at any time.
+
+### 6. Command Palette & Global Shortcuts
 * **Mouse-Free Navigation**: Trigger the unified command palette anywhere using `Cmd+K` (or `Ctrl+K`).
 * **Instant Shortcuts Help**: Tap `?` (when not focusing input elements) to view the global shortcut mappings.
 * **Sidebar Toggle**: Collapse the navigation sidebar using `Cmd+B` to maximize workspace real estate.
 
-### 6. Session Recovery
+### 7. Session Recovery
 * **Crash-Resilient Stateful Shell**: In-flight SSH shell connection, local shell, and SFTP directory structures are tracked in the main process, allowing session state recovery after manual restarts or reload actions (`Cmd+R`).
+* **Interactive Reconnection**: Lost shell or SFTP sessions automatically trigger a recovery overlay with a "Reconnect" button, attempting to re-establish connections gracefully.
 
 ---
 
@@ -75,6 +82,7 @@ Lunar is built on a modern, robust, and lightning-fast developer stack:
 * **Terminal Engine**: [xterm.js](https://xtermjs.org/) + [node-pty](https://github.com/microsoft/node-pty)
 * **Database**: [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) (Local database storage)
 * **Object Storage**: AWS SDK v3 (`@aws-sdk/client-s3`)
+* **Linter & Formatter**: [Biome](https://biomejs.dev/) (Unified, high-performance linting and formatting)
 
 ---
 

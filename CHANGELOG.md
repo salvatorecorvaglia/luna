@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.2] - 2026-06-30
+
+### Added
+
+- **Testing**: Added a comprehensive unit test suite for the `useConnectionFormState` custom hook in `use-connection-form-state.test.ts`.
+
+### Changed
+
+- **UI Components**: Refactored the `ContextMenu` component to clone and inject `onContextMenu` handlers directly into child elements when they are valid React elements, avoiding layout wrapper `div` pollution.
+- **SFTP Manager**: Lowercased file extension checks for `makefile` and `dockerfile` in the text extensions list for consistent extension matching.
+
+### Improved
+
+- **Local Terminal**: Refactored local terminal teardown loop on application quit by copying session IDs to prevent map iteration issues, and added clean session logging.
+- **Connection Management**: Enhanced connection form submission logic to explicitly set jump host configurations to null when editing/saving, preventing stale inline configs.
+
 ## [0.12.1] - 2026-06-22
 
 ### Added
