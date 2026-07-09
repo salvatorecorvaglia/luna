@@ -67,17 +67,17 @@ Use the following pnpm scripts during development:
 
 - **Run in development mode**:
   ```bash
-  pnpm run dev
+  pnpm dev
   ```
   Runs the Electron app with hot-reloading and development logs.
 - **Build for production**:
   ```bash
-  pnpm run build
+  pnpm build
   ```
   Compiles the TypeScript/React code and bundles the Electron app for production.
 - **Preview build**:
   ```bash
-  pnpm run preview
+  pnpm preview
   ```
 
 ---
@@ -92,11 +92,11 @@ We use **Biome** for unified, high-performance linting, formatting, and import s
 
 - **Check lint & format issues**:
   ```bash
-  pnpm run lint
+  pnpm lint
   ```
 - **Automatically format and fix code issues**:
   ```bash
-  pnpm run format
+  pnpm format
   ```
 
 ### Type-Checking
@@ -105,15 +105,15 @@ The project uses TypeScript across the main (Node) and renderer (Web) processes.
 
 - **Type-check everything**:
   ```bash
-  pnpm run typecheck
+  pnpm typecheck
   ```
 - **Type-check Node (main/preload) process**:
   ```bash
-  pnpm run typecheck:node
+  pnpm typecheck:node
   ```
 - **Type-check Web (renderer) process**:
   ```bash
-  pnpm run typecheck:web
+  pnpm typecheck:web
   ```
 
 ### Testing
@@ -122,15 +122,15 @@ We use **Vitest** for running unit and integration tests.
 
 - **Run tests once**:
   ```bash
-  pnpm run test
+  pnpm test
   ```
 - **Run tests in watch mode**:
   ```bash
-  pnpm run test:watch
+  pnpm test:watch
   ```
 - **Check test coverage**:
   ```bash
-  pnpm run test:coverage
+  pnpm test:coverage
   ```
   *Note: Please make sure coverage thresholds (lines, functions, branches, statements) are maintained or improved when adding new tests.*
 
@@ -138,29 +138,29 @@ We use **Vitest** for running unit and integration tests.
 
 ## 📥 Submitting a Pull Request
 
-1. **Create a branch** for your work from `develop` or `main` (usually `feature/feature-name` or `bugfix/bug-name`).
+1. **Create a branch** for your work from `main` (usually `feature/feature-name` or `bugfix/bug-name`).
 2. **Write clean code** and adhere to the project's formatting and quality standards.
 3. **Write/update tests** to cover your changes where applicable.
 4. **Run all checks** locally before pushing:
    - Format and lint:
      ```bash
-     pnpm run format
+     pnpm format
      ```
    - Double-check linting/formatting:
      ```bash
-     pnpm run lint
+     pnpm lint
      ```
    - Run type-checks:
      ```bash
-     pnpm run typecheck
+     pnpm typecheck
      ```
    - Run tests with coverage:
      ```bash
-     pnpm run test:coverage
+     pnpm test:coverage
      ```
    - Verify build:
      ```bash
-     pnpm run build
+     pnpm build
      ```
 5. **Commit your changes** with descriptive commit messages.
 6. **Submit a Pull Request** (PR) to the upstream repository.

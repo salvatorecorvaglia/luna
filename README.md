@@ -109,7 +109,7 @@ Lunar is built on a modern, robust, and lightning-fast developer stack:
 
 3. **Start the application in development mode**:
    ```bash
-   pnpm run dev
+   pnpm dev
    ```
 
 ### Development Scripts
@@ -118,15 +118,15 @@ The following scripts are available in the project:
 
 | Script | Command | Description |
 |---|---|---|
-| `pnpm run dev` | `electron-vite dev --noSandbox` | Starts the app with hot-reloading and logs |
-| `pnpm run build` | `electron-vite build` | Compiles code for production distribution |
-| `pnpm run preview` | `electron-vite preview` | Previews the compiled production build |
-| `pnpm run lint` | `biome check src/` | Checks code formatting, linting, and imports using Biome |
-| `pnpm run format` | `biome check --write src/` | Automatically formats, fixes, and organizes imports using Biome |
-| `pnpm run typecheck` | `pnpm run typecheck:node && ...` | Full Node and Web TypeScript type checks |
-| `pnpm run test` | `vitest run` | Runs unit and integration tests |
-| `pnpm run test:watch` | `vitest` | Runs unit and integration tests in watch mode |
-| `pnpm run test:coverage`| `vitest run --coverage` | Evaluates test code coverage |
+| `pnpm dev` | `electron-vite dev --noSandbox` | Starts the app with hot-reloading and logs |
+| `pnpm build` | `electron-vite build` | Compiles code for production distribution |
+| `pnpm preview` | `electron-vite preview` | Previews the compiled production build |
+| `pnpm lint` | `biome check src/` | Checks code formatting, linting, and imports using Biome |
+| `pnpm format` | `biome check --write src/` | Automatically formats, fixes, and organizes imports using Biome |
+| `pnpm typecheck` | `pnpm typecheck:node && pnpm typecheck:web` | Full Node and Web TypeScript type checks |
+| `pnpm test` | `vitest run` | Runs unit and integration tests |
+| `pnpm test:watch` | `vitest` | Runs unit and integration tests in watch mode |
+| `pnpm test:coverage`| `vitest run --coverage` | Evaluates test code coverage |
 
 ---
 
