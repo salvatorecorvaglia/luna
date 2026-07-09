@@ -91,7 +91,7 @@ Lunar is built on a modern, robust, and lightning-fast developer stack:
 ### Prerequisites
 
 * **Node.js** (v22 recommended)
-* **npm** (comes packaged with Node.js)
+* **pnpm** (v11 recommended)
 
 ### Installation
 
@@ -103,13 +103,13 @@ Lunar is built on a modern, robust, and lightning-fast developer stack:
 
 2. **Install dependencies**:
    ```bash
-   npm install
+   pnpm install
    ```
    *Note: This will automatically build native modules (like `better-sqlite3` and `node-pty`) via `electron-builder install-app-deps` in the postinstall script.*
 
 3. **Start the application in development mode**:
    ```bash
-   npm run dev
+   pnpm run dev
    ```
 
 ### Development Scripts
@@ -118,15 +118,15 @@ The following scripts are available in the project:
 
 | Script | Command | Description |
 |---|---|---|
-| `npm run dev` | `electron-vite dev --noSandbox` | Starts the app with hot-reloading and logs |
-| `npm run build` | `electron-vite build` | Compiles code for production distribution |
-| `npm run preview` | `electron-vite preview` | Previews the compiled production build |
-| `npm run lint` | `biome check src/` | Checks code formatting, linting, and imports using Biome |
-| `npm run format` | `biome check --write src/` | Automatically formats, fixes, and organizes imports using Biome |
-| `npm run typecheck` | `npm run typecheck:node && ...` | Full Node and Web TypeScript type checks |
-| `npm run test` | `vitest run` | Runs unit and integration tests |
-| `npm run test:watch` | `vitest` | Runs unit and integration tests in watch mode |
-| `npm run test:coverage`| `vitest run --coverage` | Evaluates test code coverage |
+| `pnpm run dev` | `electron-vite dev --noSandbox` | Starts the app with hot-reloading and logs |
+| `pnpm run build` | `electron-vite build` | Compiles code for production distribution |
+| `pnpm run preview` | `electron-vite preview` | Previews the compiled production build |
+| `pnpm run lint` | `biome check src/` | Checks code formatting, linting, and imports using Biome |
+| `pnpm run format` | `biome check --write src/` | Automatically formats, fixes, and organizes imports using Biome |
+| `pnpm run typecheck` | `pnpm run typecheck:node && ...` | Full Node and Web TypeScript type checks |
+| `pnpm run test` | `vitest run` | Runs unit and integration tests |
+| `pnpm run test:watch` | `vitest` | Runs unit and integration tests in watch mode |
+| `pnpm run test:coverage`| `vitest run --coverage` | Evaluates test code coverage |
 
 ---
 

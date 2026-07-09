@@ -1,0 +1,14 @@
+packages:
+  - '.'
+
+overrides:
+  esbuild: "0.28.1"
+
+allowBuilds:
+  cpu-features: true
+  node-pty: true
+  better-sqlite3: true
+  esbuild: true
+  electron: true
+  electron-winstaller: true
+  ssh2: true

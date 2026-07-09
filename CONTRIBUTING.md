@@ -27,7 +27,7 @@ We welcome all kinds of contributions, whether it's reporting bugs, suggesting n
 
 To set up the development environment, make sure you have the following installed:
 - **Node.js** (v22 is recommended, matching the CI environment)
-- **npm** (comes packaged with Node.js)
+- **pnpm** (v11 is recommended)
 
 ### Setting Up the Project
 
@@ -39,7 +39,7 @@ To set up the development environment, make sure you have the following installe
    ```
 3. **Install dependencies**:
    ```bash
-   npm install
+   pnpm install
    ```
    *Note: On post-install, this runs `electron-builder install-app-deps` to set up native node dependencies like `better-sqlite3` and `node-pty`.*
 
@@ -63,21 +63,21 @@ src/
 
 ### Scripts
 
-Use the following npm scripts during development:
+Use the following pnpm scripts during development:
 
 - **Run in development mode**:
   ```bash
-  npm run dev
+  pnpm run dev
   ```
   Runs the Electron app with hot-reloading and development logs.
 - **Build for production**:
   ```bash
-  npm run build
+  pnpm run build
   ```
   Compiles the TypeScript/React code and bundles the Electron app for production.
 - **Preview build**:
   ```bash
-  npm run preview
+  pnpm run preview
   ```
 
 ---
@@ -92,11 +92,11 @@ We use **Biome** for unified, high-performance linting, formatting, and import s
 
 - **Check lint & format issues**:
   ```bash
-  npm run lint
+  pnpm run lint
   ```
 - **Automatically format and fix code issues**:
   ```bash
-  npm run format
+  pnpm run format
   ```
 
 ### Type-Checking
@@ -105,15 +105,15 @@ The project uses TypeScript across the main (Node) and renderer (Web) processes.
 
 - **Type-check everything**:
   ```bash
-  npm run typecheck
+  pnpm run typecheck
   ```
 - **Type-check Node (main/preload) process**:
   ```bash
-  npm run typecheck:node
+  pnpm run typecheck:node
   ```
 - **Type-check Web (renderer) process**:
   ```bash
-  npm run typecheck:web
+  pnpm run typecheck:web
   ```
 
 ### Testing
@@ -122,15 +122,15 @@ We use **Vitest** for running unit and integration tests.
 
 - **Run tests once**:
   ```bash
-  npm run test
+  pnpm run test
   ```
 - **Run tests in watch mode**:
   ```bash
-  npm run test:watch
+  pnpm run test:watch
   ```
 - **Check test coverage**:
   ```bash
-  npm run test:coverage
+  pnpm run test:coverage
   ```
   *Note: Please make sure coverage thresholds (lines, functions, branches, statements) are maintained or improved when adding new tests.*
 
@@ -144,23 +144,23 @@ We use **Vitest** for running unit and integration tests.
 4. **Run all checks** locally before pushing:
    - Format and lint:
      ```bash
-     npm run format
+     pnpm run format
      ```
    - Double-check linting/formatting:
      ```bash
-     npm run lint
+     pnpm run lint
      ```
    - Run type-checks:
      ```bash
-     npm run typecheck
+     pnpm run typecheck
      ```
    - Run tests with coverage:
      ```bash
-     npm run test:coverage
+     pnpm run test:coverage
      ```
    - Verify build:
      ```bash
-     npm run build
+     pnpm run build
      ```
 5. **Commit your changes** with descriptive commit messages.
 6. **Submit a Pull Request** (PR) to the upstream repository.
