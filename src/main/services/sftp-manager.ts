@@ -516,7 +516,7 @@ class SftpManager {
       }
       signal.addEventListener('abort', onAbort, { once: true });
 
-      readStream.on('data', (chunk: any) => {
+      readStream.on('data', (chunk: Buffer | string) => {
         transferred += chunk.length;
         onStep(transferred, chunk.length, total);
       });
@@ -619,7 +619,7 @@ class SftpManager {
       }
       signal.addEventListener('abort', onAbort, { once: true });
 
-      readStream.on('data', (chunk: any) => {
+      readStream.on('data', (chunk: Buffer | string) => {
         transferred += chunk.length;
         onStep(transferred, chunk.length, total);
       });
