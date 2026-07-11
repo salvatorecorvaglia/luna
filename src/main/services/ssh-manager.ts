@@ -398,6 +398,10 @@ class SshManager {
           // Store listener refs for cleanup
           session._streamListeners = { onData, onClose: onShellClose, onStderrData };
 
+          // Identity guard: if the sessions map has moved on (e.g. manual disconnect
+          // during shell connection), do not trigger connect callbacks or resolve.
+          if (this.sessions.get(sessionId) !== session) return;
+
           // Hand off lifecycle responsibilities from the handshake-only listeners
           // to the long-lived ones below. These survive until disconnect().
           for (const cb of this.onConnectCallbacks) {

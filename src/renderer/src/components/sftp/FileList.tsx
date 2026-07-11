@@ -158,6 +158,7 @@ export function FileList({
 
   const ROW_HEIGHT_ESTIMATE = 32;
   const parentRef = useRef<HTMLDivElement>(null);
+  const listboxRef = useRef<HTMLDivElement>(null);
 
   const virtualizer = useVirtualizer({
     count: sorted.length,
@@ -319,6 +320,13 @@ export function FileList({
           }
           break;
         }
+        case ' ': {
+          e.preventDefault();
+          if (focusedIndex >= 0 && focusedIndex < sorted.length) {
+            handleSelect(focusedIndex, e.metaKey || e.ctrlKey, e.shiftKey);
+          }
+          break;
+        }
       }
     },
     [sorted, focusedIndex, handleSelect, onOpen, onDelete, onSelectAll, virtualizer],
@@ -334,12 +342,14 @@ export function FileList({
 
   return (
     <div
+      ref={listboxRef}
       className="flex h-full flex-col overflow-hidden outline-none"
       tabIndex={0}
       onKeyDown={handleListKeyDown}
       role="listbox"
       aria-label="File list"
       aria-multiselectable="true"
+      aria-activedescendant={focusedIndex >= 0 ? `file-row-${focusedIndex}` : undefined}
     >
       {/* Header — semantic columnheaders so the file table is announced
           correctly by assistive tech. */}
@@ -403,7 +413,8 @@ export function FileList({
               <div
                 key={entry.path}
                 role="option"
-                tabIndex={focusedIndex === virtualRow.index ? 0 : -1}
+                id={`file-row-${virtualRow.index}`}
+                tabIndex={-1}
                 data-index={virtualRow.index}
                 ref={virtualizer.measureElement}
                 style={{
@@ -423,15 +434,9 @@ export function FileList({
                 )}
                 onClick={(e) => {
                   handleSelect(virtualRow.index, e.metaKey || e.ctrlKey, e.shiftKey);
+                  listboxRef.current?.focus();
                 }}
                 onDoubleClick={() => onOpen(entry)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') onOpen(entry);
-                  if (e.key === ' ') {
-                    e.preventDefault();
-                    handleSelect(virtualRow.index, e.metaKey || e.ctrlKey, e.shiftKey);
-                  }
-                }}
                 draggable={!!onDragStart}
                 onDragStart={(e) => onDragStart?.(entry, e)}
               >

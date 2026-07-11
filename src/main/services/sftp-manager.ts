@@ -150,6 +150,10 @@ class SftpManager {
             this.sftpSessions.delete(sessionId);
           });
 
+          sftp.on('error', (err: unknown) => {
+            log.error(`[SFTP] Stream error for session ${sessionId}:`, err);
+          });
+
           resolve(sftp);
         });
       }),

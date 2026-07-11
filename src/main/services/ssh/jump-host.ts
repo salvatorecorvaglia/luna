@@ -176,6 +176,16 @@ export async function openJumpChannel(params: OpenJumpChannelParams): Promise<Ju
     throw err;
   }
 
+  // Remove temporary handshake listeners
+  client.removeAllListeners('ready');
+  client.removeAllListeners('error');
+  client.removeAllListeners('close');
+
+  // Register a long-lived error handler to prevent uncaught exceptions crashing the process
+  client.on('error', (err) => {
+    log.error(`[SSH-Jump] Bastion connection error for "${bastionLabel}":`, err);
+  });
+
   // Phase 2: open a forwarded TCP channel from bastion → target.
   // ssh2's forwardOut signature: (srcIP, srcPort, dstIP, dstPort, callback).
   // srcIP/srcPort are advisory — the server logs them but they don't affect

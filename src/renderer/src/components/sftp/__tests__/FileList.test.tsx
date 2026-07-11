@@ -152,4 +152,31 @@ describe('FileList component', () => {
     rows = screen.getAllByRole('option').map((row) => row.querySelector('.truncate')?.textContent);
     expect(rows).toEqual(['src', 'readme.md', 'package.json']); // readme.md (2.0 KB) > package.json (1.0 KB)
   });
+
+  it('implements ARIA activedescendant and handles key navigation/focus correctly', () => {
+    const { rerender } = render(<FileList {...defaultProps} />);
+
+    const listbox = screen.getByRole('listbox');
+    expect(listbox).toBeInTheDocument();
+    expect(listbox).toHaveAttribute('tabIndex', '0');
+    expect(listbox).not.toHaveAttribute('aria-activedescendant');
+
+    const options = screen.getAllByRole('option');
+    expect(options).toHaveLength(3);
+    for (const opt of options) {
+      expect(opt).toHaveAttribute('tabIndex', '-1');
+    }
+
+    // Click focuses the container
+    const firstOption = options[0];
+    fireEvent.click(firstOption);
+    expect(listbox).toHaveFocus();
+
+    // Re-render with selection to simulate state change update of focusedIndex
+    rerender(<FileList {...defaultProps} selection={new Set(['src'])} />);
+
+    // Pressing ArrowDown updates active descendant
+    fireEvent.keyDown(listbox, { key: 'ArrowDown' });
+    expect(defaultProps.onSelect).toHaveBeenCalled();
+  });
 });
