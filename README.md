@@ -37,12 +37,14 @@ Lunar is a high-performance, cross-platform desktop application designed to stre
 * **Terminal Search**: Built-in search bar for traversing terminal scrollback buffers.
 * **Dynamic Theme Sync**: Terminal theme colors are automatically built and applied as CSS variables to the rest of the application shell.
 * **Database-Synced Settings**: Key terminal settings (theme, font size, and scrollback limit) are synchronized directly to a local SQLite database to prevent local storage/preference drift.
+* **Connection Stability & Guards**: Robust error handling on bastion connection tunnels and SFTP streams, coupled with connection identity guards to prevent callbacks on disconnected or replaced sessions.
 
 ### 2. SFTP File Manager
 * **Dual-Pane File Explorer**: Modern layout for navigating remote directories side-by-side or alongside terminals.
 * **Transfer Queue**: Active upload and download tracking with real-time transfer progress indicator.
 * **File Previews**: Quick preview panel for supported file formats.
 * **Robust Fallback**: Graceful handling of SSH-level disruptions with session-level fallback handling.
+* **Keyboard Navigation & Accessibility**: Full keyboard navigation (Arrow keys, Space to toggle selection, Enter to open, Escape to clear) with complete ARIA compliance and screen reader support (e.g. `aria-activedescendant`).
 
 ### 3. S3-Compatible Object Storage Browser
 * **Universal S3 Support**: Browser compatible with Amazon S3 and all S3-compatible storage endpoints (MinIO, Cloudflare R2, DigitalOcean Spaces, etc.).

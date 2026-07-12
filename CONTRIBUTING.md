@@ -134,6 +134,9 @@ We use **Vitest** for running unit and integration tests.
   ```
   *Note: Please make sure coverage thresholds (lines, functions, branches, statements) are maintained or improved when adding new tests.*
 
+- **Accessibility & Keyboard Navigation Testing**:
+  When modifying or adding interactive frontend components (e.g., file lists, navigation views, or custom controls), you must ensure that keyboard navigation accessibility (such as arrow key focus navigation, selection toggles, and correct ARIA states) is fully tested. See [FileList.test.tsx](file:///Users/salvatorecorvaglia/github/lunar/src/renderer/src/components/sftp/__tests__/FileList.test.tsx) for a comprehensive reference on setting up virtual lists, testing keydown events, and validating dynamic ARIA attributes.
+
 ---
 
 ## 📥 Submitting a Pull Request

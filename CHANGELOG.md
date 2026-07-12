@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-07-12
+
+### Added
+
+- **Testing**: Added a comprehensive unit test suite for the SFTP file list accessibility and keyboard navigation flows in `FileList.test.tsx`.
+
+### Changed
+
+- **Infrastructure**: Migrated the package manager from `npm` to `pnpm` (v11) to optimize workspace dependencies, updating project documentation and GitHub Action workflows accordingly.
+
+### Improved
+
+- **Accessibility**: Enhanced the remote SFTP file list with ARIA attributes (including `aria-activedescendant`), keyboard navigation support (using the Space key to toggle row selection), and streamlined focus management.
+- **SSH & SFTP Connections**: Improved stability by registering long-lived error handlers on bastion connections and SFTP streams to prevent uncaught exception crashes.
+- **SSH Sessions**: Added an identity guard to the SSH connection flow to prevent callbacks and resolution when a session is disconnected or replaced during handshake.
+- **Type Safety**: Refactored SFTP read stream data callbacks to include explicit type annotations supporting both Buffer and string chunks.
+
 ## [0.12.2] - 2026-06-30
 
 ### Added
