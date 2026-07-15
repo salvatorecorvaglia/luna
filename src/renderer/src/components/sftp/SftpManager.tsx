@@ -296,7 +296,14 @@ export function SftpManager() {
           path: entry.path,
         });
         const type = mimeForExt(ext, isPdf);
-        setPreviewFile({ name: entry.name, content, type });
+        setPreviewFile({
+          name: entry.name,
+          content,
+          type,
+          path: entry.path,
+          isLocal: false,
+          sessionId: activeSessionId,
+        });
       } catch (err: unknown) {
         toast.error(...toastArgs(err, 'Preview failed'));
       }
@@ -325,7 +332,13 @@ export function SftpManager() {
         };
         const type = mimeForExt(ext, isPdf);
 
-        setPreviewFile({ name: entry.name, content, type });
+        setPreviewFile({
+          name: entry.name,
+          content,
+          type,
+          path: entry.path,
+          isLocal: true,
+        });
       } catch (err: unknown) {
         toast.error(...toastArgs(err, 'Preview failed'));
       }

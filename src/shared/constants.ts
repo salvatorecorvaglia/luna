@@ -33,6 +33,7 @@ export const IPC = {
   STORAGE_RENAME: 'storage:rename',
   STORAGE_DELETE: 'storage:delete',
   STORAGE_READ_FILE: 'storage:read-file',
+  STORAGE_WRITE_FILE: 'storage:write-file',
   STORAGE_DOWNLOAD: 'storage:download',
   STORAGE_UPLOAD: 'storage:upload',
   /** Fired when a list() call hit the safety cap and stopped paginating. */
@@ -51,6 +52,7 @@ export const IPC = {
   SHELL_SAVE_FILE_DIALOG: 'shell:save-file-dialog',
   SHELL_CHECK_FILE: 'shell:check-file',
   SHELL_READ_FILE: 'shell:read-file',
+  SHELL_WRITE_FILE: 'shell:write-file',
 
   // Local terminal (PTY)
   LOCAL_TERMINAL_SPAWN: 'local-terminal:spawn',

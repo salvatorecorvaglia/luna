@@ -56,6 +56,14 @@ class SftpStorageProvider implements StorageProvider {
     return sftpManager.readFile(sessionId, path, maxSize);
   }
 
+  writeFile(
+    sessionId: string,
+    path: string,
+    content: string,
+  ): Promise<void> {
+    return sftpManager.writeFile(sessionId, path, content);
+  }
+
   statSize(sessionId: string, path: string): Promise<number> {
     return sftpManager.statSize(sessionId, path);
   }

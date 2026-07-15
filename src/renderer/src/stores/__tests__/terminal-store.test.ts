@@ -80,15 +80,19 @@ describe('terminal-store-splits', () => {
     expect(root?.type).toBe('split');
     if (root?.type === 'split') {
       expect(root.direction).toBe('vertical');
-      expect(root.children[0].type).toBe('terminal');
-      expect(root.children[0].sessionId).toBe('session-1');
-      expect(root.children[1].type).toBe('terminal');
-      const newSessionId = root.children[1].sessionId;
-      expect(state.activeTabId).toBe(newSessionId);
-      expect(sshConnect).toHaveBeenCalledWith({
-        connectionId: 'conn-1',
-        sessionId: newSessionId,
-      });
+      const left = root.children[0];
+      const right = root.children[1];
+      expect(left.type).toBe('terminal');
+      expect(right.type).toBe('terminal');
+      if (left.type === 'terminal' && right.type === 'terminal') {
+        expect(left.sessionId).toBe('session-1');
+        const newSessionId = right.sessionId;
+        expect(state.activeTabId).toBe(newSessionId);
+        expect(sshConnect).toHaveBeenCalledWith({
+          connectionId: 'conn-1',
+          sessionId: newSessionId,
+        });
+      }
     }
   });
 
@@ -110,7 +114,11 @@ describe('terminal-store-splits', () => {
     expect(root?.type).toBe('split');
     if (root?.type === 'split') {
       expect(root.direction).toBe('horizontal');
-      expect(root.children[0].sessionId).toBe('session-1');
+      const left = root.children[0];
+      expect(left.type).toBe('terminal');
+      if (left.type === 'terminal') {
+        expect(left.sessionId).toBe('session-1');
+      }
     }
   });
 
@@ -131,7 +139,11 @@ describe('terminal-store-splits', () => {
     expect(rootBeforeClose?.type).toBe('split');
     let splitSessionId = '';
     if (rootBeforeClose?.type === 'split') {
-      splitSessionId = rootBeforeClose.children[1].sessionId;
+      const right = rootBeforeClose.children[1];
+      expect(right.type).toBe('terminal');
+      if (right.type === 'terminal') {
+        splitSessionId = right.sessionId;
+      }
     }
 
     // Close the split pane (sibling session)

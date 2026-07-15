@@ -21,7 +21,14 @@ interface StorageState {
   localSelection: Set<string>;
   remoteSelection: Set<string>;
   showHiddenFiles: boolean;
-  previewFile: { name: string; content: string; type: string } | null;
+  previewFile: {
+    name: string;
+    content: string;
+    type: string;
+    path: string;
+    isLocal: boolean;
+    sessionId?: string;
+  } | null;
   /** Current active session id (can be SFTP/SSH session id or S3 session id). */
   activeSessionId: string | null;
   /** Active non-SSH storage sessions (currently: S3). Keyed by session id. */
@@ -36,7 +43,16 @@ interface StorageState {
   toggleLocalSelection: (name: string) => void;
   toggleRemoteSelection: (name: string) => void;
   clearSelections: () => void;
-  setPreviewFile: (file: { name: string; content: string; type: string } | null) => void;
+  setPreviewFile: (
+    file: {
+      name: string;
+      content: string;
+      type: string;
+      path: string;
+      isLocal: boolean;
+      sessionId?: string;
+    } | null,
+  ) => void;
   setActiveSessionId: (id: string | null) => void;
   addStorageSession: (session: StorageSession) => void;
   updateStorageSessionStatus: (id: string, status: StorageSession['status']) => void;

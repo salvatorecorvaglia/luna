@@ -426,6 +426,28 @@ class S3StorageProvider implements StorageProvider {
     });
   }
 
+  async writeFile(
+    sessionId: string,
+    path: string,
+    content: string,
+  ): Promise<void> {
+    return this.runOp(sessionId, 'writeFile', async (client) => {
+      const { bucket, key } = parseS3Path(path);
+      if (!bucket || !key) throw new S3StorageError('Cannot write to a non-key path');
+      try {
+        await client.send(
+          new PutObjectCommand({
+            Bucket: bucket,
+            Key: key,
+            Body: content,
+          }),
+        );
+      } catch (err) {
+        throw wrapS3Error('write-object', err);
+      }
+    });
+  }
+
   async streamDownload(
     sessionId: string,
     remotePath: string,

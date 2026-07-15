@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo } from 'react';
 import { connectToHost } from '@/lib/ssh';
 import { useConnectionStore } from '@/stores/connection-store';
 import { useTerminalStore, hasSessionInTree } from '@/stores/terminal-store';
+import type { PaneNode } from '@shared/types/terminal';
 import { terminalThemes } from '@/themes/terminal';
 import { TerminalTabs } from './TerminalTabs';
 import { SplitLayout } from './SplitLayout';

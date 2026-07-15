@@ -1,8 +1,10 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { FileCode, FileImage, FileText, X } from 'lucide-react';
-import { useEffect } from 'react';
+import { FileCode, FileImage, FileText, Loader2, Save, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Z } from '@/lib/z-layers';
 import { useStorageStore } from '@/stores/storage-store';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { toast } from 'sonner';
 
 function detectLanguage(name: string): string {
   const ext = name.split('.').pop()?.toLowerCase();
@@ -52,18 +54,82 @@ export function FilePreview() {
   const previewFile = useStorageStore((s) => s.previewFile);
   const setPreviewFile = useStorageStore((s) => s.setPreviewFile);
 
+  const [editorContent, setEditorContent] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [showConfirmClose, setShowConfirmClose] = useState(false);
+
+  const gutterRef = useRef<HTMLDivElement>(null);
+
+  // Initialize editor content when a new file is previewed
+  useEffect(() => {
+    if (previewFile) {
+      setEditorContent(previewFile.content);
+    } else {
+      setEditorContent('');
+    }
+  }, [previewFile]);
+
+  const isDirty = useMemo(() => {
+    return previewFile ? editorContent !== previewFile.content : false;
+  }, [previewFile, editorContent]);
+
+  const handleClose = useCallback(() => {
+    if (isDirty) {
+      setShowConfirmClose(true);
+    } else {
+      setPreviewFile(null);
+    }
+  }, [isDirty, setPreviewFile]);
+
+  const handleSave = useCallback(async () => {
+    if (!previewFile) return;
+    setIsSaving(true);
+    try {
+      if (previewFile.isLocal) {
+        await window.api.shell.writeFile(previewFile.path, editorContent);
+      } else {
+        if (!previewFile.sessionId) throw new Error('No active session to save remote file');
+        await window.api.storage.writeFile({
+          sessionId: previewFile.sessionId,
+          path: previewFile.path,
+          content: editorContent,
+        });
+      }
+      toast.success('File saved successfully');
+      setPreviewFile({
+        ...previewFile,
+        content: editorContent,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Save failed: ${msg}`);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [previewFile, editorContent, setPreviewFile]);
+
   // Close on Escape. Only attach the listener while a preview is open so
-  // background keystrokes don't churn through it; the handler itself never
-  // reads previewFile so there's no stale-closure concern.
+  // background keystrokes don't churn through it.
   const previewOpen = previewFile !== null;
   useEffect(() => {
     if (!previewOpen) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setPreviewFile(null);
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        handleClose();
+      }
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [previewOpen, setPreviewFile]);
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
+  }, [previewOpen, handleClose]);
+
+  const lines = useMemo(() => editorContent.split('\n'), [editorContent]);
+
+  const handleScroll = useCallback((e: React.UIEvent<HTMLTextAreaElement>) => {
+    if (gutterRef.current) {
+      gutterRef.current.scrollTop = e.currentTarget.scrollTop;
+    }
+  }, []);
 
   return (
     <AnimatePresence>
@@ -75,7 +141,7 @@ export function FilePreview() {
             animate="animate"
             exit="exit"
             className={`fixed inset-0 ${Z.modal} bg-black/60 backdrop-blur-sm`}
-            onClick={() => setPreviewFile(null)}
+            onClick={handleClose}
           />
           <motion.div
             variants={dialogVariants}
@@ -98,15 +164,36 @@ export function FilePreview() {
                 <span className="rounded-md bg-muted/80 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                   {detectLanguage(previewFile.name)}
                 </span>
+                {isDirty && (
+                  <span className="text-[10px] font-medium text-warning bg-warning/10 px-1.5 py-0.5 rounded-md">
+                    Modified
+                  </span>
+                )}
               </div>
 
-              <button
-                onClick={() => setPreviewFile(null)}
-                className="btn-icon"
-                aria-label="Close preview"
-              >
-                <X className="size-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                {!isImageType(previewFile.type) && previewFile.type !== 'application/pdf' && isDirty && (
+                  <button
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className="flex h-7 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    {isSaving ? (
+                      <Loader2 className="size-3 animate-spin" />
+                    ) : (
+                      <Save className="size-3" />
+                    )}
+                    <span>Save</span>
+                  </button>
+                )}
+                <button
+                  onClick={handleClose}
+                  className="btn-icon"
+                  aria-label="Close preview"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
             </div>
 
             {/* Content */}
@@ -128,14 +215,50 @@ export function FilePreview() {
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <div className="h-full overflow-auto p-4">
-                  <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-foreground/90">
-                    {previewFile.content}
-                  </pre>
+                <div className="flex h-full font-mono text-xs leading-relaxed overflow-hidden bg-card/40">
+                  {/* Line Numbers Gutter */}
+                  <div
+                    ref={gutterRef}
+                    className="select-none text-right pr-3 pl-4 py-4 bg-muted/5 text-muted-foreground/30 border-r border-border/20 font-mono min-w-[3.5rem] overflow-hidden"
+                  >
+                    {lines.map((_, i) => (
+                      <div
+                        key={i}
+                        className="text-right"
+                        style={{ height: '1.25rem', lineHeight: '1.25rem' }}
+                      >
+                        {i + 1}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Editor Input */}
+                  <textarea
+                    value={editorContent}
+                    onChange={(e) => setEditorContent(e.target.value)}
+                    onScroll={handleScroll}
+                    disabled={isSaving}
+                    className="flex-1 h-full w-full resize-none bg-transparent px-4 py-4 outline-none border-none text-foreground/90 font-mono focus:ring-0 leading-relaxed overflow-y-auto"
+                    style={{ lineHeight: '1.25rem' }}
+                    placeholder="Enter text..."
+                  />
                 </div>
               )}
             </div>
           </motion.div>
+
+          <ConfirmDialog
+            open={showConfirmClose}
+            title="Unsaved Changes"
+            message="You have unsaved changes. Discarding them will lose all edits. Are you sure?"
+            confirmLabel="Discard"
+            destructive
+            onConfirm={() => {
+              setShowConfirmClose(false);
+              setPreviewFile(null);
+            }}
+            onCancel={() => setShowConfirmClose(false)}
+          />
         </>
       )}
     </AnimatePresence>

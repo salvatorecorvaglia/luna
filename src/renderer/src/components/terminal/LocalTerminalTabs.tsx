@@ -111,7 +111,6 @@ export function LocalTerminalTabs() {
             <Tab
               key={tabId}
               tabId={tabId}
-              activeSessionId={activeTabId}
               isActive={tabId === activeLocalTabId}
               onActivate={handleActivateTab}
               onClose={handleCloseTab}
@@ -147,7 +146,6 @@ export function LocalTerminalTabs() {
 
 interface TabProps {
   tabId: string;
-  activeSessionId: string | null;
   isActive: boolean;
   onActivate: (tabId: string) => void;
   onClose: (tabId: string) => void;
@@ -156,7 +154,6 @@ interface TabProps {
 
 const Tab = memo(function Tab({
   tabId,
-  activeSessionId,
   isActive,
   onActivate,
   onClose,

@@ -191,3 +191,51 @@ describe('shell IPC — symlink jail (TOCTOU & bypass)', () => {
     );
   });
 });
+
+describe('shell IPC — writeFile', () => {
+  let workdir: string;
+
+  beforeEach(async () => {
+    workdir = await mkdtemp(join(homedir(), '.lunar-test-write-'));
+  });
+
+  afterEach(async () => {
+    await rm(workdir, { recursive: true, force: true });
+  });
+
+  it('writes content to a file inside the home directory', async () => {
+    const target = join(workdir, 'test-write.txt');
+    await handlers.get(IPC.SHELL_WRITE_FILE)!(
+      {},
+      { filePath: target, content: 'hello write' },
+    );
+
+    const result = (await handlers.get(IPC.SHELL_READ_FILE)!({}, target)) as {
+      content: string;
+      encoding: 'utf-8' | 'base64';
+      size: number;
+    };
+    expect(result.content).toBe('hello write');
+    expect(result.size).toBe(11);
+  });
+
+  it('rejects writing to a path outside the home directory', async () => {
+    await expect(
+      handlers.get(IPC.SHELL_WRITE_FILE)!(
+        {},
+        { filePath: '/etc/evil.txt', content: 'evil' },
+      ),
+    ).rejects.toThrow(/home directory/);
+  });
+
+  it('rejects a symlink pointing outside the home directory', async () => {
+    const link = join(workdir, 'escape-write');
+    await symlink('/etc/evil-target.txt', link);
+    await expect(
+      handlers.get(IPC.SHELL_WRITE_FILE)!(
+        {},
+        { filePath: link, content: 'evil' },
+      ),
+    ).rejects.toThrow(/home directory/);
+  });
+});

@@ -25,6 +25,11 @@ export interface StorageProvider {
     path: string,
     maxSize?: number,
   ): Promise<{ content: string; encoding: 'utf-8' | 'base64' }>;
+  writeFile(
+    sessionId: string,
+    path: string,
+    content: string,
+  ): Promise<void>;
   statSize(sessionId: string, path: string): Promise<number>;
 
   streamDownload(

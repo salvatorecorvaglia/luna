@@ -3,9 +3,9 @@ import { ErrorCode, LunarError } from '@shared/errors';
 import type { LocalFileEntry } from '@shared/types/sftp';
 import { dialog } from 'electron';
 import { constants as fsConstants } from 'fs';
-import { access, lstat, open, readdir, realpath, stat, writeFile } from 'fs/promises';
+import { access, lstat, open, readdir, realpath, stat, writeFile, readlink } from 'fs/promises';
 import { homedir } from 'os';
-import { basename, isAbsolute, join, resolve } from 'path';
+import { basename, isAbsolute, join, resolve, dirname } from 'path';
 import { registerHandler } from '../lib/ipc-handler';
 import {
   assertSafeAbsolutePath,
@@ -248,4 +248,44 @@ export function registerShellHandlers(): void {
       await fh.close();
     }
   });
+
+  registerHandler(
+    IPC.SHELL_WRITE_FILE,
+    async (_event, { filePath, content }: { filePath: string; content: string }) => {
+      assertValidPath(filePath, 'filePath');
+      if (typeof content !== 'string') {
+        throw new LunarError('content must be a string', ErrorCode.VALIDATION_ERROR);
+      }
+      const expanded = await expandAndConfineToHome(filePath, 'filePath');
+      const home = homedir();
+
+      let target = expanded;
+      try {
+        const ls = await lstat(expanded);
+        if (ls.isSymbolicLink()) {
+          const linkTarget = await readlink(expanded);
+          target = isAbsolute(linkTarget) ? linkTarget : resolve(dirname(expanded), linkTarget);
+        }
+      } catch {
+        target = expanded;
+      }
+
+      if (!isInsideDir(target, home)) {
+        throw new LunarError(
+          'Access denied: target path is outside the home directory',
+          ErrorCode.FORBIDDEN,
+        );
+      }
+
+      const MAX_BYTES = 50 * 1024 * 1024; // 50 MB
+      if (Buffer.byteLength(content, 'utf-8') > MAX_BYTES) {
+        throw new LunarError(
+          `Content exceeds maximum size of 50MB`,
+          ErrorCode.VALIDATION_ERROR,
+        );
+      }
+
+      await writeFile(target, content, 'utf-8');
+    },
+  );
 }

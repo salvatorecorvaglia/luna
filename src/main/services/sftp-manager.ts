@@ -385,6 +385,21 @@ class SftpManager {
     });
   }
 
+  async writeFile(
+    sessionId: string,
+    remotePath: string,
+    content: string,
+  ): Promise<void> {
+    return this.runOp(sessionId, 'writeFile', (sftp) => {
+      return new Promise<void>((resolve, reject) => {
+        sftp.writeFile(remotePath, content, { encoding: 'utf-8' }, (err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+    });
+  }
+
   async statSize(sessionId: string, remotePath: string): Promise<number> {
     return this.runOp(sessionId, 'stat', (sftp) => {
       return new Promise<number>((resolve, reject) => {

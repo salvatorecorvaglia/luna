@@ -103,6 +103,10 @@ export interface IpcHandlerMap {
     request: StorageReadFileParams;
     response: { content: string; encoding: 'utf-8' | 'base64' };
   };
+  'storage:write-file': {
+    request: { sessionId: string; path: string; content: string };
+    response: void;
+  };
   'storage:download': { request: StorageTransferParams; response: string };
   'storage:upload': { request: StorageTransferParams; response: string };
 
@@ -140,6 +144,7 @@ export interface IpcHandlerMap {
         };
   };
   'shell:read-file': { request: string; response: { content: string; size: number } };
+  'shell:write-file': { request: { filePath: string; content: string }; response: void };
 
   // Local terminal (PTY)
   'local-terminal:spawn': {

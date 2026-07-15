@@ -16,6 +16,7 @@ vi.mock('electron', () => ({
 }));
 
 const listMock = vi.fn().mockResolvedValue([]);
+const writeFileMock = vi.fn();
 vi.mock('../../services/storage/registry', () => ({
   storageRegistry: {
     require: vi.fn(() => ({
@@ -25,6 +26,7 @@ vi.mock('../../services/storage/registry', () => ({
       rename: vi.fn(),
       remove: vi.fn(),
       readFile: vi.fn(),
+      writeFile: writeFileMock,
     })),
   },
 }));
@@ -50,6 +52,7 @@ import { __resetStorageRateLimiter, registerStorageHandlers } from '../storage.i
 beforeEach(() => {
   handlers.clear();
   listMock.mockClear();
+  writeFileMock.mockClear();
   __resetStorageRateLimiter();
   registerStorageHandlers();
 });
@@ -124,5 +127,27 @@ describe('storage IPC — transfers', () => {
         { sessionId: 's1', remotePath: '/srv/x', localPath: '/etc/passwd' },
       ),
     ).rejects.toThrow();
+  });
+});
+
+describe('storage IPC — writeFile', () => {
+  it('delegates to provider.writeFile', async () => {
+    writeFileMock.mockResolvedValue(undefined);
+
+    await handlers.get(IPC.STORAGE_WRITE_FILE)!(
+      {},
+      { sessionId: 's1', path: '/remote/file.txt', content: 'content' },
+    );
+
+    expect(writeFileMock).toHaveBeenCalledWith('s1', '/remote/file.txt', 'content');
+  });
+
+  it('rejects invalid content type', async () => {
+    await expect(
+      handlers.get(IPC.STORAGE_WRITE_FILE)!(
+        {},
+        { sessionId: 's1', path: '/remote/file.txt', content: 123 },
+      ),
+    ).rejects.toThrow(/content/);
   });
 });

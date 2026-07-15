@@ -119,7 +119,6 @@ export function TerminalTabs() {
             <Tab
               key={tabId}
               tabId={tabId}
-              activeSessionId={activeTabId}
               isActive={tabId === activeSshTabId}
               onActivate={handleActivateTab}
               onClose={handleCloseTab}
@@ -175,7 +174,6 @@ export function TerminalTabs() {
 
 interface TabProps {
   tabId: string;
-  activeSessionId: string | null;
   isActive: boolean;
   onActivate: (tabId: string) => void;
   onClose: (tabId: string) => void;
@@ -187,7 +185,6 @@ interface TabProps {
 
 const Tab = memo(function Tab({
   tabId,
-  activeSessionId,
   isActive,
   onActivate,
   onClose,

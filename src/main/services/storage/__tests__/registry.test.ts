@@ -11,6 +11,7 @@ const makeProvider = (kind: StorageProvider['kind'] = 'sftp'): StorageProvider =
     rename: vi.fn(),
     remove: vi.fn(),
     readFile: vi.fn(),
+    writeFile: vi.fn(),
     statSize: vi.fn(),
     streamDownload: vi.fn(),
     streamUpload: vi.fn(),

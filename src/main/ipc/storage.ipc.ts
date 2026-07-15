@@ -84,6 +84,24 @@ export function registerStorageHandlers(): void {
       .readFile(params.sessionId, params.path, params.maxSize);
   });
 
+  registerHandler(
+    IPC.STORAGE_WRITE_FILE,
+    async (
+      _event,
+      params: { sessionId: string; path: string; content: string },
+    ) => {
+      assertNonEmptyString(params.sessionId, 'sessionId');
+      assertValidPath(params.path, 'path');
+      if (typeof params.content !== 'string') {
+        throw new LunarError('content must be a string', ErrorCode.VALIDATION_ERROR);
+      }
+      takeStorageToken(params.sessionId);
+      return storageRegistry
+        .require(params.sessionId)
+        .writeFile(params.sessionId, params.path, params.content);
+    },
+  );
+
   registerHandler(IPC.STORAGE_DOWNLOAD, async (_event, params: StorageTransferParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
     assertValidPath(params.remotePath, 'remotePath');
