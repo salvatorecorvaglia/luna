@@ -1,19 +1,32 @@
 import { Monitor, Plus } from 'lucide-react';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { useTerminalStore } from '@/stores/terminal-store';
+import { useTerminalStore, hasSessionInTree } from '@/stores/terminal-store';
 import { terminalThemes } from '@/themes/terminal';
-import { LocalTerminalPane } from './LocalTerminalPane';
+import type { PaneNode } from '@shared/types/terminal';
 import { LocalTerminalTabs } from './LocalTerminalTabs';
+import { SplitLayout } from './SplitLayout';
 
 export function LocalTerminalView() {
-  const { sessions, tabOrder, activeTabId, terminalTheme, addSession, setActiveTab } =
+  const { sessions, tabOrder, activeTabId, terminalTheme, addSession, setActiveTab, layouts } =
     useTerminalStore();
 
-  const localTabs = tabOrder.filter((id) => sessions.get(id)?.type === 'local');
-  const activeLocalTabId = localTabs.includes(activeTabId || '')
-    ? activeTabId
-    : localTabs[0] || null;
+  const localTabs = useMemo(
+    () => tabOrder.filter((id) => sessions.get(id)?.type === 'local'),
+    [tabOrder, sessions]
+  );
+
+  const activeLocalTabId = useMemo(() => {
+    if (!activeTabId) return localTabs[0] || null;
+    if (localTabs.includes(activeTabId)) return activeTabId;
+    for (const tabId of localTabs) {
+      const root = layouts.get(tabId);
+      if (root && hasSessionInTree(root, activeTabId)) {
+        return tabId;
+      }
+    }
+    return localTabs[0] || null;
+  }, [localTabs, activeTabId, layouts]);
 
   const handleNewLocalTab = useCallback(() => {
     const sessionId = uuidv4();
@@ -45,14 +58,17 @@ export function LocalTerminalView() {
     const handler = (e: KeyboardEvent) => {
       if (!e.metaKey && !e.ctrlKey) return;
 
-      const { sessions, tabOrder, setActiveTab, activeTabId, closeTab } =
+      const { sessions, tabOrder, setActiveTab, activeTabId, closeTab, layouts } =
         useTerminalStore.getState();
       const localTabs = tabOrder.filter((id) => sessions.get(id)?.type === 'local');
       if (localTabs.length === 0) return;
 
       // Cmd+W
       if (e.key === 'w' && !e.shiftKey) {
-        if (activeTabId && localTabs.includes(activeTabId)) {
+        if (activeTabId && localTabs.some(tabId => {
+          const root = layouts.get(tabId);
+          return root && hasSessionInTree(root, activeTabId);
+        })) {
           e.preventDefault();
           closeTab(activeTabId);
           return;
@@ -64,7 +80,14 @@ export function LocalTerminalView() {
       if (digit >= 1 && digit <= 9) {
         e.preventDefault();
         const index = Math.min(digit - 1, localTabs.length - 1);
-        setActiveTab(localTabs[index]);
+        const tabId = localTabs[index];
+        const root = layouts.get(tabId);
+        if (root) {
+          const firstLeafId = getFirstLeafIdFromRoot(root);
+          setActiveTab(firstLeafId);
+        } else {
+          setActiveTab(tabId);
+        }
         return;
       }
     };
@@ -72,20 +95,33 @@ export function LocalTerminalView() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
+  function getFirstLeafIdFromRoot(node: PaneNode): string {
+    if (node.type === 'terminal') return node.sessionId;
+    return getFirstLeafIdFromRoot(node.children[0]);
+  }
+
   const themeBg = terminalThemes[terminalTheme]?.background || '#282a36';
 
   return (
     <div className="flex h-full flex-col">
       <LocalTerminalTabs />
       <div className="flex-1 relative overflow-hidden" style={{ backgroundColor: themeBg }}>
-        {localTabs.map((sessionId) => (
-          <div
-            key={sessionId}
-            className={sessionId === activeLocalTabId ? 'h-full w-full' : 'hidden'}
-          >
-            <LocalTerminalPane sessionId={sessionId} isActive={sessionId === activeLocalTabId} />
-          </div>
-        ))}
+        {localTabs.map((tabId) => {
+          const rootNode = layouts.get(tabId);
+          if (!rootNode) return null;
+          return (
+            <div
+              key={tabId}
+              className={tabId === activeLocalTabId ? 'h-full w-full' : 'hidden'}
+            >
+              <SplitLayout
+                node={rootNode}
+                tabId={tabId}
+                activeSessionId={activeTabId}
+              />
+            </div>
+          );
+        })}
 
         {localTabs.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center gap-4 text-muted-foreground">

@@ -6,7 +6,7 @@ import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMe
 import { PromptDialog } from '@/components/common/PromptDialog';
 import { connectToHost } from '@/lib/ssh';
 import { cn } from '@/lib/utils';
-import { useTerminalStore } from '@/stores/terminal-store';
+import { useTerminalStore, getFirstLeafSessionId, hasSessionInTree, getAllSessionIdsFromTree } from '@/stores/terminal-store';
 
 export function TerminalTabs() {
   const {
@@ -19,6 +19,7 @@ export function TerminalTabs() {
     renameTab,
     closeOtherTabs,
     closeTabsToRight,
+    layouts,
   } = useTerminalStore();
   const [closingTabId, setClosingTabId] = useState<string | null>(null);
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
@@ -33,40 +34,68 @@ export function TerminalTabs() {
     [tabOrder, sessions],
   );
 
+  const activeSshTabId = useMemo(() => {
+    if (!activeTabId) return null;
+    for (const tabId of sshTabs) {
+      const root = layouts.get(tabId);
+      if (root && hasSessionInTree(root, activeTabId)) {
+        return tabId;
+      }
+    }
+    return null;
+  }, [sshTabs, activeTabId, layouts]);
+
   const handleReorder = useCallback(
     (newOrder: string[]) => {
       const localTabs = tabOrder.filter((id) => sessions.get(id)?.type === 'local');
-      // Combine new ssh order with existing local tabs
-      // Note: this simple join might mix them if they were interleaved,
-      // but usually they are kept separate in the UI views anyway.
       setTabOrder([...newOrder, ...localTabs]);
     },
     [tabOrder, sessions, setTabOrder],
   );
 
   const handleCloseTab = useCallback(
-    (sessionId: string) => {
-      const session = sessions.get(sessionId);
-      if (session && (session.status === 'connected' || session.status === 'connecting')) {
-        setClosingTabId(sessionId);
+    (tabId: string) => {
+      const root = layouts.get(tabId);
+      const ids = root ? getAllSessionIdsFromTree(root) : [tabId];
+      const hasActive = ids.some((id) => {
+        const s = sessions.get(id);
+        return s && (s.status === 'connected' || s.status === 'connecting');
+      });
+
+      if (hasActive) {
+        setClosingTabId(tabId);
       } else {
-        closeTab(sessionId);
+        for (const id of ids) {
+          closeTab(id);
+        }
       }
     },
-    [sessions, closeTab],
+    [sessions, layouts, closeTab],
   );
 
-  const handleRename = useCallback((sessionId: string) => {
-    setRenamingTabId(sessionId);
+  const handleRename = useCallback((tabId: string) => {
+    setRenamingTabId(tabId);
   }, []);
 
   const handleDuplicate = useCallback(
-    (sessionId: string) => {
-      const session = sessions.get(sessionId);
+    (tabId: string) => {
+      const session = sessions.get(tabId);
       if (!session) return;
       void connectToHost(session.connectionId);
     },
     [sessions],
+  );
+
+  const handleActivateTab = useCallback(
+    (tabId: string) => {
+      const root = layouts.get(tabId);
+      if (root) {
+        setActiveTab(getFirstLeafSessionId(root));
+      } else {
+        setActiveTab(tabId);
+      }
+    },
+    [layouts, setActiveTab],
   );
 
   return (
@@ -83,16 +112,16 @@ export function TerminalTabs() {
         className="flex flex-1 items-center overflow-x-auto"
         as="div"
       >
-        {sshTabs.map((sessionId) => {
-          const session = sessions.get(sessionId);
-          if (!session) return null;
-
+        {sshTabs.map((tabId) => {
+          const root = layouts.get(tabId);
+          if (!root) return null;
           return (
             <Tab
-              key={sessionId}
-              sessionId={sessionId}
-              isActive={sessionId === activeTabId}
-              onActivate={setActiveTab}
+              key={tabId}
+              tabId={tabId}
+              activeSessionId={activeTabId}
+              isActive={tabId === activeSshTabId}
+              onActivate={handleActivateTab}
               onClose={handleCloseTab}
               onRename={handleRename}
               onDuplicate={handleDuplicate}
@@ -105,12 +134,18 @@ export function TerminalTabs() {
 
       <ConfirmDialog
         open={!!closingTabId}
-        title="Close active session?"
-        message="This will disconnect the SSH session. Are you sure?"
+        title="Close active tab?"
+        message="This will disconnect all terminal sessions in this tab. Are you sure?"
         confirmLabel="Disconnect"
         destructive
         onConfirm={() => {
-          if (closingTabId) closeTab(closingTabId);
+          if (closingTabId) {
+            const root = layouts.get(closingTabId);
+            const ids = root ? getAllSessionIdsFromTree(root) : [closingTabId];
+            for (const id of ids) {
+              closeTab(id);
+            }
+          }
           setClosingTabId(null);
         }}
         onCancel={() => setClosingTabId(null)}
@@ -139,18 +174,20 @@ export function TerminalTabs() {
 }
 
 interface TabProps {
-  sessionId: string;
+  tabId: string;
+  activeSessionId: string | null;
   isActive: boolean;
-  onActivate: (sessionId: string) => void;
-  onClose: (sessionId: string) => void;
-  onRename: (sessionId: string) => void;
-  onDuplicate: (sessionId: string) => void;
-  onCloseOthers: (sessionId: string) => void;
-  onCloseToRight: (sessionId: string) => void;
+  onActivate: (tabId: string) => void;
+  onClose: (tabId: string) => void;
+  onRename: (tabId: string) => void;
+  onDuplicate: (tabId: string) => void;
+  onCloseOthers: (tabId: string) => void;
+  onCloseToRight: (tabId: string) => void;
 }
 
 const Tab = memo(function Tab({
-  sessionId,
+  tabId,
+  activeSessionId,
   isActive,
   onActivate,
   onClose,
@@ -159,50 +196,44 @@ const Tab = memo(function Tab({
   onCloseOthers,
   onCloseToRight,
 }: TabProps) {
-  // Read the session directly from the store so this tab always reflects
-  // the latest status — independent of the parent's memo comparison. Keeps
-  // Sidebar and Tab status indicators in lockstep on disconnect events.
-  const session = useTerminalStore((s) => s.sessions.get(sessionId));
+  const session = useTerminalStore((s) => s.sessions.get(tabId));
 
   const contextItems: ContextMenuItem[] = useMemo(
     () => [
       {
         label: 'Rename Tab',
         icon: <Pencil className="size-3.5" />,
-        onClick: () => onRename(sessionId),
+        onClick: () => onRename(tabId),
       },
       {
         label: 'Duplicate Session',
         icon: <Copy className="size-3.5" />,
-        onClick: () => onDuplicate(sessionId),
+        onClick: () => onDuplicate(tabId),
       },
       {
         label: 'Close Other Tabs',
         icon: <XCircle className="size-3.5" />,
-        onClick: () => onCloseOthers(sessionId),
+        onClick: () => onCloseOthers(tabId),
         separator: true,
       },
       {
         label: 'Close Tabs to the Right',
         icon: <ArrowRightToLine className="size-3.5" />,
-        onClick: () => onCloseToRight(sessionId),
+        onClick: () => onCloseToRight(tabId),
       },
       {
         label: 'Close',
         icon: <X className="size-3.5" />,
-        onClick: () => onClose(sessionId),
+        onClick: () => onClose(tabId),
         separator: true,
         destructive: true,
       },
     ],
-    [sessionId, onRename, onDuplicate, onCloseOthers, onCloseToRight, onClose],
+    [tabId, onRename, onDuplicate, onCloseOthers, onCloseToRight, onClose],
   );
 
   if (!session) return null;
 
-  // Wrap the visual indicator in role="img" + aria-label so screen readers
-  // get the status as text — previously the colored dot conveyed state only
-  // via hue, leaving keyboard/AT users to guess.
   const statusIcon = () => {
     const label = `Status: ${session.status}`;
     const inner = (() => {
@@ -229,7 +260,7 @@ const Tab = memo(function Tab({
     <Reorder.Item
       initial={false}
       transition={{ duration: 0 }}
-      value={sessionId}
+      value={tabId}
       as="div"
       role="tab"
       aria-selected={isActive}
@@ -241,7 +272,7 @@ const Tab = memo(function Tab({
           : 'text-muted-foreground hover:bg-background/50 hover:text-foreground',
       )}
       whileDrag={{ opacity: 0.8, scale: 1.02, zIndex: 10 }}
-      onClick={() => onActivate(sessionId)}
+      onClick={() => onActivate(tabId)}
     >
       <ContextMenu items={contextItems}>
         <div className="flex h-full w-full items-center gap-2">
@@ -254,12 +285,10 @@ const Tab = memo(function Tab({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onClose(sessionId);
+              onClose(tabId);
             }}
             className={cn(
               'ml-auto flex-shrink-0 rounded p-0.5 hover:bg-accent cursor-pointer transition-opacity',
-              // Visible at low opacity by default so the close affordance is
-              // always discoverable; full opacity on hover/focus.
               isActive
                 ? 'opacity-70 hover:opacity-100'
                 : 'opacity-40 group-hover:opacity-100 focus:opacity-100',

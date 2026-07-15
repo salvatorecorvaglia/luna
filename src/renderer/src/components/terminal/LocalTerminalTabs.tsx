@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
 import { PromptDialog } from '@/components/common/PromptDialog';
 import { cn } from '@/lib/utils';
-import { useTerminalStore } from '@/stores/terminal-store';
+import { useTerminalStore, getFirstLeafSessionId, hasSessionInTree, getAllSessionIdsFromTree } from '@/stores/terminal-store';
 
 export function LocalTerminalTabs() {
   const {
@@ -17,6 +17,7 @@ export function LocalTerminalTabs() {
     closeTab,
     renameTab,
     addSession,
+    layouts,
   } = useTerminalStore();
 
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
@@ -26,15 +27,30 @@ export function LocalTerminalTabs() {
     [tabOrder, sessions],
   );
 
+  const activeLocalTabId = useMemo(() => {
+    if (!activeTabId) return null;
+    for (const tabId of localTabs) {
+      const root = layouts.get(tabId);
+      if (root && hasSessionInTree(root, activeTabId)) {
+        return tabId;
+      }
+    }
+    return null;
+  }, [localTabs, activeTabId, layouts]);
+
   const handleCloseTab = useCallback(
-    (sessionId: string) => {
-      closeTab(sessionId);
+    (tabId: string) => {
+      const root = layouts.get(tabId);
+      const ids = root ? getAllSessionIdsFromTree(root) : [tabId];
+      for (const id of ids) {
+        closeTab(id);
+      }
     },
-    [closeTab],
+    [layouts, closeTab],
   );
 
-  const handleRename = useCallback((sessionId: string) => {
-    setRenamingTabId(sessionId);
+  const handleRename = useCallback((tabId: string) => {
+    setRenamingTabId(tabId);
   }, []);
 
   const handleNewLocalTab = useCallback(() => {
@@ -62,6 +78,18 @@ export function LocalTerminalTabs() {
     [tabOrder, sessions, setTabOrder],
   );
 
+  const handleActivateTab = useCallback(
+    (tabId: string) => {
+      const root = layouts.get(tabId);
+      if (root) {
+        setActiveTab(getFirstLeafSessionId(root));
+      } else {
+        setActiveTab(tabId);
+      }
+    },
+    [layouts, setActiveTab],
+  );
+
   return (
     <div
       className="flex h-9 items-center border-b border-border/60 bg-card/60 no-select"
@@ -76,16 +104,16 @@ export function LocalTerminalTabs() {
         className="flex items-center overflow-x-auto"
         as="div"
       >
-        {localTabs.map((sessionId) => {
-          const session = sessions.get(sessionId);
-          if (!session) return null;
-
+        {localTabs.map((tabId) => {
+          const root = layouts.get(tabId);
+          if (!root) return null;
           return (
             <Tab
-              key={sessionId}
-              sessionId={sessionId}
-              isActive={sessionId === activeTabId}
-              onActivate={setActiveTab}
+              key={tabId}
+              tabId={tabId}
+              activeSessionId={activeTabId}
+              isActive={tabId === activeLocalTabId}
+              onActivate={handleActivateTab}
               onClose={handleCloseTab}
               onRename={handleRename}
             />
@@ -118,32 +146,40 @@ export function LocalTerminalTabs() {
 }
 
 interface TabProps {
-  sessionId: string;
+  tabId: string;
+  activeSessionId: string | null;
   isActive: boolean;
-  onActivate: (sessionId: string) => void;
-  onClose: (sessionId: string) => void;
-  onRename: (sessionId: string) => void;
+  onActivate: (tabId: string) => void;
+  onClose: (tabId: string) => void;
+  onRename: (tabId: string) => void;
 }
 
-const Tab = memo(function Tab({ sessionId, isActive, onActivate, onClose, onRename }: TabProps) {
-  const session = useTerminalStore((s) => s.sessions.get(sessionId));
+const Tab = memo(function Tab({
+  tabId,
+  activeSessionId,
+  isActive,
+  onActivate,
+  onClose,
+  onRename,
+}: TabProps) {
+  const session = useTerminalStore((s) => s.sessions.get(tabId));
 
   const contextItems: ContextMenuItem[] = useMemo(
     () => [
       {
         label: 'Rename Tab',
         icon: <Pencil className="size-3.5" />,
-        onClick: () => onRename(sessionId),
+        onClick: () => onRename(tabId),
       },
       {
         label: 'Close',
         icon: <XCircle className="size-3.5" />,
-        onClick: () => onClose(sessionId),
+        onClick: () => onClose(tabId),
         separator: true,
         destructive: true,
       },
     ],
-    [sessionId, onRename, onClose],
+    [tabId, onRename, onClose],
   );
 
   if (!session) return null;
@@ -152,7 +188,7 @@ const Tab = memo(function Tab({ sessionId, isActive, onActivate, onClose, onRena
     <Reorder.Item
       initial={false}
       transition={{ duration: 0 }}
-      value={sessionId}
+      value={tabId}
       as="div"
       role="tab"
       aria-selected={isActive}
@@ -163,7 +199,7 @@ const Tab = memo(function Tab({ sessionId, isActive, onActivate, onClose, onRena
           : 'text-muted-foreground hover:bg-background/50 hover:text-foreground',
       )}
       whileDrag={{ opacity: 0.8, scale: 1.02, zIndex: 10 }}
-      onClick={() => onActivate(sessionId)}
+      onClick={() => onActivate(tabId)}
     >
       <ContextMenu items={contextItems}>
         <div className="flex h-full w-full items-center gap-2">
@@ -176,7 +212,7 @@ const Tab = memo(function Tab({ sessionId, isActive, onActivate, onClose, onRena
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onClose(sessionId);
+              onClose(tabId);
             }}
             className={cn(
               'ml-auto flex-shrink-0 rounded p-0.5 hover:bg-accent cursor-pointer transition-opacity',

@@ -10,7 +10,7 @@
 import { LIMITS } from '@shared/constants';
 import type { Terminal } from '@xterm/xterm';
 import { toast } from 'sonner';
-import { useTerminalStore } from '@/stores/terminal-store';
+import { useTerminalStore, findTabIdForSession, getAllSessionIdsFromTree } from '@/stores/terminal-store';
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 const isLinux = typeof navigator !== 'undefined' && /Linux/.test(navigator.platform);
@@ -112,6 +112,57 @@ export function buildTerminalKeyHandler(
       useTerminalStore.getState().setFontSize(LIMITS.DEFAULT_FONT_SIZE);
       return false;
     }
+
+    const isMacSplitVertical = isMac && e.metaKey && !e.shiftKey && e.code === 'KeyD';
+    const isMacSplitHorizontal = isMac && e.metaKey && e.shiftKey && e.code === 'KeyD';
+    const isWinLinuxSplitVertical = !isMac && e.ctrlKey && e.shiftKey && e.code === 'KeyD';
+    const isWinLinuxSplitHorizontal = !isMac && e.ctrlKey && e.shiftKey && e.code === 'KeyH';
+
+    if (isMacSplitVertical || isWinLinuxSplitVertical) {
+      e.preventDefault();
+      const { activeTabId, splitSession } = useTerminalStore.getState();
+      if (activeTabId) {
+        splitSession(activeTabId, 'vertical');
+      }
+      return false;
+    }
+
+    if (isMacSplitHorizontal || isWinLinuxSplitHorizontal) {
+      e.preventDefault();
+      const { activeTabId, splitSession } = useTerminalStore.getState();
+      if (activeTabId) {
+        splitSession(activeTabId, 'horizontal');
+      }
+      return false;
+    }
+
+    const isNextPane = (isMac && e.metaKey && e.altKey && e.code === 'ArrowRight') ||
+                       (!isMac && e.ctrlKey && e.altKey && e.code === 'ArrowRight');
+    const isPrevPane = (isMac && e.metaKey && e.altKey && e.code === 'ArrowLeft') ||
+                       (!isMac && e.ctrlKey && e.altKey && e.code === 'ArrowLeft');
+
+    if (isNextPane || isPrevPane) {
+      e.preventDefault();
+      const { activeTabId, layouts, setActiveTab } = useTerminalStore.getState();
+      if (activeTabId) {
+        const tabId = findTabIdForSession(layouts, activeTabId);
+        if (tabId) {
+          const root = layouts.get(tabId);
+          if (root) {
+            const allIds = getAllSessionIdsFromTree(root);
+            const idx = allIds.indexOf(activeTabId);
+            if (idx !== -1) {
+              const nextIdx = isNextPane 
+                ? (idx + 1) % allIds.length
+                : (idx - 1 + allIds.length) % allIds.length;
+              setActiveTab(allIds[nextIdx]);
+            }
+          }
+        }
+      }
+      return false;
+    }
+
     return true;
   };
 }
