@@ -490,6 +490,11 @@ class S3StorageProvider implements StorageProvider {
     // otherwise unlink a complete file. Verify the on-disk size before
     // discarding the local copy.
     const cleanupPartial = async (): Promise<void> => {
+      await new Promise<void>((resolve) => {
+        body.destroy();
+        writeStream.destroy();
+        setTimeout(resolve, getRuntimeNumber('SFTP_ABORT_CLEANUP_DELAY_MS'));
+      });
       if (total > 0) {
         try {
           const stats = await fsStat(localPath);
@@ -518,8 +523,6 @@ class S3StorageProvider implements StorageProvider {
           settle(() => resolve());
           return;
         }
-        body.destroy();
-        writeStream.destroy();
         settle(() => cleanupPartial().finally(() => reject(new AbortError('Transfer cancelled'))));
       };
       signal.addEventListener('abort', onAbort, { once: true });
@@ -529,11 +532,9 @@ class S3StorageProvider implements StorageProvider {
         onStep(transferred, chunk.length, total);
       });
       body.on('error', (err) => {
-        writeStream.destroy();
         settle(() => cleanupPartial().finally(() => reject(wrapS3Error('download-stream', err))));
       });
       writeStream.on('error', (err) => {
-        body.destroy();
         settle(() => cleanupPartial().finally(() => reject(err)));
       });
       writeStream.on('finish', () => settle(() => resolve()));

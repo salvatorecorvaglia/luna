@@ -6,6 +6,14 @@ import * as path from 'path';
  * Parses local SSH config file contents and returns connection structures
  * ready for import into the SQLite connection database.
  */
+function getSystemUsername(): string {
+  try {
+    return os.userInfo().username || 'root';
+  } catch {
+    return process.env.USER || process.env.USERNAME || 'root';
+  }
+}
+
 export function parseSshConfig(content: string): ExportedConnection[] {
   const connections: ExportedConnection[] = [];
   const lines = content.split(/\r?\n/);
@@ -20,7 +28,7 @@ export function parseSshConfig(content: string): ExportedConnection[] {
         folder: 'ssh-config', // Group in default folder for organizational clarity
         host: currentHost.host,
         port: currentHost.port || 22,
-        username: currentHost.username || os.userInfo().username || 'root',
+        username: currentHost.username || getSystemUsername(),
         authType: currentHost.privateKeyPath ? 'key' : 'password',
         privateKeyPath: currentHost.privateKeyPath || undefined,
         isHidden: false,

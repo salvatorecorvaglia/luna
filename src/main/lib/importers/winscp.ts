@@ -1,6 +1,16 @@
 import type { ExportedConnection } from '@shared/types/connection';
 import { parseIni } from './ini-parser';
 
+function parseRegInt(val: string | undefined | null, defaultValue: number): number {
+  if (!val) return defaultValue;
+  if (val.startsWith('dword:')) {
+    const parsed = parseInt(val.replace('dword:', ''), 16);
+    return Number.isNaN(parsed) ? defaultValue : parsed;
+  }
+  const parsed = parseInt(val, 10);
+  return Number.isNaN(parsed) ? defaultValue : parsed;
+}
+
 export function importFromWinSCP(content: string): ExportedConnection[] {
   const ini = parseIni(content);
   const connections: ExportedConnection[] = [];
@@ -15,18 +25,18 @@ export function importFromWinSCP(content: string): ExportedConnection[] {
     const host = section['HostName'];
     if (!host) continue;
 
-    const protocol = parseInt(section['FSProtocol'], 10);
+    const protocol = parseRegInt(section['FSProtocol'], -1);
     if (protocol !== 0 && protocol !== 5) continue;
 
     const username = section['UserName'] || '';
-    const port = parseInt(section['PortNumber'], 10) || (protocol === 0 ? 22 : 443);
+    const port = parseRegInt(section['PortNumber'], protocol === 0 ? 22 : 443);
     const privateKeyPath = section['PublicKeyFile'] || undefined;
 
     let jumpHostName: string | undefined;
     // WinSCP Tunnel: TunnelMethod=1 means SSH tunnel
-    if (parseInt(section['TunnelMethod'], 10) === 1) {
+    if (parseRegInt(section['TunnelMethod'], 0) === 1) {
       const gwHost = section['TunnelHostName'] || '';
-      const gwPort = parseInt(section['TunnelPortNumber'], 10) || 22;
+      const gwPort = parseRegInt(section['TunnelPortNumber'], 22);
       const gwUser = section['TunnelUserName'] || username;
       const tupleKey = `${gwUser}@${gwHost}:${gwPort}`;
 
