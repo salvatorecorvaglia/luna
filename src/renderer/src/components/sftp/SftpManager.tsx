@@ -20,6 +20,7 @@ import { type FileEntry, FilePane } from './FilePane';
 import { FilePreview } from './FilePreview';
 import { resolveSftpSession } from './sftp-session-fallback';
 import { TransferQueue } from './TransferQueue';
+import { PresignedUrlDialog } from './PresignedUrlDialog';
 
 // Pulled to module scope so they're allocated once at module load instead of
 // rebuilt on every preview-open render. Both lists are immutable and shared
@@ -267,10 +268,11 @@ export function SftpManager() {
     [activeSessionId, remotePath, addTransfer],
   );
 
-  // Dialog state for rename, delete, mkdir
+  // Dialog state for rename, delete, mkdir, presigned url
   const [renameTarget, setRenameTarget] = useState<FileEntry | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FileEntry | null>(null);
   const [mkdirOpen, setMkdirOpen] = useState(false);
+  const [presignedTarget, setPresignedTarget] = useState<FileEntry | null>(null);
 
   const setPreviewFile = useStorageStore((s) => s.setPreviewFile);
 
@@ -621,6 +623,7 @@ export function SftpManager() {
             onCopyPath={handleRemoteCopyPath}
             onPreview={handleRemoteFileOpen}
             onDownload={handleRemoteDownload}
+            onGeneratePresignedUrl={setPresignedTarget}
             downloadLabel="Download"
             showHidden={showHiddenFiles}
             onToggleHidden={toggleHiddenFiles}
@@ -669,6 +672,14 @@ export function SftpManager() {
         confirmLabel="Create"
         onConfirm={handleMkdirConfirm}
         onCancel={() => setMkdirOpen(false)}
+      />
+
+      {/* Presigned URL generation */}
+      <PresignedUrlDialog
+        open={!!presignedTarget}
+        entry={presignedTarget}
+        sessionId={activeSessionId || ''}
+        onClose={() => setPresignedTarget(null)}
       />
     </div>
   );

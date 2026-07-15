@@ -128,6 +128,7 @@ const api = {
     export: () => invoke(IPC.CONNECTION_EXPORT),
     import: (connections: ExportedConnection[]) => invoke(IPC.CONNECTION_IMPORT, connections),
     importFromFile: () => invoke(IPC.CONNECTION_IMPORT_FROM_FILE),
+    importFromSshConfig: () => invoke(IPC.CONNECTION_IMPORT_SSH_CONFIG),
   },
 
   // SSH sessions
@@ -182,6 +183,8 @@ const api = {
     disconnect: (sessionId: string) => invoke(IPC.S3_DISCONNECT, sessionId),
     testConnection: (params: { connectionId?: string; config?: S3TestConnectionConfig }) =>
       invoke(IPC.S3_TEST_CONNECTION, params),
+    generatePresignedUrl: (params: { sessionId: string; path: string; expiresSec: number }) =>
+      invoke(IPC.S3_GENERATE_PRESIGNED_URL, params),
   },
 
   // Local filesystem

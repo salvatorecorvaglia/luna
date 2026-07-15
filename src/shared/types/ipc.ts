@@ -65,6 +65,10 @@ export interface IpcHandlerMap {
     request: void;
     response: { imported: number; skipped: { name: string; reason: string }[] };
   };
+  'connection:import-ssh-config': {
+    request: void;
+    response: { imported: number; skipped: { name: string; reason: string }[] };
+  };
 
   // SSH
   'ssh:connect': { request: SshConnectParams; response: SshConnectResult };
@@ -118,6 +122,10 @@ export interface IpcHandlerMap {
   's3:test-connection': {
     request: { connectionId?: string; config?: S3TestConnectionConfig };
     response: { ok: boolean; error?: string };
+  };
+  's3:generate-presigned-url': {
+    request: { sessionId: string; path: string; expiresSec: number };
+    response: string;
   };
 
   // Local filesystem

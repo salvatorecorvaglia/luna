@@ -37,10 +37,12 @@ interface FileListProps {
   onCopyPath?: (entry: FileEntry) => void;
   onPreview?: (entry: FileEntry) => void;
   onDownload?: (entry: FileEntry) => void;
+  onGeneratePresignedUrl?: (entry: FileEntry) => void;
   downloadLabel?: string;
   showPermissions?: boolean;
   onSelectAll?: () => void;
   emptyMessage?: string;
+  remoteKind?: 'sftp' | 's3';
 }
 
 function getFileIcon(entry: FileEntry) {
@@ -104,10 +106,12 @@ export function FileList({
   onCopyPath,
   onPreview,
   onDownload,
+  onGeneratePresignedUrl,
   downloadLabel,
   showPermissions = false,
   onSelectAll,
   emptyMessage = 'This directory is empty',
+  remoteKind,
 }: FileListProps) {
   // Opt out of React Compiler memoization for the whole component because
   // useVirtualizer's internal refs/effects are incompatible with auto-memo
@@ -185,6 +189,13 @@ export function FileList({
           onClick: () => onDownload(entry),
         });
       }
+      if (remoteKind === 's3' && !entry.isDirectory && onGeneratePresignedUrl) {
+        items.push({
+          label: 'Generate Presigned URL',
+          icon: <Link2 className="size-3.5" />,
+          onClick: () => onGeneratePresignedUrl(entry),
+        });
+      }
       if (onCopyPath) {
         items.push({
           label: 'Copy Path',
@@ -210,7 +221,7 @@ export function FileList({
       }
       return items;
     },
-    [onPreview, onCopyPath, onRename, onDelete, onDownload, downloadLabel],
+    [onPreview, onCopyPath, onRename, onDelete, onDownload, downloadLabel, onGeneratePresignedUrl, remoteKind],
   );
 
   const handleSelect = useCallback(

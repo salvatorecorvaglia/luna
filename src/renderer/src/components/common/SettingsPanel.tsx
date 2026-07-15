@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   AlertTriangle,
-  Database,
+  FolderClosed,
   Download,
   FileText,
   Info,
@@ -287,9 +287,9 @@ export function SettingsPanel() {
                 />
               </Section>
 
-              {/* Data */}
-              <Section title="Data" icon={<Database className="size-4" />}>
-                <div className="flex gap-2">
+              {/* Connection management */}
+              <Section title="Connection Profiles" icon={<FolderClosed className="size-4" />}>
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={async () => {
                       try {
@@ -351,6 +351,37 @@ export function SettingsPanel() {
                   >
                     <Upload className="size-3.5" />
                     Import
+                  </button>
+
+                  <button
+                    onClick={async () => {
+                      try {
+                        const { imported, skipped } = await window.api.connections.importFromSshConfig();
+                        if (imported === -1) return; // Dialog/File cancelled
+                        if (imported > 0) {
+                          void queryClient.invalidateQueries({ queryKey: ['connections'] });
+                          toast.success(
+                            `Imported ${imported} connection${imported > 1 ? 's' : ''} from SSH config` +
+                              (skipped.length > 0 ? ` — ${skipped.length} skipped` : ''),
+                          );
+                        } else {
+                          toast.info(
+                            skipped.length > 0
+                              ? `No new connections imported (${skipped.length} skipped)`
+                              : 'No connections imported from SSH config',
+                          );
+                        }
+                        for (const s of skipped.slice(0, 5)) {
+                          toast.warning(`Skipped "${s.name}": ${s.reason}`);
+                        }
+                      } catch (err: unknown) {
+                        toast.error(...toastArgs(err, 'Import from SSH config failed'));
+                      }
+                    }}
+                    className="btn-outline col-span-2"
+                  >
+                    <FolderClosed className="size-3.5" />
+                    Import SSH Config
                   </button>
                 </div>
               </Section>

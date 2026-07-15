@@ -4,13 +4,13 @@ import { sshManager } from '../ssh-manager';
 
 const serverInstance = {
   on: vi.fn(),
-  listen: vi.fn((port, host, cb) => cb && cb()),
+  listen: vi.fn((_port, _host, cb) => cb && cb()),
   close: vi.fn((cb) => cb && cb()),
 };
-const createServerMock = vi.fn(() => serverInstance);
+const createServerMock = vi.fn((..._args: any[]) => serverInstance);
 
 vi.mock('net', () => ({
-  createServer: vi.fn((...args) => createServerMock(...args)),
+  createServer: vi.fn((opt?: any, listener?: any) => createServerMock(opt, listener)),
   connect: vi.fn(),
 }));
 
@@ -28,7 +28,7 @@ vi.mock('ssh2', () => {
       end = vi.fn();
       destroy = vi.fn();
       removeAllListeners = vi.fn();
-      shell = vi.fn((opts, cb) =>
+      shell = vi.fn((_opts, cb) =>
         cb &&
         cb(null, {
           on: vi.fn(),
@@ -37,8 +37,8 @@ vi.mock('ssh2', () => {
           stderr: { on: vi.fn(), removeListener: vi.fn() },
         }),
       );
-      forwardIn = vi.fn((bind, port, cb) => cb && cb(null));
-      unforwardIn = vi.fn((bind, port, cb) => cb && cb(null));
+      forwardIn = vi.fn((_bind, _port, cb) => cb && cb(null));
+      unforwardIn = vi.fn((_bind, _port, cb) => cb && cb(null));
       forwardOut = vi.fn();
     },
   };

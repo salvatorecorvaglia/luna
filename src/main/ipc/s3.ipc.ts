@@ -161,4 +161,17 @@ export function registerS3Handlers(): void {
       }
     },
   );
+
+  registerHandler(
+    IPC.S3_GENERATE_PRESIGNED_URL,
+    async (
+      _event,
+      params: { sessionId: string; path: string; expiresSec: number },
+    ): Promise<string> => {
+      assertNonEmptyString(params.sessionId, 'sessionId');
+      assertNonEmptyString(params.path, 'path');
+      const expiresSec = params.expiresSec || 3600;
+      return s3StorageProvider.getPresignedUrl(params.sessionId, params.path, expiresSec);
+    },
+  );
 }

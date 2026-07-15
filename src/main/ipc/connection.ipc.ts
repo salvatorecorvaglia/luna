@@ -828,4 +828,52 @@ export function registerConnectionHandlers(): void {
       throw validationError('Import file is not valid JSON or supported third-party format');
     }
   });
+
+  registerHandler(IPC.CONNECTION_IMPORT_SSH_CONFIG, async () => {
+    const { existsSync } = await import('fs');
+    const { readFile } = await import('fs/promises');
+    const { parseSshConfig } = await import('../lib/importers/ssh-config');
+    const os = await import('os');
+    const path = await import('path');
+
+    let content = '';
+    const defaultPath = path.join(os.homedir(), '.ssh', 'config');
+
+    if (existsSync(defaultPath)) {
+      try {
+        content = await readFile(defaultPath, 'utf-8');
+      } catch (err: any) {
+        log.error(`Failed to read default SSH config at ${defaultPath}:`, err);
+      }
+    }
+
+    if (!content) {
+      const result = await dialog.showOpenDialog({
+        title: 'Select SSH Config File',
+        properties: ['openFile'],
+        filters: [
+          { name: 'SSH Config', extensions: ['config', 'txt', ''] },
+          { name: 'All Files', extensions: ['*'] }
+        ]
+      });
+
+      if (result.canceled || result.filePaths.length === 0) {
+        return { imported: -1, skipped: [] as { name: string; reason: string }[] };
+      }
+
+      const selectedPath = result.filePaths[0];
+      try {
+        content = await readFile(selectedPath, 'utf-8');
+      } catch (err: any) {
+        throw validationError(`Could not read selected SSH config: ${err.message}`);
+      }
+    }
+
+    const importedConnections = parseSshConfig(content);
+    if (importedConnections.length === 0) {
+      throw validationError('No valid SSH connection profiles found in the configuration file');
+    }
+
+    return importConnections(importedConnections);
+  });
 }

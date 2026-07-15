@@ -37,6 +37,7 @@ vi.mock('../../services/s3/s3-provider', () => ({
     openSession: vi.fn(),
     closeSession: vi.fn(),
     listSessions: () => [],
+    getPresignedUrl: vi.fn(),
   },
 }));
 
@@ -82,6 +83,7 @@ const credentials = (credentialMock as unknown as { __credentials: Map<string, u
   .__credentials;
 const openSession = s3StorageProvider.openSession as unknown as ReturnType<typeof vi.fn>;
 const closeSession = s3StorageProvider.closeSession as unknown as ReturnType<typeof vi.fn>;
+const getPresignedUrlMock = s3StorageProvider.getPresignedUrl as unknown as ReturnType<typeof vi.fn>;
 const register = storageRegistry.register as unknown as ReturnType<typeof vi.fn>;
 const unregister = storageRegistry.unregister as unknown as ReturnType<typeof vi.fn>;
 const send = (awsMock as unknown as { __send: ReturnType<typeof vi.fn> }).__send;
@@ -93,6 +95,7 @@ beforeEach(() => {
   credentials.clear();
   openSession.mockClear();
   closeSession.mockClear();
+  getPresignedUrlMock.mockClear();
   register.mockClear();
   unregister.mockClear();
   send.mockReset();
@@ -225,5 +228,29 @@ describe('s3 IPC — test-connection', () => {
     send.mockResolvedValue({ Buckets: [] });
     const result = await handlers.get(IPC.S3_TEST_CONNECTION)!({}, { connectionId: 'c1' });
     expect(result).toEqual({ ok: true });
+  });
+});
+
+describe('s3 IPC — generate-presigned-url', () => {
+  it('rejects empty sessionId', async () => {
+    await expect(
+      handlers.get(IPC.S3_GENERATE_PRESIGNED_URL)!({}, { sessionId: '', path: 's3://bucket/key', expiresSec: 3600 }),
+    ).rejects.toThrow();
+  });
+
+  it('rejects empty path', async () => {
+    await expect(
+      handlers.get(IPC.S3_GENERATE_PRESIGNED_URL)!({}, { sessionId: 's1', path: '', expiresSec: 3600 }),
+    ).rejects.toThrow();
+  });
+
+  it('calls getPresignedUrl with correct parameters', async () => {
+    getPresignedUrlMock.mockResolvedValue('https://signed-url');
+    const result = await handlers.get(IPC.S3_GENERATE_PRESIGNED_URL)!(
+      {},
+      { sessionId: 's1', path: 's3://bucket/key', expiresSec: 3600 },
+    );
+    expect(result).toBe('https://signed-url');
+    expect(getPresignedUrlMock).toHaveBeenCalledWith('s1', 's3://bucket/key', 3600);
   });
 });

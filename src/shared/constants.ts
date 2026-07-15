@@ -11,6 +11,7 @@ export const IPC = {
   CONNECTION_EXPORT: 'connection:export',
   CONNECTION_IMPORT: 'connection:import',
   CONNECTION_IMPORT_FROM_FILE: 'connection:import-from-file',
+  CONNECTION_IMPORT_SSH_CONFIG: 'connection:import-ssh-config',
 
   // SSH
   SSH_CONNECT: 'ssh:connect',
@@ -43,6 +44,7 @@ export const IPC = {
   S3_CONNECT: 's3:connect',
   S3_DISCONNECT: 's3:disconnect',
   S3_TEST_CONNECTION: 's3:test-connection',
+  S3_GENERATE_PRESIGNED_URL: 's3:generate-presigned-url',
 
   // Local filesystem
   SHELL_READDIR: 'shell:readdir',

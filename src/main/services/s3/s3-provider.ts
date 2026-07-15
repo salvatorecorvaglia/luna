@@ -13,6 +13,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Upload } from '@aws-sdk/lib-storage';
 import { BINARY_PREVIEW_EXTENSIONS, IPC, LIMITS } from '@shared/constants';
 import type { StorageEntry, StorageStatResult } from '@shared/types/storage-provider';
@@ -94,6 +95,16 @@ class S3StorageProvider implements StorageProvider {
 
   hasSession(sessionId: string): boolean {
     return this.sessions.has(sessionId);
+  }
+
+  async getPresignedUrl(sessionId: string, path: string, expiresSec: number): Promise<string> {
+    const client = this.requireClient(sessionId);
+    const { bucket, key } = parseS3Path(path);
+    const command = new GetObjectCommand({
+      Bucket: bucket ?? undefined,
+      Key: key ?? undefined,
+    });
+    return getSignedUrl(client as any, command as any, { expiresIn: expiresSec });
   }
 
   private requireClient(sessionId: string): S3Client {

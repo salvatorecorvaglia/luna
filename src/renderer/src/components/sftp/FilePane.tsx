@@ -41,6 +41,7 @@ interface FilePaneProps {
   onCopyPath?: (entry: FileEntry) => void;
   onPreview?: (entry: FileEntry) => void;
   onDownload?: (entry: FileEntry) => void;
+  onGeneratePresignedUrl?: (entry: FileEntry) => void;
   downloadLabel?: string;
   showHidden?: boolean;
   onToggleHidden?: () => void;
@@ -86,6 +87,7 @@ export function FilePane({
   onCopyPath,
   onPreview,
   onDownload,
+  onGeneratePresignedUrl,
   downloadLabel,
   showHidden = true,
   onToggleHidden,
@@ -406,10 +408,12 @@ export function FilePane({
             onCopyPath={onCopyPath}
             onPreview={onPreview}
             onDownload={onDownload}
+            onGeneratePresignedUrl={onGeneratePresignedUrl}
             downloadLabel={downloadLabel}
             showPermissions={showPermissions}
             onSelectAll={onSelectAll}
             emptyMessage={filterQuery ? `No files match "${filterQuery}"` : 'Empty directory'}
+            remoteKind={remoteKind}
           />
         )}
       </div>
