@@ -104,6 +104,7 @@ class S3StorageProvider implements StorageProvider {
       Bucket: bucket ?? undefined,
       Key: key ?? undefined,
     });
+    // biome-ignore lint/suspicious/noExplicitAny: SDK version mismatch
     return getSignedUrl(client as any, command as any, { expiresIn: expiresSec });
   }
 

@@ -596,6 +596,7 @@ class SshManager {
           }
         });
 
+        // biome-ignore lint/suspicious/noExplicitAny: ssh2 callback arguments
         const tcpListener = (info: any, accept: () => any, reject: () => void) => {
           if (info.destPort === remotePort) {
             const localSocket = netConnect(localDestPort, localDestHost, () => {

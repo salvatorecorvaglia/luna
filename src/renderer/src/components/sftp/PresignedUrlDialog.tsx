@@ -80,8 +80,9 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
       });
       setGeneratedUrl(url);
       toast.success('Presigned URL generated successfully');
-    } catch (err: any) {
-      toast.error(`Failed to generate URL: ${err.message || err}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error(`Failed to generate URL: ${message}`);
     } finally {
       setGenerating(false);
     }

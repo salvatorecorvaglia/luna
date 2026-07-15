@@ -86,7 +86,7 @@ export function SftpFields({
       }
     }
 
-    const uuid = Math.random().toString(36).substring(2, 9);
+    const uuid = window.crypto.randomUUID();
     const addedRule = {
       id: uuid,
       type: newRule.type,
@@ -669,7 +669,12 @@ export function SftpFields({
                       </label>
                       <select
                         value={newRule.type}
-                        onChange={(e) => setNewRule({ ...newRule, type: e.target.value as any })}
+                        onChange={(e) =>
+                          setNewRule({
+                            ...newRule,
+                            type: e.target.value as 'local' | 'remote' | 'dynamic',
+                          })
+                        }
                         className="form-input text-xs h-8 px-1 py-0 bg-background"
                       >
                         <option value="local">Local</option>

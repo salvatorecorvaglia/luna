@@ -842,7 +842,7 @@ export function registerConnectionHandlers(): void {
     if (existsSync(defaultPath)) {
       try {
         content = await readFile(defaultPath, 'utf-8');
-      } catch (err: any) {
+      } catch (err: unknown) {
         log.error(`Failed to read default SSH config at ${defaultPath}:`, err);
       }
     }
@@ -864,8 +864,9 @@ export function registerConnectionHandlers(): void {
       const selectedPath = result.filePaths[0];
       try {
         content = await readFile(selectedPath, 'utf-8');
-      } catch (err: any) {
-        throw validationError(`Could not read selected SSH config: ${err.message}`);
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        throw validationError(`Could not read selected SSH config: ${errorMsg}`);
       }
     }
 

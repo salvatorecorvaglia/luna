@@ -7,9 +7,11 @@ const serverInstance = {
   listen: vi.fn((_port, _host, cb) => cb && cb()),
   close: vi.fn((cb) => cb && cb()),
 };
+// biome-ignore lint/suspicious/noExplicitAny: mock args
 const createServerMock = vi.fn((..._args: any[]) => serverInstance);
 
 vi.mock('net', () => ({
+  // biome-ignore lint/suspicious/noExplicitAny: mock args
   createServer: vi.fn((opt?: any, listener?: any) => createServerMock(opt, listener)),
   connect: vi.fn(),
 }));
