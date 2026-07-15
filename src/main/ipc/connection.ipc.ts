@@ -853,8 +853,8 @@ export function registerConnectionHandlers(): void {
         properties: ['openFile'],
         filters: [
           { name: 'SSH Config', extensions: ['config', 'txt', ''] },
-          { name: 'All Files', extensions: ['*'] }
-        ]
+          { name: 'All Files', extensions: ['*'] },
+        ],
       });
 
       if (result.canceled || result.filePaths.length === 0) {

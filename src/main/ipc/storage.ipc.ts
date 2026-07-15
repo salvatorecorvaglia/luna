@@ -86,10 +86,7 @@ export function registerStorageHandlers(): void {
 
   registerHandler(
     IPC.STORAGE_WRITE_FILE,
-    async (
-      _event,
-      params: { sessionId: string; path: string; content: string },
-    ) => {
+    async (_event, params: { sessionId: string; path: string; content: string }) => {
       assertNonEmptyString(params.sessionId, 'sessionId');
       assertValidPath(params.path, 'path');
       if (typeof params.content !== 'string') {

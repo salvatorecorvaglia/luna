@@ -164,8 +164,7 @@ export async function buildConnectConfig(
       params.keepaliveInterval !== undefined
         ? params.keepaliveInterval
         : getSetting('ssh.keepAliveInterval', 10000),
-    keepaliveCountMax:
-      params.keepaliveCountMax !== undefined ? params.keepaliveCountMax : 3,
+    keepaliveCountMax: params.keepaliveCountMax !== undefined ? params.keepaliveCountMax : 3,
     readyTimeout: getSetting('ssh.readyTimeout', 30000),
     // Restrict negotiation to modern primitives. ssh2's defaults still include
     // some legacy options (e.g. sha1 HMACs, diffie-hellman-group14-sha1).

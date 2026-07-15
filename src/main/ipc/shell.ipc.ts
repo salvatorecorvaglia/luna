@@ -3,9 +3,9 @@ import { ErrorCode, LunarError } from '@shared/errors';
 import type { LocalFileEntry } from '@shared/types/sftp';
 import { dialog } from 'electron';
 import { constants as fsConstants } from 'fs';
-import { access, lstat, open, readdir, realpath, stat, writeFile, readlink } from 'fs/promises';
+import { access, lstat, open, readdir, readlink, realpath, stat, writeFile } from 'fs/promises';
 import { homedir } from 'os';
-import { basename, isAbsolute, join, resolve, dirname } from 'path';
+import { basename, dirname, isAbsolute, join, resolve } from 'path';
 import { registerHandler } from '../lib/ipc-handler';
 import {
   assertSafeAbsolutePath,
@@ -279,10 +279,7 @@ export function registerShellHandlers(): void {
 
       const MAX_BYTES = 50 * 1024 * 1024; // 50 MB
       if (Buffer.byteLength(content, 'utf-8') > MAX_BYTES) {
-        throw new LunarError(
-          `Content exceeds maximum size of 50MB`,
-          ErrorCode.VALIDATION_ERROR,
-        );
+        throw new LunarError(`Content exceeds maximum size of 50MB`, ErrorCode.VALIDATION_ERROR);
       }
 
       await writeFile(target, content, 'utf-8');

@@ -1,10 +1,10 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { FileCode, FileImage, FileText, Loader2, Save, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { Z } from '@/lib/z-layers';
 import { useStorageStore } from '@/stores/storage-store';
-import { ConfirmDialog } from '@/components/common/ConfirmDialog';
-import { toast } from 'sonner';
 
 function detectLanguage(name: string): string {
   const ext = name.split('.').pop()?.toLowerCase();
@@ -172,25 +172,23 @@ export function FilePreview() {
               </div>
 
               <div className="flex items-center gap-2">
-                {!isImageType(previewFile.type) && previewFile.type !== 'application/pdf' && isDirty && (
-                  <button
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    className="flex h-7 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 cursor-pointer"
-                  >
-                    {isSaving ? (
-                      <Loader2 className="size-3 animate-spin" />
-                    ) : (
-                      <Save className="size-3" />
-                    )}
-                    <span>Save</span>
-                  </button>
-                )}
-                <button
-                  onClick={handleClose}
-                  className="btn-icon"
-                  aria-label="Close preview"
-                >
+                {!isImageType(previewFile.type) &&
+                  previewFile.type !== 'application/pdf' &&
+                  isDirty && (
+                    <button
+                      onClick={handleSave}
+                      disabled={isSaving}
+                      className="flex h-7 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      {isSaving ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : (
+                        <Save className="size-3" />
+                      )}
+                      <span>Save</span>
+                    </button>
+                  )}
+                <button onClick={handleClose} className="btn-icon" aria-label="Close preview">
                   <X className="size-4" />
                 </button>
               </div>

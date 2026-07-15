@@ -1,9 +1,9 @@
+import type { PaneNode } from '@shared/types/terminal';
 import { Monitor, Plus } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { useTerminalStore, hasSessionInTree } from '@/stores/terminal-store';
+import { hasSessionInTree, useTerminalStore } from '@/stores/terminal-store';
 import { terminalThemes } from '@/themes/terminal';
-import type { PaneNode } from '@shared/types/terminal';
 import { LocalTerminalTabs } from './LocalTerminalTabs';
 import { SplitLayout } from './SplitLayout';
 
@@ -13,7 +13,7 @@ export function LocalTerminalView() {
 
   const localTabs = useMemo(
     () => tabOrder.filter((id) => sessions.get(id)?.type === 'local'),
-    [tabOrder, sessions]
+    [tabOrder, sessions],
   );
 
   const activeLocalTabId = useMemo(() => {
@@ -65,10 +65,13 @@ export function LocalTerminalView() {
 
       // Cmd+W
       if (e.key === 'w' && !e.shiftKey) {
-        if (activeTabId && localTabs.some(tabId => {
-          const root = layouts.get(tabId);
-          return root && hasSessionInTree(root, activeTabId);
-        })) {
+        if (
+          activeTabId &&
+          localTabs.some((tabId) => {
+            const root = layouts.get(tabId);
+            return root && hasSessionInTree(root, activeTabId);
+          })
+        ) {
           e.preventDefault();
           closeTab(activeTabId);
           return;
@@ -110,15 +113,8 @@ export function LocalTerminalView() {
           const rootNode = layouts.get(tabId);
           if (!rootNode) return null;
           return (
-            <div
-              key={tabId}
-              className={tabId === activeLocalTabId ? 'h-full w-full' : 'hidden'}
-            >
-              <SplitLayout
-                node={rootNode}
-                tabId={tabId}
-                activeSessionId={activeTabId}
-              />
+            <div key={tabId} className={tabId === activeLocalTabId ? 'h-full w-full' : 'hidden'}>
+              <SplitLayout node={rootNode} tabId={tabId} activeSessionId={activeTabId} />
             </div>
           );
         })}

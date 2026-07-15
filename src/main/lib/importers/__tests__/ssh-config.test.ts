@@ -23,7 +23,7 @@ Host another-server
     User admin
     # No custom port or identity file
     `;
-    
+
     const result = parseSshConfig(configContent);
     expect(result).toHaveLength(2);
 

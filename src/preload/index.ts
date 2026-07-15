@@ -171,7 +171,8 @@ const api = {
     rename: (params: StorageRenameParams) => invoke(IPC.STORAGE_RENAME, params),
     delete: (params: StorageDeleteParams) => invoke(IPC.STORAGE_DELETE, params),
     readFile: (params: StorageReadFileParams) => invoke(IPC.STORAGE_READ_FILE, params),
-    writeFile: (params: { sessionId: string; path: string; content: string }) => invoke(IPC.STORAGE_WRITE_FILE, params),
+    writeFile: (params: { sessionId: string; path: string; content: string }) =>
+      invoke(IPC.STORAGE_WRITE_FILE, params),
     download: (params: StorageTransferParams) => invoke(IPC.STORAGE_DOWNLOAD, params),
     upload: (params: StorageTransferParams) => invoke(IPC.STORAGE_UPLOAD, params),
     onListTruncated: createEventListener(IPC.STORAGE_LIST_TRUNCATED),
@@ -201,7 +202,8 @@ const api = {
     joinPath: (base: string, fileName: string) => invoke(IPC.SHELL_JOIN_PATH, { base, fileName }),
     checkFile: (filePath: string) => invoke(IPC.SHELL_CHECK_FILE, filePath),
     readFile: (filePath: string) => invoke(IPC.SHELL_READ_FILE, filePath),
-    writeFile: (filePath: string, content: string) => invoke(IPC.SHELL_WRITE_FILE, { filePath, content }),
+    writeFile: (filePath: string, content: string) =>
+      invoke(IPC.SHELL_WRITE_FILE, { filePath, content }),
   },
 
   // Transfer events

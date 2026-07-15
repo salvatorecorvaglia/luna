@@ -13,8 +13,8 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Upload } from '@aws-sdk/lib-storage';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { BINARY_PREVIEW_EXTENSIONS, IPC, LIMITS } from '@shared/constants';
 import type { StorageEntry, StorageStatResult } from '@shared/types/storage-provider';
 import { createReadStream, createWriteStream } from 'fs';
@@ -437,11 +437,7 @@ class S3StorageProvider implements StorageProvider {
     });
   }
 
-  async writeFile(
-    sessionId: string,
-    path: string,
-    content: string,
-  ): Promise<void> {
+  async writeFile(sessionId: string, path: string, content: string): Promise<void> {
     return this.runOp(sessionId, 'writeFile', async (client) => {
       const { bucket, key } = parseS3Path(path);
       if (!bucket || !key) throw new S3StorageError('Cannot write to a non-key path');

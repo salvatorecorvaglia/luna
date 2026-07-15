@@ -1,5 +1,10 @@
 import { LIMITS } from '@shared/constants';
-import type { PaneNode, SessionStatus, SplitDirection, TerminalThemeName } from '@shared/types/terminal';
+import type {
+  PaneNode,
+  SessionStatus,
+  SplitDirection,
+  TerminalThemeName,
+} from '@shared/types/terminal';
 import { v4 as uuidv4 } from 'uuid';
 import { create } from 'zustand';
 
@@ -54,7 +59,9 @@ export function hasSessionInTree(node: PaneNode | undefined, sessionId: string):
   if (node.type === 'terminal') {
     return node.sessionId === sessionId;
   }
-  return hasSessionInTree(node.children[0], sessionId) || hasSessionInTree(node.children[1], sessionId);
+  return (
+    hasSessionInTree(node.children[0], sessionId) || hasSessionInTree(node.children[1], sessionId)
+  );
 }
 
 export function getFirstLeafSessionId(node: PaneNode): string {
@@ -68,10 +75,18 @@ export function getAllSessionIdsFromTree(node: PaneNode): string[] {
   if (node.type === 'terminal') {
     return [node.sessionId];
   }
-  return [...getAllSessionIdsFromTree(node.children[0]), ...getAllSessionIdsFromTree(node.children[1])];
+  return [
+    ...getAllSessionIdsFromTree(node.children[0]),
+    ...getAllSessionIdsFromTree(node.children[1]),
+  ];
 }
 
-function splitLeafInTree(node: PaneNode, targetId: string, direction: SplitDirection, newId: string): PaneNode {
+function splitLeafInTree(
+  node: PaneNode,
+  targetId: string,
+  direction: SplitDirection,
+  newId: string,
+): PaneNode {
   if (node.type === 'terminal') {
     if (node.sessionId === targetId) {
       return {
@@ -142,7 +157,10 @@ function updateSplitRatioInTree(node: PaneNode, leftKey: string, ratio: number):
   return node;
 }
 
-export function findTabIdForSession(layouts: Map<string, PaneNode>, sessionId: string): string | null {
+export function findTabIdForSession(
+  layouts: Map<string, PaneNode>,
+  sessionId: string,
+): string | null {
   for (const [tabId, node] of layouts.entries()) {
     if (hasSessionInTree(node, sessionId)) {
       return tabId;

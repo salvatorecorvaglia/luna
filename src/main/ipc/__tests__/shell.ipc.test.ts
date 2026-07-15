@@ -205,10 +205,7 @@ describe('shell IPC — writeFile', () => {
 
   it('writes content to a file inside the home directory', async () => {
     const target = join(workdir, 'test-write.txt');
-    await handlers.get(IPC.SHELL_WRITE_FILE)!(
-      {},
-      { filePath: target, content: 'hello write' },
-    );
+    await handlers.get(IPC.SHELL_WRITE_FILE)!({}, { filePath: target, content: 'hello write' });
 
     const result = (await handlers.get(IPC.SHELL_READ_FILE)!({}, target)) as {
       content: string;
@@ -221,10 +218,7 @@ describe('shell IPC — writeFile', () => {
 
   it('rejects writing to a path outside the home directory', async () => {
     await expect(
-      handlers.get(IPC.SHELL_WRITE_FILE)!(
-        {},
-        { filePath: '/etc/evil.txt', content: 'evil' },
-      ),
+      handlers.get(IPC.SHELL_WRITE_FILE)!({}, { filePath: '/etc/evil.txt', content: 'evil' }),
     ).rejects.toThrow(/home directory/);
   });
 
@@ -232,10 +226,7 @@ describe('shell IPC — writeFile', () => {
     const link = join(workdir, 'escape-write');
     await symlink('/etc/evil-target.txt', link);
     await expect(
-      handlers.get(IPC.SHELL_WRITE_FILE)!(
-        {},
-        { filePath: link, content: 'evil' },
-      ),
+      handlers.get(IPC.SHELL_WRITE_FILE)!({}, { filePath: link, content: 'evil' }),
     ).rejects.toThrow(/home directory/);
   });
 });

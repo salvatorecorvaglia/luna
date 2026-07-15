@@ -1,9 +1,9 @@
 import { IPC, LIMITS } from '@shared/constants';
 import type { AuthType, PortForwardingConfig } from '@shared/types/connection';
 import type { SessionStatus } from '@shared/types/terminal';
+import { createServer, connect as netConnect } from 'net';
 import { Client, type ClientChannel } from 'ssh2';
 import { StringDecoder } from 'string_decoder';
-import { createServer, connect as netConnect } from 'net';
 import { v4 as uuidv4 } from 'uuid';
 import { getRuntimeNumber } from '../config/runtime';
 import { describeSshError } from '../lib/error-map';
@@ -550,14 +550,17 @@ class SshManager {
             config.remotePort || 80,
             (err, stream) => {
               if (err) {
-                log.error(`[SSH] Local port forward forwardOut failed for port ${config.localPort}:`, err);
+                log.error(
+                  `[SSH] Local port forward forwardOut failed for port ${config.localPort}:`,
+                  err,
+                );
                 socket.destroy();
                 return;
               }
               socket.pipe(stream).pipe(socket);
               socket.on('error', () => stream.end());
               stream.on('error', () => socket.destroy());
-            }
+            },
           );
         });
 
@@ -566,14 +569,15 @@ class SshManager {
         });
 
         server.listen(config.localPort, config.bindAddress || '127.0.0.1', () => {
-          log.info(`[SSH] Local port forward listening on ${config.bindAddress || '127.0.0.1'}:${config.localPort}`);
+          log.info(
+            `[SSH] Local port forward listening on ${config.bindAddress || '127.0.0.1'}:${config.localPort}`,
+          );
         });
 
         session.portForwards.push({
           config,
           close: () => new Promise<void>((resolveClose) => server.close(() => resolveClose())),
         });
-
       } else if (config.type === 'remote') {
         const client = session.client;
         const remoteBind = config.bindAddress || '127.0.0.1';
@@ -583,7 +587,10 @@ class SshManager {
 
         client.forwardIn(remoteBind, remotePort, (err) => {
           if (err) {
-            log.error(`[SSH] Remote port forward forwardIn failed for remote port ${remotePort}:`, err);
+            log.error(
+              `[SSH] Remote port forward forwardIn failed for remote port ${remotePort}:`,
+              err,
+            );
           } else {
             log.info(`[SSH] Remote port forward requested on remote ${remoteBind}:${remotePort}`);
           }
@@ -598,7 +605,10 @@ class SshManager {
               stream.on('error', () => localSocket.destroy());
             });
             localSocket.on('error', (err) => {
-              log.error(`[SSH] Remote port forward local connect failed to ${localDestHost}:${localDestPort}:`, err);
+              log.error(
+                `[SSH] Remote port forward local connect failed to ${localDestHost}:${localDestPort}:`,
+                err,
+              );
               reject();
             });
           }
@@ -608,12 +618,12 @@ class SshManager {
 
         session.portForwards.push({
           config,
-          close: () => new Promise<void>((resolveClose) => {
-            client.off('tcp connection', tcpListener);
-            client.unforwardIn(remoteBind, remotePort, () => resolveClose());
-          }),
+          close: () =>
+            new Promise<void>((resolveClose) => {
+              client.off('tcp connection', tcpListener);
+              client.unforwardIn(remoteBind, remotePort, () => resolveClose());
+            }),
         });
-
       } else if (config.type === 'dynamic') {
         const server = createServer((socket) => {
           let stage = 0;
@@ -629,7 +639,9 @@ class SshManager {
               stage = 1;
             } else if (stage === 1) {
               if (chunk[0] !== 0x05 || chunk[1] !== 0x01) {
-                socket.write(Buffer.from([0x05, 0x07, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]));
+                socket.write(
+                  Buffer.from([0x05, 0x07, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
+                );
                 socket.destroy();
                 return;
               }
@@ -656,24 +668,22 @@ class SshManager {
               }
               const port = chunk.readUInt16BE(offset);
 
-              client.forwardOut(
-                '127.0.0.1',
-                config.localPort,
-                host,
-                port,
-                (err, stream) => {
-                  if (err) {
-                    log.error(`[SSH] Dynamic SOCKS5 forwardOut failed to ${host}:${port}:`, err);
-                    socket.write(Buffer.from([0x05, 0x05, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]));
-                    socket.destroy();
-                    return;
-                  }
-                  socket.write(Buffer.from([0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]));
-                  socket.pipe(stream).pipe(socket);
-                  socket.on('error', () => stream.end());
-                  stream.on('error', () => socket.destroy());
+              client.forwardOut('127.0.0.1', config.localPort, host, port, (err, stream) => {
+                if (err) {
+                  log.error(`[SSH] Dynamic SOCKS5 forwardOut failed to ${host}:${port}:`, err);
+                  socket.write(
+                    Buffer.from([0x05, 0x05, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
+                  );
+                  socket.destroy();
+                  return;
                 }
-              );
+                socket.write(
+                  Buffer.from([0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
+                );
+                socket.pipe(stream).pipe(socket);
+                socket.on('error', () => stream.end());
+                stream.on('error', () => socket.destroy());
+              });
               stage = 2;
             }
           });
@@ -684,7 +694,9 @@ class SshManager {
         });
 
         server.listen(config.localPort, config.bindAddress || '127.0.0.1', () => {
-          log.info(`[SSH] Dynamic SOCKS5 proxy server listening on ${config.bindAddress || '127.0.0.1'}:${config.localPort}`);
+          log.info(
+            `[SSH] Dynamic SOCKS5 proxy server listening on ${config.bindAddress || '127.0.0.1'}:${config.localPort}`,
+          );
         });
 
         session.portForwards.push({

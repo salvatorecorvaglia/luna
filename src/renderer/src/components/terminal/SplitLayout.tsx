@@ -1,10 +1,11 @@
 import type { PaneNode } from '@shared/types/terminal';
-import { useTerminalStore, getFirstLeafSessionId } from '@/stores/terminal-store';
-import { TerminalPane } from './TerminalPane';
-import { LocalTerminalPane } from './LocalTerminalPane';
 import { Columns, Rows, X } from 'lucide-react';
-import React, { useRef, useState, useCallback } from 'react';
+import type React from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { getFirstLeafSessionId, useTerminalStore } from '@/stores/terminal-store';
+import { LocalTerminalPane } from './LocalTerminalPane';
+import { TerminalPane } from './TerminalPane';
 
 interface SplitLayoutProps {
   node: PaneNode;
@@ -22,34 +23,37 @@ export function SplitLayout({ node, tabId, activeSessionId }: SplitLayoutProps) 
   const containerRef = useRef<HTMLDivElement>(null);
   const [isResizing, setIsResizing] = useState(false);
 
-  const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    e.preventDefault();
-    if (!containerRef.current || node.type !== 'split') return;
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault();
+      if (!containerRef.current || node.type !== 'split') return;
 
-    setIsResizing(true);
-    const rect = containerRef.current.getBoundingClientRect();
+      setIsResizing(true);
+      const rect = containerRef.current.getBoundingClientRect();
 
-    const handlePointerMove = (moveEvent: PointerEvent) => {
-      let ratio: number;
-      if (node.direction === 'vertical') {
-        ratio = (moveEvent.clientX - rect.left) / rect.width;
-      } else {
-        ratio = (moveEvent.clientY - rect.top) / rect.height;
-      }
-      ratio = Math.max(0.1, Math.min(0.9, ratio));
-      const leftKey = getFirstLeafSessionId(node.children[0]);
-      updateSplitRatio(tabId, leftKey, ratio);
-    };
+      const handlePointerMove = (moveEvent: PointerEvent) => {
+        let ratio: number;
+        if (node.direction === 'vertical') {
+          ratio = (moveEvent.clientX - rect.left) / rect.width;
+        } else {
+          ratio = (moveEvent.clientY - rect.top) / rect.height;
+        }
+        ratio = Math.max(0.1, Math.min(0.9, ratio));
+        const leftKey = getFirstLeafSessionId(node.children[0]);
+        updateSplitRatio(tabId, leftKey, ratio);
+      };
 
-    const handlePointerUp = () => {
-      setIsResizing(false);
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-    };
+      const handlePointerUp = () => {
+        setIsResizing(false);
+        window.removeEventListener('pointermove', handlePointerMove);
+        window.removeEventListener('pointerup', handlePointerUp);
+      };
 
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handlePointerUp);
-  }, [node, tabId, updateSplitRatio]);
+      window.addEventListener('pointermove', handlePointerMove);
+      window.addEventListener('pointerup', handlePointerUp);
+    },
+    [node, tabId, updateSplitRatio],
+  );
 
   if (node.type === 'terminal') {
     const session = sessions.get(node.sessionId);
@@ -59,13 +63,15 @@ export function SplitLayout({ node, tabId, activeSessionId }: SplitLayoutProps) 
     const isLocal = session.type === 'local';
 
     return (
-      <div 
+      <div
         onClick={() => {
           if (!isActive) setActiveTab(node.sessionId);
         }}
         className={cn(
-          "group relative h-full w-full border transition-all duration-150 overflow-hidden",
-          isActive ? "border-primary/80 ring-1 ring-primary/40 bg-background" : "border-border/40 hover:border-border/80 bg-background/95"
+          'group relative h-full w-full border transition-all duration-150 overflow-hidden',
+          isActive
+            ? 'border-primary/80 ring-1 ring-primary/40 bg-background'
+            : 'border-border/40 hover:border-border/80 bg-background/95',
         )}
       >
         {/* Floating action bar */}
@@ -117,10 +123,7 @@ export function SplitLayout({ node, tabId, activeSessionId }: SplitLayoutProps) 
   return (
     <div
       ref={containerRef}
-      className={cn(
-        "flex h-full w-full overflow-hidden",
-        isVertical ? "flex-row" : "flex-col"
-      )}
+      className={cn('flex h-full w-full overflow-hidden', isVertical ? 'flex-row' : 'flex-col')}
     >
       <div style={{ flexGrow: ratio, flexShrink: 1, flexBasis: 0 }} className="overflow-hidden">
         <SplitLayout node={node.children[0]} tabId={tabId} activeSessionId={activeSessionId} />
@@ -129,9 +132,9 @@ export function SplitLayout({ node, tabId, activeSessionId }: SplitLayoutProps) 
       <div
         onPointerDown={handlePointerDown}
         className={cn(
-          "bg-border/60 hover:bg-primary/60 transition-colors z-20",
-          isVertical ? "w-1 h-full cursor-col-resize" : "h-1 w-full cursor-row-resize",
-          isResizing && "bg-primary/80"
+          'bg-border/60 hover:bg-primary/60 transition-colors z-20',
+          isVertical ? 'w-1 h-full cursor-col-resize' : 'h-1 w-full cursor-row-resize',
+          isResizing && 'bg-primary/80',
         )}
       />
 

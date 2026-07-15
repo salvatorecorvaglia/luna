@@ -385,11 +385,7 @@ class SftpManager {
     });
   }
 
-  async writeFile(
-    sessionId: string,
-    remotePath: string,
-    content: string,
-  ): Promise<void> {
+  async writeFile(sessionId: string, remotePath: string, content: string): Promise<void> {
     return this.runOp(sessionId, 'writeFile', (sftp) => {
       return new Promise<void>((resolve, reject) => {
         sftp.writeFile(remotePath, content, { encoding: 'utf-8' }, (err) => {

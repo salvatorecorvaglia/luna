@@ -221,7 +221,16 @@ export function FileList({
       }
       return items;
     },
-    [onPreview, onCopyPath, onRename, onDelete, onDownload, downloadLabel, onGeneratePresignedUrl, remoteKind],
+    [
+      onPreview,
+      onCopyPath,
+      onRename,
+      onDelete,
+      onDownload,
+      downloadLabel,
+      onGeneratePresignedUrl,
+      remoteKind,
+    ],
   );
 
   const handleSelect = useCallback(

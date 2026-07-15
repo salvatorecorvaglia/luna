@@ -196,8 +196,10 @@ export function useConnectionFormState(initialColor: string): UseConnectionFormS
         privateKeyPath: source.privateKeyPath || '',
         passphrase: '',
         showPassword: false,
-        keepaliveInterval: source.keepaliveInterval !== undefined ? String(source.keepaliveInterval / 1000) : '10',
-        keepaliveCountMax: source.keepaliveCountMax !== undefined ? String(source.keepaliveCountMax) : '3',
+        keepaliveInterval:
+          source.keepaliveInterval !== undefined ? String(source.keepaliveInterval / 1000) : '10',
+        keepaliveCountMax:
+          source.keepaliveCountMax !== undefined ? String(source.keepaliveCountMax) : '3',
         portForwards: source.portForwards || [],
       });
       if (source.jumpHostConfig) {

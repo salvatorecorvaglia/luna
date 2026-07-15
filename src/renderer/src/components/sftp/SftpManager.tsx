@@ -18,9 +18,9 @@ import { useTerminalStore } from '@/stores/terminal-store';
 import { useTransferStore } from '@/stores/transfer-store';
 import { type FileEntry, FilePane } from './FilePane';
 import { FilePreview } from './FilePreview';
+import { PresignedUrlDialog } from './PresignedUrlDialog';
 import { resolveSftpSession } from './sftp-session-fallback';
 import { TransferQueue } from './TransferQueue';
-import { PresignedUrlDialog } from './PresignedUrlDialog';
 
 // Pulled to module scope so they're allocated once at module load instead of
 // rebuilt on every preview-open render. Both lists are immutable and shared

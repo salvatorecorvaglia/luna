@@ -83,7 +83,9 @@ const credentials = (credentialMock as unknown as { __credentials: Map<string, u
   .__credentials;
 const openSession = s3StorageProvider.openSession as unknown as ReturnType<typeof vi.fn>;
 const closeSession = s3StorageProvider.closeSession as unknown as ReturnType<typeof vi.fn>;
-const getPresignedUrlMock = s3StorageProvider.getPresignedUrl as unknown as ReturnType<typeof vi.fn>;
+const getPresignedUrlMock = s3StorageProvider.getPresignedUrl as unknown as ReturnType<
+  typeof vi.fn
+>;
 const register = storageRegistry.register as unknown as ReturnType<typeof vi.fn>;
 const unregister = storageRegistry.unregister as unknown as ReturnType<typeof vi.fn>;
 const send = (awsMock as unknown as { __send: ReturnType<typeof vi.fn> }).__send;
@@ -234,13 +236,19 @@ describe('s3 IPC — test-connection', () => {
 describe('s3 IPC — generate-presigned-url', () => {
   it('rejects empty sessionId', async () => {
     await expect(
-      handlers.get(IPC.S3_GENERATE_PRESIGNED_URL)!({}, { sessionId: '', path: 's3://bucket/key', expiresSec: 3600 }),
+      handlers.get(IPC.S3_GENERATE_PRESIGNED_URL)!(
+        {},
+        { sessionId: '', path: 's3://bucket/key', expiresSec: 3600 },
+      ),
     ).rejects.toThrow();
   });
 
   it('rejects empty path', async () => {
     await expect(
-      handlers.get(IPC.S3_GENERATE_PRESIGNED_URL)!({}, { sessionId: 's1', path: '', expiresSec: 3600 }),
+      handlers.get(IPC.S3_GENERATE_PRESIGNED_URL)!(
+        {},
+        { sessionId: 's1', path: '', expiresSec: 3600 },
+      ),
     ).rejects.toThrow();
   });
 

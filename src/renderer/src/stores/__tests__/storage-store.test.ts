@@ -57,7 +57,13 @@ describe('storage-store', () => {
   });
 
   it('sets and clears preview file', () => {
-    const file = { name: 'test.txt', content: 'hello', type: 'text/plain', path: '/test.txt', isLocal: true };
+    const file = {
+      name: 'test.txt',
+      content: 'hello',
+      type: 'text/plain',
+      path: '/test.txt',
+      isLocal: true,
+    };
     useStorageStore.getState().setPreviewFile(file);
     expect(useStorageStore.getState().previewFile).toEqual(file);
 

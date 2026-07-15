@@ -28,14 +28,15 @@ vi.mock('ssh2', () => {
       end = vi.fn();
       destroy = vi.fn();
       removeAllListeners = vi.fn();
-      shell = vi.fn((_opts, cb) =>
-        cb &&
-        cb(null, {
-          on: vi.fn(),
-          removeListener: vi.fn(),
-          write: vi.fn(),
-          stderr: { on: vi.fn(), removeListener: vi.fn() },
-        }),
+      shell = vi.fn(
+        (_opts, cb) =>
+          cb &&
+          cb(null, {
+            on: vi.fn(),
+            removeListener: vi.fn(),
+            write: vi.fn(),
+            stderr: { on: vi.fn(), removeListener: vi.fn() },
+          }),
       );
       forwardIn = vi.fn((_bind, _port, cb) => cb && cb(null));
       unforwardIn = vi.fn((_bind, _port, cb) => cb && cb(null));
@@ -56,9 +57,23 @@ vi.mock('../database', () => ({
         keepalive_interval: 10000,
         keepalive_count_max: 3,
         port_forwards: JSON.stringify([
-          { id: '1', type: 'local', bindAddress: '127.0.0.1', localPort: 8080, remoteHost: 'localhost', remotePort: 80 },
-          { id: '2', type: 'remote', bindAddress: '127.0.0.1', localPort: 9090, remoteHost: 'localhost', remotePort: 90 },
-          { id: '3', type: 'dynamic', bindAddress: '127.0.0.1', localPort: 1080 }
+          {
+            id: '1',
+            type: 'local',
+            bindAddress: '127.0.0.1',
+            localPort: 8080,
+            remoteHost: 'localhost',
+            remotePort: 80,
+          },
+          {
+            id: '2',
+            type: 'remote',
+            bindAddress: '127.0.0.1',
+            localPort: 9090,
+            remoteHost: 'localhost',
+            remotePort: 90,
+          },
+          { id: '3', type: 'dynamic', bindAddress: '127.0.0.1', localPort: 1080 },
         ]),
       }),
       run: vi.fn(),

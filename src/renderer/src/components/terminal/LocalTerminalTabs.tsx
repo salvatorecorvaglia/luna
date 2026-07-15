@@ -5,7 +5,12 @@ import { v4 as uuidv4 } from 'uuid';
 import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
 import { PromptDialog } from '@/components/common/PromptDialog';
 import { cn } from '@/lib/utils';
-import { useTerminalStore, getFirstLeafSessionId, hasSessionInTree, getAllSessionIdsFromTree } from '@/stores/terminal-store';
+import {
+  getAllSessionIdsFromTree,
+  getFirstLeafSessionId,
+  hasSessionInTree,
+  useTerminalStore,
+} from '@/stores/terminal-store';
 
 export function LocalTerminalTabs() {
   const {
@@ -152,13 +157,7 @@ interface TabProps {
   onRename: (tabId: string) => void;
 }
 
-const Tab = memo(function Tab({
-  tabId,
-  isActive,
-  onActivate,
-  onClose,
-  onRename,
-}: TabProps) {
+const Tab = memo(function Tab({ tabId, isActive, onActivate, onClose, onRename }: TabProps) {
   const session = useTerminalStore((s) => s.sessions.get(tabId));
 
   const contextItems: ContextMenuItem[] = useMemo(

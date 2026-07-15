@@ -1,12 +1,12 @@
+import type { PaneNode } from '@shared/types/terminal';
 import { Plus, Terminal as TerminalIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo } from 'react';
 import { connectToHost } from '@/lib/ssh';
 import { useConnectionStore } from '@/stores/connection-store';
-import { useTerminalStore, hasSessionInTree } from '@/stores/terminal-store';
-import type { PaneNode } from '@shared/types/terminal';
+import { hasSessionInTree, useTerminalStore } from '@/stores/terminal-store';
 import { terminalThemes } from '@/themes/terminal';
-import { TerminalTabs } from './TerminalTabs';
 import { SplitLayout } from './SplitLayout';
+import { TerminalTabs } from './TerminalTabs';
 
 export { connectToHost };
 
@@ -82,10 +82,11 @@ export function TerminalView() {
       // Cmd+Shift+] — next tab
       if (e.shiftKey && e.key === ']') {
         e.preventDefault();
-        const currentTabId = sshTabs.find(tabId => {
-          const root = layouts.get(tabId);
-          return root && hasSessionInTree(root, activeTabId ?? '');
-        }) ?? sshTabs[0];
+        const currentTabId =
+          sshTabs.find((tabId) => {
+            const root = layouts.get(tabId);
+            return root && hasSessionInTree(root, activeTabId ?? '');
+          }) ?? sshTabs[0];
         const idx = sshTabs.indexOf(currentTabId ?? '');
         const nextTabId = sshTabs[(idx + 1) % sshTabs.length];
         const root = layouts.get(nextTabId);
@@ -98,10 +99,11 @@ export function TerminalView() {
       // Cmd+Shift+[ — previous tab
       if (e.shiftKey && e.key === '[') {
         e.preventDefault();
-        const currentTabId = sshTabs.find(tabId => {
-          const root = layouts.get(tabId);
-          return root && hasSessionInTree(root, activeTabId ?? '');
-        }) ?? sshTabs[0];
+        const currentTabId =
+          sshTabs.find((tabId) => {
+            const root = layouts.get(tabId);
+            return root && hasSessionInTree(root, activeTabId ?? '');
+          }) ?? sshTabs[0];
         const idx = sshTabs.indexOf(currentTabId ?? '');
         const prevTabId = sshTabs[(idx - 1 + sshTabs.length) % sshTabs.length];
         const root = layouts.get(prevTabId);
@@ -130,15 +132,8 @@ export function TerminalView() {
           const rootNode = layouts.get(tabId);
           if (!rootNode) return null;
           return (
-            <div
-              key={tabId}
-              className={tabId === activeSshTabId ? 'h-full w-full' : 'hidden'}
-            >
-              <SplitLayout
-                node={rootNode}
-                tabId={tabId}
-                activeSessionId={activeTabId}
-              />
+            <div key={tabId} className={tabId === activeSshTabId ? 'h-full w-full' : 'hidden'}>
+              <SplitLayout node={rootNode} tabId={tabId} activeSessionId={activeTabId} />
             </div>
           );
         })}

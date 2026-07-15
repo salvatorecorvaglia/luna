@@ -1,9 +1,22 @@
-import { useState } from 'react';
 import type { Connection } from '@shared/types/connection';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Eye, EyeOff, FileKey, Globe, Hash, Key, Lock, User, Waypoints, ChevronDown, Plus, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import {
+  ChevronDown,
+  Eye,
+  EyeOff,
+  FileKey,
+  Globe,
+  Hash,
+  Key,
+  Lock,
+  Plus,
+  User,
+  Waypoints,
+  X,
+} from 'lucide-react';
+import { useState } from 'react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import { AUTH_TYPES } from './connection-form.constants';
 import { FormField } from './FormField';
 import type { JumpHostState, Patch, SftpState } from './use-connection-form-state';
@@ -551,7 +564,12 @@ export function SftpFields({
           className="flex w-full items-center justify-between text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
         >
           <span>Advanced SSH Settings</span>
-          <ChevronDown className={cn("size-3.5 transform transition-transform duration-200", showAdvanced && "rotate-180")} />
+          <ChevronDown
+            className={cn(
+              'size-3.5 transform transition-transform duration-200',
+              showAdvanced && 'rotate-180',
+            )}
+          />
         </button>
 
         {showAdvanced && (
@@ -603,26 +621,27 @@ export function SftpFields({
               {(sftp.portForwards || []).length > 0 ? (
                 <div className="mb-3 space-y-2 rounded-lg border border-border/60 bg-background/30 p-2.5">
                   {(sftp.portForwards || []).map((pf) => (
-                    <div key={pf.id} className="flex items-center justify-between rounded-md border border-border/40 bg-background/50 px-2.5 py-1.5 text-xs">
+                    <div
+                      key={pf.id}
+                      className="flex items-center justify-between rounded-md border border-border/40 bg-background/50 px-2.5 py-1.5 text-xs"
+                    >
                       <div className="flex flex-col">
                         <span className="font-semibold capitalize text-foreground flex items-center gap-1.5">
                           {pf.type} forwarding
                         </span>
                         <span className="text-[10px] text-muted-foreground">
-                          {pf.type === 'dynamic' ? (
-                            `SOCKS5 Server on ${pf.bindAddress}:${pf.localPort}`
-                          ) : pf.type === 'local' ? (
-                            `Local ${pf.bindAddress}:${pf.localPort} -> Remote ${pf.remoteHost}:${pf.remotePort}`
-                          ) : (
-                            `Remote ${pf.bindAddress}:${pf.localPort} -> Local ${pf.remoteHost}:${pf.remotePort}`
-                          )}
+                          {pf.type === 'dynamic'
+                            ? `SOCKS5 Server on ${pf.bindAddress}:${pf.localPort}`
+                            : pf.type === 'local'
+                              ? `Local ${pf.bindAddress}:${pf.localPort} -> Remote ${pf.remoteHost}:${pf.remotePort}`
+                              : `Remote ${pf.bindAddress}:${pf.localPort} -> Local ${pf.remoteHost}:${pf.remotePort}`}
                         </span>
                       </div>
                       <button
                         type="button"
                         onClick={() => {
                           onSftpChange({
-                            portForwards: sftp.portForwards.filter((x) => x.id !== pf.id)
+                            portForwards: sftp.portForwards.filter((x) => x.id !== pf.id),
                           });
                         }}
                         className="text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
@@ -645,7 +664,9 @@ export function SftpFields({
                   <div className="grid grid-cols-3 gap-2">
                     {/* Rule Type */}
                     <div className="col-span-1">
-                      <label className="mb-1 block text-[10px] font-medium text-muted-foreground">Type</label>
+                      <label className="mb-1 block text-[10px] font-medium text-muted-foreground">
+                        Type
+                      </label>
                       <select
                         value={newRule.type}
                         onChange={(e) => setNewRule({ ...newRule, type: e.target.value as any })}
@@ -658,7 +679,9 @@ export function SftpFields({
                     </div>
                     {/* Bind Address */}
                     <div className="col-span-1">
-                      <label className="mb-1 block text-[10px] font-medium text-muted-foreground">Bind Address</label>
+                      <label className="mb-1 block text-[10px] font-medium text-muted-foreground">
+                        Bind Address
+                      </label>
                       <input
                         type="text"
                         placeholder="127.0.0.1"
@@ -669,7 +692,9 @@ export function SftpFields({
                     </div>
                     {/* Local Port */}
                     <div className="col-span-1">
-                      <label className="mb-1 block text-[10px] font-medium text-muted-foreground">Port</label>
+                      <label className="mb-1 block text-[10px] font-medium text-muted-foreground">
+                        Port
+                      </label>
                       <input
                         type="number"
                         placeholder="8080"
@@ -684,7 +709,9 @@ export function SftpFields({
                     <div className="grid grid-cols-3 gap-2">
                       {/* Destination Host */}
                       <div className="col-span-2">
-                        <label className="mb-1 block text-[10px] font-medium text-muted-foreground">Destination Host</label>
+                        <label className="mb-1 block text-[10px] font-medium text-muted-foreground">
+                          Destination Host
+                        </label>
                         <input
                           type="text"
                           placeholder="localhost"
@@ -695,7 +722,9 @@ export function SftpFields({
                       </div>
                       {/* Destination Port */}
                       <div className="col-span-1">
-                        <label className="mb-1 block text-[10px] font-medium text-muted-foreground">Port</label>
+                        <label className="mb-1 block text-[10px] font-medium text-muted-foreground">
+                          Port
+                        </label>
                         <input
                           type="number"
                           placeholder="80"

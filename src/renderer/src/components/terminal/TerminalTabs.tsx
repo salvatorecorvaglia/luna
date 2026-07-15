@@ -6,7 +6,12 @@ import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMe
 import { PromptDialog } from '@/components/common/PromptDialog';
 import { connectToHost } from '@/lib/ssh';
 import { cn } from '@/lib/utils';
-import { useTerminalStore, getFirstLeafSessionId, hasSessionInTree, getAllSessionIdsFromTree } from '@/stores/terminal-store';
+import {
+  getAllSessionIdsFromTree,
+  getFirstLeafSessionId,
+  hasSessionInTree,
+  useTerminalStore,
+} from '@/stores/terminal-store';
 
 export function TerminalTabs() {
   const {

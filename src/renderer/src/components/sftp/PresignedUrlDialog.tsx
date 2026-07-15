@@ -1,10 +1,10 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { Copy, Check, Link2, Loader2, X } from 'lucide-react';
+import { Check, Copy, Link2, Loader2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { toast } from 'sonner';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { Z } from '@/lib/z-layers';
-import { toast } from 'sonner';
 
 interface PresignedUrlDialogProps {
   open: boolean;
@@ -128,7 +128,10 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between border-b border-border/40 pb-3">
-                <h3 id="presigned-dialog-title" className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                <h3
+                  id="presigned-dialog-title"
+                  className="text-sm font-semibold text-foreground flex items-center gap-1.5"
+                >
                   <Link2 className="size-4 text-primary" />
                   Generate Presigned URL
                 </h3>
@@ -143,7 +146,9 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
 
               <div className="mt-4 space-y-4">
                 <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80">File Name</label>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80">
+                    File Name
+                  </label>
                   <div className="mt-1 text-xs text-foreground bg-accent/30 rounded-lg p-2 border border-border/40 truncate">
                     {entry.name}
                   </div>
@@ -157,7 +162,14 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
                       </label>
                       <div className="grid grid-cols-5 gap-2">
                         {(['1m', '1h', '1d', '7d'] as const).map((type) => {
-                          const label = type === '1m' ? '1 Min' : type === '1h' ? '1 Hour' : type === '1d' ? '1 Day' : '7 Days';
+                          const label =
+                            type === '1m'
+                              ? '1 Min'
+                              : type === '1h'
+                                ? '1 Hour'
+                                : type === '1d'
+                                  ? '1 Day'
+                                  : '7 Days';
                           return (
                             <button
                               key={type}
@@ -222,11 +234,16 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
                         className="btn-outline shrink-0 flex items-center justify-center p-2.5 h-9 cursor-pointer"
                         title="Copy to Clipboard"
                       >
-                        {copied ? <Check className="size-4 text-success" /> : <Copy className="size-4" />}
+                        {copied ? (
+                          <Check className="size-4 text-success" />
+                        ) : (
+                          <Copy className="size-4" />
+                        )}
                       </button>
                     </div>
                     <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
-                      Anyone with this URL can download this object until the signed authorization expires.
+                      Anyone with this URL can download this object until the signed authorization
+                      expires.
                     </p>
                   </div>
                 )}

@@ -5,9 +5,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   AlertTriangle,
-  FolderClosed,
   Download,
   FileText,
+  FolderClosed,
   Info,
   Minus,
   Plus,
@@ -356,7 +356,8 @@ export function SettingsPanel() {
                   <button
                     onClick={async () => {
                       try {
-                        const { imported, skipped } = await window.api.connections.importFromSshConfig();
+                        const { imported, skipped } =
+                          await window.api.connections.importFromSshConfig();
                         if (imported === -1) return; // Dialog/File cancelled
                         if (imported > 0) {
                           void queryClient.invalidateQueries({ queryKey: ['connections'] });
