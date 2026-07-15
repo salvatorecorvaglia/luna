@@ -2,6 +2,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getDatabase } from '../database';
 import { sshManager } from '../ssh-manager';
 
+const serverInstance = {
+  on: vi.fn(),
+  listen: vi.fn((port, host, cb) => cb && cb()),
+  close: vi.fn((cb) => cb && cb()),
+};
+const createServerMock = vi.fn(() => serverInstance);
+
+vi.mock('net', () => ({
+  createServer: vi.fn((...args) => createServerMock(...args)),
+  connect: vi.fn(),
+}));
+
 vi.mock('ssh2', () => {
   return {
     Client: class {
@@ -9,8 +21,6 @@ vi.mock('ssh2', () => {
       on = vi.fn((event, cb) => {
         if (event === 'ready') setTimeout(cb, 10);
       });
-      // testConnection now uses once() + a 'close' handler so the promise
-      // can settle on socket teardown without 'error'/'ready'.
       once = vi.fn((event, cb) => {
         if (event === 'ready') setTimeout(cb, 10);
       });
@@ -18,7 +28,18 @@ vi.mock('ssh2', () => {
       end = vi.fn();
       destroy = vi.fn();
       removeAllListeners = vi.fn();
-      shell = vi.fn();
+      shell = vi.fn((opts, cb) =>
+        cb &&
+        cb(null, {
+          on: vi.fn(),
+          removeListener: vi.fn(),
+          write: vi.fn(),
+          stderr: { on: vi.fn(), removeListener: vi.fn() },
+        }),
+      );
+      forwardIn = vi.fn((bind, port, cb) => cb && cb(null));
+      unforwardIn = vi.fn((bind, port, cb) => cb && cb(null));
+      forwardOut = vi.fn();
     },
   };
 });
@@ -32,6 +53,13 @@ vi.mock('../database', () => ({
         port: 22,
         username: 'user',
         auth_type: 'password',
+        keepalive_interval: 10000,
+        keepalive_count_max: 3,
+        port_forwards: JSON.stringify([
+          { id: '1', type: 'local', bindAddress: '127.0.0.1', localPort: 8080, remoteHost: 'localhost', remotePort: 80 },
+          { id: '2', type: 'remote', bindAddress: '127.0.0.1', localPort: 9090, remoteHost: 'localhost', remotePort: 90 },
+          { id: '3', type: 'dynamic', bindAddress: '127.0.0.1', localPort: 1080 }
+        ]),
       }),
       run: vi.fn(),
     }),
@@ -133,5 +161,27 @@ describe('sshManager', () => {
     const result = await sshManager.testConnection({ connectionId: 'invalid-id' });
     expect(result.ok).toBe(false);
     expect(result.error).toBe('Connection not found');
+  });
+
+  it('connect sets up keepalives and port forwarding rules, then disconnect tears them down', async () => {
+    await new Promise((r) => setTimeout(r, 50));
+    const { createServer } = await import('net');
+    createServerMock.mockClear();
+    serverInstance.listen.mockClear();
+    serverInstance.close.mockClear();
+    vi.mocked(createServer).mockClear();
+
+    const connectResult = await sshManager.connect('port-forward-session', 'conn-id-1');
+    expect(connectResult.success).toBe(true);
+
+    // Should create local servers for Local and SOCKS5 forwarding rules
+    expect(createServerMock).toHaveBeenCalledTimes(2);
+    expect(serverInstance.listen).toHaveBeenCalledTimes(2);
+
+    // Now disconnect
+    sshManager.disconnect('port-forward-session');
+
+    // Should close both servers
+    expect(serverInstance.close).toHaveBeenCalledTimes(2);
   });
 });

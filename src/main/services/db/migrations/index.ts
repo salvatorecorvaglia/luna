@@ -26,6 +26,7 @@ import m012 from './012_connection_is_hidden';
 import m013 from './013_cleanup_bogus_jump_hosts';
 import m014 from './014_cleanup_bogus_jump_hosts_v2';
 import m015 from './015_connection_list_composite_indexes';
+import m016 from './016_connection_advanced_configs';
 
 export interface Migration {
   /** Stable identifier persisted in the `_migrations` table — never rename. */
@@ -50,4 +51,5 @@ export const migrations: Migration[] = [
   m013,
   m014,
   m015,
+  m016,
 ];

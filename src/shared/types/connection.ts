@@ -2,6 +2,16 @@ import type { StorageProviderKind } from './storage-provider';
 
 export type AuthType = 'password' | 'key' | 'key+passphrase';
 
+export interface PortForwardingConfig {
+  id: string;
+  name?: string;
+  type: 'local' | 'remote' | 'dynamic';
+  bindAddress: string;
+  localPort: number;
+  remoteHost?: string;
+  remotePort?: number;
+}
+
 export interface ManualJumpHostConfig {
   host: string;
   port: number;
@@ -45,6 +55,9 @@ export interface Connection {
   jumpHostConfig?: ManualJumpHostConfig;
   isHidden?: boolean;
   lastConnectedAt?: number;
+  keepaliveInterval?: number;
+  keepaliveCountMax?: number;
+  portForwards?: PortForwardingConfig[];
   createdAt: number;
   updatedAt: number;
 }
@@ -76,6 +89,9 @@ export interface CreateConnectionInput {
   /** Optional manual jump host configuration. */
   jumpHostConfig?: ManualJumpHostConfig | null;
   isHidden?: boolean;
+  keepaliveInterval?: number;
+  keepaliveCountMax?: number;
+  portForwards?: PortForwardingConfig[];
 }
 
 export interface UpdateConnectionInput extends Partial<CreateConnectionInput> {
@@ -107,6 +123,9 @@ export interface ExportedConnection {
    */
   jumpHostConfig?: ManualJumpHostConfig;
   isHidden?: boolean;
+  keepaliveInterval?: number;
+  keepaliveCountMax?: number;
+  portForwards?: PortForwardingConfig[];
 }
 
 export interface ConnectionHistory {

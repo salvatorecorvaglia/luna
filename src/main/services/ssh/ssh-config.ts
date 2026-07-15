@@ -60,6 +60,8 @@ export interface ConnectParams {
   privateKeyPath?: string | null;
   password?: string;
   passphrase?: string;
+  keepaliveInterval?: number;
+  keepaliveCountMax?: number;
 }
 
 export interface BuildConfigOptions {
@@ -158,8 +160,12 @@ export async function buildConnectConfig(
     // bastion's host key was validated when its own client connected.
     ...(sock ? { sock } : {}),
     username: params.username,
-    keepaliveInterval: getSetting('ssh.keepAliveInterval', 10000),
-    keepaliveCountMax: 3,
+    keepaliveInterval:
+      params.keepaliveInterval !== undefined
+        ? params.keepaliveInterval
+        : getSetting('ssh.keepAliveInterval', 10000),
+    keepaliveCountMax:
+      params.keepaliveCountMax !== undefined ? params.keepaliveCountMax : 3,
     readyTimeout: getSetting('ssh.readyTimeout', 30000),
     // Restrict negotiation to modern primitives. ssh2's defaults still include
     // some legacy options (e.g. sha1 HMACs, diffie-hellman-group14-sha1).

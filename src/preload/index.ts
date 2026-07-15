@@ -145,6 +145,8 @@ const api = {
         passphrase?: string;
         jumpHostConnectionId?: string;
         jumpHostConfig?: ManualJumpHostConfig;
+        keepaliveInterval?: number;
+        keepaliveCountMax?: number;
       };
     }) => invoke(IPC.SSH_TEST_CONNECTION, params),
     disconnect: (sessionId: string) => invoke(IPC.SSH_DISCONNECT, sessionId),

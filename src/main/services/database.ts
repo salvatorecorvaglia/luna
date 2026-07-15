@@ -38,6 +38,9 @@ export const CONNECTION_COLUMNS = [
   'jump_host_private_key_path',
   'is_hidden',
   'last_connected_at',
+  'keepalive_interval',
+  'keepalive_count_max',
+  'port_forwards',
   'created_at',
   'updated_at',
 ].join(', ');
@@ -76,6 +79,9 @@ export interface ConnectionRow {
   /** Whether this connection should be hidden from the main sidebar list. */
   is_hidden: number;
   last_connected_at: number | null;
+  keepalive_interval: number | null;
+  keepalive_count_max: number | null;
+  port_forwards: string | null;
   created_at: number;
   updated_at: number;
 }

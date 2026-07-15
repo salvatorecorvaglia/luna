@@ -59,6 +59,9 @@ function rowToConnection(row: ConnectionRow): Connection {
         : undefined,
     lastConnectedAt: row.last_connected_at || undefined,
     isHidden: row.is_hidden === 1,
+    keepaliveInterval: row.keepalive_interval || undefined,
+    keepaliveCountMax: row.keepalive_count_max || undefined,
+    portForwards: row.port_forwards ? JSON.parse(row.port_forwards) : [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -86,6 +89,9 @@ const UPDATE_FIELD_MAP: Record<string, string> = {
   // Handled explicitly in the update loop via a `continue` guard.
   jumpHostConfig: 'jump_host_config',
   isHidden: 'is_hidden',
+  keepaliveInterval: 'keepalive_interval',
+  keepaliveCountMax: 'keepalive_count_max',
+  portForwards: 'port_forwards',
 };
 
 export function registerConnectionHandlers(): void {
@@ -141,9 +147,10 @@ export function registerConnectionHandlers(): void {
           jump_host_host, jump_host_port, jump_host_username,
           jump_host_auth_type, jump_host_private_key_path,
           is_hidden,
+          keepalive_interval, keepalive_count_max, port_forwards,
           created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       ).run(
         id,
@@ -167,6 +174,9 @@ export function registerConnectionHandlers(): void {
         input.jumpHostConfig?.authType || null,
         input.jumpHostConfig?.privateKeyPath || null,
         input.isHidden ? 1 : 0,
+        input.keepaliveInterval ?? 0,
+        input.keepaliveCountMax ?? 3,
+        input.portForwards ? JSON.stringify(input.portForwards) : '[]',
         now,
         now,
       );
@@ -276,6 +286,30 @@ export function registerConnectionHandlers(): void {
         } else {
           assertValidJumpHost(db, raw, input.id);
           value = raw;
+        }
+      } else if (key === 'keepaliveInterval') {
+        if (raw === null || raw === '') {
+          value = 0;
+        } else if (typeof raw !== 'number') {
+          throw validationError('keepaliveInterval must be a number');
+        } else {
+          value = raw;
+        }
+      } else if (key === 'keepaliveCountMax') {
+        if (raw === null || raw === '') {
+          value = 3;
+        } else if (typeof raw !== 'number') {
+          throw validationError('keepaliveCountMax must be a number');
+        } else {
+          value = raw;
+        }
+      } else if (key === 'portForwards') {
+        if (raw === null) {
+          value = '[]';
+        } else if (!Array.isArray(raw)) {
+          throw validationError('portForwards must be an array');
+        } else {
+          value = JSON.stringify(raw);
         }
       } else if (key === 'jumpHostConfig') {
         const config = raw as CreateConnectionInput['jumpHostConfig'];

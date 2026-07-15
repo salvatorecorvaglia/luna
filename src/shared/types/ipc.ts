@@ -84,6 +84,8 @@ export interface IpcHandlerMap {
         passphrase?: string;
         jumpHostConnectionId?: string;
         jumpHostConfig?: ManualJumpHostConfig;
+        keepaliveInterval?: number;
+        keepaliveCountMax?: number;
       };
     };
     response: { ok: boolean; error?: string };

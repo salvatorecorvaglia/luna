@@ -99,6 +99,8 @@ export function registerSshHandlers(): void {
           passphrase?: string;
           jumpHostConnectionId?: string;
           jumpHostConfig?: ManualJumpHostConfig;
+          keepaliveInterval?: number;
+          keepaliveCountMax?: number;
         };
       },
     ) => {

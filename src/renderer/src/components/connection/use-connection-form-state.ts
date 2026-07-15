@@ -1,4 +1,4 @@
-import type { AuthType, Connection } from '@shared/types/connection';
+import type { AuthType, Connection, PortForwardingConfig } from '@shared/types/connection';
 import type { StorageProviderKind } from '@shared/types/storage-provider';
 import { useCallback, useState } from 'react';
 
@@ -19,6 +19,9 @@ export interface SftpState {
   privateKeyPath: string;
   passphrase: string;
   showPassword: boolean;
+  keepaliveInterval: string;
+  keepaliveCountMax: string;
+  portForwards: PortForwardingConfig[];
 }
 
 export interface JumpHostState {
@@ -66,6 +69,9 @@ const DEFAULT_SFTP: SftpState = {
   privateKeyPath: '',
   passphrase: '',
   showPassword: false,
+  keepaliveInterval: '10',
+  keepaliveCountMax: '3',
+  portForwards: [],
 };
 
 const DEFAULT_JUMP_HOST: JumpHostState = {
@@ -190,6 +196,9 @@ export function useConnectionFormState(initialColor: string): UseConnectionFormS
         privateKeyPath: source.privateKeyPath || '',
         passphrase: '',
         showPassword: false,
+        keepaliveInterval: source.keepaliveInterval !== undefined ? String(source.keepaliveInterval / 1000) : '10',
+        keepaliveCountMax: source.keepaliveCountMax !== undefined ? String(source.keepaliveCountMax) : '3',
+        portForwards: source.portForwards || [],
       });
       if (source.jumpHostConfig) {
         setJumpHost({

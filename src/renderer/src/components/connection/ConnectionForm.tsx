@@ -360,6 +360,9 @@ export function ConnectionForm() {
             privateKeyPath: sftp.privateKeyPath || undefined,
             password: sftp.password || undefined,
             passphrase: sftp.passphrase || undefined,
+            keepaliveInterval: (parseInt(sftp.keepaliveInterval) || 10) * 1000,
+            keepaliveCountMax: parseInt(sftp.keepaliveCountMax) || 3,
+            portForwards: sftp.portForwards,
             // Send explicit null on edit so an unselect actually clears the
             // FK. New connections only carry the value when set.
             jumpHostConnectionId: jumpHost.connectionId
@@ -488,6 +491,8 @@ export function ConnectionForm() {
             privateKeyPath: sftp.privateKeyPath || undefined,
             password: sftp.password || undefined,
             passphrase: sftp.passphrase || undefined,
+            keepaliveInterval: (parseInt(sftp.keepaliveInterval) || 10) * 1000,
+            keepaliveCountMax: parseInt(sftp.keepaliveCountMax) || 3,
             jumpHostConnectionId:
               jumpHost.mode === 'existing' ? jumpHost.connectionId || undefined : undefined,
             jumpHostConfig:
