@@ -31,18 +31,19 @@ Lunar is a high-performance, cross-platform desktop application designed to stre
 ## ✨ Features
 
 ### 1. SSH & Local Terminals
-* **Tabbed Interface & Splits**: Manage multiple terminal sessions with rich tabs and horizontal/vertical split panes.
+* **Tabbed Interface & Splits**: Manage multiple terminal sessions with rich tabs, horizontal/vertical split panes, session layout management, and dynamic resizing.
 * **xterm.js Integration**: Fully featured terminal emulation powered by `xterm.js` and `node-pty`.
 * **Hardware Acceleration**: High-performance rendering with Canvas and WebGL addons.
 * **Terminal Search**: Built-in search bar for traversing terminal scrollback buffers.
 * **Dynamic Theme Sync**: Terminal theme colors are automatically built and applied as CSS variables to the rest of the application shell.
 * **Database-Synced Settings**: Key terminal settings (theme, font size, and scrollback limit) are synchronized directly to a local SQLite database to prevent local storage/preference drift.
 * **Connection Stability & Guards**: Robust error handling on bastion connection tunnels and SFTP streams, coupled with connection identity guards to prevent callbacks on disconnected or replaced sessions.
+* **Advanced SSH Config & Tunneling**: Database-backed configuration support for SSH keepalives alongside local, remote, and dynamic SSH port forwarding (tunneling).
 
 ### 2. SFTP File Manager
 * **Dual-Pane File Explorer**: Modern layout for navigating remote directories side-by-side or alongside terminals.
 * **Transfer Queue**: Active upload and download tracking with real-time transfer progress indicator.
-* **File Previews**: Quick preview panel for supported file formats.
+* **File Previews & Inline Editing**: Quick preview panel for supported file formats, complete with inline editing and save support for both local terminal shells and remote storage providers (SFTP/S3).
 * **Robust Fallback**: Graceful handling of SSH-level disruptions with session-level fallback handling.
 * **Keyboard Navigation & Accessibility**: Full keyboard navigation (Arrow keys, Space to toggle selection, Enter to open, Escape to clear) with complete ARIA compliance and screen reader support (e.g. `aria-activedescendant`).
 
@@ -50,6 +51,7 @@ Lunar is a high-performance, cross-platform desktop application designed to stre
 * **Universal S3 Support**: Browser compatible with Amazon S3 and all S3-compatible storage endpoints (MinIO, Cloudflare R2, DigitalOcean Spaces, etc.).
 * **OOM & Truncation Safety**: Built-in limit safety that caps single prefix queries to prevent application crashes on directories/buckets with millions of keys, prompting you to drill into sub-prefixes instead.
 * **Bucket & Object Management**: Seamlessly browse buckets, traverse key prefixes, upload files, and download objects.
+* **Presigned URL Generation**: Dedicated generation dialog for S3 presigned URLs supporting custom expiration parameters.
 
 ### 4. Security & Credentials Management
 * **OS Keychain Integration**: Credentials are securely saved to the OS-level credential store (via `keytar`/native API), with auto-detection that prompts a warning toast when falling back to plaintext storage (e.g. Linux machines missing `libsecret`).
@@ -58,6 +60,7 @@ Lunar is a high-performance, cross-platform desktop application designed to stre
 
 ### 5. Connection Migration & Portability
 * **Third-Party Migrator**: Directly import connection profiles from other terminal and transfer utilities: **MobaXterm** (`.mxtsessions` / `.mxtpro`), **PuTTY** Registry exports (`.reg`), and **WinSCP** config files (`.ini`).
+* **SSH Config Importer**: Built-in parser and importer to easily load standard SSH host configurations (e.g. from `~/.ssh/config` or custom configs).
 * **Backup & Restore**: Export your configured connections securely to JSON and import them back at any time.
 
 ### 6. Command Palette & Global Shortcuts

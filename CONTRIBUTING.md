@@ -137,6 +137,13 @@ We use **Vitest** for running unit and integration tests.
 - **Accessibility & Keyboard Navigation Testing**:
   When modifying or adding interactive frontend components (e.g., file lists, navigation views, or custom controls), you must ensure that keyboard navigation accessibility (such as arrow key focus navigation, selection toggles, and correct ARIA states) is fully tested. See [FileList.test.tsx](file:///Users/salvatorecorvaglia/github/lunar/src/renderer/src/components/sftp/__tests__/FileList.test.tsx) for a comprehensive reference on setting up virtual lists, testing keydown events, and validating dynamic ARIA attributes.
 
+- **IPC, Layout Store, and Importer Testing**:
+  When introducing changes to layout configurations, custom connection files/config parsing, or IPC-based file write transactions, ensure you write or update unit and integration tests accordingly. For reference on these patterns, check:
+  - Terminal session store layouts: [terminal-store.test.ts](file:///Users/salvatorecorvaglia/github/lunar/src/renderer/src/stores/__tests__/terminal-store.test.ts)
+  - SSH config file parsing & imports: [ssh-config.test.ts](file:///Users/salvatorecorvaglia/github/lunar/src/main/lib/importers/__tests__/ssh-config.test.ts)
+  - S3 IPC methods: [s3.ipc.test.ts](file:///Users/salvatorecorvaglia/github/lunar/src/main/ipc/__tests__/s3.ipc.test.ts)
+  - Shell write transactions: [shell.ipc.test.ts](file:///Users/salvatorecorvaglia/github/lunar/src/main/ipc/__tests__/shell.ipc.test.ts)
+
 ---
 
 ## 📥 Submitting a Pull Request

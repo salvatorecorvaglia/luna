@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-07-15
+
+### Added
+
+- **Terminal Layout**: Added support for horizontal and vertical terminal session splitting, session layout management, and dynamic resizing within the terminal views.
+- **File Editing**: Added file writing capabilities for local terminal shells and remote storage providers (SFTP/S3), complete with inline editing and save support in `FilePreview`.
+- **Advanced SSH Config**: Added configuration fields and database support for keepalives and local, remote, and dynamic SSH port forwarding (tunneling).
+- **SSH Config Importer**: Implemented an SSH configuration file parser and importer to easily load existing SSH host settings.
+- **S3 Presigned URLs**: Added a generation dialog for S3 presigned URLs supporting custom expiration parameters.
+- **Testing**: Added comprehensive unit test suites for terminal store layouts, SSH config imports, S3 IPC commands, and shell writing operations.
+
+### Changed
+
+- **Refactoring**: Replaced insecure `Math.random()` UUID generation with `window.crypto.randomUUID()` in the connection form field component.
+- **Code Quality**: Formatted the entire codebase with Prettier to ensure consistent code styling across components and services.
+
+### Improved
+
+- **Type Safety**: Improved type safety, error handling, and lint warning suppression across main process services and renderer components.
+
 ## [0.13.0] - 2026-07-12
 
 ### Added
