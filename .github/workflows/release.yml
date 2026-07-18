@@ -7,11 +7,11 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -67,19 +67,48 @@ jobs:
         run: pnpm run test:coverage
 
   # ──────────────────────────────────────────────
-  # Build & Publish – macOS
+  # Build & Publish – Multi-Platform Matrix
   # ──────────────────────────────────────────────
-  release-mac:
-    name: Release (macOS)
-    runs-on: macos-26
+  release:
+    name: Release (${{ matrix.platform-name }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     needs: quality
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-26
+            platform: mac
+            platform-name: macOS
+            artifact-name: release-mac
+            path: |
+              dist/*.dmg
+              dist/*.zip
+              dist/*.yml
+          - os: windows-2025-vs2026
+            platform: win
+            platform-name: Windows
+            artifact-name: release-win
+            path: |
+              dist/*.exe
+              dist/*.yml
+          - os: ubuntu-latest
+            platform: linux
+            platform-name: Linux
+            artifact-name: release-linux
+            path: |
+              dist/*.AppImage
+              dist/*.deb
+              dist/*.yml
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
       - name: Cache Electron Binaries
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ${{ github.workspace }}/.cache/electron
@@ -106,121 +135,13 @@ jobs:
       - name: Package & Publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --mac --publish always
+        run: npx electron-builder --${{ matrix.platform }} --publish always
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: release-mac
-          path: |
-            dist/*.dmg
-            dist/*.zip
-            dist/*.yml
-          retention-days: 30
-          if-no-files-found: error
-
-  # ──────────────────────────────────────────────
-  # Build & Publish – Windows
-  # ──────────────────────────────────────────────
-  release-win:
-    name: Release (Windows)
-    runs-on: windows-2025-vs2026
-    timeout-minutes: 30
-    needs: quality
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Cache Electron Binaries
-        uses: actions/cache@v5
-        with:
-          path: |
-            ${{ github.workspace }}/.cache/electron
-            ${{ github.workspace }}/.cache/electron-builder
-          key: ${{ runner.os }}-electron-cache-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-electron-cache-
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build Electron app
-        run: pnpm run build
-
-      - name: Package & Publish
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --win --publish always
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: release-win
-          path: |
-            dist/*.exe
-            dist/*.yml
-          retention-days: 30
-          if-no-files-found: error
-
-  # ──────────────────────────────────────────────
-  # Build & Publish – Linux
-  # ──────────────────────────────────────────────
-  release-linux:
-    name: Release (Linux)
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: quality
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Cache Electron Binaries
-        uses: actions/cache@v5
-        with:
-          path: |
-            ${{ github.workspace }}/.cache/electron
-            ${{ github.workspace }}/.cache/electron-builder
-          key: ${{ runner.os }}-electron-cache-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-electron-cache-
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build Electron app
-        run: pnpm run build
-
-      - name: Package & Publish
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --linux --publish always
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: release-linux
-          path: |
-            dist/*.AppImage
-            dist/*.deb
-            dist/*.yml
+          name: ${{ matrix.artifact-name }}
+          path: ${{ matrix.path }}
           retention-days: 30
           if-no-files-found: error
 
@@ -230,7 +151,9 @@ jobs:
   finalize:
     name: Finalize Release
     runs-on: ubuntu-latest
-    needs: [release-mac, release-win, release-linux]
+    needs: release
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
