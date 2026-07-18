@@ -38,6 +38,7 @@ Lunar is a high-performance, cross-platform desktop application designed to stre
 * **Dynamic Theme Sync**: Terminal theme colors are automatically built and applied as CSS variables to the rest of the application shell.
 * **Database-Synced Settings**: Key terminal settings (theme, font size, and scrollback limit) are synchronized directly to a local SQLite database to prevent local storage/preference drift.
 * **Connection Stability & Guards**: Robust error handling on bastion connection tunnels and SFTP streams, coupled with connection identity guards to prevent callbacks on disconnected or replaced sessions.
+* **Bastion Gateway Support (Jump Hosts)**: Secure connection forwarding through intermediate gateway hosts, managed by a dedicated `BastionService` that supports both referencing separate profiles and inline (manual) credentials.
 * **Advanced SSH Config & Tunneling**: Database-backed configuration support for SSH keepalives alongside local, remote, and dynamic SSH port forwarding (tunneling).
 
 ### 2. SFTP File Manager

@@ -99,6 +99,9 @@ We use **Biome** for unified, high-performance linting, formatting, and import s
   pnpm format
   ```
 
+- **Node.js Built-in Imports Protocol**:
+  To adhere to modern development standards and ensure linter compliance, all imports of Node.js built-in modules (e.g., `crypto`, `fs`, `path`) must use the explicit `node:` prefix (e.g., `import { getCiphers } from 'node:crypto';`). This is automatically enforced by Biome's `style.useNodejsImportProtocol` rule.
+
 ### Type-Checking
 
 The project uses TypeScript across the main (Node) and renderer (Web) processes. Always verify type correctness before pushing:
@@ -143,6 +146,10 @@ We use **Vitest** for running unit and integration tests.
   - SSH config file parsing & imports: [ssh-config.test.ts](file:///Users/salvatorecorvaglia/github/lunar/src/main/lib/importers/__tests__/ssh-config.test.ts)
   - S3 IPC methods: [s3.ipc.test.ts](file:///Users/salvatorecorvaglia/github/lunar/src/main/ipc/__tests__/s3.ipc.test.ts)
   - Shell write transactions: [shell.ipc.test.ts](file:///Users/salvatorecorvaglia/github/lunar/src/main/ipc/__tests__/shell.ipc.test.ts)
+
+- **SSH Handshake and Bastion Testing**:
+  When modifying connection establishment, credential resolution, or bastion gateway (jump host) logic, verify that changes do not break SSH session setup. Check the following integration tests for reference:
+  - SSH handshakes & gateway tunnels: [ssh-handshake.integration.test.ts](file:///Users/salvatorecorvaglia/github/lunar/src/main/services/ssh/__tests__/ssh-handshake.integration.test.ts)
 
 ---
 

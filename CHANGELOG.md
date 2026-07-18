@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-07-18
+
+### Added
+
+- **WinSCP Importer**: Added support for parsing SSH tunnel configurations containing gateway information, creating separate hidden gateway and target connections.
+
+### Changed
+
+- **Built-in Modules**: Migrated all built-in Node.js module imports across the main process to use the standard `node:` prefix.
+- **SSH Bastion**: Refactored the jump host connection workflow into a dedicated `BastionService` class, centralizing bastion channel lifecycle, credential resolution, and error propagation.
+
+### Improved
+
+- **WinSCP Importer**: Added robust parsing for registry (`REG`) export session formats by correctly resolving `dword:` prefixed hexadecimal integers for port and protocol values.
+- **SSH Config Importer**: Fallback to system environment user variables for username lookup if `os.userInfo().username` fails.
+- **S3 Download Cleanup**: Hardened the download cancel/abort routine by delaying the local file check and deletion to ensure file streams are fully destroyed before stats are queried.
+- **CI/CD Workflows**: Streamlined Electron builder and release workflows to enhance build and publication stability.
+
 ## [0.14.0] - 2026-07-15
 
 ### Added
