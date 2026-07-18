@@ -1,7 +1,7 @@
+import { realpath } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { dirname, isAbsolute, normalize, relative, resolve as resolvePath, sep } from 'node:path';
 import { ErrorCode, LunarError } from '@shared/errors';
-import { realpath } from 'fs/promises';
-import { homedir } from 'os';
-import { dirname, isAbsolute, normalize, relative, resolve as resolvePath, sep } from 'path';
 
 /**
  * Validation throws a `LunarError(VALIDATION_ERROR)` so the renderer receives

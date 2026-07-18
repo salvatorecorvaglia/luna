@@ -1,5 +1,5 @@
+import { stat as fsStat } from 'node:fs/promises';
 import { IPC, LIMITS } from '@shared/constants';
-import { stat as fsStat } from 'fs/promises';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { emitToRenderer } from '../emit';
 import { transferQueue } from '../transfer-queue';

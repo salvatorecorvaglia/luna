@@ -9,8 +9,8 @@
  * see docs-internal/DEFERRED_WORK.md.
  */
 
-import { generateKeyPairSync } from 'crypto';
-import type { AddressInfo, createServer } from 'net';
+import { generateKeyPairSync } from 'node:crypto';
+import type { AddressInfo, createServer } from 'node:net';
 import { Client, Server, type ServerConfig } from 'ssh2';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 

@@ -1,11 +1,20 @@
+import { constants as fsConstants } from 'node:fs';
+import {
+  access,
+  lstat,
+  open,
+  readdir,
+  readlink,
+  realpath,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { BINARY_PREVIEW_EXTENSIONS, IPC } from '@shared/constants';
 import { ErrorCode, LunarError } from '@shared/errors';
 import type { LocalFileEntry } from '@shared/types/sftp';
 import { dialog } from 'electron';
-import { constants as fsConstants } from 'fs';
-import { access, lstat, open, readdir, readlink, realpath, stat, writeFile } from 'fs/promises';
-import { homedir } from 'os';
-import { basename, dirname, isAbsolute, join, resolve } from 'path';
 import { registerHandler } from '../lib/ipc-handler';
 import {
   assertSafeAbsolutePath,

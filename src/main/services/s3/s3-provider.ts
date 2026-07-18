@@ -1,3 +1,6 @@
+import { createReadStream, createWriteStream } from 'node:fs';
+import { stat as fsStat, unlink } from 'node:fs/promises';
+import type { Readable } from 'node:stream';
 import {
   type CommonPrefix,
   CopyObjectCommand,
@@ -17,9 +20,6 @@ import { Upload } from '@aws-sdk/lib-storage';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { BINARY_PREVIEW_EXTENSIONS, IPC, LIMITS } from '@shared/constants';
 import type { StorageEntry, StorageStatResult } from '@shared/types/storage-provider';
-import { createReadStream, createWriteStream } from 'fs';
-import { stat as fsStat, unlink } from 'fs/promises';
-import type { Readable } from 'stream';
 import { getRuntimeNumber } from '../../config/runtime';
 import { AbortError, S3StorageError } from '../../lib/errors';
 import log from '../../lib/logger';

@@ -1,9 +1,9 @@
+import { createServer, connect as netConnect } from 'node:net';
+import { StringDecoder } from 'node:string_decoder';
 import { IPC, LIMITS } from '@shared/constants';
 import type { AuthType, PortForwardingConfig } from '@shared/types/connection';
 import type { SessionStatus } from '@shared/types/terminal';
-import { createServer, connect as netConnect } from 'net';
 import { Client, type ClientChannel } from 'ssh2';
-import { StringDecoder } from 'string_decoder';
 import { v4 as uuidv4 } from 'uuid';
 import { getRuntimeNumber } from '../config/runtime';
 import { describeSshError } from '../lib/error-map';
@@ -11,8 +11,8 @@ import log from '../lib/logger';
 import { TimeoutError, withTimeout } from '../lib/with-timeout';
 import { type ConnectionRow, getDatabase, getSetting } from './database';
 import { emitToRenderer } from './emit';
+import { bastionService } from './ssh/bastion-service';
 import { PendingHostKeyRegistry } from './ssh/host-key-flow';
-import { openJumpChannel } from './ssh/jump-host';
 import { buildConnectConfig } from './ssh/ssh-config';
 
 /**
@@ -222,7 +222,7 @@ class SshManager {
     // Open the jump-host channel *before* building the target config so a
     // bastion failure short-circuits without spinning up a target Client.
     // The resulting Duplex becomes the target's `sock`.
-    let jumpSock: import('stream').Duplex | undefined;
+    let jumpSock: import('node:stream').Duplex | undefined;
     if (row.jump_host_connection_id || row.jump_host_host) {
       try {
         let manualConfig: import('@shared/types/connection').ManualJumpHostConfig | undefined;
@@ -239,10 +239,10 @@ class SshManager {
             authType: row.jump_host_auth_type as import('@shared/types/connection').AuthType,
             privateKeyPath: row.jump_host_private_key_path || undefined,
           };
-          await this.resolveJumpHostCredentials(connectionId, manualConfig);
         }
 
-        const channel = await openJumpChannel({
+        const channel = await bastionService.openChannel({
+          connectionId,
           jumpConnectionId: row.jump_host_connection_id || undefined,
           jumpHostConfig: manualConfig,
           targetHost: row.host,
@@ -967,7 +967,6 @@ class SshManager {
           authType: row.jump_host_auth_type as import('@shared/types/connection').AuthType,
           privateKeyPath: row.jump_host_private_key_path || undefined,
         };
-        await this.resolveJumpHostCredentials(params.connectionId, jumpHostConfig);
       }
     } else {
       return { ok: false, error: 'Invalid test parameters' };
@@ -977,10 +976,11 @@ class SshManager {
     // clear, prefixed error instead of getting buried in target-side
     // socket errors.
     let jumpDispose: (() => void) | undefined;
-    let jumpSock: import('stream').Duplex | undefined;
+    let jumpSock: import('node:stream').Duplex | undefined;
     if (jumpHostConnectionId || jumpHostConfig) {
       try {
-        const channel = await openJumpChannel({
+        const channel = await bastionService.openChannel({
+          connectionId: params.connectionId,
           jumpConnectionId: jumpHostConnectionId,
           jumpHostConfig,
           targetHost: host,
@@ -1083,25 +1083,6 @@ class SshManager {
     const ids = Array.from(this.sessions.keys());
     for (const id of ids) {
       this.disconnect(id);
-    }
-  }
-
-  /**
-   * Retrieve and attach credentials (password or key passphrase) to a manual
-   * jump-host configuration from the secure store.
-   */
-  private async resolveJumpHostCredentials(
-    connectionId: string,
-    config: import('@shared/types/connection').ManualJumpHostConfig,
-  ): Promise<void> {
-    const { retrieveCredential } = await import('./credential-store');
-    const secret = retrieveCredential(`jumphost:${connectionId}`);
-    if (secret) {
-      if (config.authType === 'password') {
-        config.password = secret;
-      } else if (config.authType === 'key+passphrase') {
-        config.passphrase = secret;
-      }
     }
   }
 }

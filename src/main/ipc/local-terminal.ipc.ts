@@ -1,8 +1,8 @@
+import { homedir } from 'node:os';
+import { StringDecoder } from 'node:string_decoder';
 import { IPC } from '@shared/constants';
 import { ErrorCode, LunarError } from '@shared/errors';
 import * as pty from 'node-pty';
-import { homedir } from 'os';
-import { StringDecoder } from 'string_decoder';
 import { registerHandler } from '../lib/ipc-handler';
 import log from '../lib/logger';
 import { assertBoundedInt, assertNonEmptyString } from '../lib/validate';

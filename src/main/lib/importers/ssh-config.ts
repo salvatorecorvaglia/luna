@@ -1,6 +1,6 @@
+import * as os from 'node:os';
+import * as path from 'node:path';
 import type { ExportedConnection } from '@shared/types/connection';
-import * as os from 'os';
-import * as path from 'path';
 
 /**
  * Parses local SSH config file contents and returns connection structures

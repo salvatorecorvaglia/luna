@@ -1,7 +1,7 @@
+import { createReadStream, createWriteStream } from 'node:fs';
+import { stat as fsStat, unlink } from 'node:fs/promises';
 import { BINARY_PREVIEW_EXTENSIONS, LIMITS } from '@shared/constants';
 import type { SftpEntry } from '@shared/types/sftp';
-import { createReadStream, createWriteStream } from 'fs';
-import { stat as fsStat, unlink } from 'fs/promises';
 import type { ReadStreamOptions, SFTPWrapper, WriteStreamOptions } from 'ssh2';
 import { getRuntimeNumber } from '../config/runtime';
 import { AbortError, SftpTransferError, SshConnectionError } from '../lib/errors';

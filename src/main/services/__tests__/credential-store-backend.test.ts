@@ -1,7 +1,7 @@
-import { randomBytes } from 'crypto';
-import { mkdtempSync, rmSync, writeFileSync } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
+import { randomBytes } from 'node:crypto';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 
 // Seed a plaintext key file *before* importing the module under test so the

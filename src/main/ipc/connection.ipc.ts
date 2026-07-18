@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { IPC } from '@shared/constants';
 import { ErrorCode, LunarError } from '@shared/errors';
 import type {
@@ -8,7 +9,6 @@ import type {
   UpdateConnectionInput,
 } from '@shared/types/connection';
 import { dialog } from 'electron';
-import { readFile } from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
 import { detectAndImport } from '../lib/importers';
 import { registerHandler } from '../lib/ipc-handler';
@@ -808,7 +808,7 @@ export function registerConnectionHandlers(): void {
     }
 
     const path = result.filePaths[0];
-    const { stat } = await import('fs/promises');
+    const { stat } = await import('node:fs/promises');
     const stats = await stat(path);
     const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
     if (stats.size > MAX_IMPORT_BYTES) {
@@ -830,11 +830,11 @@ export function registerConnectionHandlers(): void {
   });
 
   registerHandler(IPC.CONNECTION_IMPORT_SSH_CONFIG, async () => {
-    const { existsSync } = await import('fs');
-    const { readFile } = await import('fs/promises');
+    const { existsSync } = await import('node:fs');
+    const { readFile } = await import('node:fs/promises');
     const { parseSshConfig } = await import('../lib/importers/ssh-config');
-    const os = await import('os');
-    const path = await import('path');
+    const os = await import('node:os');
+    const path = await import('node:path');
 
     let content = '';
     const defaultPath = path.join(os.homedir(), '.ssh', 'config');

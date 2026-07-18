@@ -1,7 +1,7 @@
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { IPC } from '@shared/constants';
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'fs/promises';
-import { homedir } from 'os';
-import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>();

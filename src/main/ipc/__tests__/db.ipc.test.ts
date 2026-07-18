@@ -1,6 +1,6 @@
+import { homedir } from 'node:os';
 import { IPC } from '@shared/constants';
 import type { ExportedConnection } from '@shared/types/connection';
-import { homedir } from 'os';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Capture registered handlers so we can invoke them directly.

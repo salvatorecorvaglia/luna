@@ -182,7 +182,7 @@ describe('sshManager', () => {
 
   it('connect sets up keepalives and port forwarding rules, then disconnect tears them down', async () => {
     await new Promise((r) => setTimeout(r, 50));
-    const { createServer } = await import('net');
+    const { createServer } = await import('node:net');
     createServerMock.mockClear();
     serverInstance.listen.mockClear();
     serverInstance.close.mockClear();

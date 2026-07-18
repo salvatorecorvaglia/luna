@@ -1,7 +1,7 @@
+import { join } from 'node:path';
 import { is } from '@electron-toolkit/utils';
 import { ErrorCode, LunarError } from '@shared/errors';
 import { app, BrowserWindow, dialog, session, shell } from 'electron';
-import { join } from 'path';
 import icon from '../../resources/lunar.png?asset';
 import { registerAllHandlers } from './ipc';
 import { setMainWindow } from './ipc/app.ipc';

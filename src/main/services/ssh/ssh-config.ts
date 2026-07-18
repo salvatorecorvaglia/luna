@@ -1,9 +1,9 @@
+import { getCiphers } from 'node:crypto';
+import { readFile, stat } from 'node:fs/promises';
+import type { Duplex } from 'node:stream';
 import { IPC } from '@shared/constants';
 import type { AuthType } from '@shared/types/connection';
-import { getCiphers } from 'crypto';
-import { readFile, stat } from 'fs/promises';
 import { type CipherAlgorithm, type ConnectConfig, utils } from 'ssh2';
-import type { Duplex } from 'stream';
 import log from '../../lib/logger';
 import { expandAndValidatePrivateKeyPath } from '../../lib/validate';
 import { retrieveCredential } from '../credential-store';

@@ -1,8 +1,8 @@
+import { stat } from 'node:fs/promises';
+import { basename } from 'node:path';
 import { IPC, LIMITS } from '@shared/constants';
 import { ErrorCode, LunarError } from '@shared/errors';
 import type { TransferType } from '@shared/types/transfer';
-import { stat } from 'fs/promises';
-import { basename } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { classifyTransferError } from '../lib/error-map';
 import { AbortError } from '../lib/errors';
@@ -31,6 +31,7 @@ interface ReservedTransfer {
 
 class TransferQueue {
   private queue: QueuedTransfer[] = [];
+  private queuedMap = new Map<string, QueuedTransfer>();
   private active = new Map<string, QueuedTransfer>();
   /**
    * Dedup index: maps `${type}|${sessionId}|${localPath}|${remotePath}` →
@@ -81,7 +82,7 @@ class TransferQueue {
       // past the dedup check and creating a duplicate.
       const reserved = this.reserved.get(existingId);
       if (reserved && !reserved.controller.signal.aborted) return existingId;
-      const existing = this.active.get(existingId) ?? this.queue.find((t) => t.id === existingId);
+      const existing = this.active.get(existingId) ?? this.queuedMap.get(existingId);
       if (existing && !existing.controller.signal.aborted) return existing.id;
       // Stale entry (e.g. an aborted transfer that didn't clear the index).
       // Drop it so the new enqueue can take ownership of the key.
@@ -145,6 +146,7 @@ class TransferQueue {
       };
 
       this.queue.push(transfer);
+      this.queuedMap.set(transferId, transfer);
 
       emitToRenderer(IPC.TRANSFER_PROGRESS, {
         transferId,
@@ -173,9 +175,13 @@ class TransferQueue {
   }
 
   cancel(transferId: string): void {
-    const queueIndex = this.queue.findIndex((t) => t.id === transferId);
-    if (queueIndex !== -1) {
-      const [transfer] = this.queue.splice(queueIndex, 1);
+    const transfer = this.queuedMap.get(transferId);
+    if (transfer) {
+      const queueIndex = this.queue.indexOf(transfer);
+      if (queueIndex !== -1) {
+        this.queue.splice(queueIndex, 1);
+      }
+      this.queuedMap.delete(transferId);
       transfer.controller.abort();
       this.forgetDedup(transfer);
       emitToRenderer(IPC.TRANSFER_CANCELLED, { transferId });
@@ -208,6 +214,7 @@ class TransferQueue {
     try {
       while (this.active.size < this.maxConcurrent && this.queue.length > 0) {
         const transfer = this.queue.shift()!;
+        this.queuedMap.delete(transfer.id);
         this.active.set(transfer.id, transfer);
         // executeTransfer is async — fire and forget. The finally branch re-enters
         // processQueue() after each completion, but the dispatching flag means
@@ -335,6 +342,7 @@ class TransferQueue {
     }
     this.active.clear();
     this.queue = [];
+    this.queuedMap.clear();
     this.dedupIndex.clear();
     this.reserved.clear();
   }

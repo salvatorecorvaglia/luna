@@ -1,7 +1,7 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { IPC } from '@shared/constants';
-import { mkdtempSync, rmSync, writeFileSync } from 'fs';
-import { homedir } from 'os';
-import { join } from 'path';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Capture the handlers as they're registered so we can drive them directly.
