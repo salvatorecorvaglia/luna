@@ -1,187 +1,134 @@
 # Contributing to Lunar 🌙
 
-Thank you for your interest in contributing to **Lunar**! Lunar is a modern SSH terminal, local terminal, SFTP file manager, and S3-compatible object storage browser.
+First off, thank you for taking the time to contribute! Contributions from the community make Lunar better for everyone.
 
-We welcome all kinds of contributions, whether it's reporting bugs, suggesting new features, improving documentation, or writing code.
-
----
-
-## 📋 Table of Contents
-
-- [Getting Started](#-getting-started)
-- [Development Guidelines](#-development-guidelines)
-  - [Folder Structure](#folder-structure)
-  - [Scripts](#scripts)
-- [Code Quality & Standards](#-code-quality--standards)
-  - [Linting & Formatting](#linting--formatting)
-  - [Type-Checking](#type-checking)
-  - [Testing](#testing)
-- [Submitting a Pull Request](#-submitting-a-pull-request)
-- [Security Vulnerabilities](#-security-vulnerabilities)
+Here is a guide to help get you started with development and to ensure a smooth contribution process.
 
 ---
 
-## 🚀 Getting Started
+## 🛠️ Local Development Setup
+
+To contribute code, you will need to set up a local development environment.
 
 ### Prerequisites
 
-To set up the development environment, make sure you have the following installed:
-- **Node.js** (v22 is recommended, matching the CI environment)
-- **pnpm** (v11 is recommended)
+*   **Node.js:** Ensure you have Node.js version `22.x` or higher installed.
+*   **pnpm:** We use `pnpm` (version `11.x`) to manage our workspace dependencies. Do not use `npm` or `yarn`.
+*   **Native Modules Build Dependencies:** Lunar uses native modules (such as `node-pty` and `better-sqlite3`). You may need basic build tools installed on your operating system (e.g., Xcode Command Line Tools on macOS, Build Tools on Windows, or `build-essential` on Linux).
 
-### Setting Up the Project
+### Setting Up the Repository
 
-1. **Fork the repository** on GitHub.
-2. **Clone your fork** locally:
-   ```bash
-   git clone https://github.com/your-username/lunar.git
-   cd lunar
-   ```
-3. **Install dependencies**:
-   ```bash
-   pnpm install
-   ```
-   *Note: On post-install, this runs `electron-builder install-app-deps` to set up native node dependencies like `better-sqlite3` and `node-pty`.*
+1.  **Fork and Clone:** Fork Lunar to your own GitHub account, then clone it locally:
+    ```bash
+    git clone https://github.com/your-username/lunar.git
+    cd lunar
+    ```
+
+2.  **Install Dependencies:** Run the following command to download and install all workspace packages and prepare native binaries:
+    ```bash
+    pnpm install
+    ```
+
+3.  **Run Development Server:** Run the dev task, which boots up Vite and launches Electron with live hot-reloading for both the main and renderer processes:
+    ```bash
+    pnpm run dev
+    ```
 
 ---
 
-## 💻 Development Guidelines
+## 📐 Development Guidelines
 
-### Folder Structure
+To keep Lunar's codebase clean and maintainable, please follow these guidelines when writing code:
 
-The application follows the standard `electron-vite` project layout under the `src` directory:
+### Tech Stack Standards
+*   **Frontend UI:** We use **React 18** and **Tailwind CSS v4** (using `@tailwindcss/vite` configuration). Ensure your styles leverage utility classes and follow the design guidelines.
+*   **State Management:** Global UI state and session properties are managed with **Zustand**. Keep state structures simple and slice-based.
+*   **Data Fetching:** For remote state, use **TanStack Query** (React Query) to leverage clean caching and status state.
+*   **Security:** Avoid writing credentials (like private keys or passwords) directly to disk or settings database. Use standard platform credential storage interfaces provided under `window.api.credentials` to protect them.
 
+### Code Style & Formatting
+
+We use **Biome** instead of ESLint/Prettier to format and lint the repository.
+
+Before submitting a Pull Request, verify that your code adheres to the style rules:
+
+```bash
+# Run Biome code quality checks
+pnpm run lint
+
+# Auto-format and resolve safe lint issues
+pnpm run format
 ```
-src/
-├── main/       # Electron main process (IPC handlers, SSH/PTY logic, database setup)
-├── preload/    # Electron preload scripts (securely exposing main process APIs to renderer)
-├── renderer/   # React frontend source files (pages, components, styles, state management)
-│   └── src/    # Main React source directory
-├── shared/     # Shared TS types, constants, and utilities used by main & renderer
-└── test/       # Test setup files and configuration
+
+Additionally, make sure there are no TypeScript compiler errors:
+```bash
+# Run typechecking across both node and web processes
+pnpm run typecheck
 ```
 
-### Scripts
+---
 
-Use the following pnpm scripts during development:
+## 🧪 Testing Guidelines
 
-- **Run in development mode**:
-  ```bash
-  pnpm dev
-  ```
-  Runs the Electron app with hot-reloading and development logs.
-- **Build for production**:
-  ```bash
-  pnpm build
-  ```
-  Compiles the TypeScript/React code and bundles the Electron app for production.
-- **Preview build**:
-  ```bash
-  pnpm preview
-  ```
+Any new features, components, or service refactors must be accompanied by comprehensive tests. We use **Vitest** for unit and component verification.
+
+*   Tests for main process utilities are located in `src/test/` or next to their respective service files.
+*   Tests for frontend React components/hooks are located next to the component they test (e.g., `Foo.test.tsx`).
+*   Ensure that tests clean up after themselves (e.g., mock cleaning, temporary file deletion).
+
+### Test Commands
+
+```bash
+# Run the test suite once
+pnpm run test
+
+# Run tests in watch mode during development
+pnpm run test:watch
+
+# Check test coverage report
+pnpm run test:coverage
+```
 
 ---
 
-## 🛠 Code Quality & Standards
+## 💾 Git & Commit Style
 
-To keep the codebase maintainable and clean, we enforce linting, formatting, type-checking, and tests.
+We encourage the use of **Conventional Commits** to keep our changelog and release workflows automated:
 
-### Linting & Formatting
+Format your commit messages as:
+```
+<type>(<scope>): <short description>
 
-We use **Biome** for unified, high-performance linting, formatting, and import sorting. Biome check is run automatically on CI. PRs containing any linting or formatting issues will fail the build process.
+[optional body]
 
-- **Check lint & format issues**:
-  ```bash
-  pnpm lint
-  ```
-- **Automatically format and fix code issues**:
-  ```bash
-  pnpm format
-  ```
+[optional footer(s)]
+```
 
-- **Node.js Built-in Imports Protocol**:
-  To adhere to modern development standards and ensure linter compliance, all imports of Node.js built-in modules (e.g., `crypto`, `fs`, `path`) must use the explicit `node:` prefix (e.g., `import { getCiphers } from 'node:crypto';`). This is automatically enforced by Biome's `style.useNodejsImportProtocol` rule.
+### Allowed Types:
+*   `feat`: A new feature
+*   `fix`: A bug fix
+*   `docs`: Documentation changes
+*   `style`: Changes that do not affect the meaning of the code (formatting, white-space, etc.)
+*   `refactor`: A code change that neither fixes a bug nor adds a feature
+*   `test`: Adding missing tests or correcting existing tests
+*   `chore`: Changes to the build process or auxiliary tools/libraries
 
-### Type-Checking
-
-The project uses TypeScript across the main (Node) and renderer (Web) processes. Always verify type correctness before pushing:
-
-- **Type-check everything**:
-  ```bash
-  pnpm typecheck
-  ```
-- **Type-check Node (main/preload) process**:
-  ```bash
-  pnpm typecheck:node
-  ```
-- **Type-check Web (renderer) process**:
-  ```bash
-  pnpm typecheck:web
-  ```
-
-### Testing
-
-We use **Vitest** for running unit and integration tests.
-
-- **Run tests once**:
-  ```bash
-  pnpm test
-  ```
-- **Run tests in watch mode**:
-  ```bash
-  pnpm test:watch
-  ```
-- **Check test coverage**:
-  ```bash
-  pnpm test:coverage
-  ```
-  *Note: Please make sure coverage thresholds (lines, functions, branches, statements) are maintained or improved when adding new tests.*
-
-- **Accessibility & Keyboard Navigation Testing**:
-  When modifying or adding interactive frontend components (e.g., file lists, navigation views, or custom controls), you must ensure that keyboard navigation accessibility (such as arrow key focus navigation, selection toggles, and correct ARIA states) is fully tested. See [FileList.test.tsx](file:///Users/salvatorecorvaglia/github/lunar/src/renderer/src/components/sftp/__tests__/FileList.test.tsx) for a comprehensive reference on setting up virtual lists, testing keydown events, and validating dynamic ARIA attributes.
-
-- **IPC, Layout Store, and Importer Testing**:
-  When introducing changes to layout configurations, custom connection files/config parsing, or IPC-based file write transactions, ensure you write or update unit and integration tests accordingly. For reference on these patterns, check:
-  - Terminal session store layouts: [terminal-store.test.ts](file:///Users/salvatorecorvaglia/github/lunar/src/renderer/src/stores/__tests__/terminal-store.test.ts)
-  - SSH config file parsing & imports: [ssh-config.test.ts](file:///Users/salvatorecorvaglia/github/lunar/src/main/lib/importers/__tests__/ssh-config.test.ts)
-  - S3 IPC methods: [s3.ipc.test.ts](file:///Users/salvatorecorvaglia/github/lunar/src/main/ipc/__tests__/s3.ipc.test.ts)
-  - Shell write transactions: [shell.ipc.test.ts](file:///Users/salvatorecorvaglia/github/lunar/src/main/ipc/__tests__/shell.ipc.test.ts)
-
-- **SSH Handshake and Bastion Testing**:
-  When modifying connection establishment, credential resolution, or bastion gateway (jump host) logic, verify that changes do not break SSH session setup. Check the following integration tests for reference:
-  - SSH handshakes & gateway tunnels: [ssh-handshake.integration.test.ts](file:///Users/salvatorecorvaglia/github/lunar/src/main/services/ssh/__tests__/ssh-handshake.integration.test.ts)
+### Example:
+`feat(terminal): add vertical split pane layout support`
 
 ---
 
-## 📥 Submitting a Pull Request
+## 🚀 Pull Request Checklist
 
-1. **Create a branch** for your work from `main` (usually `feature/feature-name` or `bugfix/bug-name`).
-2. **Write clean code** and adhere to the project's formatting and quality standards.
-3. **Write/update tests** to cover your changes where applicable.
-4. **Run all checks** locally before pushing:
-   - Format and lint:
-     ```bash
-     pnpm format
-     ```
-   - Double-check linting/formatting:
-     ```bash
-     pnpm lint
-     ```
-   - Run type-checks:
-     ```bash
-     pnpm typecheck
-     ```
-   - Run tests with coverage:
-     ```bash
-     pnpm test:coverage
-     ```
-   - Verify build:
-     ```bash
-     pnpm build
-     ```
-5. **Commit your changes** with descriptive commit messages.
-6. **Submit a Pull Request** (PR) to the upstream repository.
-7. Fill out the [Pull Request Template](.github/PULL_REQUEST_TEMPLATE/PULL_REQUEST_TEMPLATE.md) completely, referencing any related issue (e.g. `Fixes #123`).
+When you are ready to submit a Pull Request, please ensure the following:
+
+1.  Your branch is up-to-date with `main`.
+2.  All dependencies are correctly managed via `pnpm`.
+3.  All code checks pass cleanly (`pnpm run lint` and `pnpm run typecheck`).
+4.  All existing and new tests pass successfully (`pnpm run test`).
+5.  Your commit messages follow the conventional style.
+
+Once submitted, the GitHub Actions CI pipeline will run build checks on macOS, Windows, and Linux to verify the build output.
 
 ---
 
