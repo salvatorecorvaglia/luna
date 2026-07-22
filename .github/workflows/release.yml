@@ -137,7 +137,7 @@ jobs:
         run: npx electron-builder --${{ matrix.platform }} --publish always
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.artifact-name }}
           path: ${{ matrix.path }}
