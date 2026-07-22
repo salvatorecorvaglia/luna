@@ -99,7 +99,7 @@ coverage/
 # SBOM artifacts
 sbom.cyclonedx.json
 
-# AI Tools
+# AI Tools & Agents
 .openai/
 .chatgpt/
 gpt-config.json
@@ -117,4 +117,5 @@ claude-settings.json
 .copilot/
 .codex/
 .cagent/
+.cursor/
 CLAUDE.md
