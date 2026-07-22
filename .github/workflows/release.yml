@@ -14,7 +14,6 @@ permissions:
   contents: read
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
   ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.cache/electron-builder
 
@@ -28,7 +27,7 @@ jobs:
     steps:
       - name: Check if tag ref
         run: |
-          if [[ "$GITHUB_REF" != refs/tags/* ]]; then
+          if [[ "${{ github.event_name }}" != "workflow_dispatch" && "$GITHUB_REF" != refs/tags/* ]]; then
             echo "::error::Release workflow must be run on a tag ref (e.g. refs/tags/v1.0.0)"
             exit 1
           fi
@@ -43,13 +42,13 @@ jobs:
     needs: validate
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
@@ -80,7 +79,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-26
+          - os: macos-latest
             platform: mac
             platform-name: macOS
             artifact-name: release-mac
@@ -88,7 +87,7 @@ jobs:
               dist/*.dmg
               dist/*.zip
               dist/*.yml
-          - os: windows-2025-vs2026
+          - os: windows-latest
             platform: win
             platform-name: Windows
             artifact-name: release-win
@@ -105,10 +104,10 @@ jobs:
               dist/*.yml
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Cache Electron Binaries
-        uses: actions/cache@v6
+        uses: actions/cache@v4
         with:
           path: |
             ${{ github.workspace }}/.cache/electron
@@ -118,10 +117,10 @@ jobs:
             ${{ runner.os }}-electron-cache-
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
@@ -138,7 +137,7 @@ jobs:
         run: npx electron-builder --${{ matrix.platform }} --publish always
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact-name }}
           path: ${{ matrix.path }}
@@ -156,7 +155,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -165,7 +164,10 @@ jobs:
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           VERSION="${TAG#v}"
-          NOTES=$(sed -e "1,/## \[$VERSION\]/d" -e '/## \[/,$d' CHANGELOG.md)
+          NOTES=""
+          if [ -f CHANGELOG.md ]; then
+            NOTES=$(sed -e "1,/## \[$VERSION\]/d" -e '/## \[/,$d' CHANGELOG.md || true)
+          fi
           {
             echo 'notes<<EOF'
             echo "$NOTES"
@@ -179,9 +181,16 @@ jobs:
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           VERSION="${TAG#v}"
-          gh release edit "$TAG" \
-            --draft=false \
-            --title "Lunar v$VERSION" \
-            --notes "$RELEASE_NOTES" \
-            --repo "$GITHUB_REPOSITORY"
-
+          if [ -n "$RELEASE_NOTES" ]; then
+            gh release edit "$TAG" \
+              --draft=false \
+              --title "Lunar v$VERSION" \
+              --notes "$RELEASE_NOTES" \
+              --repo "$GITHUB_REPOSITORY"
+          else
+            gh release edit "$TAG" \
+              --draft=false \
+              --title "Lunar v$VERSION" \
+              --generate-notes \
+              --repo "$GITHUB_REPOSITORY"
+          fi
