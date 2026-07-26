@@ -113,6 +113,8 @@ export interface ExportedConnection {
   forcePathStyle?: boolean;
   folder?: string;
   colorTag?: string;
+  sortOrder?: number;
+  jumpHostConnectionId?: string;
   /**
    * Name of the referenced jump host connection. Exports carry the *name*
    * (not the id) so importers can re-link by name on the destination machine.

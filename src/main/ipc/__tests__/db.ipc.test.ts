@@ -22,10 +22,10 @@ type GetFn = (...args: unknown[]) => unknown;
 const inserts: unknown[][] = [];
 const fakeDb = {
   prepare(sql: string): { run: RunFn; get: GetFn; all: () => unknown[] } {
-    if (sql.startsWith('INSERT INTO connections')) {
+    if (sql.includes('INSERT INTO connections')) {
       return { run: ((...args) => inserts.push(args)) as RunFn, get: () => null, all: () => [] };
     }
-    if (sql.startsWith('SELECT id FROM connections')) {
+    if (sql.includes('SELECT') && sql.includes('FROM connections')) {
       return { run: () => {}, get: () => null, all: () => [] };
     }
     return { run: () => {}, get: () => null, all: () => [] };

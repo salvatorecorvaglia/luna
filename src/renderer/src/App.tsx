@@ -1,6 +1,6 @@
 import type { TerminalThemeName } from '@shared/types/terminal';
 import { ShieldAlert } from 'lucide-react';
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Toaster, toast } from 'sonner';
 // HostKeyDialog stays eager — it subscribes to host-key change IPC events on
 // mount and must be alive at startup to catch the first one.
@@ -44,6 +44,7 @@ const SftpManager = lazy(() =>
   import('@/components/sftp/SftpManager').then((m) => ({ default: m.SftpManager })),
 );
 
+import { useShallow } from 'zustand/react/shallow';
 import { useSessionRecovery } from '@/hooks/use-session-recovery';
 import { useTransferEventListener } from '@/hooks/use-transfers';
 import { useUpdaterEventListener } from '@/hooks/use-updater';
@@ -52,7 +53,20 @@ import { applyUIThemeTokens, buildUIThemeTokens } from '@/themes/ui-from-termina
 export default function App() {
   const activeView = useUIStore((s) => s.activeView);
   const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen);
-  const { tabOrder, terminalTheme, sessions, initializeSettings } = useTerminalStore();
+  const { terminalTheme, initializeSettings } = useTerminalStore(
+    useShallow((s) => ({
+      terminalTheme: s.terminalTheme,
+      initializeSettings: s.initializeSettings,
+    })),
+  );
+  const hasTerminals = useTerminalStore(
+    useShallow((s) =>
+      s.tabOrder.some((id) => {
+        const sess = s.sessions.get(id);
+        return !sess?.type || sess.type === 'ssh';
+      }),
+    ),
+  );
 
   // Load settings from DB on mount to prevent localStorage drift
   useEffect(() => {
@@ -215,15 +229,6 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [setCommandPaletteOpen]);
-
-  const hasTerminals = useMemo(
-    () =>
-      tabOrder.some((id) => {
-        const s = sessions.get(id);
-        return !s?.type || s.type === 'ssh';
-      }),
-    [tabOrder, sessions],
-  );
 
   const showTerminal = activeView === 'terminal' && hasTerminals;
   const showSftp = activeView === 'sftp';

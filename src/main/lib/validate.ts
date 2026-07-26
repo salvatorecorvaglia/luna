@@ -1,4 +1,4 @@
-import { realpath } from 'node:fs/promises';
+import { lstat, readlink, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, normalize, relative, resolve as resolvePath, sep } from 'node:path';
 import { ErrorCode, LunarError } from '@shared/errors';
@@ -164,6 +164,19 @@ export async function assertSafeRealAbsolutePath(value: unknown, name: string): 
   assertSafeAbsolutePath(value, name);
   const home = homedir();
   try {
+    const ls = await lstat(value);
+    if (ls.isSymbolicLink()) {
+      const linkTarget = await readlink(value);
+      const targetPath = isAbsolute(linkTarget)
+        ? linkTarget
+        : resolvePath(dirname(value), linkTarget);
+      if (!isInsideDir(targetPath, home)) {
+        throw new LunarError(
+          `${name} resolves outside the home directory via symlink`,
+          ErrorCode.FORBIDDEN,
+        );
+      }
+    }
     const real = await realpath(value);
     if (!isInsideDir(real, home)) {
       throw new LunarError(
@@ -173,6 +186,7 @@ export async function assertSafeRealAbsolutePath(value: unknown, name: string): 
     }
     return real;
   } catch (err: unknown) {
+    if (err instanceof LunarError) throw err;
     if ((err as NodeJS.ErrnoException | undefined)?.code !== 'ENOENT') throw err;
     // Path does not exist yet — validate the parent directory's real target.
     const parent = dirname(value);

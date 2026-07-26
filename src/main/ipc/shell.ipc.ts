@@ -1,16 +1,7 @@
 import { constants as fsConstants } from 'node:fs';
-import {
-  access,
-  lstat,
-  open,
-  readdir,
-  readlink,
-  realpath,
-  stat,
-  writeFile,
-} from 'node:fs/promises';
+import { access, lstat, open, readdir, realpath, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
+import { basename, isAbsolute, join, resolve } from 'node:path';
 import { BINARY_PREVIEW_EXTENSIONS, IPC } from '@shared/constants';
 import { ErrorCode, LunarError } from '@shared/errors';
 import type { LocalFileEntry } from '@shared/types/sftp';
@@ -18,6 +9,7 @@ import { dialog } from 'electron';
 import { registerHandler } from '../lib/ipc-handler';
 import {
   assertSafeAbsolutePath,
+  assertSafeRealAbsolutePath,
   assertValidPath,
   expandAndConfineToHome,
   expandAndValidatePrivateKeyPath,
@@ -266,25 +258,7 @@ export function registerShellHandlers(): void {
         throw new LunarError('content must be a string', ErrorCode.VALIDATION_ERROR);
       }
       const expanded = await expandAndConfineToHome(filePath, 'filePath');
-      const home = homedir();
-
-      let target = expanded;
-      try {
-        const ls = await lstat(expanded);
-        if (ls.isSymbolicLink()) {
-          const linkTarget = await readlink(expanded);
-          target = isAbsolute(linkTarget) ? linkTarget : resolve(dirname(expanded), linkTarget);
-        }
-      } catch {
-        target = expanded;
-      }
-
-      if (!isInsideDir(target, home)) {
-        throw new LunarError(
-          'Access denied: target path is outside the home directory',
-          ErrorCode.FORBIDDEN,
-        );
-      }
+      const target = await assertSafeRealAbsolutePath(expanded, 'filePath');
 
       const MAX_BYTES = 50 * 1024 * 1024; // 50 MB
       if (Buffer.byteLength(content, 'utf-8') > MAX_BYTES) {

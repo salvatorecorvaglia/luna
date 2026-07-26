@@ -1,5 +1,4 @@
 import { createServer, connect as netConnect } from 'node:net';
-import { StringDecoder } from 'node:string_decoder';
 import { IPC, LIMITS } from '@shared/constants';
 import type { AuthType, PortForwardingConfig } from '@shared/types/connection';
 import type { SessionStatus } from '@shared/types/terminal';
@@ -13,7 +12,9 @@ import { type ConnectionRow, getDatabase, getSetting } from './database';
 import { emitToRenderer } from './emit';
 import { bastionService } from './ssh/bastion-service';
 import { PendingHostKeyRegistry } from './ssh/host-key-flow';
+import { extractManualJumpHostConfig } from './ssh/jump-host-helper';
 import { buildConnectConfig } from './ssh/ssh-config';
+import { sshStreamBuffer } from './ssh/ssh-stream-buffer';
 
 /**
  * Columns needed to build an SSH `ConnectConfig` from the connections table —
@@ -87,12 +88,6 @@ interface SshSession {
 const MAX_RECONNECT_DELAY_MS = getRuntimeNumber('SSH_RECONNECT_MAX_DELAY_MS');
 /** Base delay for the first reconnect attempt (ms). */
 const RECONNECT_BASE_DELAY_MS = getRuntimeNumber('SSH_RECONNECT_BASE_DELAY_MS');
-
-interface SshBuffer {
-  buffers: Buffer[];
-  timer: NodeJS.Timeout | null;
-}
-const sshBuffers = new Map<string, SshBuffer>();
 
 class SshManager {
   private sessions = new Map<string, SshSession>();
@@ -225,21 +220,7 @@ class SshManager {
     let jumpSock: import('node:stream').Duplex | undefined;
     if (row.jump_host_connection_id || row.jump_host_host) {
       try {
-        let manualConfig: import('@shared/types/connection').ManualJumpHostConfig | undefined;
-        if (
-          row.jump_host_host &&
-          row.jump_host_username &&
-          row.jump_host_auth_type &&
-          row.jump_host_port
-        ) {
-          manualConfig = {
-            host: row.jump_host_host,
-            port: row.jump_host_port,
-            username: row.jump_host_username,
-            authType: row.jump_host_auth_type as import('@shared/types/connection').AuthType,
-            privateKeyPath: row.jump_host_private_key_path || undefined,
-          };
-        }
+        const manualConfig = extractManualJumpHostConfig(row);
 
         const channel = await bastionService.openChannel({
           connectionId,
@@ -327,6 +308,10 @@ class SshManager {
             historyId,
             connectionId,
           );
+          // Prune history: retain the most recent 1,000 entries
+          db.prepare(
+            'DELETE FROM connection_history WHERE id NOT IN (SELECT id FROM connection_history ORDER BY connected_at DESC LIMIT 1000)',
+          ).run();
         } catch (err) {
           log.warn(`[SSH] Failed to record connection info for ${connectionId}:`, err);
         }
@@ -349,52 +334,9 @@ class SshManager {
           session.shell = stream;
 
           const queueSshData = (chunk: Buffer): void => {
-            let sb = sshBuffers.get(sessionId);
-            if (!sb) {
-              sb = { buffers: [], timer: null };
-              sshBuffers.set(sessionId, sb);
-            }
-            sb.buffers.push(chunk);
-
-            if (!sb.timer) {
-              sb.timer = setTimeout(() => {
-                const currentSb = sshBuffers.get(sessionId);
-                if (!currentSb) return;
-                const combinedBuf = Buffer.concat(currentSb.buffers);
-                currentSb.buffers = [];
-                currentSb.timer = null;
-
-                if (combinedBuf.length > 0) {
-                  // Chunk it if it exceeds 1MB
-                  const limitBytes = 1024 * 1024;
-                  if (combinedBuf.length <= limitBytes) {
-                    emitToRenderer(IPC.SSH_ON_DATA, {
-                      sessionId,
-                      data: combinedBuf.toString('utf-8'),
-                    });
-                  } else {
-                    const decoder = new StringDecoder('utf8');
-                    for (let offset = 0; offset < combinedBuf.length; offset += limitBytes) {
-                      const slice = combinedBuf.subarray(offset, offset + limitBytes);
-                      const chunkStr = decoder.write(slice);
-                      if (chunkStr.length > 0) {
-                        emitToRenderer(IPC.SSH_ON_DATA, {
-                          sessionId,
-                          data: chunkStr,
-                        });
-                      }
-                    }
-                    const tail = decoder.end();
-                    if (tail.length > 0) {
-                      emitToRenderer(IPC.SSH_ON_DATA, {
-                        sessionId,
-                        data: tail,
-                      });
-                    }
-                  }
-                }
-              }, 16);
-            }
+            sshStreamBuffer.queueData(sessionId, chunk, (data) => {
+              emitToRenderer(IPC.SSH_ON_DATA, { sessionId, data });
+            });
           };
 
           const onData = (data: Buffer): void => {
@@ -508,11 +450,7 @@ class SshManager {
       session.shell.stderr.removeListener('data', onStderrData);
       session._streamListeners = undefined;
     }
-    const sb = sshBuffers.get(session.id);
-    if (sb) {
-      if (sb.timer) clearTimeout(sb.timer);
-      sshBuffers.delete(session.id);
-    }
+    sshStreamBuffer.disposeSession(session.id);
   }
 
   private cleanupPortForwards(session: SshSession): void {
@@ -1084,6 +1022,7 @@ class SshManager {
     for (const id of ids) {
       this.disconnect(id);
     }
+    sshStreamBuffer.disposeAll();
   }
 }
 
