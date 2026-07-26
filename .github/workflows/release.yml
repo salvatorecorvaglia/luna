@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v1.0.0)'
+        required: false
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -27,8 +32,11 @@ jobs:
     steps:
       - name: Check if tag ref
         run: |
-          if [[ "${{ github.event_name }}" != "workflow_dispatch" && "$GITHUB_REF" != refs/tags/* ]]; then
-            echo "::error::Release workflow must be run on a tag ref (e.g. refs/tags/v1.0.0)"
+          TAG="${{ github.event.inputs.tag }}"
+          if [ -n "$TAG" ]; then
+            echo "Workflow dispatched with tag input: $TAG"
+          elif [[ "${{ github.event_name }}" != "workflow_dispatch" && "$GITHUB_REF" != refs/tags/* ]]; then
+            echo "::error::Release workflow must be run on a tag ref (e.g. refs/tags/v1.0.0) or triggered with a tag input"
             exit 1
           fi
 
@@ -162,13 +170,18 @@ jobs:
       - name: Extract Release Notes
         id: extract_notes
         run: |
-          TAG="${GITHUB_REF#refs/tags/}"
+          TAG="${{ github.event.inputs.tag }}"
+          if [ -z "$TAG" ]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
           VERSION="${TAG#v}"
           NOTES=""
           if [ -f CHANGELOG.md ]; then
             NOTES=$(sed -e "1,/## \[$VERSION\]/d" -e '/## \[/,$d' CHANGELOG.md || true)
           fi
           {
+            echo "tag=$TAG"
+            echo "version=$VERSION"
             echo 'notes<<EOF'
             echo "$NOTES"
             echo 'EOF'
@@ -177,13 +190,17 @@ jobs:
       - name: Update Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.extract_notes.outputs.tag }}
+          VERSION: ${{ steps.extract_notes.outputs.version }}
           RELEASE_NOTES: ${{ steps.extract_notes.outputs.notes }}
         run: |
-          TAG="${GITHUB_REF#refs/tags/}"
-          VERSION="${TAG#v}"
           if [ -n "$RELEASE_NOTES" ]; then
             gh release edit "$TAG" \
               --draft=false \
+              --title "Lunar v$VERSION" \
+              --notes "$RELEASE_NOTES" \
+              --repo "$GITHUB_REPOSITORY" || \
+            gh release create "$TAG" \
               --title "Lunar v$VERSION" \
               --notes "$RELEASE_NOTES" \
               --repo "$GITHUB_REPOSITORY"
@@ -192,5 +209,10 @@ jobs:
               --draft=false \
               --title "Lunar v$VERSION" \
               --generate-notes \
+              --repo "$GITHUB_REPOSITORY" || \
+            gh release create "$TAG" \
+              --title "Lunar v$VERSION" \
+              --generate-notes \
               --repo "$GITHUB_REPOSITORY"
           fi
+
