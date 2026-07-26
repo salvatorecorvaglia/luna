@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-07-26
+
+### Added
+
+- **Connection Service**: Encapsulated connection management logic into `ConnectionService` in the main process, separating database operations, validations, and lifecycle hooks from IPC controller routing.
+- **SSH Stream Buffer**: Introduced `SshStreamBuffer` to handle SSH data stream buffering, chunk aggregation, and flow control.
+- **Connection History**: Implemented connection history pruning to clean up stale connection history records automatically.
+- **Testing**: Added unit test coverage for `ConnectionService`, `SshStreamBuffer`, and jump-host helpers.
+
+### Changed
+
+- **CI/CD Pipelines**: Refactored GitHub Actions release and build workflows to use stable OS runners and updated action versions.
+- **Application Description**: Standardized application summary ("Cross-platform remote & local workflow workstation") across package and UI components.
+
+### Improved
+
+- **IPC Architecture**: Refactored `connection.ipc.ts` and `shell.ipc.ts` to delegate operations to dedicated service modules, reducing file complexity and improving maintainability.
+- **Dependency Management**: Updated core dependencies to their latest stable releases (`electron`, `@aws-sdk/*`, `vitest`, `typescript`, `vite`).
+
 ## [0.15.0] - 2026-07-18
 
 ### Added

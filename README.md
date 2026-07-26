@@ -34,6 +34,7 @@
 ### 📥 One-Click Importers
 *   **SSH Config Parser:** Import connection configurations directly from your system SSH config file (`~/.ssh/config`).
 *   **WinSCP Importer:** Auto-import WinSCP profiles, including parsing of registry exports (`.reg` files) and SSH jump host configurations.
+*   **MobaXterm & PuTTY Importers:** Auto-import session profiles from MobaXterm (`.mxtsessions` / `.mxtpro`) and PuTTY registry exports (`.reg`).
 
 ---
 
