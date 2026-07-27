@@ -48,7 +48,7 @@ To keep Lunar's codebase clean and maintainable, please follow these guidelines 
 
 ### Code Style & Formatting
 
-We use **Biome** instead of ESLint/Prettier to format and lint the repository.
+We use **Biome** to format and lint the repository.
 
 Before submitting a Pull Request, verify that your code adheres to the style rules:
 

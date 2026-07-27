@@ -122,7 +122,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Code Quality**: Migrated workspace tooling from ESLint/Prettier to Biome for unified, high-performance linting, formatting, and import sorting.
+- **Code Quality**: Migrated workspace tooling to Biome for unified, high-performance linting, formatting, and import sorting.
 
 ### Improved
 
