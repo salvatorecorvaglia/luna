@@ -5,6 +5,7 @@ import {
   Eye,
   EyeOff,
   FolderPlus,
+  FolderSync,
   Home,
   Loader2,
   RefreshCw,
@@ -46,6 +47,7 @@ interface FilePaneProps {
   showHidden?: boolean;
   onToggleHidden?: () => void;
   onMkdir?: () => void;
+  onFolderSync?: () => void;
   onSelectAll?: () => void;
   side: 'local' | 'remote';
   /**
@@ -92,6 +94,7 @@ export function FilePane({
   showHidden = true,
   onToggleHidden,
   onMkdir,
+  onFolderSync,
   onSelectAll,
   side,
   remoteKind,
@@ -236,6 +239,16 @@ export function FilePane({
               aria-label="New folder"
             >
               <FolderPlus className="size-3.5" aria-hidden="true" />
+            </button>
+          )}
+          {onFolderSync && (
+            <button
+              onClick={onFolderSync}
+              className="btn-icon !p-1 text-primary"
+              title="Sync Folders"
+              aria-label="Sync Folders"
+            >
+              <FolderSync className="size-3.5" aria-hidden="true" />
             </button>
           )}
           {onToggleHidden && (

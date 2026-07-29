@@ -182,6 +182,11 @@ const api = {
     download: (params: StorageTransferParams) => invoke(IPC.STORAGE_DOWNLOAD, params),
     upload: (params: StorageTransferParams) => invoke(IPC.STORAGE_UPLOAD, params),
     onListTruncated: createEventListener(IPC.STORAGE_LIST_TRUNCATED),
+    compareDirectories: (params: {
+      localEntries: { relativePath: string; size: number; mtime: number }[];
+      remoteEntries: any[];
+      direction?: 'sync-to-remote' | 'sync-to-local' | 'bi-directional';
+    }) => invoke(IPC.STORAGE_COMPARE_DIRECTORIES, params),
   },
 
   // S3 sessions
@@ -242,6 +247,7 @@ const api = {
     retrieve: (connectionId: string) => invoke(IPC.CREDENTIAL_RETRIEVE, connectionId),
     delete: (connectionId: string) => invoke(IPC.CREDENTIAL_DELETE, connectionId),
     onTamper: createEventListener(IPC.CREDENTIAL_ON_TAMPER),
+    resolveExternal: (ref: string) => invoke(IPC.CREDENTIAL_RESOLVE_EXTERNAL, ref),
   },
 
   // Settings

@@ -38,6 +38,7 @@ import type {
 import type { TransferCompleteEvent, TransferErrorEvent, TransferProgressEvent } from './transfer';
 import type { CreateSnippetInput, Snippet, UpdateSnippetInput } from './snippet';
 import type { CreateWorkspaceInput, WorkspacePreset } from './workspace';
+import type { FolderDiffResult } from './folder-sync';
 
 /**
  * Authoritative request/response shape for every invoke-style IPC channel.
@@ -192,6 +193,15 @@ export interface IpcHandlerMap {
   'credential:store': { request: { connectionId: string; secret: string }; response: void };
   'credential:retrieve': { request: string; response: string | null };
   'credential:delete': { request: string; response: void };
+  'credential:resolve-external': { request: string; response: string | null };
+  'storage:compare-directories': {
+    request: {
+      localEntries: { relativePath: string; size: number; mtime: number }[];
+      remoteEntries: StorageEntry[];
+      direction?: 'sync-to-remote' | 'sync-to-local' | 'bi-directional';
+    };
+    response: FolderDiffResult;
+  };
 
   // Settings
   'settings:get': { request: keyof AppSettings; response: string | null };

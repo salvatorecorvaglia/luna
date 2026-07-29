@@ -1,10 +1,11 @@
 import { Reorder } from 'framer-motion';
-import { ArrowRightToLine, Code, Copy, Filter, LayoutGrid, Loader2, Pencil, Radio, WifiOff, X, XCircle } from 'lucide-react';
+import { ArrowRightToLine, Circle, Code, Copy, Filter, LayoutGrid, Loader2, Pencil, Radio, WifiOff, X, XCircle } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
 import { PromptDialog } from '@/components/common/PromptDialog';
 import { BroadcastInputBar } from '@/components/terminal/BroadcastInputBar';
+import { MacroRecorderDialog } from '@/components/terminal/MacroRecorderDialog';
 import { SnippetVaultDialog } from '@/components/terminal/SnippetVaultDialog';
 import { TerminalFilterBar } from '@/components/terminal/TerminalFilterBar';
 import { WorkspacePresetsDialog } from '@/components/terminal/WorkspacePresetsDialog';
@@ -33,10 +34,11 @@ export function TerminalTabs() {
   const [closingTabId, setClosingTabId] = useState<string | null>(null);
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
 
-  // Phase 2 dialog & toolbar state
+  // Phase 2 & 3 dialog & toolbar state
   const [showSnippetVault, setShowSnippetVault] = useState(false);
   const [showBroadcastBar, setShowBroadcastBar] = useState(false);
   const [showFilterBar, setShowFilterBar] = useState(false);
+  const [showMacroRecorder, setShowMacroRecorder] = useState(false);
   const [showWorkspaces, setShowWorkspaces] = useState(false);
 
   const sshTabs = useMemo(
@@ -183,6 +185,14 @@ export function TerminalTabs() {
         </button>
 
         <button
+          onClick={() => setShowMacroRecorder(true)}
+          className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+          title="Terminal Macro Recorder"
+        >
+          <Circle className="size-3.5 text-destructive/80" />
+        </button>
+
+        <button
           onClick={() => setShowWorkspaces(true)}
           className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
           title="Workspace Layout Presets"
@@ -193,6 +203,23 @@ export function TerminalTabs() {
 
       <BroadcastInputBar open={showBroadcastBar} onClose={() => setShowBroadcastBar(false)} />
       <TerminalFilterBar open={showFilterBar} onClose={() => setShowFilterBar(false)} />
+
+      <MacroRecorderDialog
+        open={showMacroRecorder}
+        onClose={() => setShowMacroRecorder(false)}
+        onRunMacro={(sequence) => {
+          if (activeTabId) {
+            const session = sessions.get(activeTabId);
+            for (const cmd of sequence) {
+              if (session?.type === 'local') {
+                window.api.localTerminal.sendData({ sessionId: activeTabId, data: `${cmd}\n` });
+              } else {
+                window.api.ssh.sendData({ sessionId: activeTabId, data: `${cmd}\n` });
+              }
+            }
+          }
+        }}
+      />
 
       <SnippetVaultDialog
         open={showSnippetVault}

@@ -6,6 +6,7 @@ import {
   assertSafeRealAbsolutePath,
   assertValidPath,
 } from '../lib/validate';
+import { folderSyncService } from '../services/folder-sync-service';
 import { storageRegistry } from '../services/storage/registry';
 import { transferQueue } from '../services/transfer-queue';
 
@@ -112,4 +113,22 @@ export function registerStorageHandlers(): void {
     assertValidPath(params.remotePath, 'remotePath');
     return transferQueue.enqueue('upload', params.sessionId, safeLocal, params.remotePath);
   });
+
+  registerHandler(
+    IPC.STORAGE_COMPARE_DIRECTORIES,
+    (
+      _event,
+      params: {
+        localEntries: { relativePath: string; size: number; mtime: number }[];
+        remoteEntries: any[];
+        direction?: 'sync-to-remote' | 'sync-to-local' | 'bi-directional';
+      },
+    ) => {
+      return folderSyncService.compareDirectories(
+        params.localEntries || [],
+        params.remoteEntries || [],
+        params.direction,
+      );
+    },
+  );
 }

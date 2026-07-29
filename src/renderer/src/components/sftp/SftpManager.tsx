@@ -16,6 +16,7 @@ import { useConnectionStore } from '@/stores/connection-store';
 import { useStorageStore } from '@/stores/storage-store';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { useTransferStore } from '@/stores/transfer-store';
+import { FolderSyncDialog } from './FolderSyncDialog';
 import { type FileEntry, FilePane } from './FilePane';
 import { FilePreview } from './FilePreview';
 import { PresignedUrlDialog } from './PresignedUrlDialog';
@@ -268,11 +269,12 @@ export function SftpManager() {
     [activeSessionId, remotePath, addTransfer],
   );
 
-  // Dialog state for rename, delete, mkdir, presigned url
+  // Dialog state for rename, delete, mkdir, presigned url, folder sync
   const [renameTarget, setRenameTarget] = useState<FileEntry | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FileEntry | null>(null);
   const [mkdirOpen, setMkdirOpen] = useState(false);
   const [presignedTarget, setPresignedTarget] = useState<FileEntry | null>(null);
+  const [folderSyncOpen, setFolderSyncOpen] = useState(false);
 
   const setPreviewFile = useStorageStore((s) => s.setPreviewFile);
 
@@ -628,6 +630,7 @@ export function SftpManager() {
             showHidden={showHiddenFiles}
             onToggleHidden={toggleHiddenFiles}
             onMkdir={handleRemoteMkdir}
+            onFolderSync={() => setFolderSyncOpen(true)}
             onSelectAll={() => setRemoteSelection(new Set(remoteEntries.map((e) => e.name)))}
             side="remote"
             remoteKind={remoteKind}
@@ -680,6 +683,15 @@ export function SftpManager() {
         entry={presignedTarget}
         sessionId={activeSessionId || ''}
         onClose={() => setPresignedTarget(null)}
+      />
+
+      {/* Differential Folder Sync */}
+      <FolderSyncDialog
+        open={folderSyncOpen}
+        onClose={() => setFolderSyncOpen(false)}
+        localPath={localPath}
+        remotePath={remotePath}
+        sessionId={activeSessionId || ''}
       />
     </div>
   );

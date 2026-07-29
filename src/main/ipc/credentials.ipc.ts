@@ -8,6 +8,7 @@ import {
   retrieveCredential,
   storeCredential,
 } from '../services/credential-store';
+import { passwordManagerService } from '../services/password-manager-service';
 import { getMainWindow } from './app.ipc';
 
 /**
@@ -77,5 +78,10 @@ export function registerCredentialHandlers(): void {
   registerHandler(IPC.CREDENTIAL_DELETE, (_event, connectionId: string) => {
     assertNonEmptyString(connectionId, 'connectionId');
     deleteCredential(connectionId);
+  });
+
+  registerHandler(IPC.CREDENTIAL_RESOLVE_EXTERNAL, (_event, ref: string) => {
+    assertNonEmptyString(ref, 'ref');
+    return passwordManagerService.resolveSecretReference(ref);
   });
 }
