@@ -1,9 +1,13 @@
 import { Reorder } from 'framer-motion';
-import { ArrowRightToLine, Copy, Loader2, Pencil, WifiOff, X, XCircle } from 'lucide-react';
+import { ArrowRightToLine, Code, Copy, Filter, LayoutGrid, Loader2, Pencil, Radio, WifiOff, X, XCircle } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
 import { PromptDialog } from '@/components/common/PromptDialog';
+import { BroadcastInputBar } from '@/components/terminal/BroadcastInputBar';
+import { SnippetVaultDialog } from '@/components/terminal/SnippetVaultDialog';
+import { TerminalFilterBar } from '@/components/terminal/TerminalFilterBar';
+import { WorkspacePresetsDialog } from '@/components/terminal/WorkspacePresetsDialog';
 import { connectToHost } from '@/lib/ssh';
 import { cn } from '@/lib/utils';
 import {
@@ -28,6 +32,12 @@ export function TerminalTabs() {
   } = useTerminalStore();
   const [closingTabId, setClosingTabId] = useState<string | null>(null);
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
+
+  // Phase 2 dialog & toolbar state
+  const [showSnippetVault, setShowSnippetVault] = useState(false);
+  const [showBroadcastBar, setShowBroadcastBar] = useState(false);
+  const [showFilterBar, setShowFilterBar] = useState(false);
+  const [showWorkspaces, setShowWorkspaces] = useState(false);
 
   const sshTabs = useMemo(
     () =>
@@ -135,6 +145,81 @@ export function TerminalTabs() {
           );
         })}
       </Reorder.Group>
+
+      {/* Toolbar actions for Snippets, Broadcast, Filter, Presets */}
+      <div className="flex items-center gap-1 px-2 border-l border-border/40">
+        <button
+          onClick={() => setShowSnippetVault(true)}
+          className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+          title="Snippet Vault & Scripts"
+        >
+          <Code className="size-3.5" />
+        </button>
+
+        <button
+          onClick={() => setShowBroadcastBar((v) => !v)}
+          className={cn(
+            'rounded p-1 transition-colors cursor-pointer',
+            showBroadcastBar
+              ? 'bg-primary/20 text-primary'
+              : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+          )}
+          title="Broadcast Input to Multiple Terminals"
+        >
+          <Radio className="size-3.5" />
+        </button>
+
+        <button
+          onClick={() => setShowFilterBar((v) => !v)}
+          className={cn(
+            'rounded p-1 transition-colors cursor-pointer',
+            showFilterBar
+              ? 'bg-primary/20 text-primary'
+              : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+          )}
+          title="Live Terminal Output Filter"
+        >
+          <Filter className="size-3.5" />
+        </button>
+
+        <button
+          onClick={() => setShowWorkspaces(true)}
+          className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+          title="Workspace Layout Presets"
+        >
+          <LayoutGrid className="size-3.5" />
+        </button>
+      </div>
+
+      <BroadcastInputBar open={showBroadcastBar} onClose={() => setShowBroadcastBar(false)} />
+      <TerminalFilterBar open={showFilterBar} onClose={() => setShowFilterBar(false)} />
+
+      <SnippetVaultDialog
+        open={showSnippetVault}
+        onClose={() => setShowSnippetVault(false)}
+        onRunSnippet={(command) => {
+          if (activeTabId) {
+            const session = sessions.get(activeTabId);
+            if (session?.type === 'local') {
+              window.api.localTerminal.sendData({ sessionId: activeTabId, data: `${command}\n` });
+            } else {
+              window.api.ssh.sendData({ sessionId: activeTabId, data: `${command}\n` });
+            }
+          }
+        }}
+      />
+
+      <WorkspacePresetsDialog
+        open={showWorkspaces}
+        onClose={() => setShowWorkspaces(false)}
+        onRestoreWorkspace={(preset) => {
+          if (preset.layout.connectionIds && preset.layout.connectionIds.length > 0) {
+            for (const connId of preset.layout.connectionIds) {
+              connectToHost(connId);
+            }
+          }
+        }}
+      />
 
       <ConfirmDialog
         open={!!closingTabId}

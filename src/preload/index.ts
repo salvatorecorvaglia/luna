@@ -272,6 +272,21 @@ const api = {
     message: string,
     context?: Record<string, unknown>,
   ) => invoke(IPC.LOG_MESSAGE, { level, message, context }),
+
+  // Snippets
+  snippets: {
+    list: () => invoke(IPC.SNIPPET_LIST),
+    create: (input: any) => invoke(IPC.SNIPPET_CREATE, input),
+    update: (input: any) => invoke(IPC.SNIPPET_UPDATE, input),
+    delete: (id: string) => invoke(IPC.SNIPPET_DELETE, id),
+  },
+
+  // Workspaces
+  workspaces: {
+    list: () => invoke(IPC.WORKSPACE_LIST),
+    create: (input: any) => invoke(IPC.WORKSPACE_CREATE, input),
+    delete: (id: string) => invoke(IPC.WORKSPACE_DELETE, id),
+  },
 };
 
 contextBridge.exposeInMainWorld('api', api);

@@ -36,6 +36,8 @@ import type {
   SshStatusEvent,
 } from './terminal';
 import type { TransferCompleteEvent, TransferErrorEvent, TransferProgressEvent } from './transfer';
+import type { CreateSnippetInput, Snippet, UpdateSnippetInput } from './snippet';
+import type { CreateWorkspaceInput, WorkspacePreset } from './workspace';
 
 /**
  * Authoritative request/response shape for every invoke-style IPC channel.
@@ -234,6 +236,17 @@ export interface IpcHandlerMap {
     };
     response: void;
   };
+
+  // Snippets
+  'snippet:list': { request: void; response: Snippet[] };
+  'snippet:create': { request: CreateSnippetInput; response: Snippet };
+  'snippet:update': { request: UpdateSnippetInput; response: Snippet };
+  'snippet:delete': { request: string; response: void };
+
+  // Workspaces
+  'workspace:list': { request: void; response: WorkspacePreset[] };
+  'workspace:create': { request: CreateWorkspaceInput; response: WorkspacePreset };
+  'workspace:delete': { request: string; response: void };
 }
 
 // Streaming events (main -> renderer, via webContents.send)
@@ -281,3 +294,5 @@ export type * from './sftp';
 export type * from './storage-provider';
 export type * from './terminal';
 export type * from './transfer';
+export type * from './snippet';
+export type * from './workspace';

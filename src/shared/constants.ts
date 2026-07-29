@@ -112,6 +112,17 @@ export const IPC = {
   SSH_TEST_CONNECTION: 'ssh:test-connection',
   // Logging
   LOG_MESSAGE: 'log:message',
+
+  // Snippets
+  SNIPPET_LIST: 'snippet:list',
+  SNIPPET_CREATE: 'snippet:create',
+  SNIPPET_UPDATE: 'snippet:update',
+  SNIPPET_DELETE: 'snippet:delete',
+
+  // Workspaces
+  WORKSPACE_LIST: 'workspace:list',
+  WORKSPACE_CREATE: 'workspace:create',
+  WORKSPACE_DELETE: 'workspace:delete',
 } as const;
 
 /** Resource limits — centralised so renderer + main agree. */

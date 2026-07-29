@@ -10,6 +10,8 @@ import { registerSshHandlers } from './ssh.ipc';
 import { registerStorageHandlers } from './storage.ipc';
 import { registerTransferHandlers } from './transfer.ipc';
 
+import { registerSnippetWorkspaceHandlers } from './snippet-workspace.ipc';
+
 export function registerAllHandlers(): void {
   registerConnectionHandlers();
   registerSettingsHandlers();
@@ -22,4 +24,5 @@ export function registerAllHandlers(): void {
   registerAppHandlers();
   registerLocalTerminalHandlers();
   registerLogHandlers();
+  registerSnippetWorkspaceHandlers();
 }
