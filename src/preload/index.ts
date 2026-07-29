@@ -215,6 +215,10 @@ const api = {
     readFile: (filePath: string) => invoke(IPC.SHELL_READ_FILE, filePath),
     writeFile: (filePath: string, content: string) =>
       invoke(IPC.SHELL_WRITE_FILE, { filePath, content }),
+    cliReference: (query: string) => invoke(IPC.SHELL_CLI_REFERENCE, query),
+    searchHistory: (payload: { query: string; limit?: number }) =>
+      invoke(IPC.SHELL_SEARCH_HISTORY, payload),
+    exportAuditLog: (options: any) => invoke(IPC.SHELL_EXPORT_AUDIT_LOG, options),
   },
 
   // Transfer events

@@ -49,11 +49,17 @@ export const IPC = {
   S3_TEST_CONNECTION: 's3:test-connection',
   S3_GENERATE_PRESIGNED_URL: 's3:generate-presigned-url',
 
-  // Local filesystem
+  // Shell & Local PTY
+  SHELL_TEST: 'shell:test',
+  SHELL_READ_DIR: 'shell:read-dir',
+  SHELL_JOIN_PATH: 'shell:join-path',
+  SHELL_PARSE_CONFIG: 'shell:parse-config',
+  SHELL_CLI_REFERENCE: 'shell:cli-reference',
+  SHELL_SEARCH_HISTORY: 'shell:search-history',
+  SHELL_EXPORT_AUDIT_LOG: 'shell:export-audit-log',
   SHELL_READDIR: 'shell:readdir',
   SHELL_HOME_DIR: 'shell:home-dir',
   SHELL_OPEN_FILE_DIALOG: 'shell:open-file-dialog',
-  SHELL_JOIN_PATH: 'shell:join-path',
   SHELL_SAVE_FILE_DIALOG: 'shell:save-file-dialog',
   SHELL_CHECK_FILE: 'shell:check-file',
   SHELL_READ_FILE: 'shell:read-file',

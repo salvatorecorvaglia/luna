@@ -1,10 +1,12 @@
 import { Reorder } from 'framer-motion';
-import { ArrowRightToLine, Circle, Code, Copy, Filter, LayoutGrid, Loader2, Pencil, Radio, WifiOff, X, XCircle } from 'lucide-react';
+import { ArrowRightToLine, BookOpen, Circle, Code, Copy, FileText, Filter, LayoutGrid, Loader2, Pencil, Radio, WifiOff, X, XCircle } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
 import { PromptDialog } from '@/components/common/PromptDialog';
+import { AuditExportDialog } from '@/components/terminal/AuditExportDialog';
 import { BroadcastInputBar } from '@/components/terminal/BroadcastInputBar';
+import { CliReferenceDialog } from '@/components/terminal/CliReferenceDialog';
 import { MacroRecorderDialog } from '@/components/terminal/MacroRecorderDialog';
 import { SnippetVaultDialog } from '@/components/terminal/SnippetVaultDialog';
 import { TerminalFilterBar } from '@/components/terminal/TerminalFilterBar';
@@ -34,11 +36,13 @@ export function TerminalTabs() {
   const [closingTabId, setClosingTabId] = useState<string | null>(null);
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
 
-  // Phase 2 & 3 dialog & toolbar state
+  // Phase 2, 3 & 4 dialog & toolbar state
   const [showSnippetVault, setShowSnippetVault] = useState(false);
   const [showBroadcastBar, setShowBroadcastBar] = useState(false);
   const [showFilterBar, setShowFilterBar] = useState(false);
   const [showMacroRecorder, setShowMacroRecorder] = useState(false);
+  const [showCliRef, setShowCliRef] = useState(false);
+  const [showAuditExport, setShowAuditExport] = useState(false);
   const [showWorkspaces, setShowWorkspaces] = useState(false);
 
   const sshTabs = useMemo(
@@ -193,6 +197,22 @@ export function TerminalTabs() {
         </button>
 
         <button
+          onClick={() => setShowCliRef(true)}
+          className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+          title="Offline CLI Syntax & Flag Reference"
+        >
+          <BookOpen className="size-3.5 text-primary/80" />
+        </button>
+
+        <button
+          onClick={() => setShowAuditExport(true)}
+          className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+          title="Export Session Audit Log (HTML/JSON/TXT)"
+        >
+          <FileText className="size-3.5 text-success/80" />
+        </button>
+
+        <button
           onClick={() => setShowWorkspaces(true)}
           className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
           title="Workspace Layout Presets"
@@ -203,6 +223,34 @@ export function TerminalTabs() {
 
       <BroadcastInputBar open={showBroadcastBar} onClose={() => setShowBroadcastBar(false)} />
       <TerminalFilterBar open={showFilterBar} onClose={() => setShowFilterBar(false)} />
+
+      <CliReferenceDialog
+        open={showCliRef}
+        onClose={() => setShowCliRef(false)}
+        onRunCommand={(cmd) => {
+          if (activeTabId) {
+            const session = sessions.get(activeTabId);
+            if (session?.type === 'local') {
+              window.api.localTerminal.sendData({ sessionId: activeTabId, data: `${cmd}\n` });
+            } else {
+              window.api.ssh.sendData({ sessionId: activeTabId, data: `${cmd}\n` });
+            }
+          }
+        }}
+      />
+
+      <AuditExportDialog
+        open={showAuditExport}
+        onClose={() => setShowAuditExport(false)}
+        sessionId={activeTabId || ''}
+        sessionTitle={
+          activeTabId
+            ? sessions.get(activeTabId)?.title ||
+              sessions.get(activeTabId)?.connectionName ||
+              'Terminal Session'
+            : 'Terminal Session'
+        }
+      />
 
       <MacroRecorderDialog
         open={showMacroRecorder}

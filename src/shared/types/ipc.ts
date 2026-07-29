@@ -38,6 +38,9 @@ import type {
 import type { TransferCompleteEvent, TransferErrorEvent, TransferProgressEvent } from './transfer';
 import type { CreateSnippetInput, Snippet, UpdateSnippetInput } from './snippet';
 import type { CreateWorkspaceInput, WorkspacePreset } from './workspace';
+import type { CliCommandDoc } from './cli-reference';
+import type { HistoryMatch } from './shell-history';
+import type { AuditExportOptions } from './session-audit';
 import type { FolderDiffResult } from './folder-sync';
 
 /**
@@ -172,6 +175,9 @@ export interface IpcHandlerMap {
   };
   'shell:read-file': { request: string; response: { content: string; size: number } };
   'shell:write-file': { request: { filePath: string; content: string }; response: void };
+  'shell:cli-reference': { request: string; response: CliCommandDoc[] };
+  'shell:search-history': { request: { query: string; limit?: number }; response: HistoryMatch[] };
+  'shell:export-audit-log': { request: AuditExportOptions; response: { success: boolean; path: string } };
 
   // Local terminal (PTY)
   'local-terminal:spawn': {

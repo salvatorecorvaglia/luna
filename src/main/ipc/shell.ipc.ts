@@ -7,6 +7,9 @@ import { ErrorCode, LunarError } from '@shared/errors';
 import type { LocalFileEntry } from '@shared/types/sftp';
 import { dialog } from 'electron';
 import { registerHandler } from '../lib/ipc-handler';
+import { cliReferenceService } from '../services/cli-reference-service';
+import { sessionAuditService } from '../services/session-audit-service';
+import { shellHistoryService } from '../services/shell-history-service';
 import {
   assertSafeAbsolutePath,
   assertSafeRealAbsolutePath,
@@ -268,4 +271,19 @@ export function registerShellHandlers(): void {
       await writeFile(target, content, 'utf-8');
     },
   );
+
+  registerHandler(IPC.SHELL_CLI_REFERENCE, (_event, query: string) => {
+    return cliReferenceService.searchDocs(query);
+  });
+
+  registerHandler(
+    IPC.SHELL_SEARCH_HISTORY,
+    (_event, payload: { query: string; limit?: number }) => {
+      return shellHistoryService.searchHistory(payload?.query || '', payload?.limit || 50);
+    },
+  );
+
+  registerHandler(IPC.SHELL_EXPORT_AUDIT_LOG, (_event, options: any) => {
+    return sessionAuditService.exportAuditLog(options);
+  });
 }
