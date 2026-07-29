@@ -1,6 +1,7 @@
 import { createServer, connect as netConnect } from 'node:net';
 import { IPC, LIMITS } from '@shared/constants';
-import type { AuthType, PortForwardingConfig } from '@shared/types/connection';
+import { ErrorCode, LunarError } from '@shared/errors';
+import type { ActivePortForwardInfo, AuthType, PortForwardingConfig } from '@shared/types/connection';
 import type { SessionStatus } from '@shared/types/terminal';
 import { Client, type ClientChannel } from 'ssh2';
 import { v4 as uuidv4 } from 'uuid';
@@ -52,6 +53,17 @@ interface StreamListeners {
   onStderrData: (data: Buffer) => void;
 }
 
+export interface InternalPortForward {
+  id: string;
+  config: PortForwardingConfig;
+  status: 'active' | 'error' | 'stopped';
+  error?: string;
+  bytesRead: number;
+  bytesWritten: number;
+  activeConnections: number;
+  close: () => Promise<void>;
+}
+
 interface SshSession {
   id: string;
   connectionId: string;
@@ -78,10 +90,7 @@ interface SshSession {
    * Idempotent — safe to call from both error paths and `disconnect()`.
    */
   jumpDispose?: () => void;
-  portForwards?: Array<{
-    config: PortForwardingConfig;
-    close: () => Promise<void>;
-  }>;
+  portForwards?: InternalPortForward[];
 }
 
 /** Maximum delay between reconnect attempts (ms). The backoff doubles up to this cap. */
@@ -464,6 +473,56 @@ class SshManager {
     }
   }
 
+  listActivePortForwards(sessionId?: string): ActivePortForwardInfo[] {
+    const results: ActivePortForwardInfo[] = [];
+    const sessions = sessionId
+      ? [this.sessions.get(sessionId)].filter((s): s is SshSession => Boolean(s))
+      : Array.from(this.sessions.values());
+
+    for (const session of sessions) {
+      if (!session.portForwards) continue;
+      for (const pf of session.portForwards) {
+        results.push({
+          id: pf.id,
+          connectionId: session.connectionId,
+          sessionId: session.id,
+          type: pf.config.type,
+          bindAddress: pf.config.bindAddress || '127.0.0.1',
+          localPort: pf.config.localPort,
+          remoteHost: pf.config.remoteHost,
+          remotePort: pf.config.remotePort,
+          status: pf.status,
+          error: pf.error,
+          bytesRead: pf.bytesRead,
+          bytesWritten: pf.bytesWritten,
+          activeConnections: pf.activeConnections,
+        });
+      }
+    }
+    return results;
+  }
+
+  startSinglePortForward(sessionId: string, config: PortForwardingConfig): ActivePortForwardInfo {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new LunarError(`Session ${sessionId} not found`, ErrorCode.NOT_FOUND);
+    }
+    return this.startOnePortForward(session, config);
+  }
+
+  async stopSinglePortForward(sessionId: string, forwardId: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (!session || !session.portForwards) return;
+    const index = session.portForwards.findIndex((pf) => pf.id === forwardId);
+    if (index !== -1) {
+      const [pf] = session.portForwards.splice(index, 1);
+      pf.status = 'stopped';
+      await pf.close().catch((err) => {
+        log.warn(`[SSH] Failed to close port forward ${forwardId}:`, err);
+      });
+    }
+  }
+
   private startPortForwards(session: SshSession, portForwardsJson: string | null): void {
     if (!portForwardsJson) return;
     let configs: PortForwardingConfig[];
@@ -475,175 +534,228 @@ class SshManager {
     }
     if (!Array.isArray(configs) || configs.length === 0) return;
 
-    session.portForwards = [];
-
     for (const config of configs) {
-      if (config.type === 'local') {
-        const server = createServer((socket) => {
+      this.startOnePortForward(session, config);
+    }
+  }
+
+  private startOnePortForward(session: SshSession, config: PortForwardingConfig): ActivePortForwardInfo {
+    if (!session.portForwards) {
+      session.portForwards = [];
+    }
+
+    const forwardId = config.id || uuidv4();
+    const entry: InternalPortForward = {
+      id: forwardId,
+      config,
+      status: 'active',
+      bytesRead: 0,
+      bytesWritten: 0,
+      activeConnections: 0,
+      close: async () => {},
+    };
+
+    if (config.type === 'local') {
+      const server = createServer((socket) => {
+        entry.activeConnections++;
+        socket.on('data', (d) => {
+          entry.bytesRead += d.length;
+        });
+        const client = session.client;
+        client.forwardOut(
+          config.bindAddress || '127.0.0.1',
+          config.localPort,
+          config.remoteHost || '127.0.0.1',
+          config.remotePort || 80,
+          (err, stream) => {
+            if (err) {
+              log.error(`[SSH] Local port forward forwardOut failed on ${config.localPort}:`, err);
+              entry.activeConnections = Math.max(0, entry.activeConnections - 1);
+              socket.destroy();
+              return;
+            }
+            stream.on('data', (d: Buffer) => {
+              entry.bytesWritten += d.length;
+            });
+            socket.pipe(stream).pipe(socket);
+            socket.on('close', () => {
+              entry.activeConnections = Math.max(0, entry.activeConnections - 1);
+            });
+            socket.on('error', () => stream.end());
+            stream.on('error', () => socket.destroy());
+          },
+        );
+      });
+
+      server.on('error', (err) => {
+        log.error(`[SSH] Local port forward server error on port ${config.localPort}:`, err);
+        entry.status = 'error';
+        entry.error = err.message;
+      });
+
+      server.listen(config.localPort, config.bindAddress || '127.0.0.1', () => {
+        log.info(
+          `[SSH] Local port forward listening on ${config.bindAddress || '127.0.0.1'}:${config.localPort}`,
+        );
+      });
+
+      entry.close = () => new Promise<void>((resolveClose) => server.close(() => resolveClose()));
+    } else if (config.type === 'remote') {
+      const client = session.client;
+      const remoteBind = config.bindAddress || '127.0.0.1';
+      const remotePort = config.localPort;
+      const localDestHost = config.remoteHost || '127.0.0.1';
+      const localDestPort = config.remotePort || 80;
+
+      client.forwardIn(remoteBind, remotePort, (err) => {
+        if (err) {
+          log.error(`[SSH] Remote port forward forwardIn failed for ${remotePort}:`, err);
+          entry.status = 'error';
+          entry.error = err.message;
+        } else {
+          log.info(`[SSH] Remote port forward requested on remote ${remoteBind}:${remotePort}`);
+        }
+      });
+
+      // biome-ignore lint/suspicious/noExplicitAny: ssh2 tcp connection info
+      const tcpListener = (info: any, accept: () => any, reject: () => void) => {
+        if (info.destPort === remotePort) {
+          entry.activeConnections++;
+          const localSocket = netConnect(localDestPort, localDestHost, () => {
+            const stream = accept();
+            stream.on('data', (d: Buffer) => {
+              entry.bytesRead += d.length;
+            });
+            localSocket.on('data', (d) => {
+              entry.bytesWritten += d.length;
+            });
+            localSocket.pipe(stream).pipe(localSocket);
+            localSocket.on('close', () => {
+              entry.activeConnections = Math.max(0, entry.activeConnections - 1);
+            });
+            localSocket.on('error', () => stream.end());
+            stream.on('error', () => localSocket.destroy());
+          });
+          localSocket.on('error', (err) => {
+            log.error(`[SSH] Remote port forward local connect failed:`, err);
+            entry.activeConnections = Math.max(0, entry.activeConnections - 1);
+            reject();
+          });
+        }
+      };
+
+      client.on('tcp connection', tcpListener);
+
+      entry.close = () =>
+        new Promise<void>((resolveClose) => {
+          client.off('tcp connection', tcpListener);
+          client.unforwardIn(remoteBind, remotePort, () => resolveClose());
+        });
+    } else if (config.type === 'dynamic') {
+      const server = createServer((socket) => {
+        entry.activeConnections++;
+        socket.on('close', () => {
+          entry.activeConnections = Math.max(0, entry.activeConnections - 1);
+        });
+        let stage = 0;
+        socket.on('data', (chunk) => {
+          entry.bytesRead += chunk.length;
           const client = session.client;
-          client.forwardOut(
-            config.bindAddress || '127.0.0.1',
-            config.localPort,
-            config.remoteHost || '127.0.0.1',
-            config.remotePort || 80,
-            (err, stream) => {
+          if (stage === 0) {
+            if (chunk[0] !== 0x05) {
+              socket.destroy();
+              return;
+            }
+            const response = Buffer.from([0x05, 0x00]);
+            socket.write(response);
+            stage = 1;
+          } else if (stage === 1) {
+            if (chunk[0] !== 0x05 || chunk[1] !== 0x01) {
+              socket.write(
+                Buffer.from([0x05, 0x07, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
+              );
+              socket.destroy();
+              return;
+            }
+            let offset = 4;
+            const atyp = chunk[3];
+            let host = '';
+            if (atyp === 0x01) {
+              host = `${chunk[4]}.${chunk[5]}.${chunk[6]}.${chunk[7]}`;
+              offset = 8;
+            } else if (atyp === 0x03) {
+              const len = chunk[4];
+              host = chunk.toString('utf8', 5, 5 + len);
+              offset = 5 + len;
+            } else if (atyp === 0x04) {
+              const groups: string[] = [];
+              for (let i = 0; i < 16; i += 2) {
+                groups.push(chunk.readUInt16BE(4 + i).toString(16));
+              }
+              host = groups.join(':');
+              offset = 20;
+            } else {
+              socket.destroy();
+              return;
+            }
+            const port = chunk.readUInt16BE(offset);
+
+            client.forwardOut('127.0.0.1', config.localPort, host, port, (err, stream) => {
               if (err) {
-                log.error(
-                  `[SSH] Local port forward forwardOut failed for port ${config.localPort}:`,
-                  err,
+                log.error(`[SSH] Dynamic SOCKS5 forwardOut failed to ${host}:${port}:`, err);
+                socket.write(
+                  Buffer.from([0x05, 0x05, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
                 );
                 socket.destroy();
                 return;
               }
+              socket.write(
+                Buffer.from([0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
+              );
+              stream.on('data', (d: Buffer) => {
+                entry.bytesWritten += d.length;
+              });
               socket.pipe(stream).pipe(socket);
               socket.on('error', () => stream.end());
               stream.on('error', () => socket.destroy());
-            },
-          );
-        });
-
-        server.on('error', (err) => {
-          log.error(`[SSH] Local port forward server error on port ${config.localPort}:`, err);
-        });
-
-        server.listen(config.localPort, config.bindAddress || '127.0.0.1', () => {
-          log.info(
-            `[SSH] Local port forward listening on ${config.bindAddress || '127.0.0.1'}:${config.localPort}`,
-          );
-        });
-
-        session.portForwards.push({
-          config,
-          close: () => new Promise<void>((resolveClose) => server.close(() => resolveClose())),
-        });
-      } else if (config.type === 'remote') {
-        const client = session.client;
-        const remoteBind = config.bindAddress || '127.0.0.1';
-        const remotePort = config.localPort;
-        const localDestHost = config.remoteHost || '127.0.0.1';
-        const localDestPort = config.remotePort || 80;
-
-        client.forwardIn(remoteBind, remotePort, (err) => {
-          if (err) {
-            log.error(
-              `[SSH] Remote port forward forwardIn failed for remote port ${remotePort}:`,
-              err,
-            );
-          } else {
-            log.info(`[SSH] Remote port forward requested on remote ${remoteBind}:${remotePort}`);
+            });
+            stage = 2;
           }
         });
+      });
 
-        // biome-ignore lint/suspicious/noExplicitAny: ssh2 callback arguments
-        const tcpListener = (info: any, accept: () => any, reject: () => void) => {
-          if (info.destPort === remotePort) {
-            const localSocket = netConnect(localDestPort, localDestHost, () => {
-              const stream = accept();
-              localSocket.pipe(stream).pipe(localSocket);
-              localSocket.on('error', () => stream.end());
-              stream.on('error', () => localSocket.destroy());
-            });
-            localSocket.on('error', (err) => {
-              log.error(
-                `[SSH] Remote port forward local connect failed to ${localDestHost}:${localDestPort}:`,
-                err,
-              );
-              reject();
-            });
-          }
-        };
+      server.on('error', (err) => {
+        log.error(`[SSH] Dynamic SOCKS5 proxy server error on port ${config.localPort}:`, err);
+        entry.status = 'error';
+        entry.error = err.message;
+      });
 
-        client.on('tcp connection', tcpListener);
+      server.listen(config.localPort, config.bindAddress || '127.0.0.1', () => {
+        log.info(
+          `[SSH] Dynamic SOCKS5 proxy server listening on ${config.bindAddress || '127.0.0.1'}:${config.localPort}`,
+        );
+      });
 
-        session.portForwards.push({
-          config,
-          close: () =>
-            new Promise<void>((resolveClose) => {
-              client.off('tcp connection', tcpListener);
-              client.unforwardIn(remoteBind, remotePort, () => resolveClose());
-            }),
-        });
-      } else if (config.type === 'dynamic') {
-        const server = createServer((socket) => {
-          let stage = 0;
-          socket.on('data', (chunk) => {
-            const client = session.client;
-            if (stage === 0) {
-              if (chunk[0] !== 0x05) {
-                socket.destroy();
-                return;
-              }
-              const response = Buffer.from([0x05, 0x00]);
-              socket.write(response);
-              stage = 1;
-            } else if (stage === 1) {
-              if (chunk[0] !== 0x05 || chunk[1] !== 0x01) {
-                socket.write(
-                  Buffer.from([0x05, 0x07, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
-                );
-                socket.destroy();
-                return;
-              }
-              let offset = 4;
-              const atyp = chunk[3];
-              let host = '';
-              if (atyp === 0x01) {
-                host = `${chunk[4]}.${chunk[5]}.${chunk[6]}.${chunk[7]}`;
-                offset = 8;
-              } else if (atyp === 0x03) {
-                const len = chunk[4];
-                host = chunk.toString('utf8', 5, 5 + len);
-                offset = 5 + len;
-              } else if (atyp === 0x04) {
-                const groups: string[] = [];
-                for (let i = 0; i < 16; i += 2) {
-                  groups.push(chunk.readUInt16BE(4 + i).toString(16));
-                }
-                host = groups.join(':');
-                offset = 20;
-              } else {
-                socket.destroy();
-                return;
-              }
-              const port = chunk.readUInt16BE(offset);
-
-              client.forwardOut('127.0.0.1', config.localPort, host, port, (err, stream) => {
-                if (err) {
-                  log.error(`[SSH] Dynamic SOCKS5 forwardOut failed to ${host}:${port}:`, err);
-                  socket.write(
-                    Buffer.from([0x05, 0x05, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
-                  );
-                  socket.destroy();
-                  return;
-                }
-                socket.write(
-                  Buffer.from([0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
-                );
-                socket.pipe(stream).pipe(socket);
-                socket.on('error', () => stream.end());
-                stream.on('error', () => socket.destroy());
-              });
-              stage = 2;
-            }
-          });
-        });
-
-        server.on('error', (err) => {
-          log.error(`[SSH] Dynamic SOCKS5 proxy server error on port ${config.localPort}:`, err);
-        });
-
-        server.listen(config.localPort, config.bindAddress || '127.0.0.1', () => {
-          log.info(
-            `[SSH] Dynamic SOCKS5 proxy server listening on ${config.bindAddress || '127.0.0.1'}:${config.localPort}`,
-          );
-        });
-
-        session.portForwards.push({
-          config,
-          close: () => new Promise<void>((resolveClose) => server.close(() => resolveClose())),
-        });
-      }
+      entry.close = () => new Promise<void>((resolveClose) => server.close(() => resolveClose()));
     }
+
+    session.portForwards.push(entry);
+
+    return {
+      id: entry.id,
+      connectionId: session.connectionId,
+      sessionId: session.id,
+      type: entry.config.type,
+      bindAddress: entry.config.bindAddress || '127.0.0.1',
+      localPort: entry.config.localPort,
+      remoteHost: entry.config.remoteHost,
+      remotePort: entry.config.remotePort,
+      status: entry.status,
+      error: entry.error,
+      bytesRead: entry.bytesRead,
+      bytesWritten: entry.bytesWritten,
+      activeConnections: entry.activeConnections,
+    };
   }
 
   private handleDisconnect(sessionId: string): void {

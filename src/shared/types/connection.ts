@@ -12,6 +12,22 @@ export interface PortForwardingConfig {
   remotePort?: number;
 }
 
+export interface ActivePortForwardInfo {
+  id: string;
+  connectionId: string;
+  sessionId?: string;
+  type: 'local' | 'remote' | 'dynamic';
+  bindAddress: string;
+  localPort: number;
+  remoteHost?: string;
+  remotePort?: number;
+  status: 'active' | 'error' | 'stopped';
+  error?: string;
+  bytesRead?: number;
+  bytesWritten?: number;
+  activeConnections?: number;
+}
+
 export interface ManualJumpHostConfig {
   host: string;
   port: number;

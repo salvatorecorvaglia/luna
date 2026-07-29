@@ -1,5 +1,17 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { FileCode, FileImage, FileText, Loader2, Save, X } from 'lucide-react';
+import {
+  Check,
+  Copy,
+  FileCode,
+  FileImage,
+  FileText,
+  Loader2,
+  Play,
+  Save,
+  Search,
+  WrapText,
+  X,
+} from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
@@ -29,7 +41,7 @@ function detectLanguage(name: string): string {
     md: 'markdown',
     sql: 'sql',
     toml: 'toml',
-    pdf: 'pdf',
+    log: 'log',
   };
   return map[ext || ''] || 'text';
 }
@@ -57,8 +69,16 @@ export function FilePreview() {
   const [editorContent, setEditorContent] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [showConfirmClose, setShowConfirmClose] = useState(false);
+  const [wordWrap, setWordWrap] = useState(false);
+  const [autoTail, setAutoTail] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // Search state
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const gutterRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Initialize editor content when a new file is previewed
   useEffect(() => {
@@ -68,6 +88,13 @@ export function FilePreview() {
       setEditorContent('');
     }
   }, [previewFile]);
+
+  // Auto tail scrolling
+  useEffect(() => {
+    if (autoTail && textareaRef.current) {
+      textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
+    }
+  }, [autoTail, editorContent]);
 
   const isDirty = useMemo(() => {
     return previewFile ? editorContent !== previewFile.content : false;
@@ -108,22 +135,40 @@ export function FilePreview() {
     }
   }, [previewFile, editorContent, setPreviewFile]);
 
-  // Close on Escape. Only attach the listener while a preview is open so
-  // background keystrokes don't churn through it.
+  const handleCopyAll = () => {
+    navigator.clipboard.writeText(editorContent);
+    setCopied(true);
+    toast.success('Content copied to clipboard');
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const previewOpen = previewFile !== null;
   useEffect(() => {
     if (!previewOpen) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
         e.preventDefault();
-        handleClose();
+        setShowSearch((v) => !v);
+      } else if (e.key === 'Escape') {
+        if (showSearch) {
+          setShowSearch(false);
+        } else {
+          e.preventDefault();
+          handleClose();
+        }
       }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [previewOpen, handleClose]);
+  }, [previewOpen, showSearch, handleClose]);
 
   const lines = useMemo(() => editorContent.split('\n'), [editorContent]);
+
+  const matchCount = useMemo(() => {
+    if (!searchQuery.trim()) return 0;
+    const q = searchQuery.toLowerCase();
+    return lines.reduce((acc, line) => acc + (line.toLowerCase().split(q).length - 1), 0);
+  }, [searchQuery, lines]);
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLTextAreaElement>) => {
     if (gutterRef.current) {
@@ -140,7 +185,7 @@ export function FilePreview() {
             initial="initial"
             animate="animate"
             exit="exit"
-            className={`fixed inset-0 ${Z.modal} bg-black/60 backdrop-blur-sm`}
+            className={`fixed inset-0 ${Z.modal} bg-black/60 backdrop-blur-xs`}
             onClick={handleClose}
           />
           <motion.div
@@ -151,7 +196,7 @@ export function FilePreview() {
             className={`fixed inset-2 ${Z.modal} flex flex-col rounded-xl border border-border/80 bg-card shadow-xl overflow-hidden sm:inset-8`}
           >
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
+            <div className="flex items-center justify-between border-b border-border/60 px-4 py-3 bg-muted/20">
               <div className="flex items-center gap-2.5">
                 {isImageType(previewFile.type) ? (
                   <FileImage className="size-4 text-brand-pink" />
@@ -161,17 +206,61 @@ export function FilePreview() {
                   <FileCode className="size-4 text-success" />
                 )}
                 <span className="text-sm font-medium text-foreground">{previewFile.name}</span>
-                <span className="rounded-md bg-muted/80 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground uppercase">
                   {detectLanguage(previewFile.name)}
                 </span>
                 {isDirty && (
-                  <span className="text-[10px] font-medium text-warning bg-warning/10 px-1.5 py-0.5 rounded-md">
+                  <span className="text-[10px] font-medium text-warning bg-warning/10 px-2 py-0.5 rounded-md">
                     Modified
                   </span>
                 )}
               </div>
 
+              {/* Action Toolbar */}
               <div className="flex items-center gap-2">
+                {!isImageType(previewFile.type) && previewFile.type !== 'application/pdf' && (
+                  <>
+                    <button
+                      onClick={() => setShowSearch((v) => !v)}
+                      className={`flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium border border-border/60 transition-colors cursor-pointer ${
+                        showSearch ? 'bg-primary/20 text-primary border-primary/40' : 'hover:bg-accent text-muted-foreground hover:text-foreground'
+                      }`}
+                      title="Search (Cmd+F / Ctrl+F)"
+                    >
+                      <Search className="size-3.5" />
+                    </button>
+
+                    <button
+                      onClick={() => setWordWrap((v) => !v)}
+                      className={`flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium border border-border/60 transition-colors cursor-pointer ${
+                        wordWrap ? 'bg-primary/20 text-primary border-primary/40' : 'hover:bg-accent text-muted-foreground hover:text-foreground'
+                      }`}
+                      title="Toggle Word Wrap"
+                    >
+                      <WrapText className="size-3.5" />
+                    </button>
+
+                    <button
+                      onClick={() => setAutoTail((v) => !v)}
+                      className={`flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium border border-border/60 transition-colors cursor-pointer ${
+                        autoTail ? 'bg-success/20 text-success border-success/40' : 'hover:bg-accent text-muted-foreground hover:text-foreground'
+                      }`}
+                      title="Auto Tail (Live Scroll to Bottom)"
+                    >
+                      <Play className="size-3.5" />
+                      <span>Tail</span>
+                    </button>
+
+                    <button
+                      onClick={handleCopyAll}
+                      className="flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium border border-border/60 hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                      title="Copy All Content"
+                    >
+                      {copied ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
+                    </button>
+                  </>
+                )}
+
                 {!isImageType(previewFile.type) &&
                   previewFile.type !== 'application/pdf' &&
                   isDirty && (
@@ -188,11 +277,38 @@ export function FilePreview() {
                       <span>Save</span>
                     </button>
                   )}
-                <button onClick={handleClose} className="btn-icon" aria-label="Close preview">
+
+                <button onClick={handleClose} className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer" aria-label="Close preview">
                   <X className="size-4" />
                 </button>
               </div>
             </div>
+
+            {/* Search Bar Overlay */}
+            {showSearch && (
+              <div className="flex items-center gap-2 border-b border-border/60 bg-muted/30 px-4 py-2 text-xs">
+                <Search className="size-3.5 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search in file..."
+                  autoFocus
+                  className="flex-1 bg-transparent outline-none text-foreground text-xs"
+                />
+                {searchQuery && (
+                  <span className="text-[11px] text-muted-foreground">
+                    {matchCount} match{matchCount !== 1 ? 'es' : ''}
+                  </span>
+                )}
+                <button
+                  onClick={() => setShowSearch(false)}
+                  className="text-muted-foreground hover:text-foreground cursor-pointer"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+            )}
 
             {/* Content */}
             <div className="flex-1 overflow-hidden">
@@ -232,16 +348,30 @@ export function FilePreview() {
 
                   {/* Editor Input */}
                   <textarea
+                    ref={textareaRef}
                     value={editorContent}
                     onChange={(e) => setEditorContent(e.target.value)}
                     onScroll={handleScroll}
                     disabled={isSaving}
-                    className="flex-1 h-full w-full resize-none bg-transparent px-4 py-4 outline-none border-none text-foreground/90 font-mono focus:ring-0 leading-relaxed overflow-y-auto"
+                    className={`flex-1 h-full w-full resize-none bg-transparent px-4 py-4 outline-none border-none text-foreground/90 font-mono focus:ring-0 leading-relaxed overflow-y-auto ${
+                      wordWrap ? 'whitespace-pre-wrap word-break-all' : 'whitespace-pre overflow-x-auto'
+                    }`}
                     style={{ lineHeight: '1.25rem' }}
                     placeholder="Enter text..."
                   />
                 </div>
               )}
+            </div>
+
+            {/* Footer Bar */}
+            <div className="flex items-center justify-between border-t border-border/60 px-4 py-1.5 bg-muted/20 text-[11px] text-muted-foreground font-mono">
+              <div>
+                Lines: {lines.length} | Size: {editorContent.length} chars
+              </div>
+              <div className="flex items-center gap-3">
+                {wordWrap && <span>Wrap ON</span>}
+                {autoTail && <span className="text-success">Tail ON</span>}
+              </div>
             </div>
           </motion.div>
 

@@ -1,9 +1,11 @@
 import type {
+  ActivePortForwardInfo,
   AuthType,
   Connection,
   CreateConnectionInput,
   ExportedConnection,
   ManualJumpHostConfig,
+  PortForwardingConfig,
   UpdateConnectionInput,
 } from './connection';
 import type { AppSettings } from './settings';
@@ -97,6 +99,18 @@ export interface IpcHandlerMap {
   'ssh:trust-host-key': {
     request: { host: string; port: number };
     response: { trusted: boolean; fingerprint?: string };
+  };
+  'ssh:list-active-port-forwards': {
+    request: { sessionId?: string };
+    response: ActivePortForwardInfo[];
+  };
+  'ssh:start-port-forward': {
+    request: { sessionId: string; config: PortForwardingConfig };
+    response: ActivePortForwardInfo;
+  };
+  'ssh:stop-port-forward': {
+    request: { sessionId: string; forwardId: string };
+    response: void;
   };
 
   // Storage (provider-agnostic)

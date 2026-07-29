@@ -26,6 +26,9 @@ export const IPC = {
   SSH_ON_STATUS: 'ssh:on-status',
   SSH_ON_HOST_KEY_CHANGE: 'ssh:on-host-key-change',
   SSH_TRUST_HOST_KEY: 'ssh:trust-host-key',
+  SSH_LIST_ACTIVE_PORT_FORWARDS: 'ssh:list-active-port-forwards',
+  SSH_START_PORT_FORWARD: 'ssh:start-port-forward',
+  SSH_STOP_PORT_FORWARD: 'ssh:stop-port-forward',
 
   // Storage (provider-agnostic — works for both SFTP and S3 sessions via the registry)
   STORAGE_LIST: 'storage:list',

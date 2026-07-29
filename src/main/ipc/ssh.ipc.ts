@@ -177,4 +177,28 @@ export function registerSshHandlers(): void {
       return fp ? { trusted: true, fingerprint: fp } : { trusted: false };
     },
   );
+
+  registerHandler(
+    IPC.SSH_LIST_ACTIVE_PORT_FORWARDS,
+    (_event, params: { sessionId?: string }) => {
+      return sshManager.listActivePortForwards(params?.sessionId);
+    },
+  );
+
+  registerHandler(
+    IPC.SSH_START_PORT_FORWARD,
+    (_event, params: { sessionId: string; config: any }) => {
+      assertNonEmptyString(params.sessionId, 'sessionId');
+      return sshManager.startSinglePortForward(params.sessionId, params.config);
+    },
+  );
+
+  registerHandler(
+    IPC.SSH_STOP_PORT_FORWARD,
+    async (_event, params: { sessionId: string; forwardId: string }) => {
+      assertNonEmptyString(params.sessionId, 'sessionId');
+      assertNonEmptyString(params.forwardId, 'forwardId');
+      await sshManager.stopSinglePortForward(params.sessionId, params.forwardId);
+    },
+  );
 }

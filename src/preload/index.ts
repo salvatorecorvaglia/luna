@@ -160,6 +160,12 @@ const api = {
     onHostKeyChange: createEventListener(IPC.SSH_ON_HOST_KEY_CHANGE),
     trustHostKey: (params: { host: string; port: number }) =>
       invoke(IPC.SSH_TRUST_HOST_KEY, params),
+    listActivePortForwards: (params?: { sessionId?: string }) =>
+      invoke(IPC.SSH_LIST_ACTIVE_PORT_FORWARDS, params ?? {}),
+    startPortForward: (params: { sessionId: string; config: any }) =>
+      invoke(IPC.SSH_START_PORT_FORWARD, params),
+    stopPortForward: (params: { sessionId: string; forwardId: string }) =>
+      invoke(IPC.SSH_STOP_PORT_FORWARD, params),
   },
 
   // Provider-agnostic storage operations. The main process resolves the
