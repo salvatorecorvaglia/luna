@@ -294,9 +294,10 @@ class SftpManager {
       },
     );
 
+    const errors: Error[] = [];
     for (let i = 0; i < entries.length; i += SftpManager.REMOVE_DIR_BATCH_SIZE) {
       const batch = entries.slice(i, i + SftpManager.REMOVE_DIR_BATCH_SIZE);
-      await Promise.all(
+      const results = await Promise.allSettled(
         batch.map(async (entry) => {
           visited.count++;
           if (visited.count > SftpManager.REMOVE_DIR_MAX_ENTRIES) {
@@ -318,6 +319,17 @@ class SftpManager {
             });
           }
         }),
+      );
+      for (const res of results) {
+        if (res.status === 'rejected') {
+          errors.push(res.reason instanceof Error ? res.reason : new Error(String(res.reason)));
+        }
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new SftpTransferError(
+        `Failed to remove directory ${dirPath}: ${errors.length} entry/entries failed (${errors[0].message})`,
       );
     }
 

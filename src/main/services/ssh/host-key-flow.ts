@@ -20,16 +20,27 @@ export function parseHostKeyAlgorithm(key: Buffer): string {
 interface PendingHostKey {
   key: Buffer;
   algorithm: string;
+  createdAt: number;
 }
 
 /**
- * LRU-bounded registry of host keys that failed verification and are awaiting
+ * LRU-bounded and TTL-expired registry of host keys that failed verification and are awaiting
  * an explicit user trust action. Capped to prevent unbounded growth on
  * repeated mismatches against the same set of hosts.
  */
 export class PendingHostKeyRegistry {
   private static readonly MAX = 64;
+  private static readonly TTL_MS = 15 * 60 * 1000; // 15 minutes
   private map = new Map<string, PendingHostKey>();
+
+  private evictExpired(): void {
+    const now = Date.now();
+    for (const [k, v] of this.map.entries()) {
+      if (now - v.createdAt > PendingHostKeyRegistry.TTL_MS) {
+        this.map.delete(k);
+      }
+    }
+  }
 
   /**
    * Record a host key awaiting user trust. Returns `false` if the algorithm
@@ -39,9 +50,10 @@ export class PendingHostKeyRegistry {
    */
   remember(host: string, port: number, key: Buffer, algorithm: string): boolean {
     if (!isAllowedHostKeyAlgorithm(algorithm)) return false;
+    this.evictExpired();
     const k = formatHostKey(host, port);
     if (this.map.has(k)) this.map.delete(k);
-    this.map.set(k, { key: Buffer.from(key), algorithm });
+    this.map.set(k, { key: Buffer.from(key), algorithm, createdAt: Date.now() });
     while (this.map.size > PendingHostKeyRegistry.MAX) {
       const oldest = this.map.keys().next().value;
       if (oldest === undefined) break;
@@ -58,9 +70,14 @@ export class PendingHostKeyRegistry {
    * weak-algo key reach `remember()`, `trust()` will refuse to commit it.
    */
   trust(host: string, port: number): string | null {
+    this.evictExpired();
     const k = formatHostKey(host, port);
     const pending = this.map.get(k);
     if (!pending) return null;
+    if (Date.now() - pending.createdAt > PendingHostKeyRegistry.TTL_MS) {
+      this.map.delete(k);
+      return null;
+    }
     if (!isAllowedHostKeyAlgorithm(pending.algorithm)) {
       this.map.delete(k);
       return null;

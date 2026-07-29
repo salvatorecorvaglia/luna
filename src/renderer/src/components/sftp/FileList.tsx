@@ -95,6 +95,8 @@ function getFileIcon(entry: FileEntry) {
   return <File className="size-4 text-muted-foreground" aria-hidden="true" />;
 }
 
+const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
 export function FileList({
   entries,
   selection,
@@ -136,7 +138,7 @@ export function FileList({
       if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
 
       const mul = sortDir === 'asc' ? 1 : -1;
-      if (sortField === 'name') return mul * a.name.localeCompare(b.name);
+      if (sortField === 'name') return mul * collator.compare(a.name, b.name);
       if (sortField === 'size') return mul * (a.size - b.size);
       return mul * (a.modifiedAt - b.modifiedAt);
     });

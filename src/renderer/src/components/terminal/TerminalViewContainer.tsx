@@ -1,0 +1,176 @@
+import type { PaneNode } from '@shared/types/terminal';
+import { Monitor, Plus, Terminal as TerminalIcon } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { v4 as uuidv4 } from 'uuid';
+import { connectToHost } from '@/lib/ssh';
+import { useConnectionStore } from '@/stores/connection-store';
+import { hasSessionInTree, useTerminalStore } from '@/stores/terminal-store';
+import { terminalThemes } from '@/themes/terminal';
+import { LocalTerminalTabs } from './LocalTerminalTabs';
+import { SplitLayout } from './SplitLayout';
+import { TerminalTabs } from './TerminalTabs';
+
+interface TerminalViewContainerProps {
+  type: 'ssh' | 'local';
+}
+
+function getFirstLeafIdFromRoot(node: PaneNode): string {
+  if (node.type === 'terminal') return node.sessionId;
+  return getFirstLeafIdFromRoot(node.children[0]);
+}
+
+export function TerminalViewContainer({ type }: TerminalViewContainerProps) {
+  const { sessions, tabOrder, activeTabId, terminalTheme, layouts, addSession, setActiveTab } =
+    useTerminalStore();
+
+  const filteredTabs = useMemo(() => {
+    return tabOrder.filter((id) => {
+      const s = sessions.get(id);
+      if (type === 'local') return s?.type === 'local';
+      return !s || !s.type || s.type === 'ssh';
+    });
+  }, [tabOrder, sessions, type]);
+
+  const activeFilteredTabId = useMemo(() => {
+    if (!activeTabId) return filteredTabs[0] || null;
+    if (filteredTabs.includes(activeTabId)) return activeTabId;
+    for (const tabId of filteredTabs) {
+      const root = layouts.get(tabId);
+      if (root && hasSessionInTree(root, activeTabId)) {
+        return tabId;
+      }
+    }
+    return filteredTabs[0] || null;
+  }, [filteredTabs, activeTabId, layouts]);
+
+  const handleNewTab = useCallback(() => {
+    if (type === 'local') {
+      const sessionId = uuidv4();
+      addSession({
+        id: sessionId,
+        connectionId: 'local',
+        connectionName: 'Local Terminal',
+        status: 'connected',
+        title: 'Local',
+        type: 'local',
+      });
+      setActiveTab(sessionId);
+    } else {
+      const { activeConnectionId } = useConnectionStore.getState();
+      if (activeConnectionId) {
+        void connectToHost(activeConnectionId);
+      } else {
+        useConnectionStore.getState().openCreateForm();
+      }
+    }
+  }, [type, addSession, setActiveTab]);
+
+  const autoSpawnRef = useRef(false);
+
+  // Auto-spawn local tab if none exist (for local mode only)
+  useEffect(() => {
+    if (type === 'local') {
+      if (filteredTabs.length === 0 && !autoSpawnRef.current) {
+        autoSpawnRef.current = true;
+        handleNewTab();
+      } else if (filteredTabs.length > 0) {
+        autoSpawnRef.current = false;
+      }
+    }
+  }, [type, filteredTabs.length, handleNewTab]);
+
+  // Keyboard shortcuts: Cmd+1..9 for tab switching, Cmd+W close tab
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!e.metaKey && !e.ctrlKey) return;
+
+      const { sessions, tabOrder, setActiveTab, activeTabId, closeTab, layouts } =
+        useTerminalStore.getState();
+      const modeTabs = tabOrder.filter((id) => {
+        const s = sessions.get(id);
+        if (type === 'local') return s?.type === 'local';
+        return !s || !s.type || s.type === 'ssh';
+      });
+      if (modeTabs.length === 0) return;
+
+      // Cmd+W
+      if (e.key === 'w' && !e.shiftKey) {
+        if (
+          activeTabId &&
+          modeTabs.some((tabId) => {
+            const root = layouts.get(tabId);
+            return root && hasSessionInTree(root, activeTabId);
+          })
+        ) {
+          e.preventDefault();
+          closeTab(activeTabId);
+          return;
+        }
+      }
+
+      // Cmd+1 through Cmd+9
+      const digit = parseInt(e.key, 10);
+      if (digit >= 1 && digit <= 9) {
+        e.preventDefault();
+        const index = Math.min(digit - 1, modeTabs.length - 1);
+        const tabId = modeTabs[index];
+        const root = layouts.get(tabId);
+        if (root) {
+          const firstLeafId = getFirstLeafIdFromRoot(root);
+          setActiveTab(firstLeafId);
+        } else {
+          setActiveTab(tabId);
+        }
+        return;
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [type]);
+
+  const themeBg = terminalThemes[terminalTheme]?.background || '#282a36';
+
+  return (
+    <div className="flex h-full flex-col">
+      {type === 'ssh' ? <TerminalTabs /> : <LocalTerminalTabs />}
+      <div className="flex-1 relative overflow-hidden" style={{ backgroundColor: themeBg }}>
+        {filteredTabs.map((tabId) => {
+          const rootNode = layouts.get(tabId);
+          if (!rootNode) return null;
+          return (
+            <div key={tabId} className={tabId === activeFilteredTabId ? 'h-full w-full' : 'hidden'}>
+              <SplitLayout node={rootNode} tabId={tabId} activeSessionId={activeTabId} />
+            </div>
+          );
+        })}
+
+        {filteredTabs.length === 0 && (
+          <div className="flex h-full flex-col items-center justify-center gap-4 text-muted-foreground">
+            <div className="flex size-14 items-center justify-center rounded-2xl bg-muted/50">
+              {type === 'ssh' ? (
+                <TerminalIcon className="size-7 text-muted-foreground/30" />
+              ) : (
+                <Monitor className="size-7 text-muted-foreground/30" />
+              )}
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-medium text-foreground/60">
+                {type === 'ssh' ? 'No active sessions' : 'No active local sessions'}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground/60">
+                {type === 'ssh'
+                  ? 'Select a connection from the sidebar to begin'
+                  : 'Open a local terminal to run commands on your machine'}
+              </p>
+            </div>
+
+            <button onClick={handleNewTab} className="btn-outline mt-1">
+              <Plus className="size-3.5" />
+              {type === 'ssh' ? 'New Session' : 'New Local Terminal'}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

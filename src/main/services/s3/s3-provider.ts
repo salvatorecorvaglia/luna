@@ -312,7 +312,16 @@ class S3StorageProvider implements StorageProvider {
         throw new S3StorageError('Bucket-level rename is not supported');
       }
       try {
-        const encodedKey = a.key.split('/').map(encodeURIComponent).join('/');
+        // RFC 3986 URL encoding for S3 CopySource header segments
+        const encodedKey = a.key
+          .split('/')
+          .map((segment) =>
+            encodeURIComponent(segment).replace(
+              /[!'()*]/g,
+              (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+            ),
+          )
+          .join('/');
         await client.send(
           new CopyObjectCommand({
             Bucket: b.bucket,
