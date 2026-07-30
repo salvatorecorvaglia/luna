@@ -3,12 +3,12 @@ import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import type { RefObject } from 'react';
 
 interface TerminalSearchBarProps {
-  inputRef: RefObject<HTMLInputElement>;
+  inputRef: RefObject<HTMLInputElement | null>;
   query: string;
   setQuery: (q: string) => void;
   match: { index: number; total: number } | null;
   setMatch?: (m: { index: number; total: number } | null) => void;
-  searchAddonRef: RefObject<SearchAddon>;
+  searchAddonRef: RefObject<SearchAddon | null>;
   onFindNext: () => void;
   onFindPrevious: () => void;
   onClose: () => void;

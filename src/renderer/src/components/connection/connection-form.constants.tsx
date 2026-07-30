@@ -37,4 +37,4 @@ export const dialogVariants = {
     transition: { duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] },
   },
   exit: { opacity: 0, scale: 0.96, y: 12, transition: { duration: 0.15 } },
-};
+} as const;

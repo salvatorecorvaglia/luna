@@ -41,8 +41,8 @@ export interface TerminalSessionOptions {
 }
 
 export interface TerminalSessionApi {
-  containerRef: React.RefObject<HTMLDivElement>;
-  searchInputRef: React.RefObject<HTMLInputElement>;
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  searchInputRef: React.RefObject<HTMLInputElement | null>;
   searchOpen: boolean;
   searchQuery: string;
   setSearchQuery: (q: string) => void;
@@ -53,9 +53,9 @@ export interface TerminalSessionApi {
   closeSearch(): void;
   findNext(): void;
   findPrevious(): void;
-  searchAddonRef: React.RefObject<SearchAddon>;
+  searchAddonRef: React.RefObject<SearchAddon | null>;
   /** Imperative handle to the underlying xterm instance, if needed. */
-  terminalRef: React.RefObject<Terminal>;
+  terminalRef: React.RefObject<Terminal | null>;
 }
 
 /**

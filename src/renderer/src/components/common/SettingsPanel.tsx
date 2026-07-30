@@ -53,7 +53,7 @@ const panelVariants = {
   initial: { opacity: 0, x: '100%' },
   animate: { opacity: 1, x: 0, transition: { type: 'spring', damping: 28, stiffness: 320 } },
   exit: { opacity: 0, x: '100%', transition: { duration: 0.2 } },
-};
+} as const;
 
 export function SettingsPanel() {
   const queryClient = useQueryClient();

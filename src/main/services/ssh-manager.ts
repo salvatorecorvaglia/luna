@@ -665,7 +665,7 @@ class SshManager {
           entry.activeConnections = Math.max(0, entry.activeConnections - 1);
         });
         let stage = 0;
-        socket.on('data', (chunk) => {
+        socket.on('data', (chunk: Buffer) => {
           entry.bytesRead += chunk.length;
           const client = session.client;
           if (stage === 0) {
