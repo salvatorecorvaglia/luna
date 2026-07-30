@@ -1,11 +1,11 @@
+import type { Snippet } from '@shared/types/snippet';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Code, Play, Plus, Search, Tag, Trash2, Edit3, X } from 'lucide-react';
+import { Code, Edit3, Play, Plus, Search, Tag, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { Z } from '@/lib/z-layers';
-import type { Snippet } from '@shared/types/snippet';
 
 interface SnippetVaultDialogProps {
   open: boolean;
@@ -254,7 +254,6 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
                 </button>
               </div>
             )}
-
             {/* Editing / Creating Form */}
             {editingSnippet && (
               <form
@@ -288,7 +287,9 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
 
                   <div>
                     <label className="block text-muted-foreground mb-1">
-                      Command Template (Use <code className="bg-muted px-1 rounded">{'{{param}}'}</code> for dynamic prompts)
+                      Command Template (Use{' '}
+                      <code className="bg-muted px-1 rounded">{'{{param}}'}</code> for dynamic
+                      prompts)
                     </label>
                     <textarea
                       value={formCommand}
@@ -300,7 +301,9 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
                   </div>
 
                   <div>
-                    <label className="block text-muted-foreground mb-1">Tags (comma separated)</label>
+                    <label className="block text-muted-foreground mb-1">
+                      Tags (comma separated)
+                    </label>
                     <input
                       type="text"
                       value={formTags}
@@ -321,7 +324,6 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
                 </div>
               </form>
             )}
-
             {/* Parameter Prompt Form */}
             {promptSnippet && (
               <form
@@ -329,7 +331,9 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
                 className="rounded-lg border border-primary/40 bg-primary/5 p-4 space-y-3"
               >
                 <div className="flex items-center justify-between border-b border-border/40 pb-2">
-                  <span className="text-xs font-semibold">Enter Template Parameters for: {promptSnippet.title}</span>
+                  <span className="text-xs font-semibold">
+                    Enter Template Parameters for: {promptSnippet.title}
+                  </span>
                   <button
                     type="button"
                     onClick={() => setPromptSnippet(null)}
@@ -370,86 +374,82 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
                 </div>
               </form>
             )}
-
             {/* List */}
-            {!editingSnippet && !promptSnippet && (
-              <>
-                {loading && snippets.length === 0 ? (
-                  <div className="py-8 text-center text-xs text-muted-foreground">
-                    Loading command snippets...
-                  </div>
-                ) : filteredSnippets.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-border rounded-xl bg-accent/10 p-6">
-                    <Code className="size-8 text-muted-foreground/50 mb-2" />
-                    <p className="text-sm font-medium">No snippets found</p>
-                    <p className="text-xs text-muted-foreground mt-1 max-w-sm">
-                      Save frequently executed shell scripts, log tailing commands, or maintenance procedures here for quick access.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-2.5">
-                    {filteredSnippets.map((s) => (
-                      <div
-                        key={s.id}
-                        className="flex items-center justify-between gap-4 rounded-lg border border-border/80 bg-background p-3.5 shadow-2xs hover:border-primary/40 transition-colors"
-                      >
-                        <div className="min-w-0 flex-1 space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold text-foreground">
-                              {s.title}
-                            </span>
-                            {s.tags && s.tags.length > 0 && (
-                              <div className="flex items-center gap-1">
-                                {s.tags.map((t) => (
-                                  <span
-                                    key={t}
-                                    className="inline-flex items-center gap-0.5 rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
-                                  >
-                                    <Tag className="size-2.5" />
-                                    {t}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="font-mono text-xs text-muted-foreground/90 bg-muted/30 rounded px-2.5 py-1 truncate">
-                            {s.command}
-                          </div>
+            {!editingSnippet &&
+              !promptSnippet &&
+              (loading && snippets.length === 0 ? (
+                <div className="py-8 text-center text-xs text-muted-foreground">
+                  Loading command snippets...
+                </div>
+              ) : filteredSnippets.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-border rounded-xl bg-accent/10 p-6">
+                  <Code className="size-8 text-muted-foreground/50 mb-2" />
+                  <p className="text-sm font-medium">No snippets found</p>
+                  <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+                    Save frequently executed shell scripts, log tailing commands, or maintenance
+                    procedures here for quick access.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {filteredSnippets.map((s) => (
+                    <div
+                      key={s.id}
+                      className="flex items-center justify-between gap-4 rounded-lg border border-border/80 bg-background p-3.5 shadow-2xs hover:border-primary/40 transition-colors"
+                    >
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-foreground">{s.title}</span>
+                          {s.tags && s.tags.length > 0 && (
+                            <div className="flex items-center gap-1">
+                              {s.tags.map((t) => (
+                                <span
+                                  key={t}
+                                  className="inline-flex items-center gap-0.5 rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                                >
+                                  <Tag className="size-2.5" />
+                                  {t}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
 
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => handleSelectToRun(s)}
-                            title="Execute snippet"
-                            className="flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 transition-colors cursor-pointer"
-                          >
-                            <Play className="size-3.5" />
-                            Run
-                          </button>
-
-                          <button
-                            onClick={() => handleOpenForm(s)}
-                            title="Edit snippet"
-                            className="rounded-md border border-border/60 p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
-                          >
-                            <Edit3 className="size-3.5" />
-                          </button>
-
-                          <button
-                            onClick={() => handleDeleteSnippet(s.id)}
-                            title="Delete snippet"
-                            className="rounded-md border border-destructive/20 bg-destructive/10 p-1.5 text-destructive hover:bg-destructive/20 transition-colors cursor-pointer"
-                          >
-                            <Trash2 className="size-3.5" />
-                          </button>
+                        <div className="font-mono text-xs text-muted-foreground/90 bg-muted/30 rounded px-2.5 py-1 truncate">
+                          {s.command}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleSelectToRun(s)}
+                          title="Execute snippet"
+                          className="flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 transition-colors cursor-pointer"
+                        >
+                          <Play className="size-3.5" />
+                          Run
+                        </button>
+
+                        <button
+                          onClick={() => handleOpenForm(s)}
+                          title="Edit snippet"
+                          className="rounded-md border border-border/60 p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+                        >
+                          <Edit3 className="size-3.5" />
+                        </button>
+
+                        <button
+                          onClick={() => handleDeleteSnippet(s.id)}
+                          title="Delete snippet"
+                          className="rounded-md border border-destructive/20 bg-destructive/10 p-1.5 text-destructive hover:bg-destructive/20 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
           </div>
         </motion.div>
       </div>

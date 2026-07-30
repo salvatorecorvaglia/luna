@@ -1,7 +1,7 @@
-import { v4 as uuidv4 } from 'uuid';
-import { getDatabase } from './database';
 import type { CreateSnippetInput, Snippet, UpdateSnippetInput } from '@shared/types/snippet';
 import type { CreateWorkspaceInput, WorkspacePreset } from '@shared/types/workspace';
+import { v4 as uuidv4 } from 'uuid';
+import { getDatabase } from './database';
 
 interface SnippetRow {
   id: string;
@@ -83,7 +83,9 @@ export class SnippetWorkspaceService {
   updateSnippet(input: UpdateSnippetInput): Snippet {
     const db = getDatabase();
     const now = Date.now();
-    const existing = db.prepare('SELECT * FROM snippets WHERE id = ?').get(input.id) as SnippetRow | undefined;
+    const existing = db.prepare('SELECT * FROM snippets WHERE id = ?').get(input.id) as
+      | SnippetRow
+      | undefined;
     if (!existing) {
       throw new Error(`Snippet ${input.id} not found`);
     }
@@ -91,7 +93,8 @@ export class SnippetWorkspaceService {
     const title = input.title ?? existing.title;
     const command = input.command ?? existing.command;
     const tags = input.tags !== undefined ? JSON.stringify(input.tags) : existing.tags;
-    const variables = input.variables !== undefined ? JSON.stringify(input.variables) : existing.variables_json;
+    const variables =
+      input.variables !== undefined ? JSON.stringify(input.variables) : existing.variables_json;
 
     db.prepare(`
       UPDATE snippets
@@ -99,7 +102,9 @@ export class SnippetWorkspaceService {
       WHERE id = ?
     `).run(title, command, tags, variables, now, input.id);
 
-    const updatedRow = db.prepare('SELECT * FROM snippets WHERE id = ?').get(input.id) as SnippetRow;
+    const updatedRow = db
+      .prepare('SELECT * FROM snippets WHERE id = ?')
+      .get(input.id) as SnippetRow;
     return rowToSnippet(updatedRow);
   }
 
@@ -129,7 +134,13 @@ export class SnippetWorkspaceService {
     db.prepare(`
       INSERT INTO workspaces (id, name, layout_json, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?)
-    `).run(preset.id, preset.name, JSON.stringify(preset.layout), preset.createdAt, preset.updatedAt);
+    `).run(
+      preset.id,
+      preset.name,
+      JSON.stringify(preset.layout),
+      preset.createdAt,
+      preset.updatedAt,
+    );
 
     return preset;
   }

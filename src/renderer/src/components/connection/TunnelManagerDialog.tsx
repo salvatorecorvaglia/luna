@@ -1,11 +1,21 @@
+import type { ActivePortForwardInfo, PortForwardingConfig } from '@shared/types/connection';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowRightLeft, Check, Copy, Network, Play, Power, ShieldAlert, Plus, X } from 'lucide-react';
+import {
+  ArrowRightLeft,
+  Check,
+  Copy,
+  Network,
+  Play,
+  Plus,
+  Power,
+  ShieldAlert,
+  X,
+} from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { Z } from '@/lib/z-layers';
-import type { ActivePortForwardInfo, PortForwardingConfig } from '@shared/types/connection';
 
 interface TunnelManagerDialogProps {
   open: boolean;
@@ -34,7 +44,7 @@ function formatBytes(bytes: number): string {
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+  return `${parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`;
 }
 
 export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps) {
@@ -326,7 +336,8 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
                 <ArrowRightLeft className="size-8 text-muted-foreground/50 mb-2" />
                 <p className="text-sm font-medium">No active port forwards</p>
                 <p className="text-xs text-muted-foreground mt-1 max-w-sm">
-                  Active SSH tunnels will automatically appear here when connected to servers configured with port forwarding rules.
+                  Active SSH tunnels will automatically appear here when connected to servers
+                  configured with port forwarding rules.
                 </p>
               </div>
             ) : (

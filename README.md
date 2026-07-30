@@ -10,14 +10,22 @@
 
 ### 🖥️ High-Performance Terminals
 *   **Hardware Acceleration:** Powered by [xterm.js](https://xtermjs.org/) using WebGL and Canvas renderers for low-latency rendering.
-*   **Advanced Layouts:** Supports vertical and horizontal split panes, dynamic resizing, and layout preservation.
-*   **Local & Remote Shells:** Launch local shells (`node-pty`) alongside long-lived remote SSH sessions.
+*   **Advanced Layouts & Presets:** Supports vertical and horizontal split panes, dynamic resizing, and saving/restoring workspace layout presets.
+*   **Broadcast Input & Output Filtering:** Broadcast commands to multiple active terminal tabs simultaneously and filter live terminal logs using text or regex filters.
+*   **Automation & Snippet Vault:** Store reusable command snippets in a searchable Snippet Vault and record automated terminal keypress sequences with the Macro Recorder.
+*   **Session Audit & Shell History:** Index command history for fast search and export detailed session audit logs in JSON, HTML, or plain text formats.
+*   **Built-in CLI Reference:** Access interactive, searchable CLI command reference documentation directly inside the terminal workstation.
 *   **Session Recovery:** Long-lived session management in the main process preserves scrollback buffers, cursor states, and tab setups through renderer reloads or window refreshes (e.g., `Cmd+R`).
 *   **Custom Themes:** Dynamically maps terminal color palettes directly onto the React application UI for unified styling.
 
-### 📁 SFTP File Manager
+### 🔌 SSH Port Forwarding & Tunnel Manager
+*   **Full Tunneling Support:** Configure and manage Local, Remote, and Dynamic (SOCKS5 proxy) SSH tunnels.
+*   **Live Status Monitoring:** Monitor active tunnels, port bindings, and forwarding status directly from the interactive Status Bar.
+
+### 📁 SFTP File Manager & Folder Sync
+*   **Folder Synchronization:** Perform directional or bidirectional directory synchronization between local and remote paths with conflict detection.
 *   **Visual File Operations:** Drag-and-drop file transfers, directory creation, deletion, and renaming over remote SSH channels.
-*   **Inline File Editor:** Open, view, and edit local or remote files (like code files, config scripts, logs) directly inside the integrated `FilePreview` panel.
+*   **Enhanced Inline File Editor:** Open, view, search, word-wrap, live-tail, and edit local or remote files (code, config scripts, logs) directly inside `FilePreview`.
 *   **Enhanced Accessibility:** Fully optimized keyboard navigation (e.g., Space to toggle multi-row selection) and standard-compliant ARIA attributes.
 *   **Safety Guards:** Protective recursion depth limits and warning thresholds to prevent accidental bulk deletions.
 
@@ -26,7 +34,8 @@
 *   **Pagination & Safety Limits:** Intelligently paginates massive buckets, offering user alerts to prevent application hangs or memory limits.
 *   **Presigned URLs:** Generate temporary access URLs for object sharing with customizable expiration times.
 
-### 🔒 Enterprise-Grade Security
+### 🔒 Enterprise-Grade Security & Credential Tools
+*   **Built-in Password Manager:** Generate strong passwords with configurable complexity and securely manage stored credentials.
 *   **OS-Protected Credentials:** Integrates with system keychains (Keychain Services on macOS, Credential Manager on Windows, Gnome Keyring/libsecret on Linux) to prevent credential leakage.
 *   **Tamper Protection:** Actively audits and alerts the operator of corrupted or unauthorized credential modifications on disk.
 *   **Clear Visibility:** Alerts the user immediately via toast notifications if the workspace falls back to unencrypted plaintext or memory-only keys due to missing OS libraries.

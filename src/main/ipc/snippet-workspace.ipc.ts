@@ -1,9 +1,9 @@
 import { IPC } from '@shared/constants';
+import type { CreateSnippetInput, UpdateSnippetInput } from '@shared/types/snippet';
+import type { CreateWorkspaceInput } from '@shared/types/workspace';
 import { registerHandler } from '../lib/ipc-handler';
 import { assertNonEmptyString } from '../lib/validate';
 import { snippetWorkspaceService } from '../services/snippet-workspace-service';
-import type { CreateSnippetInput, UpdateSnippetInput } from '@shared/types/snippet';
-import type { CreateWorkspaceInput } from '@shared/types/workspace';
 
 export function registerSnippetWorkspaceHandlers(): void {
   // Snippets

@@ -1,3 +1,4 @@
+import type { CliCommandDoc, CliCommandExample } from '@shared/types/cli-reference';
 import { AnimatePresence, motion } from 'framer-motion';
 import { BookOpen, Copy, Play, Search, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -5,7 +6,6 @@ import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { Z } from '@/lib/z-layers';
-import type { CliCommandDoc, CliCommandExample } from '@shared/types/cli-reference';
 
 interface CliReferenceDialogProps {
   open: boolean;
@@ -167,12 +167,16 @@ export function CliReferenceDialog({ open, onClose, onRunCommand }: CliReference
                     </div>
 
                     <div className="text-xs font-mono bg-muted/40 p-2 rounded border border-border/40">
-                      <span className="text-muted-foreground text-[11px] block mb-0.5">Syntax:</span>
+                      <span className="text-muted-foreground text-[11px] block mb-0.5">
+                        Syntax:
+                      </span>
                       <code>{doc.syntax}</code>
                     </div>
 
                     <div className="space-y-2">
-                      <span className="text-xs font-semibold text-foreground/90 block">Common Examples:</span>
+                      <span className="text-xs font-semibold text-foreground/90 block">
+                        Common Examples:
+                      </span>
                       {doc.examples.map((ex: CliCommandExample, idx: number) => (
                         <div
                           key={idx}

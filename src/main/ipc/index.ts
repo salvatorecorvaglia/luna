@@ -6,11 +6,10 @@ import { registerLogHandlers } from './log.ipc';
 import { registerS3Handlers } from './s3.ipc';
 import { registerSettingsHandlers } from './settings.ipc';
 import { registerShellHandlers } from './shell.ipc';
+import { registerSnippetWorkspaceHandlers } from './snippet-workspace.ipc';
 import { registerSshHandlers } from './ssh.ipc';
 import { registerStorageHandlers } from './storage.ipc';
 import { registerTransferHandlers } from './transfer.ipc';
-
-import { registerSnippetWorkspaceHandlers } from './snippet-workspace.ipc';
 
 export function registerAllHandlers(): void {
   registerConnectionHandlers();

@@ -5,6 +5,7 @@ import type {
   CreateConnectionInput,
   ExportedConnection,
   ManualJumpHostConfig,
+  PortForwardingConfig,
   UpdateConnectionInput,
 } from '@shared/types/connection';
 import type {
@@ -15,10 +16,13 @@ import type {
   IpcResponse,
 } from '@shared/types/ipc';
 // No sftp imports needed here anymore
+import type { AuditExportOptions } from '@shared/types/session-audit';
+import type { CreateSnippetInput, UpdateSnippetInput } from '@shared/types/snippet';
 import type {
   S3ConnectParams,
   S3TestConnectionConfig,
   StorageDeleteParams,
+  StorageEntry,
   StorageListParams,
   StorageMkdirParams,
   StorageReadFileParams,
@@ -27,6 +31,7 @@ import type {
   StorageTransferParams,
 } from '@shared/types/storage-provider';
 import type { SshConnectParams, SshResizeParams, SshSendDataParams } from '@shared/types/terminal';
+import type { CreateWorkspaceInput } from '@shared/types/workspace';
 import { contextBridge, ipcRenderer } from 'electron';
 
 type CleanupFn = () => void;
@@ -162,7 +167,7 @@ const api = {
       invoke(IPC.SSH_TRUST_HOST_KEY, params),
     listActivePortForwards: (params?: { sessionId?: string }) =>
       invoke(IPC.SSH_LIST_ACTIVE_PORT_FORWARDS, params ?? {}),
-    startPortForward: (params: { sessionId: string; config: any }) =>
+    startPortForward: (params: { sessionId: string; config: PortForwardingConfig }) =>
       invoke(IPC.SSH_START_PORT_FORWARD, params),
     stopPortForward: (params: { sessionId: string; forwardId: string }) =>
       invoke(IPC.SSH_STOP_PORT_FORWARD, params),
@@ -184,7 +189,7 @@ const api = {
     onListTruncated: createEventListener(IPC.STORAGE_LIST_TRUNCATED),
     compareDirectories: (params: {
       localEntries: { relativePath: string; size: number; mtime: number }[];
-      remoteEntries: any[];
+      remoteEntries: StorageEntry[];
       direction?: 'sync-to-remote' | 'sync-to-local' | 'bi-directional';
     }) => invoke(IPC.STORAGE_COMPARE_DIRECTORIES, params),
   },
@@ -218,7 +223,7 @@ const api = {
     cliReference: (query: string) => invoke(IPC.SHELL_CLI_REFERENCE, query),
     searchHistory: (payload: { query: string; limit?: number }) =>
       invoke(IPC.SHELL_SEARCH_HISTORY, payload),
-    exportAuditLog: (options: any) => invoke(IPC.SHELL_EXPORT_AUDIT_LOG, options),
+    exportAuditLog: (options: AuditExportOptions) => invoke(IPC.SHELL_EXPORT_AUDIT_LOG, options),
   },
 
   // Transfer events
@@ -286,15 +291,15 @@ const api = {
   // Snippets
   snippets: {
     list: () => invoke(IPC.SNIPPET_LIST),
-    create: (input: any) => invoke(IPC.SNIPPET_CREATE, input),
-    update: (input: any) => invoke(IPC.SNIPPET_UPDATE, input),
+    create: (input: CreateSnippetInput) => invoke(IPC.SNIPPET_CREATE, input),
+    update: (input: UpdateSnippetInput) => invoke(IPC.SNIPPET_UPDATE, input),
     delete: (id: string) => invoke(IPC.SNIPPET_DELETE, id),
   },
 
   // Workspaces
   workspaces: {
     list: () => invoke(IPC.WORKSPACE_LIST),
-    create: (input: any) => invoke(IPC.WORKSPACE_CREATE, input),
+    create: (input: CreateWorkspaceInput) => invoke(IPC.WORKSPACE_CREATE, input),
     delete: (id: string) => invoke(IPC.WORKSPACE_DELETE, id),
   },
 };

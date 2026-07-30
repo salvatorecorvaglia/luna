@@ -1,3 +1,4 @@
+import type { CliCommandDoc } from './cli-reference';
 import type {
   ActivePortForwardInfo,
   AuthType,
@@ -8,8 +9,12 @@ import type {
   PortForwardingConfig,
   UpdateConnectionInput,
 } from './connection';
+import type { FolderDiffResult } from './folder-sync';
+import type { AuditExportOptions } from './session-audit';
 import type { AppSettings } from './settings';
 import type { LocalFileEntry } from './sftp';
+import type { HistoryMatch } from './shell-history';
+import type { CreateSnippetInput, Snippet, UpdateSnippetInput } from './snippet';
 import type {
   S3ConnectParams,
   S3TestConnectionConfig,
@@ -36,12 +41,7 @@ import type {
   SshStatusEvent,
 } from './terminal';
 import type { TransferCompleteEvent, TransferErrorEvent, TransferProgressEvent } from './transfer';
-import type { CreateSnippetInput, Snippet, UpdateSnippetInput } from './snippet';
 import type { CreateWorkspaceInput, WorkspacePreset } from './workspace';
-import type { CliCommandDoc } from './cli-reference';
-import type { HistoryMatch } from './shell-history';
-import type { AuditExportOptions } from './session-audit';
-import type { FolderDiffResult } from './folder-sync';
 
 /**
  * Authoritative request/response shape for every invoke-style IPC channel.
@@ -177,7 +177,10 @@ export interface IpcHandlerMap {
   'shell:write-file': { request: { filePath: string; content: string }; response: void };
   'shell:cli-reference': { request: string; response: CliCommandDoc[] };
   'shell:search-history': { request: { query: string; limit?: number }; response: HistoryMatch[] };
-  'shell:export-audit-log': { request: AuditExportOptions; response: { success: boolean; path: string } };
+  'shell:export-audit-log': {
+    request: AuditExportOptions;
+    response: { success: boolean; path: string };
+  };
 
   // Local terminal (PTY)
   'local-terminal:spawn': {
@@ -307,8 +310,8 @@ export type IpcEventPayload<K extends IpcEventChannel> = IpcEventMap[K];
 export type * from './connection';
 export type * from './settings';
 export type * from './sftp';
+export type * from './snippet';
 export type * from './storage-provider';
 export type * from './terminal';
 export type * from './transfer';
-export type * from './snippet';
 export type * from './workspace';

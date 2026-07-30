@@ -23,9 +23,7 @@ export function BroadcastInputBar({ open, onClose }: BroadcastInputBarProps) {
     if (selectedSessionIds.length === 0) {
       return activeConnectedSessions.map((s) => s.id);
     }
-    return selectedSessionIds.filter((id) =>
-      activeConnectedSessions.some((s) => s.id === id),
-    );
+    return selectedSessionIds.filter((id) => activeConnectedSessions.some((s) => s.id === id));
   }, [selectedSessionIds, activeConnectedSessions]);
 
   const toggleSelectAll = () => {

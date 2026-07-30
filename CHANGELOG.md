@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Terminal Session Audit Export**: Integrated `SessionAuditService` and `AuditExportDialog` allowing export of terminal session logs in JSON, HTML, or plain text formats with customizable log metadata.
+- **CLI Reference Guide**: Added interactive `CliReferenceDialog` and `CliReferenceService` for quick command lookup and reference documentation within the terminal workstation.
+- **Shell History Search**: Introduced `ShellHistoryService` for indexing and fast searching across command execution history.
+- **Folder Synchronization**: Added `FolderSyncService` and `FolderSyncDialog` for directional and bidirectional directory syncing between local and remote filesystems with conflict detection.
+- **Password Manager**: Integrated `PasswordManagerService` for generating strong passwords and managing stored credentials.
+- **Terminal Macro Recorder**: Added `MacroRecorderDialog` for recording, managing, and replaying automated terminal keystroke sequences.
+- **Snippet Vault**: Added persistent `SnippetVaultDialog` and `SnippetWorkspaceService` with SQLite database migration support (`017_snippets_and_workspaces.ts`) for organizing and executing saved command snippets.
+- **Workspace Presets**: Integrated `WorkspacePresetsDialog` to save, load, and restore multi-tab and split-pane terminal workspace arrangements.
+- **Terminal Output Filter Bar**: Added `TerminalFilterBar` for real-time text and regex filtering of live terminal scrollback streams.
+- **Broadcast Input Bar**: Added `BroadcastInputBar` allowing broadcast of keyboard input across multiple active terminal sessions simultaneously.
+- **Port Forwarding & Tunnel Manager**: Added `TunnelManagerDialog` and SSH tunneling support in `SshManager` for local, remote, and dynamic SOCKS port forwarding, complete with status bar indicators.
+
+### Changed
+
+- **Terminal Architecture**: Consolidated local and remote terminal rendering components into a unified `TerminalViewContainer`.
+
+### Improved
+
+- **File Preview**: Added search, word wrap, and live log tailing capabilities to `FilePreview`.
+
 ## [0.16.0] - 2026-07-26
 
 ### Added

@@ -1,3 +1,4 @@
+import type { FolderDiffItem, FolderDiffResult } from '@shared/types/folder-sync';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowRightLeft, Download, FolderSync, RefreshCw, Upload, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -5,7 +6,6 @@ import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { Z } from '@/lib/z-layers';
-import type { FolderDiffItem, FolderDiffResult } from '@shared/types/folder-sync';
 
 interface FolderSyncDialogProps {
   open: boolean;
@@ -37,7 +37,7 @@ function formatBytes(bytes?: number): string {
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+  return `${parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`;
 }
 
 export function FolderSyncDialog({
@@ -193,14 +193,18 @@ export function FolderSyncDialog({
             <div className="rounded-lg border border-border bg-accent/20 p-4 space-y-3">
               <div className="grid grid-cols-2 gap-4 text-xs font-mono">
                 <div>
-                  <span className="text-muted-foreground block text-[11px] mb-0.5">Local Directory:</span>
+                  <span className="text-muted-foreground block text-[11px] mb-0.5">
+                    Local Directory:
+                  </span>
                   <span className="truncate block font-semibold" title={localPath}>
                     {localPath}
                   </span>
                 </div>
 
                 <div>
-                  <span className="text-muted-foreground block text-[11px] mb-0.5">Remote Storage Path:</span>
+                  <span className="text-muted-foreground block text-[11px] mb-0.5">
+                    Remote Storage Path:
+                  </span>
                   <span className="truncate block font-semibold" title={remotePath}>
                     {remotePath}
                   </span>
@@ -212,12 +216,20 @@ export function FolderSyncDialog({
                   <span className="text-muted-foreground">Sync Rule:</span>
                   <select
                     value={direction}
-                    onChange={(e) => setDirection(e.target.value as any)}
+                    onChange={(e) =>
+                      setDirection(
+                        e.target.value as 'sync-to-remote' | 'sync-to-local' | 'bi-directional',
+                      )
+                    }
                     className="rounded border border-input bg-background px-2.5 py-1 text-xs outline-none focus:ring-1 focus:ring-primary"
                   >
                     <option value="sync-to-remote">Local → Remote (Upload missing/modified)</option>
-                    <option value="sync-to-local">Remote → Local (Download missing/modified)</option>
-                    <option value="bi-directional">Bi-Directional (Sync newest files both ways)</option>
+                    <option value="sync-to-local">
+                      Remote → Local (Download missing/modified)
+                    </option>
+                    <option value="bi-directional">
+                      Bi-Directional (Sync newest files both ways)
+                    </option>
                   </select>
                 </div>
 
@@ -237,22 +249,30 @@ export function FolderSyncDialog({
               <div className="grid grid-cols-4 gap-3 text-center text-xs">
                 <div className="rounded-lg border border-border p-2.5 bg-background">
                   <div className="text-muted-foreground text-[11px]">Only Local</div>
-                  <div className="text-base font-bold text-primary mt-0.5">{diffResult.onlyLocalCount}</div>
+                  <div className="text-base font-bold text-primary mt-0.5">
+                    {diffResult.onlyLocalCount}
+                  </div>
                 </div>
 
                 <div className="rounded-lg border border-border p-2.5 bg-background">
                   <div className="text-muted-foreground text-[11px]">Only Remote</div>
-                  <div className="text-base font-bold text-primary mt-0.5">{diffResult.onlyRemoteCount}</div>
+                  <div className="text-base font-bold text-primary mt-0.5">
+                    {diffResult.onlyRemoteCount}
+                  </div>
                 </div>
 
                 <div className="rounded-lg border border-border p-2.5 bg-background">
                   <div className="text-muted-foreground text-[11px]">Modified</div>
-                  <div className="text-base font-bold text-warning mt-0.5">{diffResult.modifiedCount}</div>
+                  <div className="text-base font-bold text-warning mt-0.5">
+                    {diffResult.modifiedCount}
+                  </div>
                 </div>
 
                 <div className="rounded-lg border border-border p-2.5 bg-background">
                   <div className="text-muted-foreground text-[11px]">Identical</div>
-                  <div className="text-base font-bold text-success mt-0.5">{diffResult.identicalCount}</div>
+                  <div className="text-base font-bold text-success mt-0.5">
+                    {diffResult.identicalCount}
+                  </div>
                 </div>
               </div>
             )}
@@ -281,7 +301,10 @@ export function FolderSyncDialog({
                     </thead>
                     <tbody className="divide-y divide-border/40">
                       {diffResult.items.map((item: FolderDiffItem) => (
-                        <tr key={item.relativePath} className="hover:bg-accent/30 transition-colors">
+                        <tr
+                          key={item.relativePath}
+                          className="hover:bg-accent/30 transition-colors"
+                        >
                           <td className="p-2.5 truncate max-w-[200px]" title={item.relativePath}>
                             {item.relativePath}
                           </td>
@@ -297,8 +320,8 @@ export function FolderSyncDialog({
                                 item.status === 'identical'
                                   ? 'bg-success/10 text-success'
                                   : item.status === 'modified'
-                                  ? 'bg-warning/10 text-warning'
-                                  : 'bg-primary/10 text-primary'
+                                    ? 'bg-warning/10 text-warning'
+                                    : 'bg-primary/10 text-primary'
                               }`}
                             >
                               {item.status}
@@ -346,7 +369,11 @@ export function FolderSyncDialog({
 
               <button
                 onClick={handleExecuteSync}
-                disabled={syncing || !diffResult || diffResult.items.every((i: FolderDiffItem) => i.recommendedAction === 'skip')}
+                disabled={
+                  syncing ||
+                  !diffResult ||
+                  diffResult.items.every((i: FolderDiffItem) => i.recommendedAction === 'skip')
+                }
                 className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors cursor-pointer"
               >
                 <ArrowRightLeft className="size-3.5" />

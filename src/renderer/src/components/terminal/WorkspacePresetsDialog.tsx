@@ -1,3 +1,4 @@
+import type { WorkspacePreset } from '@shared/types/workspace';
 import { AnimatePresence, motion } from 'framer-motion';
 import { LayoutGrid, Play, Save, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -6,7 +7,6 @@ import { toast } from 'sonner';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { Z } from '@/lib/z-layers';
 import { useTerminalStore } from '@/stores/terminal-store';
-import type { WorkspacePreset } from '@shared/types/workspace';
 
 interface WorkspacePresetsDialogProps {
   open: boolean;
@@ -118,7 +118,9 @@ export function WorkspacePresetsDialog({
       toast.success(`Restoring workspace "${preset.name}"`);
       onClose();
     } else {
-      toast.info(`Workspace "${preset.name}" contains ${preset.layout.connectionIds.length} saved connection(s)`);
+      toast.info(
+        `Workspace "${preset.name}" contains ${preset.layout.connectionIds.length} saved connection(s)`,
+      );
     }
   };
 
@@ -238,7 +240,8 @@ export function WorkspacePresetsDialog({
                 <LayoutGrid className="size-8 text-muted-foreground/50 mb-2" />
                 <p className="text-sm font-medium">No workspace presets saved</p>
                 <p className="text-xs text-muted-foreground mt-1 max-w-sm">
-                  Save your active multi-session window layouts to instantly reconnect and restore tab setups later.
+                  Save your active multi-session window layouts to instantly reconnect and restore
+                  tab setups later.
                 </p>
               </div>
             ) : (

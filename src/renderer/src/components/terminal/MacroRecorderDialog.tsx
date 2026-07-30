@@ -250,56 +250,53 @@ export function MacroRecorderDialog({ open, onClose, onRunMacro }: MacroRecorder
                 </div>
               </div>
             )}
-
             {/* List */}
-            {!isRecording && (
-              <>
-                {macros.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-border rounded-xl bg-accent/10 p-6">
-                    <Circle className="size-8 text-muted-foreground/50 mb-2" />
-                    <p className="text-sm font-medium">No macros recorded</p>
-                    <p className="text-xs text-muted-foreground mt-1 max-w-sm">
-                      Click "Record Macro" to record multi-step shell command sequences for automated execution.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-2.5">
-                    {macros.map((m) => (
-                      <div
-                        key={m.id}
-                        className="flex items-center justify-between gap-4 rounded-lg border border-border/80 bg-background p-3.5 shadow-2xs hover:border-primary/40 transition-colors"
-                      >
-                        <div className="min-w-0 flex-1 space-y-1">
-                          <div className="text-xs font-semibold text-foreground">{m.name}</div>
-                          <div className="font-mono text-[11px] text-muted-foreground truncate">
-                            {m.sequence.join(' → ')}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => handlePlayMacro(m)}
-                            title="Replay Macro"
-                            className="flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 transition-colors cursor-pointer"
-                          >
-                            <Play className="size-3.5" />
-                            Replay
-                          </button>
-
-                          <button
-                            onClick={() => handleDeleteMacro(m.id)}
-                            title="Delete Macro"
-                            className="rounded-md border border-destructive/20 bg-destructive/10 p-1.5 text-destructive hover:bg-destructive/20 transition-colors cursor-pointer"
-                          >
-                            <Trash2 className="size-3.5" />
-                          </button>
+            {!isRecording &&
+              (macros.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-border rounded-xl bg-accent/10 p-6">
+                  <Circle className="size-8 text-muted-foreground/50 mb-2" />
+                  <p className="text-sm font-medium">No macros recorded</p>
+                  <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+                    Click "Record Macro" to record multi-step shell command sequences for automated
+                    execution.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {macros.map((m) => (
+                    <div
+                      key={m.id}
+                      className="flex items-center justify-between gap-4 rounded-lg border border-border/80 bg-background p-3.5 shadow-2xs hover:border-primary/40 transition-colors"
+                    >
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="text-xs font-semibold text-foreground">{m.name}</div>
+                        <div className="font-mono text-[11px] text-muted-foreground truncate">
+                          {m.sequence.join(' → ')}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => handlePlayMacro(m)}
+                          title="Replay Macro"
+                          className="flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 transition-colors cursor-pointer"
+                        >
+                          <Play className="size-3.5" />
+                          Replay
+                        </button>
+
+                        <button
+                          onClick={() => handleDeleteMacro(m.id)}
+                          title="Delete Macro"
+                          className="rounded-md border border-destructive/20 bg-destructive/10 p-1.5 text-destructive hover:bg-destructive/20 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
           </div>
         </motion.div>
       </div>

@@ -19,7 +19,11 @@ const MAX_SECRET_LEN = 4096;
  */
 const MAX_SSH_SEND_BYTES = 65536;
 
-import type { AuthType, ManualJumpHostConfig } from '@shared/types/connection';
+import type {
+  AuthType,
+  ManualJumpHostConfig,
+  PortForwardingConfig,
+} from '@shared/types/connection';
 import type { SshConnectParams, SshResizeParams, SshSendDataParams } from '@shared/types/terminal';
 
 export function registerSshHandlers(): void {
@@ -178,16 +182,13 @@ export function registerSshHandlers(): void {
     },
   );
 
-  registerHandler(
-    IPC.SSH_LIST_ACTIVE_PORT_FORWARDS,
-    (_event, params: { sessionId?: string }) => {
-      return sshManager.listActivePortForwards(params?.sessionId);
-    },
-  );
+  registerHandler(IPC.SSH_LIST_ACTIVE_PORT_FORWARDS, (_event, params: { sessionId?: string }) => {
+    return sshManager.listActivePortForwards(params?.sessionId);
+  });
 
   registerHandler(
     IPC.SSH_START_PORT_FORWARD,
-    (_event, params: { sessionId: string; config: any }) => {
+    (_event, params: { sessionId: string; config: PortForwardingConfig }) => {
       assertNonEmptyString(params.sessionId, 'sessionId');
       return sshManager.startSinglePortForward(params.sessionId, params.config);
     },

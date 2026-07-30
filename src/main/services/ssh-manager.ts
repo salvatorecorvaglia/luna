@@ -1,7 +1,11 @@
 import { createServer, connect as netConnect } from 'node:net';
 import { IPC, LIMITS } from '@shared/constants';
 import { ErrorCode, LunarError } from '@shared/errors';
-import type { ActivePortForwardInfo, AuthType, PortForwardingConfig } from '@shared/types/connection';
+import type {
+  ActivePortForwardInfo,
+  AuthType,
+  PortForwardingConfig,
+} from '@shared/types/connection';
 import type { SessionStatus } from '@shared/types/terminal';
 import { Client, type ClientChannel } from 'ssh2';
 import { v4 as uuidv4 } from 'uuid';
@@ -539,7 +543,10 @@ class SshManager {
     }
   }
 
-  private startOnePortForward(session: SshSession, config: PortForwardingConfig): ActivePortForwardInfo {
+  private startOnePortForward(
+    session: SshSession,
+    config: PortForwardingConfig,
+  ): ActivePortForwardInfo {
     if (!session.portForwards) {
       session.portForwards = [];
     }

@@ -1,10 +1,10 @@
+import type { ActivePortForwardInfo } from '@shared/types/connection';
 import { Activity, Network, Upload, Wifi, WifiOff } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { TunnelManagerDialog } from '@/components/connection/TunnelManagerDialog';
 import { cn } from '@/lib/utils';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { useTransferStore } from '@/stores/transfer-store';
-import type { ActivePortForwardInfo } from '@shared/types/connection';
 
 export function StatusBar() {
   const sessions = useTerminalStore((s) => s.sessions);

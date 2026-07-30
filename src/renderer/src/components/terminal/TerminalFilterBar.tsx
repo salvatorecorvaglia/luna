@@ -38,7 +38,9 @@ export function TerminalFilterBar({ open, onClose, onApplyFilter }: TerminalFilt
           <button
             onClick={() => handleLevelSelect('all')}
             className={`px-2 py-0.5 text-[10px] font-medium rounded cursor-pointer transition-colors ${
-              activeLevel === 'all' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+              activeLevel === 'all'
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             ALL
@@ -46,7 +48,9 @@ export function TerminalFilterBar({ open, onClose, onApplyFilter }: TerminalFilt
           <button
             onClick={() => handleLevelSelect('error')}
             className={`px-2 py-0.5 text-[10px] font-medium rounded cursor-pointer transition-colors ${
-              activeLevel === 'error' ? 'bg-destructive text-destructive-foreground' : 'text-destructive/80 hover:text-destructive'
+              activeLevel === 'error'
+                ? 'bg-destructive text-destructive-foreground'
+                : 'text-destructive/80 hover:text-destructive'
             }`}
           >
             ERROR
@@ -54,7 +58,9 @@ export function TerminalFilterBar({ open, onClose, onApplyFilter }: TerminalFilt
           <button
             onClick={() => handleLevelSelect('warn')}
             className={`px-2 py-0.5 text-[10px] font-medium rounded cursor-pointer transition-colors ${
-              activeLevel === 'warn' ? 'bg-warning text-warning-foreground' : 'text-warning/80 hover:text-warning'
+              activeLevel === 'warn'
+                ? 'bg-warning text-warning-foreground'
+                : 'text-warning/80 hover:text-warning'
             }`}
           >
             WARN
@@ -62,7 +68,9 @@ export function TerminalFilterBar({ open, onClose, onApplyFilter }: TerminalFilt
           <button
             onClick={() => handleLevelSelect('info')}
             className={`px-2 py-0.5 text-[10px] font-medium rounded cursor-pointer transition-colors ${
-              activeLevel === 'info' ? 'bg-info text-info-foreground' : 'text-info/80 hover:text-info'
+              activeLevel === 'info'
+                ? 'bg-info text-info-foreground'
+                : 'text-info/80 hover:text-info'
             }`}
           >
             INFO

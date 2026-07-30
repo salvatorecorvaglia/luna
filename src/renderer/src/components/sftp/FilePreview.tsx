@@ -223,7 +223,9 @@ export function FilePreview() {
                     <button
                       onClick={() => setShowSearch((v) => !v)}
                       className={`flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium border border-border/60 transition-colors cursor-pointer ${
-                        showSearch ? 'bg-primary/20 text-primary border-primary/40' : 'hover:bg-accent text-muted-foreground hover:text-foreground'
+                        showSearch
+                          ? 'bg-primary/20 text-primary border-primary/40'
+                          : 'hover:bg-accent text-muted-foreground hover:text-foreground'
                       }`}
                       title="Search (Cmd+F / Ctrl+F)"
                     >
@@ -233,7 +235,9 @@ export function FilePreview() {
                     <button
                       onClick={() => setWordWrap((v) => !v)}
                       className={`flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium border border-border/60 transition-colors cursor-pointer ${
-                        wordWrap ? 'bg-primary/20 text-primary border-primary/40' : 'hover:bg-accent text-muted-foreground hover:text-foreground'
+                        wordWrap
+                          ? 'bg-primary/20 text-primary border-primary/40'
+                          : 'hover:bg-accent text-muted-foreground hover:text-foreground'
                       }`}
                       title="Toggle Word Wrap"
                     >
@@ -243,7 +247,9 @@ export function FilePreview() {
                     <button
                       onClick={() => setAutoTail((v) => !v)}
                       className={`flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium border border-border/60 transition-colors cursor-pointer ${
-                        autoTail ? 'bg-success/20 text-success border-success/40' : 'hover:bg-accent text-muted-foreground hover:text-foreground'
+                        autoTail
+                          ? 'bg-success/20 text-success border-success/40'
+                          : 'hover:bg-accent text-muted-foreground hover:text-foreground'
                       }`}
                       title="Auto Tail (Live Scroll to Bottom)"
                     >
@@ -256,7 +262,11 @@ export function FilePreview() {
                       className="flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium border border-border/60 hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                       title="Copy All Content"
                     >
-                      {copied ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
+                      {copied ? (
+                        <Check className="size-3.5 text-success" />
+                      ) : (
+                        <Copy className="size-3.5" />
+                      )}
                     </button>
                   </>
                 )}
@@ -278,7 +288,11 @@ export function FilePreview() {
                     </button>
                   )}
 
-                <button onClick={handleClose} className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer" aria-label="Close preview">
+                <button
+                  onClick={handleClose}
+                  className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+                  aria-label="Close preview"
+                >
                   <X className="size-4" />
                 </button>
               </div>
@@ -354,7 +368,9 @@ export function FilePreview() {
                     onScroll={handleScroll}
                     disabled={isSaving}
                     className={`flex-1 h-full w-full resize-none bg-transparent px-4 py-4 outline-none border-none text-foreground/90 font-mono focus:ring-0 leading-relaxed overflow-y-auto ${
-                      wordWrap ? 'whitespace-pre-wrap word-break-all' : 'whitespace-pre overflow-x-auto'
+                      wordWrap
+                        ? 'whitespace-pre-wrap word-break-all'
+                        : 'whitespace-pre overflow-x-auto'
                     }`}
                     style={{ lineHeight: '1.25rem' }}
                     placeholder="Enter text..."

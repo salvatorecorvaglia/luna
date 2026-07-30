@@ -1,5 +1,5 @@
-import type { StorageEntry } from '@shared/types/storage-provider';
 import type { FolderDiffItem, FolderDiffResult } from '@shared/types/folder-sync';
+import type { StorageEntry } from '@shared/types/storage-provider';
 
 export type { FolderDiffItem, FolderDiffResult };
 

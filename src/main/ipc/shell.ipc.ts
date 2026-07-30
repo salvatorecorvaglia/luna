@@ -4,12 +4,10 @@ import { homedir } from 'node:os';
 import { basename, isAbsolute, join, resolve } from 'node:path';
 import { BINARY_PREVIEW_EXTENSIONS, IPC } from '@shared/constants';
 import { ErrorCode, LunarError } from '@shared/errors';
+import type { AuditExportOptions } from '@shared/types/session-audit';
 import type { LocalFileEntry } from '@shared/types/sftp';
 import { dialog } from 'electron';
 import { registerHandler } from '../lib/ipc-handler';
-import { cliReferenceService } from '../services/cli-reference-service';
-import { sessionAuditService } from '../services/session-audit-service';
-import { shellHistoryService } from '../services/shell-history-service';
 import {
   assertSafeAbsolutePath,
   assertSafeRealAbsolutePath,
@@ -18,6 +16,9 @@ import {
   expandAndValidatePrivateKeyPath,
   isInsideDir,
 } from '../lib/validate';
+import { cliReferenceService } from '../services/cli-reference-service';
+import { sessionAuditService } from '../services/session-audit-service';
+import { shellHistoryService } from '../services/shell-history-service';
 
 export function registerShellHandlers(): void {
   registerHandler(IPC.SHELL_READDIR, async (_event, dirPath: string) => {
@@ -283,7 +284,7 @@ export function registerShellHandlers(): void {
     },
   );
 
-  registerHandler(IPC.SHELL_EXPORT_AUDIT_LOG, (_event, options: any) => {
+  registerHandler(IPC.SHELL_EXPORT_AUDIT_LOG, (_event, options: AuditExportOptions) => {
     return sessionAuditService.exportAuditLog(options);
   });
 }

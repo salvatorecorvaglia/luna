@@ -15,6 +15,7 @@ export { __resetStorageRateLimiter } from '../lib/rate-limiter';
 import { ErrorCode, LunarError } from '@shared/errors';
 import type {
   StorageDeleteParams,
+  StorageEntry,
   StorageListParams,
   StorageMkdirParams,
   StorageReadFileParams,
@@ -120,7 +121,7 @@ export function registerStorageHandlers(): void {
       _event,
       params: {
         localEntries: { relativePath: string; size: number; mtime: number }[];
-        remoteEntries: any[];
+        remoteEntries: StorageEntry[];
         direction?: 'sync-to-remote' | 'sync-to-local' | 'bi-directional';
       },
     ) => {
