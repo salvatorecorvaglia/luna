@@ -38,6 +38,10 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      - name: Fix node-gyp permissions
+        shell: bash
+        run: find /Users/runner /home/runner ~/.pnpm-store -name "gyp_main.py" -exec chmod +x {} + 2>/dev/null || true
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -70,6 +74,10 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+
+      - name: Fix node-gyp permissions
+        shell: bash
+        run: find /Users/runner /home/runner ~/.pnpm-store -name "gyp_main.py" -exec chmod +x {} + 2>/dev/null || true
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -108,6 +116,10 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+
+      - name: Fix node-gyp permissions
+        shell: bash
+        run: find /Users/runner /home/runner ~/.pnpm-store -name "gyp_main.py" -exec chmod +x {} + 2>/dev/null || true
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
