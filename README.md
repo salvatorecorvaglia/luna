@@ -1,8 +1,8 @@
-# Lunar 🌙
+# Luna 🌙
 
 **Cross-platform remote & local workflow workstation**
 
-**Lunar** is a high-performance, cross-platform desktop application designed to streamline your remote and local workflows. Browse SSH/SFTP servers and S3-compatible object stores side-by-side with your local filesystem, with a powerful terminal (SSH or local shell) just a tab away.
+**Luna** is a high-performance, cross-platform desktop application designed to streamline your remote and local workflows. Browse SSH/SFTP servers and S3-compatible object stores side-by-side with your local filesystem, with a powerful terminal (SSH or local shell) just a tab away.
 
 ---
 
@@ -49,7 +49,7 @@
 
 ## 🛠️ Technology Stack
 
-Lunar is built on a modern JavaScript/TypeScript stack:
+Luna is built on a modern JavaScript/TypeScript stack:
 *   **Shell:** [Electron](https://www.electronjs.org/) + [electron-vite](https://electron-vite.org/)
 *   **Frontend UI:** [React 18](https://react.dev/), [Tailwind CSS v4](https://tailwindcss.com/) (using `@tailwindcss/vite`), [Zustand](https://github.com/pmndrs/zustand) for state management, [Framer Motion](https://www.framer.com/motion/) for micro-animations, [Sonner](https://github.com/emilkowalski/sonner) for toasts, and [Lucide Icons](https://lucide.dev/).
 *   **Data Fetching:** [TanStack Query (React Query)](https://tanstack.com/query/latest)
@@ -73,8 +73,8 @@ Lunar is built on a modern JavaScript/TypeScript stack:
 
 1.  Clone the repository:
     ```bash
-    git clone https://github.com/salvatorecorvaglia/lunar.git
-    cd lunar
+    git clone https://github.com/salvatorecorvaglia/luna.git
+    cd luna
     ```
 
 2.  Install dependencies:

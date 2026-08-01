@@ -1,5 +1,5 @@
 import { IPC } from '@shared/constants';
-import { ErrorCode, LunarError } from '@shared/errors';
+import { ErrorCode, LunaError } from '@shared/errors';
 import { registerHandler } from '../lib/ipc-handler';
 import { assertNonEmptyString } from '../lib/validate';
 import {
@@ -35,7 +35,7 @@ function checkRetrieveRate(): void {
     retrieveHead++;
   }
   if (retrieveTail - retrieveHead >= RETRIEVE_MAX_PER_WINDOW) {
-    throw new LunarError('Credential retrieval rate limit exceeded', ErrorCode.FORBIDDEN);
+    throw new LunaError('Credential retrieval rate limit exceeded', ErrorCode.FORBIDDEN);
   }
   retrieveTimestamps[retrieveTail % RETRIEVE_MAX_PER_WINDOW] = now;
   retrieveTail++;
@@ -60,7 +60,7 @@ export function registerCredentialHandlers(): void {
       assertNonEmptyString(payload?.connectionId, 'connectionId');
       assertNonEmptyString(payload?.secret, 'secret');
       if (Buffer.byteLength(payload.secret, 'utf-8') > MAX_CREDENTIAL_SECRET_BYTES) {
-        throw new LunarError(
+        throw new LunaError(
           `secret exceeds ${MAX_CREDENTIAL_SECRET_BYTES}-byte cap`,
           ErrorCode.VALIDATION_ERROR,
         );

@@ -35,7 +35,7 @@ export function useUpdaterEventListener(): void {
     const cleanupDownloaded = window.api.app.onUpdateDownloaded(() => {
       toast.dismiss('update-progress');
       toast.success('Update downloaded', {
-        description: 'Lunar will update when you restart the app.',
+        description: 'Luna will update when you restart the app.',
         duration: Infinity,
         id: 'update-downloaded',
         action: {
@@ -55,7 +55,7 @@ export function useUpdaterEventListener(): void {
         action: {
           label: 'Download manually',
           onClick: () => {
-            window.open('https://salvatorecorvaglia.github.io/lunar/#download', '_blank');
+            window.open('https://salvatorecorvaglia.github.io/luna/#download', '_blank');
           },
         },
       });

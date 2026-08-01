@@ -25,7 +25,7 @@ import { cn } from '@/lib/utils';
 import { Z } from '@/lib/z-layers';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { useUIStore } from '@/stores/ui-store';
-import lunarLogo from '../../../../../resources/lunar.png';
+import lunaLogo from '../../../../../resources/luna.png';
 import { ConfirmDialog } from './ConfirmDialog';
 
 const TERMINAL_THEMES: {
@@ -305,7 +305,7 @@ export function SettingsPanel() {
                         const envelope = { version: 1, connections };
                         const content = JSON.stringify(envelope, null, 2);
                         const saved = await window.api.shell.saveFileDialog({
-                          defaultPath: 'lunar-connections.json',
+                          defaultPath: 'luna-connections.json',
                           filters: [{ name: 'JSON', extensions: ['json'] }],
                           content,
                         });
@@ -431,12 +431,12 @@ export function SettingsPanel() {
                 <div className="rounded-lg border border-border/60 bg-background/50 p-4 text-center">
                   <div className="mx-auto mb-3 flex size-16 items-center justify-center">
                     <img
-                      src={lunarLogo}
-                      alt="Lunar Logo"
+                      src={lunaLogo}
+                      alt="Luna Logo"
                       className="h-full w-full object-contain drop-shadow-sm"
                     />
                   </div>
-                  <p className="text-sm font-semibold text-foreground">Lunar</p>
+                  <p className="text-sm font-semibold text-foreground">Luna</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     Your place in one calm workspace.
                   </p>

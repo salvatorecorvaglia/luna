@@ -3,7 +3,7 @@ import { vi } from 'vitest';
 
 vi.mock('electron', () => ({
   app: {
-    getPath: (name: string) => `/tmp/lunar-test-${name}`,
+    getPath: (name: string) => `/tmp/luna-test-${name}`,
     isPackaged: false,
     getVersion: () => '1.0.0',
   },
@@ -23,7 +23,7 @@ vi.mock('electron-log/main', () => ({
   default: {
     initialize: vi.fn(),
     transports: {
-      file: { level: 'info', getFile: () => ({ path: '/tmp/lunar.log' }) },
+      file: { level: 'info', getFile: () => ({ path: '/tmp/luna.log' }) },
       console: { level: false },
     },
     hooks: {

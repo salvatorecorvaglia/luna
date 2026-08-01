@@ -53,7 +53,7 @@ ${sanitizedLines}
 </html>`;
     } else {
       // Plain text
-      outputContent = `==================================================\nLUNAR TERMINAL AUDIT TRAIL: ${sessionTitle}\nEXPORTED AT: ${nowStr}\n==================================================\n\n${bufferText}`;
+      outputContent = `==================================================\nLUNA TERMINAL AUDIT TRAIL: ${sessionTitle}\nEXPORTED AT: ${nowStr}\n==================================================\n\n${bufferText}`;
     }
 
     await writeFile(destinationPath, outputContent, 'utf-8');

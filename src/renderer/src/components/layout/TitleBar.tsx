@@ -11,7 +11,7 @@ import {
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/ui-store';
-import lunarLogo from '../../../../../resources/lunar.png';
+import lunaLogo from '../../../../../resources/luna.png';
 
 // Resolved once at module load — navigator.userAgent doesn't change at runtime
 // and the regex was re-running on every TitleBar render.
@@ -52,8 +52,8 @@ export function TitleBar() {
       <div className="no-drag flex items-center gap-1.5">
         {/* Logo */}
         <div className="flex items-center gap-2 pl-1 pr-2">
-          <img src={lunarLogo} alt="Lunar Logo" className="h-[18px] w-[18px] object-contain" />
-          <span className="text-[13px] font-semibold tracking-tight text-foreground">Lunar</span>
+          <img src={lunaLogo} alt="Luna Logo" className="h-[18px] w-[18px] object-contain" />
+          <span className="text-[13px] font-semibold tracking-tight text-foreground">Luna</span>
         </div>
 
         {/* Sidebar toggle */}

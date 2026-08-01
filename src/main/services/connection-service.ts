@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { ErrorCode, LunarError } from '@shared/errors';
+import { ErrorCode, LunaError } from '@shared/errors';
 import type {
   AuthType,
   Connection,
@@ -220,7 +220,7 @@ export class ConnectionService {
       .get(input.id) as ConnectionRow | undefined;
 
     if (!existing) {
-      throw new LunarError(`Connection not found: ${input.id}`, ErrorCode.NOT_FOUND);
+      throw new LunaError(`Connection not found: ${input.id}`, ErrorCode.NOT_FOUND);
     }
 
     const assignments: string[] = ['updated_at = ?'];
@@ -620,7 +620,7 @@ export class ConnectionService {
       properties: ['openFile'],
       filters: [
         {
-          name: 'Lunar / WinSCP / MobaXterm Connections',
+          name: 'Luna / WinSCP / MobaXterm Connections',
           extensions: ['json', 'ini', 'mxtsessions'],
         },
       ],
@@ -646,7 +646,7 @@ export class ConnectionService {
     try {
       fileContent = await readFile(sshConfigPath, 'utf-8');
     } catch {
-      throw new LunarError(
+      throw new LunaError(
         `Could not read ~/.ssh/config file at ${sshConfigPath}`,
         ErrorCode.NOT_FOUND,
       );

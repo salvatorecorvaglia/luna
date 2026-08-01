@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('electron', () => ({ app: { getPath: () => '/tmp/lunar-test' } }));
+vi.mock('electron', () => ({ app: { getPath: () => '/tmp/luna-test' } }));
 vi.mock('../../lib/logger', () => ({
   default: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
 }));

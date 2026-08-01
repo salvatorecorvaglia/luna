@@ -1,4 +1,4 @@
-import { LunarError } from '@shared/errors';
+import { LunaError } from '@shared/errors';
 import log from 'electron-log/main';
 import { redact } from './redact';
 
@@ -23,7 +23,7 @@ log.hooks.push((message) => {
     if (v instanceof Error) {
       // For errors, we redact the message and any custom properties
       v.message = redact(v.message) as string;
-      if (LunarError.isLunarError(v)) {
+      if (LunaError.isLunaError(v)) {
         const metadata = v.metadata;
         if (metadata) {
           const redactedMetadata: Record<string, unknown> = {};

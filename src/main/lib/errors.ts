@@ -1,13 +1,13 @@
-import { ErrorCode, LunarError } from '@shared/errors';
+import { ErrorCode, LunaError } from '@shared/errors';
 
-export class SshConnectionError extends LunarError {
+export class SshConnectionError extends LunaError {
   constructor(message: string, metadata?: Record<string, unknown>) {
     super(message, ErrorCode.SSH_ERROR, metadata);
     this.name = 'SshConnectionError';
   }
 }
 
-export class SftpTransferError extends LunarError {
+export class SftpTransferError extends LunaError {
   constructor(message: string, metadata?: Record<string, unknown>) {
     super(message, ErrorCode.SFTP_ERROR, metadata);
     this.name = 'SftpTransferError';
@@ -22,7 +22,7 @@ export class AbortError extends Error {
   }
 }
 
-export class S3StorageError extends LunarError {
+export class S3StorageError extends LunaError {
   /**
    * True when the underlying SDK error is one the caller can reasonably
    * retry (throttling, 5xx, transient network). Always-false for auth

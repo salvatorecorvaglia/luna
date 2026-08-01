@@ -45,7 +45,7 @@ export const useConnectionStore = create<ConnectionState>()(
         }),
     }),
     {
-      name: 'lunar-connection-storage',
+      name: 'luna-connection-storage',
       partialize: (state) => ({
         activeConnectionId: state.activeConnectionId,
       }),

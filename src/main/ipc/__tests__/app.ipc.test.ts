@@ -54,7 +54,7 @@ vi.mock('../../lib/logger', () => ({
     warn: vi.fn(),
     error: vi.fn(),
     debug: vi.fn(),
-    transports: { file: { getFile: () => ({ path: '/tmp/lunar.log' }) } },
+    transports: { file: { getFile: () => ({ path: '/tmp/luna.log' }) } },
   },
 }));
 
@@ -92,7 +92,7 @@ describe('app IPC — read-only handlers', () => {
 
   it('returns the log file path', async () => {
     const result = await handlers.get(IPC.APP_GET_LOG_PATH)!({});
-    expect(result).toBe('/tmp/lunar.log');
+    expect(result).toBe('/tmp/luna.log');
   });
 });
 
@@ -103,7 +103,7 @@ describe('app IPC — window controls', () => {
   });
 
   it('rejects window-control calls from any other window', async () => {
-    // The wrapper serialises the LunarError through Error(JSON.stringify(...)).
+    // The wrapper serialises the LunaError through Error(JSON.stringify(...)).
     // We just need to confirm the handler throws and the action is suppressed.
     await expect(
       handlers.get(IPC.WINDOW_MINIMIZE)!({ sender: { _windowId: 2 } }),

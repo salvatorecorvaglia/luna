@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 
-const userData = mkdtempSync(join(tmpdir(), 'lunar-cred-inmemory-'));
+const userData = mkdtempSync(join(tmpdir(), 'luna-cred-inmemory-'));
 
 vi.mock('electron', () => ({
   app: { getPath: () => userData },

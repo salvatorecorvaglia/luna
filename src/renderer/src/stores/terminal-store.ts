@@ -15,7 +15,7 @@ function clampFontSize(size: number): number {
 
 function getInitialFontSize(): number {
   try {
-    const saved = localStorage.getItem('lunar-terminal-font-size');
+    const saved = localStorage.getItem('luna-terminal-font-size');
     if (saved) {
       const parsed = Number(saved);
       if (Number.isFinite(parsed)) return clampFontSize(parsed);
@@ -37,7 +37,7 @@ const VALID_THEMES: TerminalThemeName[] = [
 
 function getInitialTerminalTheme(): TerminalThemeName {
   try {
-    const saved = localStorage.getItem('lunar-terminal-theme');
+    const saved = localStorage.getItem('luna-terminal-theme');
     if (saved && (VALID_THEMES as string[]).includes(saved)) return saved as TerminalThemeName;
   } catch {
     // localStorage may be unavailable
@@ -279,7 +279,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
 
   setTerminalTheme: (theme) => {
     try {
-      localStorage.setItem('lunar-terminal-theme', theme);
+      localStorage.setItem('luna-terminal-theme', theme);
     } catch {
       // localStorage may be unavailable
     }
@@ -289,7 +289,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   setFontSize: (size) => {
     const clamped = clampFontSize(size);
     try {
-      localStorage.setItem('lunar-terminal-font-size', String(clamped));
+      localStorage.setItem('luna-terminal-font-size', String(clamped));
     } catch {
       // localStorage may be unavailable
     }
@@ -303,7 +303,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       if (settings.theme) {
         updates.terminalTheme = settings.theme;
         try {
-          localStorage.setItem('lunar-terminal-theme', settings.theme);
+          localStorage.setItem('luna-terminal-theme', settings.theme);
         } catch {
           // ignore
         }
@@ -312,7 +312,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
         const clamped = clampFontSize(settings.fontSize);
         updates.fontSize = clamped;
         try {
-          localStorage.setItem('lunar-terminal-font-size', String(clamped));
+          localStorage.setItem('luna-terminal-font-size', String(clamped));
         } catch {
           // ignore
         }

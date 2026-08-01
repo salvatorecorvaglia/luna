@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { appendFileSync, existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { ErrorCode, LunarError } from '@shared/errors';
+import { ErrorCode, LunaError } from '@shared/errors';
 import { app, safeStorage } from 'electron';
 import log from '../lib/logger';
 import { getDatabase } from './database';
@@ -75,11 +75,11 @@ function getEncryptionKey(): Buffer {
       // strand stored credentials, but migrate into safeStorage if available
       // and warn loudly otherwise so the operator knows to fix their keyring.
       // Operators can opt out of plaintext-key fallback entirely by setting
-      // LUNAR_REQUIRE_OS_KEYRING=1 — credentials become unreadable until
+      // LUNA_REQUIRE_OS_KEYRING=1 — credentials become unreadable until
       // libsecret is installed, which is the safer default for shared hosts.
-      if (!canWrap && process.env.LUNAR_REQUIRE_OS_KEYRING === '1') {
-        throw new LunarError(
-          'LUNAR_REQUIRE_OS_KEYRING=1 is set and OS-level secret storage is unavailable. ' +
+      if (!canWrap && process.env.LUNA_REQUIRE_OS_KEYRING === '1') {
+        throw new LunaError(
+          'LUNA_REQUIRE_OS_KEYRING=1 is set and OS-level secret storage is unavailable. ' +
             'Install gnome-keyring or libsecret-1-0 and restart, or unset the variable to ' +
             'allow the existing plaintext key file.',
           ErrorCode.FORBIDDEN,
@@ -122,7 +122,7 @@ function getEncryptionKey(): Buffer {
         // silently fall back to plaintext on disk: credentials would be
         // recoverable by anyone with read access to the user's data dir.
         encryptionKey = null;
-        throw new LunarError(
+        throw new LunaError(
           `Failed to write OS-protected encryption key: ${err instanceof Error ? err.message : String(err)}`,
           ErrorCode.INTERNAL_ERROR,
           {
@@ -258,7 +258,7 @@ function decrypt(data: Buffer): string {
 
 export function storeCredential(connectionId: string, secret: string): void {
   if (usingInMemoryKey) {
-    throw new LunarError(
+    throw new LunaError(
       'Cannot save connection credentials: OS-level secret storage (safeStorage) is unavailable. ' +
         'On Linux, install gnome-keyring or libsecret-1-0 and restart, or connect on-demand without saving credentials.',
       ErrorCode.FORBIDDEN,

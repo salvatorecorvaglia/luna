@@ -35,7 +35,7 @@ vi.mock('../../services/transfer-queue', () => ({
 }));
 
 const home = homedir();
-const sandboxRoot = mkdtempSync(join(home, '.lunar-test-storageipc-'));
+const sandboxRoot = mkdtempSync(join(home, '.luna-test-storageipc-'));
 const sandboxFile = join(sandboxRoot, 'file.bin');
 writeFileSync(sandboxFile, 'data');
 

@@ -132,7 +132,7 @@ export const useStorageStore = create<StorageState>()(
         }),
     }),
     {
-      name: 'lunar-storage-store',
+      name: 'luna-storage-store',
       partialize: (state) => ({
         localPath: state.localPath,
         remotePath: state.remotePath,

@@ -1,4 +1,4 @@
-import { ErrorCode, LunarError } from '@shared/errors';
+import { ErrorCode, LunaError } from '@shared/errors';
 import type { IpcChannel, IpcRequest, IpcResponse } from '@shared/types/ipc';
 import { ipcMain } from 'electron';
 import log from './logger';
@@ -60,13 +60,13 @@ export function registerHandler<C extends IpcChannel>(
     try {
       const size = payloadByteSize(args);
       if (size === null) {
-        throw new LunarError(
+        throw new LunaError(
           `IPC payload on channel ${channel} is not JSON-serializable (cyclic or unsupported value).`,
           ErrorCode.VALIDATION_ERROR,
         );
       }
       if (size > MAX_IPC_PAYLOAD_BYTES) {
-        throw new LunarError(
+        throw new LunaError(
           `IPC payload too large on channel ${channel}: ${size} bytes (max ${MAX_IPC_PAYLOAD_BYTES}).`,
           ErrorCode.VALIDATION_ERROR,
         );
@@ -78,18 +78,18 @@ export function registerHandler<C extends IpcChannel>(
       const result = await (handler as (...a: unknown[]) => unknown)(event, ...args);
       return result;
     } catch (error) {
-      const lunarError = LunarError.fromUnknown(error);
+      const lunaError = LunaError.fromUnknown(error);
 
       log.error(`[IPC Handler Error] Channel: ${channel}`, {
-        code: lunarError.code,
-        message: lunarError.message,
-        metadata: lunarError.metadata,
-        stack: lunarError.stack,
+        code: lunaError.code,
+        message: lunaError.message,
+        metadata: lunaError.metadata,
+        stack: lunaError.stack,
       });
 
       // We throw a plain object as a stringified JSON so the renderer's unwrapIpcError can handle it.
       // Electron's default error serialization often loses custom properties.
-      throw new Error(JSON.stringify(lunarError.toObject()), { cause: error });
+      throw new Error(JSON.stringify(lunaError.toObject()), { cause: error });
     }
   });
 }

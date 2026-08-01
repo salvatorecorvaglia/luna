@@ -205,21 +205,21 @@ jobs:
           if [ -n "$RELEASE_NOTES" ]; then
             gh release edit "$TAG" \
               --draft=false \
-              --title "Lunar v$VERSION" \
+              --title "Luna v$VERSION" \
               --notes "$RELEASE_NOTES" \
               --repo "$GITHUB_REPOSITORY" || \
             gh release create "$TAG" \
-              --title "Lunar v$VERSION" \
+              --title "Luna v$VERSION" \
               --notes "$RELEASE_NOTES" \
               --repo "$GITHUB_REPOSITORY"
           else
             gh release edit "$TAG" \
               --draft=false \
-              --title "Lunar v$VERSION" \
+              --title "Luna v$VERSION" \
               --generate-notes \
               --repo "$GITHUB_REPOSITORY" || \
             gh release create "$TAG" \
-              --title "Lunar v$VERSION" \
+              --title "Luna v$VERSION" \
               --generate-notes \
               --repo "$GITHUB_REPOSITORY"
           fi

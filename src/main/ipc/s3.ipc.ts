@@ -1,6 +1,6 @@
 import { ListBucketsCommand, S3Client } from '@aws-sdk/client-s3';
 import { IPC } from '@shared/constants';
-import { ErrorCode, LunarError } from '@shared/errors';
+import { ErrorCode, LunaError } from '@shared/errors';
 import type { S3ConnectParams, S3TestConnectionConfig } from '@shared/types/storage-provider';
 import { registerHandler } from '../lib/ipc-handler';
 import log from '../lib/logger';
@@ -27,16 +27,16 @@ function loadConfig(connectionId: string): S3SessionOptions {
         'name' | 'provider' | 'endpoint' | 'region' | 'default_bucket' | 'force_path_style'
       >
     | undefined;
-  if (!row) throw new LunarError(`Connection not found: ${connectionId}`, ErrorCode.NOT_FOUND);
+  if (!row) throw new LunaError(`Connection not found: ${connectionId}`, ErrorCode.NOT_FOUND);
   if (row.provider !== 's3') {
-    throw new LunarError(
+    throw new LunaError(
       `Connection ${connectionId} is not an S3 connection`,
       ErrorCode.VALIDATION_ERROR,
     );
   }
   const cred = retrieveS3Credential(connectionId);
   if (!cred) {
-    throw new LunarError(
+    throw new LunaError(
       'S3 credentials missing or corrupt — re-enter them in the connection form',
       ErrorCode.UNAUTHORIZED,
     );
@@ -84,7 +84,7 @@ export function registerS3Handlers(): void {
       // Match the SSH semantics: don't accept transient secrets alongside a
       // saved connectionId — the renderer must pick one path explicitly.
       if (params.connectionId && params.config) {
-        throw new LunarError(
+        throw new LunaError(
           'testConnection accepts either connectionId or config, not both',
           ErrorCode.VALIDATION_ERROR,
         );
@@ -101,7 +101,7 @@ export function registerS3Handlers(): void {
         })) {
           if (v === undefined) continue;
           if (typeof v !== 'string' || v.length > MAX_SECRET_LEN) {
-            throw new LunarError(
+            throw new LunaError(
               `${k} must be a string up to ${MAX_SECRET_LEN} characters`,
               ErrorCode.VALIDATION_ERROR,
             );
@@ -121,7 +121,7 @@ export function registerS3Handlers(): void {
         assertNonEmptyString(params.connectionId, 'connectionId');
         opts = loadConfig(params.connectionId);
       } else {
-        throw new LunarError(
+        throw new LunaError(
           'testConnection requires connectionId or config',
           ErrorCode.VALIDATION_ERROR,
         );

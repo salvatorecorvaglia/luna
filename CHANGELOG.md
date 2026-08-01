@@ -239,7 +239,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Improved
 
-- **Error Handling & Stability**: Replaced generic errors with a structured custom `LunarError` class across core services and optimized connection name validation for better main process stability.
+- **Error Handling & Stability**: Replaced generic errors with a structured custom `LunaError` class across core services and optimized connection name validation for better main process stability.
 - **S3 & Storage Integration**: Centralized S3 client configuration, improved transfer queue error handling, and corrected related linter warnings.
 - **UI State Persistence**: Refactored the UI store to exclude the `activeView` from persistent storage, ensuring state is cleanly reset on app startup.
 - **Connection Logic**: Modularized connection validation routines.
@@ -597,7 +597,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Official Lunar branding and logo assets across the application UI.
+- Official Luna branding and logo assets across the application UI.
 - Platform-specific keyboard shortcuts for improved navigation and accessibility.
 - Collapsible "Recent Connections" section in the sidebar for better workspace management.
 - Folder suggestion dropdown and tagging support in the Connection Form.
@@ -629,4 +629,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- First implementation of Lunar.
+- First implementation of Luna.

@@ -1,5 +1,5 @@
 import { IPC } from '@shared/constants';
-import { ErrorCode, LunarError } from '@shared/errors';
+import { ErrorCode, LunaError } from '@shared/errors';
 import { registerHandler } from '../lib/ipc-handler';
 import { assertValidJumpHost, assertValidManualJumpHost } from '../lib/jump-host-validate';
 import { assertBoundedInt, assertNonEmptyString } from '../lib/validate';
@@ -73,13 +73,13 @@ export function registerSshHandlers(): void {
   registerHandler(IPC.SSH_SEND_DATA, (_event, params: SshSendDataParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
     if (typeof params.data !== 'string') {
-      throw new LunarError('data must be a string', ErrorCode.VALIDATION_ERROR);
+      throw new LunaError('data must be a string', ErrorCode.VALIDATION_ERROR);
     }
     // Bound by UTF-8 byte length, not character count: a 2-byte char would
     // otherwise let a renderer ship 2× the intended payload.
     const byteLength = Buffer.byteLength(params.data, 'utf8');
     if (byteLength > MAX_SSH_SEND_BYTES) {
-      throw new LunarError(
+      throw new LunaError(
         `SSH input exceeds ${MAX_SSH_SEND_BYTES}-byte cap (got ${byteLength})`,
         ErrorCode.VALIDATION_ERROR,
       );
@@ -112,7 +112,7 @@ export function registerSshHandlers(): void {
       // forces the renderer to choose one path explicitly so password material
       // can't be silently injected into a flow that should use stored creds.
       if (params.connectionId && params.config) {
-        throw new LunarError(
+        throw new LunaError(
           'testConnection accepts either connectionId or config, not both',
           ErrorCode.VALIDATION_ERROR,
         );
@@ -123,19 +123,19 @@ export function registerSshHandlers(): void {
         assertBoundedInt(c.port, 'port', 1, 65535);
         assertNonEmptyString(c.username, 'username');
         if (!VALID_AUTH_TYPES.has(c.authType)) {
-          throw new LunarError(`Unsupported authType "${c.authType}"`, ErrorCode.VALIDATION_ERROR);
+          throw new LunaError(`Unsupported authType "${c.authType}"`, ErrorCode.VALIDATION_ERROR);
         }
         for (const [k, v] of Object.entries({ password: c.password, passphrase: c.passphrase })) {
           if (v === undefined) continue;
           if (typeof v !== 'string' || v.length > MAX_SECRET_LEN) {
-            throw new LunarError(
+            throw new LunaError(
               `${k} must be a string up to ${MAX_SECRET_LEN} characters`,
               ErrorCode.VALIDATION_ERROR,
             );
           }
         }
         if (c.jumpHostConnectionId !== undefined && c.jumpHostConfig !== undefined) {
-          throw new LunarError(
+          throw new LunaError(
             'testConnection accepts jumpHostConnectionId OR jumpHostConfig, not both',
             ErrorCode.VALIDATION_ERROR,
           );
@@ -153,7 +153,7 @@ export function registerSshHandlers(): void {
       } else if (params.connectionId) {
         assertNonEmptyString(params.connectionId, 'connectionId');
       } else {
-        throw new LunarError(
+        throw new LunaError(
           'testConnection requires connectionId or config',
           ErrorCode.VALIDATION_ERROR,
         );

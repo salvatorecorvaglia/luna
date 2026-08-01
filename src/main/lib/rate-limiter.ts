@@ -1,4 +1,4 @@
-import { ErrorCode, LunarError } from '@shared/errors';
+import { ErrorCode, LunaError } from '@shared/errors';
 
 /**
  * Token-bucket rate limiter per session for non-transfer storage ops
@@ -57,7 +57,7 @@ export function takeStorageToken(sessionId: string): void {
     bucket.lastRefill = now;
   }
   if (bucket.tokens < 1) {
-    throw new LunarError(
+    throw new LunaError(
       `Storage rate limit exceeded for session ${sessionId}. Slow down or wait a moment.`,
       ErrorCode.FORBIDDEN,
     );

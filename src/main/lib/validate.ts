@@ -1,17 +1,17 @@
 import { lstat, readlink, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, normalize, relative, resolve as resolvePath, sep } from 'node:path';
-import { ErrorCode, LunarError } from '@shared/errors';
+import { ErrorCode, LunaError } from '@shared/errors';
 
 /**
- * Validation throws a `LunarError(VALIDATION_ERROR)` so the renderer receives
+ * Validation throws a `LunaError(VALIDATION_ERROR)` so the renderer receives
  * a structured code instead of the catch-all INTERNAL_ERROR that `new Error`
  * decays to inside `registerHandler`. Callers that pre-date this change
  * already caught the same message text, so the upgrade is backwards-
  * compatible.
  */
-export function validationError(message: string): LunarError {
-  return new LunarError(message, ErrorCode.VALIDATION_ERROR);
+export function validationError(message: string): LunaError {
+  return new LunaError(message, ErrorCode.VALIDATION_ERROR);
 }
 
 export function assertNonEmptyString(value: unknown, name: string): asserts value is string {
@@ -83,7 +83,7 @@ export function assertSafeAbsolutePath(value: unknown, name: string): asserts va
   const resolved = resolvePath(value);
   const home = homedir();
   if (!isInsideDir(resolved, home)) {
-    throw new LunarError(`${name} must be inside the home directory`, ErrorCode.FORBIDDEN);
+    throw new LunaError(`${name} must be inside the home directory`, ErrorCode.FORBIDDEN);
   }
 }
 
@@ -113,12 +113,12 @@ export async function expandAndConfineToHome(
   }
   const resolved = resolvePath(expanded);
   if (!isInsideDir(resolved, home)) {
-    throw new LunarError(`${name} must be inside the home directory`, ErrorCode.FORBIDDEN);
+    throw new LunaError(`${name} must be inside the home directory`, ErrorCode.FORBIDDEN);
   }
   if (options.requireExists) {
     const real = await realpath(resolved);
     if (!isInsideDir(real, home)) {
-      throw new LunarError(
+      throw new LunaError(
         `${name} resolves outside the home directory via symlink`,
         ErrorCode.FORBIDDEN,
       );
@@ -149,7 +149,7 @@ export function expandAndConfineToHomeSync(rawPath: string, name: string): strin
   }
   const resolved = resolvePath(expanded);
   if (!isInsideDir(resolved, home)) {
-    throw new LunarError(`${name} must be inside the home directory`, ErrorCode.FORBIDDEN);
+    throw new LunaError(`${name} must be inside the home directory`, ErrorCode.FORBIDDEN);
   }
   return resolved;
 }
@@ -171,7 +171,7 @@ export async function assertSafeRealAbsolutePath(value: unknown, name: string): 
         ? linkTarget
         : resolvePath(dirname(value), linkTarget);
       if (!isInsideDir(targetPath, home)) {
-        throw new LunarError(
+        throw new LunaError(
           `${name} resolves outside the home directory via symlink`,
           ErrorCode.FORBIDDEN,
         );
@@ -179,20 +179,20 @@ export async function assertSafeRealAbsolutePath(value: unknown, name: string): 
     }
     const real = await realpath(value);
     if (!isInsideDir(real, home)) {
-      throw new LunarError(
+      throw new LunaError(
         `${name} resolves outside the home directory via symlink`,
         ErrorCode.FORBIDDEN,
       );
     }
     return real;
   } catch (err: unknown) {
-    if (err instanceof LunarError) throw err;
+    if (err instanceof LunaError) throw err;
     if ((err as NodeJS.ErrnoException | undefined)?.code !== 'ENOENT') throw err;
     // Path does not exist yet — validate the parent directory's real target.
     const parent = dirname(value);
     const realParent = await realpath(parent);
     if (!isInsideDir(realParent, home)) {
-      throw new LunarError(
+      throw new LunaError(
         `${name} resolves outside the home directory via symlink`,
         ErrorCode.FORBIDDEN,
         { cause: String(err) },

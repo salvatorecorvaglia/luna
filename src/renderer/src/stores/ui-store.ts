@@ -59,7 +59,7 @@ export const useUIStore = create<UIState>()(
         set((s) => ({ showHiddenConnections: !s.showHiddenConnections })),
     }),
     {
-      name: 'lunar-ui-storage',
+      name: 'luna-ui-storage',
       partialize: (state) => ({
         sidebarOpen: state.sidebarOpen,
         sidebarWidth: state.sidebarWidth,

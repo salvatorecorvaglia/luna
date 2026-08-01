@@ -1,4 +1,4 @@
-import { ErrorCode, LunarError } from '@shared/errors';
+import { ErrorCode, LunaError } from '@shared/errors';
 import type { StorageProviderKind } from '@shared/types/storage-provider';
 import type { StorageProvider } from './types';
 
@@ -48,14 +48,14 @@ class StorageRegistry {
   /** Throwing variant — the IPC layer expects a session to be registered. */
   require(sessionId: string): StorageProvider {
     if (this.closing.has(sessionId)) {
-      throw new LunarError(`Storage session ${sessionId} is closing`, ErrorCode.NOT_FOUND, {
+      throw new LunaError(`Storage session ${sessionId} is closing`, ErrorCode.NOT_FOUND, {
         sessionId,
         reason: 'closing',
       });
     }
     const p = this.providers.get(sessionId);
     if (!p) {
-      throw new LunarError(
+      throw new LunaError(
         `No storage provider registered for session ${sessionId}`,
         ErrorCode.NOT_FOUND,
         { sessionId, reason: 'unregistered' },

@@ -1,5 +1,5 @@
-appId: com.lunar.app
-productName: Lunar
+appId: com.luna.app
+productName: Luna
 copyright: "Copyright © ${author}"
 
 directories:
@@ -67,8 +67,8 @@ nsis:
   deleteAppDataOnUninstall: false
   createDesktopShortcut: always
   createStartMenuShortcut: true
-  shortcutName: Lunar
-  uninstallDisplayName: Lunar
+  shortcutName: Luna
+  uninstallDisplayName: Luna
 
 # ─────────────────── Linux ───────────────────
 linux:
@@ -91,7 +91,7 @@ linux:
     dual-pane SFTP browser.
   desktop:
     entry:
-      Name: Lunar
+      Name: Luna
       Comment: Cross-platform remote & local workflow workstation
       Keywords: ssh;sftp;terminal;file-manager;remote
 
@@ -112,7 +112,7 @@ deb:
 publish:
   provider: github
   owner: salvatorecorvaglia
-  repo: lunar
+  repo: luna
   releaseType: release
 
 # Generate latest.yml / latest-mac.yml / latest-linux.yml

@@ -1,6 +1,6 @@
-# Contributing to Lunar 🌙
+# Contributing to Luna 🌙
 
-First off, thank you for taking the time to contribute! Contributions from the community make Lunar better for everyone.
+First off, thank you for taking the time to contribute! Contributions from the community make Luna better for everyone.
 
 Here is a guide to help get you started with development and to ensure a smooth contribution process.
 
@@ -14,14 +14,14 @@ To contribute code, you will need to set up a local development environment.
 
 *   **Node.js:** Ensure you have Node.js version `22.x` or higher installed.
 *   **pnpm:** We use `pnpm` (version `11.x`) to manage our workspace dependencies. Do not use `npm` or `yarn`.
-*   **Native Modules Build Dependencies:** Lunar uses native modules (such as `node-pty` and `better-sqlite3`). You may need basic build tools installed on your operating system (e.g., Xcode Command Line Tools on macOS, Build Tools on Windows, or `build-essential` on Linux).
+*   **Native Modules Build Dependencies:** Luna uses native modules (such as `node-pty` and `better-sqlite3`). You may need basic build tools installed on your operating system (e.g., Xcode Command Line Tools on macOS, Build Tools on Windows, or `build-essential` on Linux).
 
 ### Setting Up the Repository
 
-1.  **Fork and Clone:** Fork Lunar to your own GitHub account, then clone it locally:
+1.  **Fork and Clone:** Fork Luna to your own GitHub account, then clone it locally:
     ```bash
-    git clone https://github.com/your-username/lunar.git
-    cd lunar
+    git clone https://github.com/your-username/luna.git
+    cd luna
     ```
 
 2.  **Install Dependencies:** Run the following command to download and install all workspace packages and prepare native binaries:
@@ -38,7 +38,7 @@ To contribute code, you will need to set up a local development environment.
 
 ## 📐 Development Guidelines
 
-To keep Lunar's codebase clean and maintainable, please follow these guidelines when writing code:
+To keep Luna's codebase clean and maintainable, please follow these guidelines when writing code:
 
 ### Tech Stack Standards
 *   **Frontend UI:** We use **React 18** and **Tailwind CSS v4** (using `@tailwindcss/vite` configuration). Ensure your styles leverage utility classes and follow the design guidelines.

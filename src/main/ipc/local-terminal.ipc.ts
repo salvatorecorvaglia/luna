@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
 import { StringDecoder } from 'node:string_decoder';
 import { IPC } from '@shared/constants';
-import { ErrorCode, LunarError } from '@shared/errors';
+import { ErrorCode, LunaError } from '@shared/errors';
 import * as pty from 'node-pty';
 import { registerHandler } from '../lib/ipc-handler';
 import log from '../lib/logger';
@@ -192,11 +192,11 @@ export function registerLocalTerminalHandlers(): void {
     (_event, { sessionId, data }: { sessionId: string; data: string }) => {
       assertNonEmptyString(sessionId, 'sessionId');
       if (typeof data !== 'string') {
-        throw new LunarError('data must be a string', ErrorCode.VALIDATION_ERROR);
+        throw new LunaError('data must be a string', ErrorCode.VALIDATION_ERROR);
       }
       const byteLength = Buffer.byteLength(data, 'utf8');
       if (byteLength > MAX_PTY_SEND_BYTES) {
-        throw new LunarError(
+        throw new LunaError(
           `PTY input exceeds ${MAX_PTY_SEND_BYTES}-byte cap (got ${byteLength})`,
           ErrorCode.VALIDATION_ERROR,
         );

@@ -78,7 +78,7 @@ describe('shell IPC — checkFile', () => {
   it('returns {ok:false, reason:"missing"} for a path that does not exist', async () => {
     const result = await handlers.get(IPC.SHELL_CHECK_FILE)!(
       {},
-      `${homedir()}/.lunar-test-nonexistent-${Date.now()}`,
+      `${homedir()}/.luna-test-nonexistent-${Date.now()}`,
     );
     expect(result).toEqual({ ok: false, reason: 'missing' });
   });
@@ -114,7 +114,7 @@ describe('shell IPC — symlink jail (TOCTOU & bypass)', () => {
   beforeEach(async () => {
     // Create a working directory inside HOME so jail checks pass for the link,
     // but with a target outside HOME so we can verify the dereferenced target is rejected.
-    workdir = await mkdtemp(join(homedir(), '.lunar-test-symlink-'));
+    workdir = await mkdtemp(join(homedir(), '.luna-test-symlink-'));
   });
 
   afterEach(async () => {
@@ -196,7 +196,7 @@ describe('shell IPC — writeFile', () => {
   let workdir: string;
 
   beforeEach(async () => {
-    workdir = await mkdtemp(join(homedir(), '.lunar-test-write-'));
+    workdir = await mkdtemp(join(homedir(), '.luna-test-write-'));
   });
 
   afterEach(async () => {

@@ -1,4 +1,4 @@
-import { ErrorCode, LunarError } from './errors';
+import { ErrorCode, LunaError } from './errors';
 
 /**
  * Human-friendly description for each known error code. Kept short and
@@ -21,7 +21,7 @@ const CODE_DESCRIPTIONS: Record<ErrorCode, string> = {
 
 /** Strip noisy error-class prefixes that leak from main-process throws. */
 function stripPrefixes(message: string): string {
-  return message.replace(/^(LunarError|S3StorageError|SftpStorageError|Error):\s*/i, '').trim();
+  return message.replace(/^(LunaError|S3StorageError|SftpStorageError|Error):\s*/i, '').trim();
 }
 
 export interface FormattedError {
@@ -29,7 +29,7 @@ export interface FormattedError {
   title: string;
   /** Optional secondary line for context (Sonner renders below the title). */
   description?: string;
-  /** Stable code for telemetry / conditional UI; undefined for non-LunarErrors. */
+  /** Stable code for telemetry / conditional UI; undefined for non-LunaErrors. */
   code?: ErrorCode;
 }
 
@@ -48,7 +48,7 @@ export interface FormattedError {
  * "Save failed: ${err.message}" anymore.
  */
 export function formatError(err: unknown, prefix?: string): FormattedError {
-  if (LunarError.isLunarError(err)) {
+  if (LunaError.isLunaError(err)) {
     const message = stripPrefixes(err.message) || CODE_DESCRIPTIONS[err.code];
     return {
       title: prefix ?? message,

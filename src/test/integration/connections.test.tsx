@@ -142,7 +142,7 @@ describe('Connections Integration', () => {
         <App />
       </QueryClientProvider>,
     );
-    expect(await screen.findByText(/Welcome to Lunar/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Welcome to Luna/i)).toBeInTheDocument();
   });
 
   it('opens the connection form when "New Connection" is clicked', async () => {

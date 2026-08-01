@@ -36,7 +36,7 @@ const dialogVariants = {
   exit: { opacity: 0, scale: 0.96, y: 8, transition: { duration: 0.1 } },
 } as const;
 
-const STORAGE_KEY = 'lunar_terminal_macros';
+const STORAGE_KEY = 'luna_terminal_macros';
 
 export function MacroRecorderDialog({ open, onClose, onRunMacro }: MacroRecorderDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);

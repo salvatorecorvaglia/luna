@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { ArrowRight, Command, FolderOpen, Plus } from 'lucide-react';
 import { useConnectionStore } from '@/stores/connection-store';
 import { useUIStore } from '@/stores/ui-store';
-import lunarLogo from '../../../../../resources/lunar.png';
+import lunaLogo from '../../../../../resources/luna.png';
 
 const stagger = {
   animate: { transition: { staggerChildren: 0.08 } },
@@ -58,15 +58,15 @@ export function WelcomeView() {
         <motion.div variants={fadeUp} className="mx-auto mb-6">
           <div className="mx-auto flex size-24 items-center justify-center">
             <img
-              src={lunarLogo}
-              alt="Lunar Logo"
+              src={lunaLogo}
+              alt="Luna Logo"
               className="h-full w-full object-contain drop-shadow-xl"
             />
           </div>
         </motion.div>
 
         <motion.h1 variants={fadeUp} className="text-2xl font-bold tracking-tight text-foreground">
-          Welcome to Lunar
+          Welcome to Luna
         </motion.h1>
         <motion.p variants={fadeUp} className="mt-2 text-sm text-muted-foreground">
           Cross-platform remote & local workflow workstation

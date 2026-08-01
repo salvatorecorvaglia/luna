@@ -6,7 +6,7 @@ import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import App from './App';
 import '@/assets/main.css';
 
-import { LunarError } from '@shared/errors';
+import { LunaError } from '@shared/errors';
 import { logger } from './lib/logger';
 
 // Global handlers for unhandled errors and promise rejections (e.g. failed IPC).
@@ -14,11 +14,11 @@ import { logger } from './lib/logger';
 window.addEventListener('unhandledrejection', (event) => {
   const reason = event.reason;
 
-  if (LunarError.isLunarError(reason)) {
-    const lunarError = LunarError.fromUnknown(reason);
-    logger.error(`[unhandledrejection] ${lunarError.message}`, lunarError.toObject());
-    toast.error(lunarError.message, {
-      description: `Error code: ${lunarError.code}`,
+  if (LunaError.isLunaError(reason)) {
+    const lunaError = LunaError.fromUnknown(reason);
+    logger.error(`[unhandledrejection] ${lunaError.message}`, lunaError.toObject());
+    toast.error(lunaError.message, {
+      description: `Error code: ${lunaError.code}`,
     });
   } else {
     const message =

@@ -20,7 +20,7 @@ export interface ErrorDetails {
   [key: string]: unknown;
 }
 
-export class LunarError extends Error {
+export class LunaError extends Error {
   public readonly code: ErrorCode;
   public readonly metadata?: Record<string, unknown>;
 
@@ -30,7 +30,7 @@ export class LunarError extends Error {
     metadata?: Record<string, unknown>,
   ) {
     super(message);
-    this.name = 'LunarError';
+    this.name = 'LunaError';
     this.code = code;
     this.metadata = metadata;
     // Ensure the stack is captured correctly
@@ -46,37 +46,37 @@ export class LunarError extends Error {
     };
   }
 
-  public static isLunarError(error: unknown): error is LunarError {
+  public static isLunaError(error: unknown): error is LunaError {
     return (
-      error instanceof LunarError ||
+      error instanceof LunaError ||
       (typeof error === 'object' &&
         error !== null &&
         'name' in error &&
-        (error as Error).name === 'LunarError')
+        (error as Error).name === 'LunaError')
     );
   }
 
   public static fromUnknown(
     error: unknown,
     defaultCode: ErrorCode = ErrorCode.INTERNAL_ERROR,
-  ): LunarError {
-    if (error instanceof LunarError) {
+  ): LunaError {
+    if (error instanceof LunaError) {
       return error;
     }
 
     if (error instanceof Error) {
-      const lunarError = new LunarError(error.message, defaultCode);
-      lunarError.stack = error.stack;
-      return lunarError;
+      const lunaError = new LunaError(error.message, defaultCode);
+      lunaError.stack = error.stack;
+      return lunaError;
     }
 
     if (typeof error === 'object' && error !== null && 'code' in error && 'message' in error) {
       const e = error as ErrorDetails;
-      const lunarError = new LunarError(e.message, e.code, e.metadata);
-      lunarError.stack = e.stack;
-      return lunarError;
+      const lunaError = new LunaError(e.message, e.code, e.metadata);
+      lunaError.stack = e.stack;
+      return lunaError;
     }
 
-    return new LunarError(String(error), defaultCode);
+    return new LunaError(String(error), defaultCode);
   }
 }

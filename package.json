@@ -1,5 +1,5 @@
 {
-  "name": "lunar",
+  "name": "luna",
   "version": "0.16.0",
   "description": "Cross-platform remote & local workflow workstation",
   "main": "./out/main/index.js",

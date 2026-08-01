@@ -1,5 +1,5 @@
 import { IPC } from '@shared/constants';
-import { ErrorCode, LunarError } from '@shared/errors';
+import { ErrorCode, LunaError } from '@shared/errors';
 import { app, BrowserWindow, shell, type WebContents } from 'electron';
 import { registerHandler } from '../lib/ipc-handler';
 import log from '../lib/logger';
@@ -23,7 +23,7 @@ export function getMainWindow(): BrowserWindow | null {
 function assertFromMainWindow(sender: WebContents): BrowserWindow {
   const win = BrowserWindow.fromWebContents(sender);
   if (!win || !mainWindowRef || win.id !== mainWindowRef.id) {
-    throw new LunarError('Window control is restricted to the main window', ErrorCode.FORBIDDEN);
+    throw new LunaError('Window control is restricted to the main window', ErrorCode.FORBIDDEN);
   }
   return win;
 }

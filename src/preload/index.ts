@@ -1,5 +1,5 @@
 import { IPC } from '@shared/constants';
-import { ErrorCode, LunarError } from '@shared/errors';
+import { ErrorCode, LunaError } from '@shared/errors';
 import type {
   AuthType,
   CreateConnectionInput,
@@ -38,7 +38,7 @@ type CleanupFn = () => void;
 
 /**
  * Strip the `Error invoking remote method '<channel>': Error: ` prefix and
- * reconstitute a LunarError if the underlying error is structured.
+ * reconstitute a LunaError if the underlying error is structured.
  */
 function unwrapIpcError(err: unknown): unknown {
   if (!(err instanceof Error)) return err;
@@ -47,14 +47,14 @@ function unwrapIpcError(err: unknown): unknown {
   const match = err.message.match(/^Error invoking remote method '[^']+': (?:Error: )?(.*)$/s);
   const message = match ? match[1] : err.message;
 
-  // Try to see if the message is a JSON-serialized LunarError
+  // Try to see if the message is a JSON-serialized LunaError
   // (In some Electron versions/configs, custom Error properties might not survive,
-  // but if we throw a LunarError it might have those properties if it's the same process,
+  // but if we throw a LunaError it might have those properties if it's the same process,
   // but across IPC they might be lost depending on Electron version.)
 
   // If it's already an object with 'code' and 'message', it might have survived serialization
   if ('code' in err && 'message' in err) {
-    return LunarError.fromUnknown(err);
+    return LunaError.fromUnknown(err);
   }
 
   // If it's a string that looks like JSON, it might be our serialized error
@@ -62,7 +62,7 @@ function unwrapIpcError(err: unknown): unknown {
     try {
       const parsed = JSON.parse(message);
       if (parsed.code && parsed.message) {
-        return LunarError.fromUnknown(parsed);
+        return LunaError.fromUnknown(parsed);
       }
     } catch {
       // Not JSON, continue with original message
@@ -70,7 +70,7 @@ function unwrapIpcError(err: unknown): unknown {
   }
 
   // If it's a standard error, just wrap it as INTERNAL_ERROR
-  return new LunarError(message, ErrorCode.INTERNAL_ERROR);
+  return new LunaError(message, ErrorCode.INTERNAL_ERROR);
 }
 
 /**
@@ -306,4 +306,4 @@ const api = {
 
 contextBridge.exposeInMainWorld('api', api);
 
-export type LunarAPI = typeof api;
+export type LunaAPI = typeof api;

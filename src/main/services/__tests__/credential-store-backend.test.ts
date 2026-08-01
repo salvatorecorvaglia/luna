@@ -10,7 +10,7 @@ import { afterAll, describe, expect, it, vi } from 'vitest';
 // encryptString to simulate a wrap failure — the credential store must keep
 // using the plaintext key (so existing creds remain readable) AND flip the
 // backend flag so the renderer banner can surface the downgrade.
-const userData = mkdtempSync(join(tmpdir(), 'lunar-cred-backend-'));
+const userData = mkdtempSync(join(tmpdir(), 'luna-cred-backend-'));
 writeFileSync(join(userData, '.storage_key'), randomBytes(32));
 
 vi.mock('electron', () => ({

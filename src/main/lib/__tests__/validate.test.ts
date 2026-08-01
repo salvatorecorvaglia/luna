@@ -166,7 +166,7 @@ describe('expandAndConfineToHome', () => {
   });
 
   it('requireExists: true returns realpath inside home', async () => {
-    const homeTmp = mkdtempSync(join(HOME, '.lunar-test-expand-'));
+    const homeTmp = mkdtempSync(join(HOME, '.luna-test-expand-'));
     const safeFile = join(homeTmp, 'safe.txt');
     writeFileSync(safeFile, 'ok');
     try {
@@ -179,8 +179,8 @@ describe('expandAndConfineToHome', () => {
   });
 
   it('requireExists: true rejects if target escapes home', async () => {
-    const homeTmp = mkdtempSync(join(HOME, '.lunar-test-expand-escape-'));
-    const outsideTmp = mkdtempSync(join(tmpdir(), 'lunar-outside-expand-'));
+    const homeTmp = mkdtempSync(join(HOME, '.luna-test-expand-escape-'));
+    const outsideTmp = mkdtempSync(join(tmpdir(), 'luna-outside-expand-'));
     const escapeLink = join(homeTmp, 'escape');
     symlinkSync(outsideTmp, escapeLink);
     try {
@@ -203,8 +203,8 @@ describe('assertSafeRealAbsolutePath (symlink-following)', () => {
   let safeFile: string;
 
   beforeAll(() => {
-    homeTmp = mkdtempSync(join(HOME, '.lunar-test-'));
-    outsideTmp = mkdtempSync(join(tmpdir(), 'lunar-outside-'));
+    homeTmp = mkdtempSync(join(HOME, '.luna-test-'));
+    outsideTmp = mkdtempSync(join(tmpdir(), 'luna-outside-'));
     escapeLink = join(homeTmp, 'escape');
     symlinkSync(outsideTmp, escapeLink);
     safeFile = join(homeTmp, 'safe.txt');
@@ -269,7 +269,7 @@ describe('expandAndValidatePrivateKeyPathSync', () => {
 
 describe('expandAndValidatePrivateKeyPath', () => {
   it('expands a leading ~ and resolves/follows symlinks without home confinement', async () => {
-    const outsideTmp = mkdtempSync(join(tmpdir(), 'lunar-outside-key-'));
+    const outsideTmp = mkdtempSync(join(tmpdir(), 'luna-outside-key-'));
     const safeFile = join(outsideTmp, 'key.pem');
     writeFileSync(safeFile, 'ok');
     try {

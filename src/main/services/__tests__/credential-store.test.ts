@@ -5,7 +5,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Set up a per-test userData dir so safeStorage / on-disk key writes don't
 // collide between runs. Mock electron *before* importing the module under test.
-const userData = mkdtempSync(join(tmpdir(), 'lunar-cred-'));
+const userData = mkdtempSync(join(tmpdir(), 'luna-cred-'));
 
 // Simulate a working OS keyring (macOS Keychain / Linux libsecret) so the
 // credential store has an encrypted key path to exercise. The credential-store

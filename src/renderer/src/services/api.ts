@@ -12,15 +12,15 @@
  *   migrate opportunistically when their component is otherwise touched.
  */
 
-import type { LunarAPI } from '../../../preload';
+import type { LunaAPI } from '../../../preload';
 
-let override: LunarAPI | null = null;
+let override: LunaAPI | null = null;
 
-export function getApi(): LunarAPI {
+export function getApi(): LunaAPI {
   return override ?? window.api;
 }
 
 /** Test-only: swap the API implementation. Pass `null` to restore. */
-export function __setApiForTesting(api: LunarAPI | null): void {
+export function __setApiForTesting(api: LunaAPI | null): void {
   override = api;
 }

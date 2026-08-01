@@ -3,7 +3,7 @@ import { access, lstat, open, readdir, realpath, stat, writeFile } from 'node:fs
 import { homedir } from 'node:os';
 import { basename, isAbsolute, join, resolve } from 'node:path';
 import { BINARY_PREVIEW_EXTENSIONS, IPC } from '@shared/constants';
-import { ErrorCode, LunarError } from '@shared/errors';
+import { ErrorCode, LunaError } from '@shared/errors';
 import type { AuditExportOptions } from '@shared/types/session-audit';
 import type { LocalFileEntry } from '@shared/types/sftp';
 import { dialog } from 'electron';
@@ -24,7 +24,7 @@ export function registerShellHandlers(): void {
   registerHandler(IPC.SHELL_READDIR, async (_event, dirPath: string) => {
     assertValidPath(dirPath, 'dirPath');
     if (!isAbsolute(dirPath)) {
-      throw new LunarError('dirPath must be absolute', ErrorCode.VALIDATION_ERROR);
+      throw new LunaError('dirPath must be absolute', ErrorCode.VALIDATION_ERROR);
     }
     const normalized = resolve(dirPath);
     // Defense-in-depth — restrict directory listing to the user's home subtree.
@@ -32,7 +32,7 @@ export function registerShellHandlers(): void {
     // can't slip past a naive `startsWith(home + '/')` prefix match.
     const home = homedir();
     if (!isInsideDir(normalized, home)) {
-      throw new LunarError(
+      throw new LunaError(
         'Access denied: directory listing is restricted to the home directory',
         ErrorCode.FORBIDDEN,
       );
@@ -145,10 +145,10 @@ export function registerShellHandlers(): void {
       // Cap content size so a misbehaving renderer can't write arbitrarily large files.
       const MAX_BYTES = 50 * 1024 * 1024; // 50 MB
       if (typeof options.content !== 'string') {
-        throw new LunarError('content must be a string', ErrorCode.VALIDATION_ERROR);
+        throw new LunaError('content must be a string', ErrorCode.VALIDATION_ERROR);
       }
       if (Buffer.byteLength(options.content, 'utf-8') > MAX_BYTES) {
-        throw new LunarError(`content exceeds ${MAX_BYTES} bytes`, ErrorCode.VALIDATION_ERROR);
+        throw new LunaError(`content exceeds ${MAX_BYTES} bytes`, ErrorCode.VALIDATION_ERROR);
       }
       const safePath = resolve(result.filePath);
       await writeFile(safePath, options.content, 'utf-8');
@@ -216,7 +216,7 @@ export function registerShellHandlers(): void {
     const ls = await lstat(expanded);
     const target = ls.isSymbolicLink() ? await realpath(expanded) : expanded;
     if (!isInsideDir(target, home)) {
-      throw new LunarError(
+      throw new LunaError(
         'Access denied: symlink target is outside the home directory',
         ErrorCode.FORBIDDEN,
       );
@@ -230,11 +230,11 @@ export function registerShellHandlers(): void {
     try {
       const s = await fh.stat();
       if (!s.isFile()) {
-        throw new LunarError('Not a regular file', ErrorCode.VALIDATION_ERROR);
+        throw new LunaError('Not a regular file', ErrorCode.VALIDATION_ERROR);
       }
       const MAX_BYTES = 50 * 1024 * 1024; // 50 MB
       if (s.size > MAX_BYTES) {
-        throw new LunarError(
+        throw new LunaError(
           `File is too large (${Math.round(s.size / 1024 / 1024)}MB). Max 50MB.`,
           ErrorCode.VALIDATION_ERROR,
         );
@@ -259,14 +259,14 @@ export function registerShellHandlers(): void {
     async (_event, { filePath, content }: { filePath: string; content: string }) => {
       assertValidPath(filePath, 'filePath');
       if (typeof content !== 'string') {
-        throw new LunarError('content must be a string', ErrorCode.VALIDATION_ERROR);
+        throw new LunaError('content must be a string', ErrorCode.VALIDATION_ERROR);
       }
       const expanded = await expandAndConfineToHome(filePath, 'filePath');
       const target = await assertSafeRealAbsolutePath(expanded, 'filePath');
 
       const MAX_BYTES = 50 * 1024 * 1024; // 50 MB
       if (Buffer.byteLength(content, 'utf-8') > MAX_BYTES) {
-        throw new LunarError(`Content exceeds maximum size of 50MB`, ErrorCode.VALIDATION_ERROR);
+        throw new LunaError(`Content exceeds maximum size of 50MB`, ErrorCode.VALIDATION_ERROR);
       }
 
       await writeFile(target, content, 'utf-8');

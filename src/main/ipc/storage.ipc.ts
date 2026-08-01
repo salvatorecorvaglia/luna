@@ -12,7 +12,7 @@ import { transferQueue } from '../services/transfer-queue';
 
 export { __resetStorageRateLimiter } from '../lib/rate-limiter';
 
-import { ErrorCode, LunarError } from '@shared/errors';
+import { ErrorCode, LunaError } from '@shared/errors';
 import type {
   StorageDeleteParams,
   StorageEntry,
@@ -66,7 +66,7 @@ export function registerStorageHandlers(): void {
     assertNonEmptyString(params.sessionId, 'sessionId');
     assertValidPath(params.path, 'path');
     if (typeof params.isDirectory !== 'boolean') {
-      throw new LunarError('isDirectory must be a boolean', ErrorCode.VALIDATION_ERROR);
+      throw new LunaError('isDirectory must be a boolean', ErrorCode.VALIDATION_ERROR);
     }
     takeStorageToken(params.sessionId);
     return storageRegistry
@@ -92,7 +92,7 @@ export function registerStorageHandlers(): void {
       assertNonEmptyString(params.sessionId, 'sessionId');
       assertValidPath(params.path, 'path');
       if (typeof params.content !== 'string') {
-        throw new LunarError('content must be a string', ErrorCode.VALIDATION_ERROR);
+        throw new LunaError('content must be a string', ErrorCode.VALIDATION_ERROR);
       }
       takeStorageToken(params.sessionId);
       return storageRegistry

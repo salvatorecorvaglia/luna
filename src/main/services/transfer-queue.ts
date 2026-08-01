@@ -1,7 +1,7 @@
 import { stat } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { IPC, LIMITS } from '@shared/constants';
-import { ErrorCode, LunarError } from '@shared/errors';
+import { ErrorCode, LunaError } from '@shared/errors';
 import type { TransferType } from '@shared/types/transfer';
 import { v4 as uuidv4 } from 'uuid';
 import { classifyTransferError } from '../lib/error-map';
@@ -90,7 +90,7 @@ class TransferQueue {
     }
 
     if (this.queue.length >= LIMITS.MAX_QUEUED_TRANSFERS) {
-      throw new LunarError(
+      throw new LunaError(
         `Transfer queue is full (${LIMITS.MAX_QUEUED_TRANSFERS} pending). Wait for transfers to complete or cancel some.`,
         ErrorCode.VALIDATION_ERROR,
         { limit: LIMITS.MAX_QUEUED_TRANSFERS, reason: 'queue-full' },

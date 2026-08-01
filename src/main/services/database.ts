@@ -118,7 +118,7 @@ export function getDatabase(): Database.Database {
       mkdirSync(dbDir, { recursive: true });
     }
 
-    const dbPath = join(dbDir, 'lunar.db');
+    const dbPath = join(dbDir, 'luna.db');
     const handle = new Database(dbPath);
 
     // Enable WAL mode for better concurrent performance
@@ -140,7 +140,7 @@ export function getDatabase(): Database.Database {
       }
       throw new Error(
         `Database integrity check failed: ${JSON.stringify(integrityResult)}. ` +
-          `The lunar.db file may be corrupt; restore from backup or remove the data directory.`,
+          `The luna.db file may be corrupt; restore from backup or remove the data directory.`,
       );
     }
 

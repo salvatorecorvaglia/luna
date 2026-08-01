@@ -1,6 +1,6 @@
 # Contributors 👥
 
-A huge thank you to everyone who has contributed to **Lunar**!
+A huge thank you to everyone who has contributed to **Luna**!
 
 ## ✨ Lead Maintainer
 

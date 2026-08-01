@@ -1,6 +1,6 @@
 import { createServer, connect as netConnect } from 'node:net';
 import { IPC, LIMITS } from '@shared/constants';
-import { ErrorCode, LunarError } from '@shared/errors';
+import { ErrorCode, LunaError } from '@shared/errors';
 import type {
   ActivePortForwardInfo,
   AuthType,
@@ -509,7 +509,7 @@ class SshManager {
   startSinglePortForward(sessionId: string, config: PortForwardingConfig): ActivePortForwardInfo {
     const session = this.sessions.get(sessionId);
     if (!session) {
-      throw new LunarError(`Session ${sessionId} not found`, ErrorCode.NOT_FOUND);
+      throw new LunaError(`Session ${sessionId} not found`, ErrorCode.NOT_FOUND);
     }
     return this.startOnePortForward(session, config);
   }

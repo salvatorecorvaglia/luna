@@ -1,8 +1,8 @@
 import { join } from 'node:path';
 import { is } from '@electron-toolkit/utils';
-import { ErrorCode, LunarError } from '@shared/errors';
+import { ErrorCode, LunaError } from '@shared/errors';
 import { app, BrowserWindow, dialog, session, shell } from 'electron';
-import icon from '../../resources/lunar.png?asset';
+import icon from '../../resources/luna.png?asset';
 import { registerAllHandlers } from './ipc';
 import { setMainWindow } from './ipc/app.ipc';
 import { disposeLocalTerminals } from './ipc/local-terminal.ipc';
@@ -19,8 +19,8 @@ import { initAutoUpdater } from './services/updater';
 // auto-relaunch can restart cleanly rather than letting the app limp along
 // with corrupted internals.
 process.on('uncaughtException', (err) => {
-  const lunarError = LunarError.fromUnknown(err, ErrorCode.INTERNAL_ERROR);
-  log.error('[Main] Uncaught exception:', lunarError.toObject());
+  const lunaError = LunaError.fromUnknown(err, ErrorCode.INTERNAL_ERROR);
+  log.error('[Main] Uncaught exception:', lunaError.toObject());
   // Best-effort: shut the DB cleanly so the WAL is flushed before exit.
   try {
     closeDatabase();
@@ -31,8 +31,8 @@ process.on('uncaughtException', (err) => {
 });
 
 process.on('unhandledRejection', (reason) => {
-  const lunarError = LunarError.fromUnknown(reason, ErrorCode.INTERNAL_ERROR);
-  log.error('[Main] Unhandled rejection:', lunarError.toObject());
+  const lunaError = LunaError.fromUnknown(reason, ErrorCode.INTERNAL_ERROR);
+  log.error('[Main] Unhandled rejection:', lunaError.toObject());
   // Node will crash on unhandled rejections by default in a future major. In
   // development we crash immediately so the bug surfaces during the change
   // that introduced it instead of years later in production. Production keeps
@@ -107,7 +107,7 @@ function createWindow(): void {
 }
 
 void app.whenReady().then(() => {
-  // Deny all renderer permission requests by default. Lunar is a desktop tool
+  // Deny all renderer permission requests by default. Luna is a desktop tool
   // for SSH/SFTP/S3 and never needs camera, microphone, geolocation, MIDI,
   // notifications, etc. — silently denying these closes a class of
   // social-engineering / compromised-renderer attacks.
@@ -201,11 +201,11 @@ void app.whenReady().then(() => {
       err instanceof MigrationError
         ? `${err.message}\n\nYou can recover by either:\n` +
           ` • restoring a backup of your data folder, or\n` +
-          ` • renaming "lunar.db" in the app data folder to start fresh (existing connections will be lost).`
+          ` • renaming "luna.db" in the app data folder to start fresh (existing connections will be lost).`
         : err instanceof Error
           ? err.message
           : String(err);
-    dialog.showErrorBox('Lunar — database error', detail);
+    dialog.showErrorBox('Luna — database error', detail);
     app.exit(1);
     return;
   }
