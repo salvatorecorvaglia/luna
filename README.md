@@ -47,17 +47,6 @@
 
 ---
 
-## 🛠️ Technology Stack
-
-Luna is built on a modern JavaScript/TypeScript stack:
-*   **Shell:** [Electron](https://www.electronjs.org/) + [electron-vite](https://electron-vite.org/)
-*   **Frontend UI:** [React 18](https://react.dev/), [Tailwind CSS v4](https://tailwindcss.com/) (using `@tailwindcss/vite`), [Zustand](https://github.com/pmndrs/zustand) for state management, [Framer Motion](https://www.framer.com/motion/) for micro-animations, [Sonner](https://github.com/emilkowalski/sonner) for toasts, and [Lucide Icons](https://lucide.dev/).
-*   **Data Fetching:** [TanStack Query (React Query)](https://tanstack.com/query/latest)
-*   **Formatting/Linting:** [Biome](https://biomejs.dev/)
-*   **Testing:** [Vitest](https://vitest.dev/) with JSDOM
-
----
-
 ## 🚀 Getting Started
 
 ### Prerequisites
