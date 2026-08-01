@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-01
+
 ### Added
 
 - **Terminal Session Audit Export**: Integrated `SessionAuditService` and `AuditExportDialog` allowing export of terminal session logs in JSON, HTML, or plain text formats with customizable log metadata.
@@ -23,11 +25,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Project Rebranding**: Renamed the application from Lunar to Luna across all system components, build configurations (`electron-builder.yml`, `package.json`), IPC channels, and UI elements.
 - **Terminal Architecture**: Consolidated local and remote terminal rendering components into a unified `TerminalViewContainer`.
+- **CI/CD Pipelines**: Updated GitHub Actions CI and release workflows to align with latest build runners and pipeline standards.
+- **Dependencies & Tooling**: Updated core project dependencies and workspace configuration (`pnpm-workspace.yaml`).
 
 ### Improved
 
 - **File Preview**: Added search, word wrap, and live log tailing capabilities to `FilePreview`.
+- **UI Components & Workflows**: Streamlined UI components and interaction workflows across Snippet Vault, Macro Recorder, Folder Sync, Tunnel Manager, and Terminal Tabs.
+- **Code Optimization & Type Safety**: Applied `as const` assertions to motion variants, updated component ref types to support `null`, and optimized Vite manual chunking logic.
 
 ## [0.16.0] - 2026-07-26
 
