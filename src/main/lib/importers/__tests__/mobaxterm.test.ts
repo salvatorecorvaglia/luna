@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { importFromMobaXterm } from '../mobaxterm';
 
-function sshLine(opts: {
-  host: string;
-  port: number;
-  user: string;
-  keyPath?: string;
-}): string {
+function sshLine(opts: { host: string; port: number; user: string; keyPath?: string }): string {
   const parts: string[] = new Array(21).fill('');
   parts[0] = '#109#0';
   parts[1] = opts.host;

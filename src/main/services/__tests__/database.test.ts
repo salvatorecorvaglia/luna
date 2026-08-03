@@ -85,7 +85,6 @@ describe('database migrations', () => {
     expect(m?.sql).toMatch(/DROP TABLE connections/);
   });
 
-
   it('throws MigrationError if integrity_check fails after a migration', () => {
     const db = makeFakeDb();
     // Override pragma to report corruption so the post-apply check trips.

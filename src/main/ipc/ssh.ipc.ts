@@ -17,10 +17,7 @@ const MAX_SECRET_LEN = 4096;
  */
 const MAX_SSH_SEND_BYTES = 65536;
 
-import type {
-  AuthType,
-  PortForwardingConfig,
-} from '@shared/types/connection';
+import type { AuthType, PortForwardingConfig } from '@shared/types/connection';
 import type { SshConnectParams, SshResizeParams, SshSendDataParams } from '@shared/types/terminal';
 
 export function registerSshHandlers(): void {
