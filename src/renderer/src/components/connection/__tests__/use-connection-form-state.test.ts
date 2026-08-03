@@ -23,9 +23,6 @@ describe('useConnectionFormState', () => {
     expect(result.current.s3.protocol).toBe('https');
     expect(result.current.s3.host).toBe('');
     expect(result.current.s3.port).toBe('');
-
-    expect(result.current.jumpHost.mode).toBe('existing');
-    expect(result.current.jumpHost.port).toBe('22');
   });
 
   it('should apply partial state updates via patch functions', () => {
@@ -48,12 +45,6 @@ describe('useConnectionFormState', () => {
     });
     expect(result.current.s3.host).toBe('s3.example.com');
     expect(result.current.s3.region).toBe('us-west-2');
-
-    act(() => {
-      result.current.patchJumpHost({ mode: 'manual', host: 'bastion' });
-    });
-    expect(result.current.jumpHost.mode).toBe('manual');
-    expect(result.current.jumpHost.host).toBe('bastion');
   });
 
   it('should support resetting the form to defaults', () => {
@@ -75,7 +66,6 @@ describe('useConnectionFormState', () => {
     act(() => {
       result.current.patchSftp({ password: 'pwd', passphrase: 'pass' });
       result.current.patchS3({ accessKeyId: 'ak', secretAccessKey: 'sak', sessionToken: 'tok' });
-      result.current.patchJumpHost({ password: 'jpwd', passphrase: 'jpass' });
     });
 
     act(() => {
@@ -87,8 +77,6 @@ describe('useConnectionFormState', () => {
     expect(result.current.s3.accessKeyId).toBe('');
     expect(result.current.s3.secretAccessKey).toBe('');
     expect(result.current.s3.sessionToken).toBe('');
-    expect(result.current.jumpHost.password).toBe('');
-    expect(result.current.jumpHost.passphrase).toBe('');
   });
 
   describe('reseedFromConnection', () => {
@@ -125,7 +113,6 @@ describe('useConnectionFormState', () => {
       expect(result.current.sftp.username).toBe('ubuntu');
       expect(result.current.sftp.authType).toBe('key');
       expect(result.current.sftp.privateKeyPath).toBe('~/.ssh/id_rsa');
-      expect(result.current.jumpHost.mode).toBe('existing');
     });
 
     it('should append (copy) to name when duplicating', () => {
@@ -185,44 +172,6 @@ describe('useConnectionFormState', () => {
       expect(result.current.s3.region).toBe('us-east-1');
       expect(result.current.s3.defaultBucket).toBe('my-bucket');
       expect(result.current.s3.forcePathStyle).toBe(true);
-    });
-
-    it('should parse manual jump host config correctly during reseed', () => {
-      const { result } = renderHook(() => useConnectionFormState(initialColor));
-      const sourceConn: Connection = {
-        id: 'conn-1',
-        name: 'Server 1',
-        provider: 'sftp',
-        host: '1.2.3.4',
-        port: 22,
-        username: 'ubuntu',
-        authType: 'password',
-        jumpHostConnectionId: 'bastion-id',
-        jumpHostConfig: {
-          host: 'bastion.net',
-          port: 222,
-          username: 'admin',
-          authType: 'key+passphrase',
-          privateKeyPath: '/keys/bastion',
-        },
-        folder: 'servers',
-        sortOrder: 0,
-        isHidden: false,
-        createdAt: 0,
-        updatedAt: 0,
-      };
-
-      act(() => {
-        result.current.reseedFromConnection(sourceConn, { isDuplicate: false });
-      });
-
-      expect(result.current.jumpHost.mode).toBe('manual');
-      expect(result.current.jumpHost.connectionId).toBe('bastion-id');
-      expect(result.current.jumpHost.host).toBe('bastion.net');
-      expect(result.current.jumpHost.port).toBe('222');
-      expect(result.current.jumpHost.username).toBe('admin');
-      expect(result.current.jumpHost.authType).toBe('key+passphrase');
-      expect(result.current.jumpHost.privateKeyPath).toBe('/keys/bastion');
     });
   });
 });

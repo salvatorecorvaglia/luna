@@ -5,7 +5,6 @@ import type {
   Connection,
   CreateConnectionInput,
   ExportedConnection,
-  ManualJumpHostConfig,
   PortForwardingConfig,
   UpdateConnectionInput,
 } from './connection';
@@ -94,8 +93,6 @@ export interface IpcHandlerMap {
         privateKeyPath?: string;
         password?: string;
         passphrase?: string;
-        jumpHostConnectionId?: string;
-        jumpHostConfig?: ManualJumpHostConfig;
         keepaliveInterval?: number;
         keepaliveCountMax?: number;
       };

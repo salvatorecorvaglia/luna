@@ -10,7 +10,6 @@ import type {
 import { dialog } from 'electron';
 import { v4 as uuidv4 } from 'uuid';
 import { detectAndImport } from '../lib/importers';
-import { assertValidJumpHost, assertValidManualJumpHost } from '../lib/jump-host-validate';
 import log from '../lib/logger';
 import {
   assertBoundedInt,
@@ -40,17 +39,6 @@ export function rowToConnection(row: ConnectionRow): Connection {
     folder: row.folder,
     colorTag: row.color_tag || undefined,
     sortOrder: row.sort_order,
-    jumpHostConnectionId: row.jump_host_connection_id || undefined,
-    jumpHostConfig:
-      row.jump_host_host && row.jump_host_username && row.jump_host_auth_type && row.jump_host_port
-        ? {
-            host: row.jump_host_host,
-            port: row.jump_host_port,
-            username: row.jump_host_username,
-            authType: row.jump_host_auth_type as AuthType,
-            privateKeyPath: row.jump_host_private_key_path || undefined,
-          }
-        : undefined,
     lastConnectedAt: row.last_connected_at || undefined,
     isHidden: row.is_hidden === 1,
     keepaliveInterval: row.keepalive_interval || undefined,
@@ -75,8 +63,6 @@ const UPDATE_FIELD_MAP: Record<string, string> = {
   forcePathStyle: 'force_path_style',
   folder: 'folder',
   colorTag: 'color_tag',
-  jumpHostConnectionId: 'jump_host_connection_id',
-  jumpHostConfig: 'jump_host_config',
   isHidden: 'is_hidden',
   keepaliveInterval: 'keepalive_interval',
   keepaliveCountMax: 'keepalive_count_max',
@@ -120,27 +106,18 @@ export class ConnectionService {
     const id = uuidv4();
     const now = Math.floor(Date.now() / 1000);
 
-    const jumpHostId =
-      provider === 'sftp' && input.jumpHostConnectionId ? input.jumpHostConnectionId : null;
-    if (jumpHostId) assertValidJumpHost(db, jumpHostId, null);
-    if (provider === 'sftp' && input.jumpHostConfig) {
-      assertValidManualJumpHost(input.jumpHostConfig);
-    }
-
     const createTx = db.transaction(() => {
       db.prepare(
         `
         INSERT INTO connections (
           id, name, provider, host, port, username, auth_type, private_key_path,
           endpoint, region, default_bucket, force_path_style,
-          folder, color_tag, jump_host_connection_id,
-          jump_host_host, jump_host_port, jump_host_username,
-          jump_host_auth_type, jump_host_private_key_path,
+          folder, color_tag,
           is_hidden,
           keepalive_interval, keepalive_count_max, port_forwards,
           created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       ).run(
         id,
@@ -157,12 +134,6 @@ export class ConnectionService {
         provider === 's3' ? (input.forcePathStyle ? 1 : 0) : null,
         input.folder || 'default',
         input.colorTag || null,
-        jumpHostId,
-        input.jumpHostConfig?.host || null,
-        input.jumpHostConfig?.port || null,
-        input.jumpHostConfig?.username || null,
-        input.jumpHostConfig?.authType || null,
-        input.jumpHostConfig?.privateKeyPath || null,
         input.isHidden ? 1 : 0,
         input.keepaliveInterval ?? 0,
         input.keepaliveCountMax ?? 3,
@@ -177,15 +148,6 @@ export class ConnectionService {
           storeCredential(id, input.password);
         } else if (input.passphrase) {
           storeCredential(id, input.passphrase);
-        }
-
-        if (input.jumpHostConfig) {
-          const { password, passphrase } = input.jumpHostConfig;
-          if (password) {
-            storeCredential(`jumphost:${id}`, password);
-          } else if (passphrase) {
-            storeCredential(`jumphost:${id}`, passphrase);
-          }
         }
       } else if (provider === 's3') {
         storeCredential(
@@ -260,15 +222,6 @@ export class ConnectionService {
           throw validationError(`${key} must be a boolean`);
         }
         value = raw ? 1 : 0;
-      } else if (key === 'jumpHostConnectionId') {
-        if (raw === null || raw === '') {
-          value = null;
-        } else if (typeof raw !== 'string') {
-          throw validationError('jumpHostConnectionId must be a string');
-        } else {
-          assertValidJumpHost(db, raw, input.id);
-          value = raw;
-        }
       } else if (key === 'keepaliveInterval') {
         if (raw === null || raw === '') {
           value = 0;
@@ -293,28 +246,6 @@ export class ConnectionService {
         } else {
           value = JSON.stringify(raw);
         }
-      } else if (key === 'jumpHostConfig') {
-        const config = raw as CreateConnectionInput['jumpHostConfig'];
-        if (config) assertValidManualJumpHost(config);
-        if (!config) {
-          assignments.push('jump_host_host = NULL');
-          assignments.push('jump_host_port = NULL');
-          assignments.push('jump_host_username = NULL');
-          assignments.push('jump_host_auth_type = NULL');
-          assignments.push('jump_host_private_key_path = NULL');
-        } else {
-          assignments.push('jump_host_host = ?');
-          values.push(config.host);
-          assignments.push('jump_host_port = ?');
-          values.push(config.port);
-          assignments.push('jump_host_username = ?');
-          values.push(config.username);
-          assignments.push('jump_host_auth_type = ?');
-          values.push(config.authType);
-          assignments.push('jump_host_private_key_path = ?');
-          values.push(config.privateKeyPath || null);
-        }
-        continue;
       } else if (key === 'port') {
         assertBoundedInt(raw, 'port', 1, 65535);
         value = raw;
@@ -356,17 +287,6 @@ export class ConnectionService {
         } else if (input.passphrase) {
           storeCredential(input.id, input.passphrase);
         }
-
-        if (input.jumpHostConfig) {
-          const { password, passphrase } = input.jumpHostConfig;
-          if (password) {
-            storeCredential(`jumphost:${input.id}`, password);
-          } else if (passphrase) {
-            storeCredential(`jumphost:${input.id}`, passphrase);
-          }
-        } else if (input.jumpHostConfig === null) {
-          deleteCredential(`jumphost:${input.id}`);
-        }
       } else if (provider === 's3' && (input.accessKeyId || input.secretAccessKey)) {
         const prev = retrieveS3Credential(input.id);
         storeCredential(
@@ -407,7 +327,6 @@ export class ConnectionService {
       db.prepare('DELETE FROM connection_history WHERE connection_id = ?').run(id);
       db.prepare('DELETE FROM connections WHERE id = ?').run(id);
       deleteCredential(id);
-      deleteCredential(`jumphost:${id}`);
     });
 
     deleteTx();
@@ -422,7 +341,6 @@ export class ConnectionService {
       db.prepare('DELETE FROM connections').run();
       for (const row of rows) {
         deleteCredential(row.id);
-        deleteCredential(`jumphost:${row.id}`);
       }
     });
 
@@ -466,8 +384,6 @@ export class ConnectionService {
         out.username = conn.username;
         out.authType = conn.authType;
         out.privateKeyPath = conn.privateKeyPath;
-        out.jumpHostConnectionId = conn.jumpHostConnectionId;
-        out.jumpHostConfig = conn.jumpHostConfig;
         out.keepaliveInterval = conn.keepaliveInterval;
         out.keepaliveCountMax = conn.keepaliveCountMax;
         out.portForwards = conn.portForwards;
@@ -538,25 +454,6 @@ export class ConnectionService {
           }
         }
 
-        let manualJumpKeyPath: string | null = null;
-        if (provider === 'sftp' && item.jumpHostConfig?.privateKeyPath) {
-          if (item.jumpHostConfig.privateKeyPath.includes('\0')) {
-            skipped.push({
-              name,
-              reason: 'jumpHostConfig.privateKeyPath must not contain null bytes',
-            });
-            continue;
-          }
-          try {
-            manualJumpKeyPath = expandAndConfineToHomeSync(
-              item.jumpHostConfig.privateKeyPath,
-              'jumpHostConfig.privateKeyPath',
-            );
-          } catch {
-            manualJumpKeyPath = item.jumpHostConfig.privateKeyPath;
-          }
-        }
-
         const id = uuidv4();
         const now = Math.floor(Date.now() / 1000);
 
@@ -565,13 +462,11 @@ export class ConnectionService {
           INSERT INTO connections (
             id, name, provider, host, port, username, auth_type, private_key_path,
             endpoint, region, default_bucket, force_path_style,
-            folder, color_tag, jump_host_connection_id,
-            jump_host_host, jump_host_port, jump_host_username,
-            jump_host_auth_type, jump_host_private_key_path,
+            folder, color_tag,
             is_hidden, keepalive_interval, keepalive_count_max, port_forwards,
             created_at, updated_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         ).run(
           id,
@@ -588,12 +483,6 @@ export class ConnectionService {
           provider === 's3' ? (item.forcePathStyle ? 1 : 0) : null,
           item.folder || 'default',
           item.colorTag || null,
-          null,
-          provider === 'sftp' && item.jumpHostConfig ? item.jumpHostConfig.host : null,
-          provider === 'sftp' && item.jumpHostConfig ? item.jumpHostConfig.port : null,
-          provider === 'sftp' && item.jumpHostConfig ? item.jumpHostConfig.username : null,
-          provider === 'sftp' && item.jumpHostConfig ? item.jumpHostConfig.authType : null,
-          provider === 'sftp' && item.jumpHostConfig ? manualJumpKeyPath : null,
           0,
           item.keepaliveInterval ?? 0,
           item.keepaliveCountMax ?? 3,

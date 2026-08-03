@@ -4,7 +4,6 @@ import type {
   AuthType,
   CreateConnectionInput,
   ExportedConnection,
-  ManualJumpHostConfig,
   PortForwardingConfig,
   UpdateConnectionInput,
 } from '@shared/types/connection';
@@ -149,8 +148,6 @@ const api = {
         privateKeyPath?: string;
         password?: string;
         passphrase?: string;
-        jumpHostConnectionId?: string;
-        jumpHostConfig?: ManualJumpHostConfig;
         keepaliveInterval?: number;
         keepaliveCountMax?: number;
       };

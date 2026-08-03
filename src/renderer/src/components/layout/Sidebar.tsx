@@ -46,7 +46,7 @@ export function Sidebar() {
   }, [searchInputValue]);
 
   const filteredConnections = useMemo(() => {
-    // Filter out hidden connections (like jump hosts) from the sidebar
+    // Filter out hidden connections from the sidebar
     // unless the global "show hidden" toggle is ON.
     const visible = connectionList.filter((c) => showHiddenConnections || !c.isHidden);
 

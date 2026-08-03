@@ -1,9 +1,7 @@
 import { IPC } from '@shared/constants';
 import { ErrorCode, LunaError } from '@shared/errors';
 import { registerHandler } from '../lib/ipc-handler';
-import { assertValidJumpHost, assertValidManualJumpHost } from '../lib/jump-host-validate';
 import { assertBoundedInt, assertNonEmptyString } from '../lib/validate';
-import { getDatabase } from '../services/database';
 import { sshManager } from '../services/ssh-manager';
 import { storageRegistry } from '../services/storage/registry';
 import { sftpStorageProvider } from '../services/storage/sftp-storage-provider';
@@ -21,7 +19,6 @@ const MAX_SSH_SEND_BYTES = 65536;
 
 import type {
   AuthType,
-  ManualJumpHostConfig,
   PortForwardingConfig,
 } from '@shared/types/connection';
 import type { SshConnectParams, SshResizeParams, SshSendDataParams } from '@shared/types/terminal';
@@ -101,8 +98,6 @@ export function registerSshHandlers(): void {
           privateKeyPath?: string;
           password?: string;
           passphrase?: string;
-          jumpHostConnectionId?: string;
-          jumpHostConfig?: ManualJumpHostConfig;
           keepaliveInterval?: number;
           keepaliveCountMax?: number;
         };
@@ -133,22 +128,6 @@ export function registerSshHandlers(): void {
               ErrorCode.VALIDATION_ERROR,
             );
           }
-        }
-        if (c.jumpHostConnectionId !== undefined && c.jumpHostConfig !== undefined) {
-          throw new LunaError(
-            'testConnection accepts jumpHostConnectionId OR jumpHostConfig, not both',
-            ErrorCode.VALIDATION_ERROR,
-          );
-        }
-        if (c.jumpHostConnectionId !== undefined) {
-          assertNonEmptyString(c.jumpHostConnectionId, 'jumpHostConnectionId');
-          // Same rules as connection create/update — an invalid bastion id
-          // must fail here too, otherwise a test against a deleted or
-          // non-SFTP jump host passes and the real connect blows up later.
-          assertValidJumpHost(getDatabase(), c.jumpHostConnectionId, null);
-        }
-        if (c.jumpHostConfig !== undefined) {
-          assertValidManualJumpHost(c.jumpHostConfig);
         }
       } else if (params.connectionId) {
         assertNonEmptyString(params.connectionId, 'connectionId');

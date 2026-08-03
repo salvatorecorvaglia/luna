@@ -43,7 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Connection Service**: Encapsulated connection management logic into `ConnectionService` in the main process, separating database operations, validations, and lifecycle hooks from IPC controller routing.
 - **SSH Stream Buffer**: Introduced `SshStreamBuffer` to handle SSH data stream buffering, chunk aggregation, and flow control.
 - **Connection History**: Implemented connection history pruning to clean up stale connection history records automatically.
-- **Testing**: Added unit test coverage for `ConnectionService`, `SshStreamBuffer`, and jump-host helpers.
+- **Testing**: Added unit test coverage for `ConnectionService` and `SshStreamBuffer`.
 
 ### Changed
 
@@ -57,14 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.15.0] - 2026-07-18
 
-### Added
-
-- **WinSCP Importer**: Added support for parsing SSH tunnel configurations containing gateway information, creating separate hidden gateway and target connections.
-
-### Changed
-
 - **Built-in Modules**: Migrated all built-in Node.js module imports across the main process to use the standard `node:` prefix.
-- **SSH Bastion**: Refactored the jump host connection workflow into a dedicated `BastionService` class, centralizing bastion channel lifecycle, credential resolution, and error propagation.
 
 ### Improved
 
@@ -106,7 +99,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Improved
 
 - **Accessibility**: Enhanced the remote SFTP file list with ARIA attributes (including `aria-activedescendant`), keyboard navigation support (using the Space key to toggle row selection), and streamlined focus management.
-- **SSH & SFTP Connections**: Improved stability by registering long-lived error handlers on bastion connections and SFTP streams to prevent uncaught exception crashes.
+- **SSH & SFTP Connections**: Improved stability by registering long-lived error handlers on SFTP streams to prevent uncaught exception crashes.
 - **SSH Sessions**: Added an identity guard to the SSH connection flow to prevent callbacks and resolution when a session is disconnected or replaced during handshake.
 - **Type Safety**: Refactored SFTP read stream data callbacks to include explicit type annotations supporting both Buffer and string chunks.
 
@@ -124,7 +117,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Improved
 
 - **Local Terminal**: Refactored local terminal teardown loop on application quit by copying session IDs to prevent map iteration issues, and added clean session logging.
-- **Connection Management**: Enhanced connection form submission logic to explicitly set jump host configurations to null when editing/saving, preventing stale inline configs.
 
 ## [0.12.1] - 2026-06-22
 
@@ -292,7 +284,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Improved
 
-- **Security & Validation**: Enforced strict input validation for database updates and added a jump host validation utility.
+- **Security & Validation**: Enforced strict input validation for database updates.
 - **Stability**: Enhanced transfer stability with session closing states, race-condition guards for file operations, and verification of upload completion.
 - **State Management**: Refined filter state management across the application.
 - **Updates**: Added a manual download link to the update error toast action.
@@ -312,12 +304,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Improved
 
-- **Import Infrastructure**: Enhanced MobaXterm import logic with improved jump host detection, bogus record filtering, and support for inline configuration.
-- **Security & Stability**: Hardened SSH key parsing validation and implemented database maintenance routines to automatically clean up legacy or invalid connection records.
-
-### Changed
-
-- **Architecture**: Decoupled jump host management into standalone connections to provide greater flexibility in complex network environments.
+- **Import Infrastructure**: Enhanced MobaXterm import logic with improved bogus record filtering and support for inline configuration.
 - **State Management**: Refined UI store persistence to exclude transient hidden connection states.
 
 ### Fixed
@@ -339,11 +326,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Optimization**: Implemented S3 list limits and improved validation logic for storage providers.
 
 ## [0.6.0] - 2026-05-13
-
-### Added
-
-- **SSH Infrastructure**: Implemented manual SSH tunnel support (jump hosts), enabling secure connections to remote servers through intermediate gateway hosts.
-- **Connection Management**: Enhanced the connection form with a dedicated "Advanced" section for configuring jump host parameters, including authentication and port settings.
 
 ### Changed
 

@@ -18,7 +18,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
-import { useConnections, useDeleteConnection, useUpdateConnection } from '@/hooks/use-connections';
+import { useDeleteConnection, useUpdateConnection } from '@/hooks/use-connections';
 import { connectToS3 } from '@/lib/s3';
 import { connectToHost } from '@/lib/ssh';
 import { cn } from '@/lib/utils';
@@ -72,14 +72,6 @@ export function ConnectionItem({
     useConnectionStore();
   const { setActiveView } = useUIStore();
   const { sessions } = useTerminalStore();
-  const { data: allConnections } = useConnections();
-  // The bastion may have been deleted (FK is ON DELETE SET NULL on the
-  // server, but the renderer's cached row can briefly out-pace that) — fall
-  // back to a generic "via jump host" label so the badge still signals the
-  // chain even when the lookup misses.
-  const jumpHostName = connection.jumpHostConnectionId
-    ? allConnections?.find((c) => c.id === connection.jumpHostConnectionId)?.name
-    : undefined;
   const storageSessions = useStorageStore((s) => s.storageSessions);
   const setActiveSessionId = useStorageStore((s) => s.setActiveSessionId);
   const deleteMutation = useDeleteConnection();
@@ -339,14 +331,6 @@ export function ConnectionItem({
                   <>
                     {connection.username}@{connection.host}
                     {connection.port !== 22 && `:${connection.port}`}
-                    {connection.jumpHostConnectionId && (
-                      <span
-                        className="ml-1.5 inline-flex items-center rounded border border-border/50 bg-muted/40 px-1 py-px text-[9px] uppercase tracking-wide text-muted-foreground/80"
-                        title={`Tunneled via jump host${jumpHostName ? ` "${jumpHostName}"` : ''}`}
-                      >
-                        via {jumpHostName ?? 'jump'}
-                      </span>
-                    )}
                   </>
                 )}
               </div>

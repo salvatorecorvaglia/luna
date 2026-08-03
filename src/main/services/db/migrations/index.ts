@@ -20,11 +20,7 @@ import m006 from './006_remove_app_theme';
 import m007 from './007_connection_indexes';
 import m008 from './008_provider_columns';
 import m009 from './009_connection_sort_order';
-import m010 from './010_jump_host_connection_id';
-import m011 from './011_manual_jump_host_columns';
 import m012 from './012_connection_is_hidden';
-import m013 from './013_cleanup_bogus_jump_hosts';
-import m014 from './014_cleanup_bogus_jump_hosts_v2';
 import m015 from './015_connection_list_composite_indexes';
 import m016 from './016_connection_advanced_configs';
 import m017 from './017_snippets_and_workspaces';
@@ -46,11 +42,7 @@ export const migrations: Migration[] = [
   m007,
   m008,
   m009,
-  m010,
-  m011,
   m012,
-  m013,
-  m014,
   m015,
   m016,
   m017,

@@ -15,9 +15,7 @@ import log from '../lib/logger';
 import { TimeoutError, withTimeout } from '../lib/with-timeout';
 import { type ConnectionRow, getDatabase, getSetting } from './database';
 import { emitToRenderer } from './emit';
-import { bastionService } from './ssh/bastion-service';
 import { PendingHostKeyRegistry } from './ssh/host-key-flow';
-import { extractManualJumpHostConfig } from './ssh/jump-host-helper';
 import { buildConnectConfig } from './ssh/ssh-config';
 import { sshStreamBuffer } from './ssh/ssh-stream-buffer';
 
@@ -28,8 +26,6 @@ import { sshStreamBuffer } from './ssh/ssh-stream-buffer';
  */
 const SSH_CONNECT_COLUMNS = `
   provider, host, port, username, auth_type, private_key_path,
-  jump_host_connection_id, jump_host_host, jump_host_port,
-  jump_host_username, jump_host_auth_type, jump_host_private_key_path,
   keepalive_interval, keepalive_count_max, port_forwards
 `;
 type SshConnectRow = Pick<
@@ -40,12 +36,6 @@ type SshConnectRow = Pick<
   | 'username'
   | 'auth_type'
   | 'private_key_path'
-  | 'jump_host_connection_id'
-  | 'jump_host_host'
-  | 'jump_host_port'
-  | 'jump_host_username'
-  | 'jump_host_auth_type'
-  | 'jump_host_private_key_path'
   | 'keepalive_interval'
   | 'keepalive_count_max'
   | 'port_forwards'
@@ -87,13 +77,6 @@ interface SshSession {
   historyId?: string;
   cols?: number;
   rows?: number;
-  /**
-   * Tear-down hook for an associated jump-host (bastion) client. When the
-   * target session connects via ProxyJump, the underlying bastion `Client`
-   * lives alongside this session and must be ended when the session ends.
-   * Idempotent — safe to call from both error paths and `disconnect()`.
-   */
-  jumpDispose?: () => void;
   portForwards?: InternalPortForward[];
 }
 
@@ -227,37 +210,6 @@ class SshManager {
     this.sessions.set(sessionId, session);
     this.setStatus(session, 'connecting');
 
-    // Open the jump-host channel *before* building the target config so a
-    // bastion failure short-circuits without spinning up a target Client.
-    // The resulting Duplex becomes the target's `sock`.
-    let jumpSock: import('node:stream').Duplex | undefined;
-    if (row.jump_host_connection_id || row.jump_host_host) {
-      try {
-        const manualConfig = extractManualJumpHostConfig(row);
-
-        const channel = await bastionService.openChannel({
-          connectionId,
-          jumpConnectionId: row.jump_host_connection_id || undefined,
-          jumpHostConfig: manualConfig,
-          targetHost: row.host,
-          targetPort: row.port,
-          pendingHostKeys: this.pendingHostKeys,
-          sessionId,
-        });
-        if (this.sessions.get(sessionId) !== session) {
-          channel.dispose();
-          return { success: false, error: 'Connection aborted' };
-        }
-        jumpSock = channel.sock;
-        session.jumpDispose = channel.dispose;
-      } catch (err) {
-        this.sessions.delete(sessionId);
-        const message = err instanceof Error ? err.message : String(err);
-        emitToRenderer(IPC.SSH_ON_ERROR, { sessionId, error: message });
-        return { success: false, error: message };
-      }
-    }
-
     const { config: connectConfig, error: configError } = await buildConnectConfig(
       {
         host: row.host,
@@ -268,14 +220,12 @@ class SshManager {
         keepaliveInterval: row.keepalive_interval ?? undefined,
         keepaliveCountMax: row.keepalive_count_max ?? undefined,
       },
-      { pendingHostKeys: this.pendingHostKeys, connectionId, sessionId, sock: jumpSock },
+      { pendingHostKeys: this.pendingHostKeys, connectionId, sessionId },
     );
     if (this.sessions.get(sessionId) !== session) {
-      session.jumpDispose?.();
       return { success: false, error: 'Connection aborted' };
     }
     if (configError) {
-      session.jumpDispose?.();
       this.sessions.delete(sessionId);
       return { success: false, error: configError };
     }
@@ -338,7 +288,6 @@ class SshManager {
         client.shell({ term: 'xterm-256color', cols, rows }, (err, stream) => {
           if (err) {
             // Clean up session on shell creation failure
-            session.jumpDispose?.();
             this.sessions.delete(sessionId);
             settle({ success: false, error: err.message });
             return;
@@ -409,14 +358,12 @@ class SshManager {
       onError = (err: Error): void => {
         const friendly = describeSshError(err);
         emitToRenderer(IPC.SSH_ON_ERROR, { sessionId, error: friendly });
-        session.jumpDispose?.();
         this.sessions.delete(sessionId);
         settle({ success: false, error: friendly });
       };
 
       onClose = (): void => {
         // Handshake aborted or socket closed before ready
-        session.jumpDispose?.();
         this.sessions.delete(sessionId);
         settle({ success: false, error: 'Connection closed during handshake' });
       };
@@ -444,7 +391,6 @@ class SshManager {
       } catch {
         // ignore
       }
-      session.jumpDispose?.();
       this.sessions.delete(sessionId);
       const isTimeout = err instanceof TimeoutError;
       const message = err instanceof Error ? err.message : String(err);
@@ -773,12 +719,6 @@ class SshManager {
 
     this.cleanupPortForwards(session);
     this.cleanupStreamListeners(session);
-    // The bastion socket is no longer carrying any useful traffic once the
-    // target session is down; releasing it here keeps a transient failure
-    // from leaking a bastion Client across an auto-reconnect cycle (the
-    // next attempt re-opens the channel from scratch).
-    session.jumpDispose?.();
-    session.jumpDispose = undefined;
     this.setStatus(session, 'disconnected');
     emitToRenderer(IPC.SSH_ON_CLOSE, { sessionId });
 
@@ -918,9 +858,6 @@ class SshManager {
     } catch (err) {
       log.error(`[SSH] Error closing session ${sessionId}:`, err);
     }
-    // Tear down the bastion client (if any) after the target client so a
-    // graceful 'end' has a chance to drain through the forwarded channel.
-    session.jumpDispose?.();
 
     // Record disconnect in history
     if (session.historyId) {
@@ -963,8 +900,6 @@ class SshManager {
       privateKeyPath?: string;
       password?: string;
       passphrase?: string;
-      jumpHostConnectionId?: string;
-      jumpHostConfig?: import('@shared/types/connection').ManualJumpHostConfig;
       keepaliveInterval?: number;
       keepaliveCountMax?: number;
     };
@@ -973,8 +908,6 @@ class SshManager {
     let privateKeyPath: string | undefined;
     let password: string | undefined;
     let passphrase: string | undefined;
-    let jumpHostConnectionId: string | undefined;
-    let jumpHostConfig: import('@shared/types/connection').ManualJumpHostConfig | undefined;
     let keepaliveInterval: number | undefined;
     let keepaliveCountMax: number | undefined;
 
@@ -986,8 +919,6 @@ class SshManager {
       privateKeyPath = params.config.privateKeyPath;
       password = params.config.password;
       passphrase = params.config.passphrase;
-      jumpHostConnectionId = params.config.jumpHostConnectionId;
-      jumpHostConfig = params.config.jumpHostConfig;
       keepaliveInterval = params.config.keepaliveInterval;
       keepaliveCountMax = params.config.keepaliveCountMax;
     } else if (params.connectionId) {
@@ -1010,45 +941,8 @@ class SshManager {
       privateKeyPath = row.private_key_path || undefined;
       keepaliveInterval = row.keepalive_interval || undefined;
       keepaliveCountMax = row.keepalive_count_max || undefined;
-      jumpHostConnectionId = row.jump_host_connection_id || undefined;
-      if (
-        row.jump_host_host &&
-        row.jump_host_username &&
-        row.jump_host_auth_type &&
-        row.jump_host_port
-      ) {
-        jumpHostConfig = {
-          host: row.jump_host_host,
-          port: row.jump_host_port,
-          username: row.jump_host_username,
-          authType: row.jump_host_auth_type as import('@shared/types/connection').AuthType,
-          privateKeyPath: row.jump_host_private_key_path || undefined,
-        };
-      }
     } else {
       return { ok: false, error: 'Invalid test parameters' };
-    }
-
-    // Open the bastion channel up-front so a bastion failure surfaces a
-    // clear, prefixed error instead of getting buried in target-side
-    // socket errors.
-    let jumpDispose: (() => void) | undefined;
-    let jumpSock: import('node:stream').Duplex | undefined;
-    if (jumpHostConnectionId || jumpHostConfig) {
-      try {
-        const channel = await bastionService.openChannel({
-          connectionId: params.connectionId,
-          jumpConnectionId: jumpHostConnectionId,
-          jumpHostConfig,
-          targetHost: host,
-          targetPort: port,
-          pendingHostKeys: this.pendingHostKeys,
-        });
-        jumpSock = channel.sock;
-        jumpDispose = channel.dispose;
-      } catch (err) {
-        return { ok: false, error: err instanceof Error ? err.message : String(err) };
-      }
     }
 
     const { config, error: configError } = await buildConnectConfig(
@@ -1066,11 +960,9 @@ class SshManager {
       {
         pendingHostKeys: this.pendingHostKeys,
         connectionId: params.connectionId,
-        sock: jumpSock,
       },
     );
     if (configError) {
-      jumpDispose?.();
       return { ok: false, error: configError };
     }
 
@@ -1087,7 +979,6 @@ class SshManager {
         } catch {
           // ignore
         }
-        jumpDispose?.();
         resolve(result);
       };
       const timeoutMs = getSetting('ssh.connectTimeoutMs', LIMITS.SSH_CONNECT_TIMEOUT_MS);

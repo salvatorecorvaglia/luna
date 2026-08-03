@@ -28,16 +28,6 @@ export interface ActivePortForwardInfo {
   activeConnections?: number;
 }
 
-export interface ManualJumpHostConfig {
-  host: string;
-  port: number;
-  username: string;
-  authType: AuthType;
-  privateKeyPath?: string;
-  password?: string;
-  passphrase?: string;
-}
-
 export interface Connection {
   id: string;
   name: string;
@@ -57,18 +47,6 @@ export interface Connection {
   folder: string;
   colorTag?: string;
   sortOrder?: number;
-  /**
-   * Optional reference to another SFTP connection that should be used as a
-   * jump host (bastion). When set, the SSH client tunnels through the
-   * referenced connection's session via ssh2's `forwardOut` channel.
-   * Single-hop only: a chained-through connection cannot itself have a
-   * `jumpHostConnectionId` set.
-   */
-  jumpHostConnectionId?: string;
-  /**
-   * Manual jump host configuration. Used when jumpHostConnectionId is not set.
-   */
-  jumpHostConfig?: ManualJumpHostConfig;
   isHidden?: boolean;
   lastConnectedAt?: number;
   keepaliveInterval?: number;
@@ -100,10 +78,6 @@ export interface CreateConnectionInput {
   // Common
   folder?: string;
   colorTag?: string;
-  /** Optional id of another SFTP connection to use as a jump host. */
-  jumpHostConnectionId?: string | null;
-  /** Optional manual jump host configuration. */
-  jumpHostConfig?: ManualJumpHostConfig | null;
   isHidden?: boolean;
   keepaliveInterval?: number;
   keepaliveCountMax?: number;
@@ -130,16 +104,6 @@ export interface ExportedConnection {
   folder?: string;
   colorTag?: string;
   sortOrder?: number;
-  jumpHostConnectionId?: string;
-  /**
-   * Name of the referenced jump host connection. Exports carry the *name*
-   * (not the id) so importers can re-link by name on the destination machine.
-   */
-  jumpHostName?: string;
-  /**
-   * Optional manual jump host configuration. Used when jumpHostName is not set.
-   */
-  jumpHostConfig?: ManualJumpHostConfig;
   isHidden?: boolean;
   keepaliveInterval?: number;
   keepaliveCountMax?: number;

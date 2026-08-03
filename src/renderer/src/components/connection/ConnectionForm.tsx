@@ -44,11 +44,9 @@ export function ConnectionForm() {
   const {
     common,
     sftp,
-    jumpHost,
     s3,
     patchCommon,
     patchSftp,
-    patchJumpHost,
     patchS3,
     touched,
     markTouched,
@@ -86,15 +84,6 @@ export function ConnectionForm() {
   const isEditing = !!editingConnectionId;
   const isSaving = createMutation.isPending || updateMutation.isPending;
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
-
-  // Eligible jump-host targets: SFTP only, never the connection being edited,
-  // never a connection that itself chains through another bastion (single-hop).
-  const jumpHostOptions = useMemo(() => {
-    if (!existingConnections) return [];
-    return existingConnections.filter(
-      (c) => c.provider === 'sftp' && c.id !== editingConnectionId && !c.jumpHostConnectionId,
-    );
-  }, [existingConnections, editingConnectionId]);
 
   const uniqueFolders = useMemo(() => {
     if (!existingConnections) return [];
@@ -224,26 +213,6 @@ export function ConnectionForm() {
       } else if (privateKeyProbeError) {
         out.privateKeyPath = privateKeyProbeError;
       }
-
-      if (jumpHost.mode === 'manual') {
-        if (!jumpHost.host.trim()) out.jumpHostHost = 'Jump host is required';
-        const jhPortNum = parseInt(jumpHost.port, 10);
-        if (
-          jumpHost.port.trim() === '' ||
-          Number.isNaN(jhPortNum) ||
-          jhPortNum < 1 ||
-          jhPortNum > 65535
-        ) {
-          out.jumpHostPort = 'Port must be between 1 and 65535';
-        }
-        if (!jumpHost.username.trim()) out.jumpHostUsername = 'Username is required';
-        if (
-          (jumpHost.authType === 'key' || jumpHost.authType === 'key+passphrase') &&
-          !jumpHost.privateKeyPath.trim()
-        ) {
-          out.jumpHostPrivateKeyPath = 'Private key path is required';
-        }
-      }
     } else {
       // S3 — credentials only required on create. On edit, leaving them
       // blank means "keep existing" (mirrors the SSH password UX).
@@ -259,7 +228,7 @@ export function ConnectionForm() {
       }
     }
     return out;
-  }, [common.provider, sftp, jumpHost, s3, isEditing, privateKeyProbeError]);
+  }, [common.provider, sftp, s3, isEditing, privateKeyProbeError]);
 
   // Debounced inline probe of the private-key file. All setState calls happen
   // inside the deferred timeout callback (asynchronous), so the effect itself
@@ -363,28 +332,6 @@ export function ConnectionForm() {
             keepaliveInterval: (parseInt(sftp.keepaliveInterval) || 10) * 1000,
             keepaliveCountMax: parseInt(sftp.keepaliveCountMax) || 3,
             portForwards: sftp.portForwards,
-            // Send explicit null on edit so an unselect actually clears the
-            // FK. New connections only carry the value when set.
-            jumpHostConnectionId: jumpHost.connectionId
-              ? jumpHost.connectionId
-              : isEditing
-                ? null
-                : undefined,
-            jumpHostConfig:
-              jumpHost.mode === 'manual'
-                ? {
-                    host: jumpHost.host.trim(),
-
-                    port: parseInt(jumpHost.port) || 22,
-                    username: jumpHost.username.trim(),
-                    authType: jumpHost.authType,
-                    privateKeyPath: jumpHost.privateKeyPath || undefined,
-                    password: jumpHost.password || undefined,
-                    passphrase: jumpHost.passphrase || undefined,
-                  }
-                : isEditing
-                  ? null
-                  : undefined,
             folder: common.folder.trim() || 'default',
             colorTag: common.colorTag,
             isHidden: common.isHidden,
@@ -493,21 +440,6 @@ export function ConnectionForm() {
             passphrase: sftp.passphrase || undefined,
             keepaliveInterval: (parseInt(sftp.keepaliveInterval) || 10) * 1000,
             keepaliveCountMax: parseInt(sftp.keepaliveCountMax) || 3,
-            jumpHostConnectionId:
-              jumpHost.mode === 'existing' ? jumpHost.connectionId || undefined : undefined,
-            jumpHostConfig:
-              jumpHost.mode === 'manual'
-                ? {
-                    host: jumpHost.host.trim(),
-
-                    port: parseInt(jumpHost.port) || 22,
-                    username: jumpHost.username.trim(),
-                    authType: jumpHost.authType,
-                    privateKeyPath: jumpHost.privateKeyPath || undefined,
-                    password: jumpHost.password || undefined,
-                    passphrase: jumpHost.passphrase || undefined,
-                  }
-                : undefined,
           },
         });
         if (!isStillCurrent()) return;
@@ -725,9 +657,6 @@ export function ConnectionForm() {
                       isEditing={isEditing}
                       sftp={sftp}
                       onSftpChange={patchSftp}
-                      jumpHost={jumpHost}
-                      onJumpHostChange={patchJumpHost}
-                      jumpHostOptions={jumpHostOptions}
                       visibleError={visibleError}
                       markTouched={markTouched}
                       onBrowseKey={handleBrowseKey}

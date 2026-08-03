@@ -3,12 +3,7 @@ import type { StorageProviderKind } from '@shared/types/storage-provider';
 import { useCallback, useState } from 'react';
 
 /**
- * State shapes for the connection form, grouped by panel. The form previously
- * carried ~30 individual `useState` hooks; consolidating them into cohesive
- * objects collapses prop-drilling at the panel boundary (SftpFields,
- * S3Fields) from ~50 props to a state + onChange pair, and lets the reseed /
- * clearSecrets / reset paths operate on whole-record values instead of
- * dozens of setter calls.
+ * State shapes for the connection form, grouped by panel.
  */
 export interface SftpState {
   host: string;
@@ -22,19 +17,6 @@ export interface SftpState {
   keepaliveInterval: string;
   keepaliveCountMax: string;
   portForwards: PortForwardingConfig[];
-}
-
-export interface JumpHostState {
-  mode: 'existing' | 'manual';
-  connectionId: string;
-  host: string;
-  port: string;
-  username: string;
-  authType: AuthType;
-  password: string;
-  privateKeyPath: string;
-  passphrase: string;
-  showPassword: boolean;
 }
 
 export interface S3State {
@@ -74,19 +56,6 @@ const DEFAULT_SFTP: SftpState = {
   portForwards: [],
 };
 
-const DEFAULT_JUMP_HOST: JumpHostState = {
-  mode: 'existing',
-  connectionId: '',
-  host: '',
-  port: '22',
-  username: '',
-  authType: 'password',
-  password: '',
-  privateKeyPath: '',
-  passphrase: '',
-  showPassword: false,
-};
-
 const DEFAULT_S3: S3State = {
   protocol: 'https',
   host: '',
@@ -113,11 +82,9 @@ function defaultCommon(initialColor: string): CommonState {
 export interface UseConnectionFormStateApi {
   common: CommonState;
   sftp: SftpState;
-  jumpHost: JumpHostState;
   s3: S3State;
   patchCommon: Patch<CommonState>;
   patchSftp: Patch<SftpState>;
-  patchJumpHost: Patch<JumpHostState>;
   patchS3: Patch<S3State>;
   touched: Record<string, boolean>;
   markTouched(field: string): void;
@@ -140,7 +107,6 @@ export interface UseConnectionFormStateApi {
 export function useConnectionFormState(initialColor: string): UseConnectionFormStateApi {
   const [common, setCommon] = useState<CommonState>(() => defaultCommon(initialColor));
   const [sftp, setSftp] = useState<SftpState>(DEFAULT_SFTP);
-  const [jumpHost, setJumpHost] = useState<JumpHostState>(DEFAULT_JUMP_HOST);
   const [s3, setS3] = useState<S3State>(DEFAULT_S3);
   const [touched, setTouchedState] = useState<Record<string, boolean>>({});
   const [dirty, setDirtyState] = useState(false);
@@ -151,10 +117,6 @@ export function useConnectionFormState(initialColor: string): UseConnectionFormS
   );
   const patchSftp = useCallback<Patch<SftpState>>(
     (p) => setSftp((prev) => ({ ...prev, ...p })),
-    [],
-  );
-  const patchJumpHost = useCallback<Patch<JumpHostState>>(
-    (p) => setJumpHost((prev) => ({ ...prev, ...p })),
     [],
   );
   const patchS3 = useCallback<Patch<S3State>>((p) => setS3((prev) => ({ ...prev, ...p })), []);
@@ -173,7 +135,6 @@ export function useConnectionFormState(initialColor: string): UseConnectionFormS
   const resetForm = useCallback(() => {
     setCommon(defaultCommon(initialColor));
     setSftp(DEFAULT_SFTP);
-    setJumpHost(DEFAULT_JUMP_HOST);
     setS3(DEFAULT_S3);
     setTouchedState({});
   }, [initialColor]);
@@ -202,25 +163,6 @@ export function useConnectionFormState(initialColor: string): UseConnectionFormS
           source.keepaliveCountMax !== undefined ? String(source.keepaliveCountMax) : '3',
         portForwards: source.portForwards || [],
       });
-      if (source.jumpHostConfig) {
-        setJumpHost({
-          mode: 'manual',
-          connectionId: source.jumpHostConnectionId || '',
-          host: source.jumpHostConfig.host,
-          port: String(source.jumpHostConfig.port),
-          username: source.jumpHostConfig.username,
-          authType: source.jumpHostConfig.authType,
-          password: '',
-          privateKeyPath: source.jumpHostConfig.privateKeyPath || '',
-          passphrase: '',
-          showPassword: false,
-        });
-      } else {
-        setJumpHost({
-          ...DEFAULT_JUMP_HOST,
-          connectionId: source.jumpHostConnectionId || '',
-        });
-      }
 
       let protocol: 'http' | 'https' = 'https';
       let host = '';
@@ -274,18 +216,15 @@ export function useConnectionFormState(initialColor: string): UseConnectionFormS
 
   const clearSecrets = useCallback(() => {
     setSftp((prev) => ({ ...prev, password: '', passphrase: '' }));
-    setJumpHost((prev) => ({ ...prev, password: '', passphrase: '' }));
     setS3((prev) => ({ ...prev, accessKeyId: '', secretAccessKey: '', sessionToken: '' }));
   }, []);
 
   return {
     common,
     sftp,
-    jumpHost,
     s3,
     patchCommon,
     patchSftp,
-    patchJumpHost,
     patchS3,
     touched,
     markTouched,

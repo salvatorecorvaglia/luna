@@ -30,12 +30,6 @@ export const CONNECTION_COLUMNS = [
   'folder',
   'color_tag',
   'sort_order',
-  'jump_host_connection_id',
-  'jump_host_host',
-  'jump_host_port',
-  'jump_host_username',
-  'jump_host_auth_type',
-  'jump_host_private_key_path',
   'is_hidden',
   'last_connected_at',
   'keepalive_interval',
@@ -64,18 +58,6 @@ export interface ConnectionRow {
   color_tag: string | null;
   sort_order: number;
   startup_command: string | null;
-  /**
-   * Optional id of another connection in this same table to use as a jump
-   * host. Enforced by FK `ON DELETE SET NULL` so deleting the bastion row
-   * clears the reference instead of leaving a dangling pointer.
-   */
-  jump_host_connection_id: string | null;
-  /** Manual jump host fields */
-  jump_host_host: string | null;
-  jump_host_port: number | null;
-  jump_host_username: string | null;
-  jump_host_auth_type: string | null;
-  jump_host_private_key_path: string | null;
   /** Whether this connection should be hidden from the main sidebar list. */
   is_hidden: number;
   last_connected_at: number | null;
