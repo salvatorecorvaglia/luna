@@ -131,7 +131,7 @@ export function HostKeyDialog() {
                   {event.isFirst ? (
                     <ShieldCheck className="size-5 text-info" />
                   ) : (
-                    <ShieldAlert className="size-5 text-destructive" />
+                    <ShieldAlert className="size-5 text-destructive-fg" />
                   )}
                 </div>
                 <div className="min-w-0">
@@ -186,12 +186,12 @@ export function HostKeyDialog() {
 
                 {!event.isFirst && event.storedFingerprint && (
                   <div className="flex items-start gap-2 text-xs border-t border-border/60 pt-2.5">
-                    <Fingerprint className="size-3.5 text-destructive/60 flex-shrink-0 mt-0.5" />
+                    <Fingerprint className="size-3.5 text-destructive-fg/60 flex-shrink-0 mt-0.5" />
                     <div className="min-w-0 flex-1">
                       <span className="text-muted-foreground/70">
                         Previously trusted fingerprint:
                       </span>
-                      <code className="mt-1 block break-all rounded bg-destructive/5 px-1.5 py-0.5 font-mono text-xs text-destructive/80">
+                      <code className="mt-1 block break-all rounded bg-destructive/5 px-1.5 py-0.5 font-mono text-xs text-destructive-fg/80">
                         SHA256:{event.storedFingerprint}
                       </code>
                     </div>
@@ -201,7 +201,7 @@ export function HostKeyDialog() {
 
               {/* Warning for key change */}
               {!event.isFirst && (
-                <div className="mt-3 rounded-lg bg-destructive/5 border border-destructive/20 p-2.5 text-[11px] text-destructive/90 leading-relaxed">
+                <div className="mt-3 rounded-lg bg-destructive/5 border border-destructive/20 p-2.5 text-[11px] text-destructive-fg/90 leading-relaxed">
                   ⚠️ If you did not expect this change, someone could be eavesdropping on your
                   connection. Only trust the new key if you are sure the server was re-keyed.
                 </div>

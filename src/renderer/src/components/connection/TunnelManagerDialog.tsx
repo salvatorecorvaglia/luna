@@ -352,7 +352,7 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
                         className={`flex size-8 items-center justify-center rounded-md text-xs font-bold ${
                           t.status === 'active'
                             ? 'bg-success/10 text-success'
-                            : 'bg-destructive/10 text-destructive'
+                            : 'bg-destructive/10 text-destructive-fg'
                         }`}
                       >
                         {t.type === 'dynamic' ? 'SOCKS' : t.type === 'local' ? 'LCL' : 'RMT'}
@@ -376,7 +376,7 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
                             className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
                               t.status === 'active'
                                 ? 'bg-success/10 text-success'
-                                : 'bg-destructive/10 text-destructive'
+                                : 'bg-destructive/10 text-destructive-fg'
                             }`}
                           >
                             {t.status}
@@ -408,7 +408,7 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
                         <button
                           onClick={() => handleStopTunnel(t.sessionId!, t.id)}
                           title="Stop tunnel"
-                          className="rounded-md border border-destructive/20 bg-destructive/10 p-1.5 text-destructive hover:bg-destructive/20 transition-colors cursor-pointer"
+                          className="rounded-md border border-destructive/20 bg-destructive/10 p-1.5 text-destructive-fg hover:bg-destructive/20 transition-colors cursor-pointer"
                         >
                           <Power className="size-3.5" />
                         </button>

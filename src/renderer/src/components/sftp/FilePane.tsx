@@ -393,7 +393,7 @@ export function FilePane({
             className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center"
           >
             <WifiOff className="size-8 text-muted-foreground/30" aria-hidden="true" />
-            <span className="max-w-[280px] text-xs font-medium text-destructive/90 leading-relaxed">
+            <span className="max-w-[280px] text-xs font-medium text-destructive-fg/90 leading-relaxed">
               {error.message
                 .replace(/^S3StorageError:\s*/i, '')
                 .replace(/^SftpStorageError:\s*/i, '')

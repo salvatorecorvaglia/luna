@@ -46,6 +46,15 @@ function detectLanguage(name: string): string {
   return map[ext || ''] || 'text';
 }
 
+/**
+ * Line height for the gutter, in px. Must stay in lockstep with the textarea's
+ * `lineHeight: '1.25rem'` (20px at the default root size) or the numbers drift
+ * out of alignment with the text as you scroll.
+ */
+const GUTTER_LINE_HEIGHT_PX = 20;
+/** Extra rows rendered above/below the viewport to hide scroll tearing. */
+const GUTTER_OVERSCAN = 10;
+
 function isImageType(type: string): boolean {
   return ['image/png', 'image/jpeg', 'image/gif', 'image/svg+xml', 'image/webp'].includes(type);
 }
@@ -162,19 +171,64 @@ export function FilePreview() {
     return () => window.removeEventListener('keydown', handler, true);
   }, [previewOpen, showSearch, handleClose]);
 
-  const lines = useMemo(() => editorContent.split('\n'), [editorContent]);
+  // Line *count* is all the gutter needs; splitting a 5 MB file into an array
+  // of strings just to read `.length` allocated the whole document a second
+  // time on every keystroke.
+  const lineCount = useMemo(() => {
+    let count = 1;
+    for (let i = 0; i < editorContent.length; i++) {
+      if (editorContent.charCodeAt(i) === 10) count++;
+    }
+    return count;
+  }, [editorContent]);
 
   const matchCount = useMemo(() => {
-    if (!searchQuery.trim()) return 0;
-    const q = searchQuery.toLowerCase();
-    return lines.reduce((acc, line) => acc + (line.toLowerCase().split(q).length - 1), 0);
-  }, [searchQuery, lines]);
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return 0;
+    // Single pass with indexOf instead of split() per line: split allocated an
+    // array per line, per keystroke, over the entire file.
+    const haystack = editorContent.toLowerCase();
+    let count = 0;
+    let idx = haystack.indexOf(q);
+    while (idx !== -1) {
+      count++;
+      idx = haystack.indexOf(q, idx + q.length);
+    }
+    return count;
+  }, [searchQuery, editorContent]);
+
+  // Only the line numbers actually on screen are rendered. MAX_PREVIEW_BYTES
+  // is 5 MB, so a log file can easily be 100k+ lines — one <div> each meant
+  // 100k DOM nodes for decoration that is never more than ~40 rows visible.
+  const [gutterScrollTop, setGutterScrollTop] = useState(0);
+  const [gutterHeight, setGutterHeight] = useState(0);
+
+  const visibleLines = useMemo(() => {
+    if (gutterHeight === 0) return { start: 0, end: Math.min(lineCount, 80) };
+    const start = Math.max(
+      0,
+      Math.floor(gutterScrollTop / GUTTER_LINE_HEIGHT_PX) - GUTTER_OVERSCAN,
+    );
+    const visible = Math.ceil(gutterHeight / GUTTER_LINE_HEIGHT_PX) + GUTTER_OVERSCAN * 2;
+    return { start, end: Math.min(lineCount, start + visible) };
+  }, [gutterScrollTop, gutterHeight, lineCount]);
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLTextAreaElement>) => {
+    const { scrollTop, clientHeight } = e.currentTarget;
     if (gutterRef.current) {
-      gutterRef.current.scrollTop = e.currentTarget.scrollTop;
+      gutterRef.current.scrollTop = scrollTop;
     }
+    setGutterScrollTop(scrollTop);
+    setGutterHeight(clientHeight);
   }, []);
+
+  // Seed the viewport height once the textarea is laid out, so the gutter is
+  // correct before the user scrolls for the first time.
+  useEffect(() => {
+    if (!previewFile) return;
+    const el = textareaRef.current;
+    if (el) setGutterHeight(el.clientHeight);
+  }, [previewFile]);
 
   return (
     <AnimatePresence>
@@ -201,7 +255,7 @@ export function FilePreview() {
                 {isImageType(previewFile.type) ? (
                   <FileImage className="size-4 text-brand-pink" />
                 ) : previewFile.type === 'application/pdf' ? (
-                  <FileText className="size-4 text-destructive" />
+                  <FileText className="size-4 text-destructive-fg" />
                 ) : (
                   <FileCode className="size-4 text-success" />
                 )}
@@ -335,11 +389,17 @@ export function FilePreview() {
                   />
                 </div>
               ) : previewFile.type === 'application/pdf' ? (
+                /*
+                  Empty sandbox: the PDF viewer is a browser-native plugin and
+                  needs no script execution from the framed document. The
+                  previous `allow-scripts` granted a capability the preview
+                  never used, on content fetched from a remote server.
+                */
                 <iframe
                   src={`data:application/pdf;base64,${previewFile.content}#toolbar=0`}
                   className="h-full w-full rounded border-none bg-white"
                   title={previewFile.name}
-                  sandbox="allow-scripts"
+                  sandbox=""
                   referrerPolicy="no-referrer"
                 />
               ) : (
@@ -347,17 +407,39 @@ export function FilePreview() {
                   {/* Line Numbers Gutter */}
                   <div
                     ref={gutterRef}
+                    aria-hidden="true"
                     className="select-none text-right pr-3 pl-4 py-4 bg-muted/5 text-muted-foreground/30 border-r border-border/20 font-mono min-w-[3.5rem] overflow-hidden"
                   >
-                    {lines.map((_, i) => (
+                    {/* Spacer preserves total scroll height; only the visible
+                        window of numbers is materialised. */}
+                    <div
+                      style={{ height: lineCount * GUTTER_LINE_HEIGHT_PX, position: 'relative' }}
+                    >
                       <div
-                        key={i}
-                        className="text-right"
-                        style={{ height: '1.25rem', lineHeight: '1.25rem' }}
+                        style={{
+                          position: 'absolute',
+                          top: visibleLines.start * GUTTER_LINE_HEIGHT_PX,
+                          left: 0,
+                          right: 0,
+                        }}
                       >
-                        {i + 1}
+                        {Array.from(
+                          { length: visibleLines.end - visibleLines.start },
+                          (_, i) => visibleLines.start + i,
+                        ).map((lineIndex) => (
+                          <div
+                            key={lineIndex}
+                            className="text-right"
+                            style={{
+                              height: GUTTER_LINE_HEIGHT_PX,
+                              lineHeight: `${GUTTER_LINE_HEIGHT_PX}px`,
+                            }}
+                          >
+                            {lineIndex + 1}
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    </div>
                   </div>
 
                   {/* Editor Input */}
@@ -372,7 +454,7 @@ export function FilePreview() {
                         ? 'whitespace-pre-wrap word-break-all'
                         : 'whitespace-pre overflow-x-auto'
                     }`}
-                    style={{ lineHeight: '1.25rem' }}
+                    style={{ lineHeight: `${GUTTER_LINE_HEIGHT_PX}px` }}
                     placeholder="Enter text..."
                   />
                 </div>
@@ -382,7 +464,8 @@ export function FilePreview() {
             {/* Footer Bar */}
             <div className="flex items-center justify-between border-t border-border/60 px-4 py-1.5 bg-muted/20 text-[11px] text-muted-foreground font-mono">
               <div>
-                Lines: {lines.length} | Size: {editorContent.length} chars
+                Lines: {lineCount.toLocaleString()} | Size: {editorContent.length.toLocaleString()}{' '}
+                chars
               </div>
               <div className="flex items-center gap-3">
                 {wordWrap && <span>Wrap ON</span>}

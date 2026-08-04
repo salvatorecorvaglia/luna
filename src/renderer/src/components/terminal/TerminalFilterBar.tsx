@@ -50,7 +50,7 @@ export function TerminalFilterBar({ open, onClose, onApplyFilter }: TerminalFilt
             className={`px-2 py-0.5 text-[10px] font-medium rounded cursor-pointer transition-colors ${
               activeLevel === 'error'
                 ? 'bg-destructive text-destructive-foreground'
-                : 'text-destructive/80 hover:text-destructive'
+                : 'text-destructive-fg/80 hover:text-destructive-fg'
             }`}
           >
             ERROR

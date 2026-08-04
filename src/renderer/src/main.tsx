@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MotionConfig } from 'framer-motion';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { toast } from 'sonner';
@@ -57,9 +58,21 @@ const queryClient = new QueryClient({
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <App />
-      </QueryClientProvider>
+      {/*
+        `prefers-reduced-motion` in main.css only neutralises CSS transitions.
+        Every overlay in the app animates through framer-motion, which drives
+        values in JavaScript and never consults that media query — so a user
+        who asked the OS to reduce motion still got scale + slide on every
+        modal, panel, and toast. reducedMotion="user" makes framer-motion
+        honour the same preference: it drops transform animations while
+        keeping opacity crossfades, so things still read as appearing without
+        the movement that triggers vestibular symptoms.
+      */}
+      <MotionConfig reducedMotion="user">
+        <QueryClientProvider client={queryClient}>
+          <App />
+        </QueryClientProvider>
+      </MotionConfig>
     </ErrorBoundary>
   </React.StrictMode>,
 );

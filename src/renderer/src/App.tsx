@@ -4,6 +4,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { Toaster, toast } from 'sonner';
 // HostKeyDialog stays eager — it subscribes to host-key change IPC events on
 // mount and must be alive at startup to catch the first one.
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { HostKeyDialog } from '@/components/common/HostKeyDialog';
 import { WelcomeView } from '@/components/common/WelcomeView';
 import { AppShell } from '@/components/layout/AppShell';
@@ -50,6 +51,16 @@ import { useTransferEventListener } from '@/hooks/use-transfers';
 import { useUpdaterEventListener } from '@/hooks/use-updater';
 import { applyUIThemeTokens, buildUIThemeTokens } from '@/themes/ui-from-terminal';
 
+/**
+ * Physical key codes for the view-switch chords. Keyed by `KeyboardEvent.code`
+ * so the binding is the same on every keyboard layout.
+ */
+const VIEW_SHORTCUT_CODES: Record<string, 'local' | 'terminal' | 'sftp'> = {
+  Digit1: 'local',
+  Digit2: 'terminal',
+  Digit3: 'sftp',
+};
+
 export default function App() {
   const activeView = useUIStore((s) => s.activeView);
   const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen);
@@ -59,13 +70,14 @@ export default function App() {
       initializeSettings: s.initializeSettings,
     })),
   );
-  const hasTerminals = useTerminalStore(
-    useShallow((s) =>
-      s.tabOrder.some((id) => {
-        const sess = s.sessions.get(id);
-        return !sess?.type || sess.type === 'ssh';
-      }),
-    ),
+  // Plain selector: the result is a boolean, and shallow-comparing a primitive
+  // is just Object.is with extra indirection. useShallow only pays for itself
+  // on object/array selections.
+  const hasTerminals = useTerminalStore((s) =>
+    s.tabOrder.some((id) => {
+      const sess = s.sessions.get(id);
+      return !sess?.type || sess.type === 'ssh';
+    }),
   );
 
   // Load settings from DB on mount to prevent localStorage drift
@@ -167,11 +179,11 @@ export default function App() {
       // expects Cmd+K etc. to still work while focused on a terminal.
       const target = e.target as HTMLElement | null;
       const active = (document.activeElement as HTMLElement | null) ?? target;
+      const inTerminal = Boolean(active?.closest('.xterm'));
       if (active) {
         const tag = active.tagName;
         const isFormField =
-          (tag === 'INPUT' || tag === 'TEXTAREA' || active.isContentEditable) &&
-          !active.closest('.xterm');
+          (tag === 'INPUT' || tag === 'TEXTAREA' || active.isContentEditable) && !inTerminal;
         if (isFormField) return;
       }
 
@@ -199,27 +211,29 @@ export default function App() {
         useConnectionStore.getState().openCreateForm();
       }
 
-      // Cmd+Shift+1 — Switch to Local view
-      if (mod && e.shiftKey && (e.code === 'Digit1' || e.key === '!')) {
-        e.preventDefault();
-        useUIStore.getState().setActiveView('local');
+      // Cmd+Shift+1/2/3 — switch view.
+      //
+      // Matched on `e.code` (physical key) only. The previous version also
+      // accepted the shifted *characters* (`!`, `"`, `@`, `£`, `#`), which on
+      // layouts where those sit unshifted meant a plain Cmd+@ silently
+      // switched views mid-typing. `e.code` is layout-independent and is
+      // exactly what a "Cmd+Shift+2" label promises.
+      if (mod && e.shiftKey) {
+        const viewForCode = VIEW_SHORTCUT_CODES[e.code];
+        if (viewForCode) {
+          e.preventDefault();
+          useUIStore.getState().setActiveView(viewForCode);
+          return;
+        }
       }
 
-      // Cmd+Shift+2 — Switch to Terminal view
-      if (mod && e.shiftKey && (e.code === 'Digit2' || e.key === '"' || e.key === '@')) {
-        e.preventDefault();
-        useUIStore.getState().setActiveView('terminal');
-      }
-
-      // Cmd+Shift+3 — Switch to SFTP view
-      if (mod && e.shiftKey && (e.code === 'Digit3' || e.key === '£' || e.key === '#')) {
-        e.preventDefault();
-        useUIStore.getState().setActiveView('sftp');
-      }
-
-      // '?' — Toggle Shortcuts Help
-      if (e.key === '?' && !mod) {
-        // Only trigger if not in a form field (already handled by the isFormField check above)
+      // '?' — Toggle Shortcuts Help.
+      //
+      // Deliberately excluded inside a terminal: the isFormField guard above
+      // lets xterm's helper textarea through so Cmd-chords keep working, but
+      // '?' is an ordinary printable character. Swallowing it meant you could
+      // not type a question mark into a remote shell.
+      if (e.key === '?' && !mod && !inTerminal) {
         e.preventDefault();
         const store = useUIStore.getState();
         store.setShortcutsHelpOpen(!store.shortcutsHelpOpen);
@@ -257,27 +271,37 @@ export default function App() {
   return (
     <>
       <AppShell>
+        {/* Each view gets its own boundary. With only the root-level one, a
+            render crash in (say) the SFTP browser blanked the entire window
+            — including working terminal sessions the user could otherwise
+            have kept using while the broken view stayed contained. */}
         {everTerminal && (
           <div className={showTerminal ? 'h-full' : 'hidden'}>
-            <Suspense fallback={null}>
-              <TerminalView />
-            </Suspense>
+            <ErrorBoundary viewName="Terminal">
+              <Suspense fallback={null}>
+                <TerminalView />
+              </Suspense>
+            </ErrorBoundary>
           </div>
         )}
 
         {everLocal && (
           <div className={showLocal ? 'h-full' : 'hidden'}>
-            <Suspense fallback={null}>
-              <LocalTerminalView />
-            </Suspense>
+            <ErrorBoundary viewName="Local terminal">
+              <Suspense fallback={null}>
+                <LocalTerminalView />
+              </Suspense>
+            </ErrorBoundary>
           </div>
         )}
 
         {everSftp && (
           <div className={showSftp ? 'h-full' : 'hidden'}>
-            <Suspense fallback={null}>
-              <SftpManager />
-            </Suspense>
+            <ErrorBoundary viewName="File browser">
+              <Suspense fallback={null}>
+                <SftpManager />
+              </Suspense>
+            </ErrorBoundary>
           </div>
         )}
 
@@ -307,12 +331,22 @@ export default function App() {
       )}
       <HostKeyDialog />
 
+      {/*
+        Toasts inherit the app's own tokens rather than sonner's built-in
+        "dark" palette. Every other surface derives its colors from the active
+        terminal theme via applyUIThemeTokens, so a hardcoded theme made the
+        toaster the one element that didn't follow the user's choice.
+      */}
       <Toaster
-        theme="dark"
         position="bottom-right"
         visibleToasts={4}
         toastOptions={{
           className: 'text-sm',
+          style: {
+            background: 'var(--color-card)',
+            color: 'var(--color-foreground)',
+            border: '1px solid var(--color-border)',
+          },
         }}
         richColors={false}
         closeButton

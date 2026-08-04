@@ -121,7 +121,7 @@ export function TransferQueue() {
           {activeCount > 0 && (
             <button
               onClick={() => setConfirmCancelOpen(true)}
-              className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-destructive cursor-pointer"
+              className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-destructive-fg cursor-pointer"
               aria-label="Cancel all active transfers"
             >
               <X className="size-3" aria-hidden="true" />
@@ -286,7 +286,7 @@ const TransferRow = memo(function TransferRow({
       <div className="flex-shrink-0" aria-hidden="true">
         {item.status === 'active' && <Loader2 className="size-3.5 text-info animate-spin" />}
         {item.status === 'completed' && <CheckCircle2 className="size-3.5 text-success" />}
-        {item.status === 'error' && <AlertCircle className="size-3.5 text-destructive" />}
+        {item.status === 'error' && <AlertCircle className="size-3.5 text-destructive-fg" />}
       </div>
 
       {/* Retry (error only) */}

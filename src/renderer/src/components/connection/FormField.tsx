@@ -41,7 +41,7 @@ export function FormField({
         <p
           id={id ? `${id}-error` : undefined}
           role="alert"
-          className="mt-1 text-xs text-destructive"
+          className="mt-1 text-xs text-destructive-fg"
         >
           {error}
         </p>

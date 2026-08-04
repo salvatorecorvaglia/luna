@@ -389,7 +389,7 @@ export function SftpFields({
                             portForwards: sftp.portForwards.filter((x) => x.id !== pf.id),
                           });
                         }}
-                        className="text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                        className="text-muted-foreground hover:text-destructive-fg transition-colors cursor-pointer"
                         title="Remove rule"
                       >
                         <X className="size-3.5" />

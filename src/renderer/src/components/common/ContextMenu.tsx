@@ -142,7 +142,7 @@ export function ContextMenu({ items, children }: ContextMenuProps) {
                   className={cn(
                     'flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs cursor-pointer outline-none',
                     item.destructive
-                      ? 'text-destructive hover:bg-destructive/10 focus-visible:bg-destructive/10'
+                      ? 'text-destructive-fg hover:bg-destructive/10 focus-visible:bg-destructive/10'
                       : 'text-foreground hover:bg-accent focus-visible:bg-accent',
                   )}
                 >

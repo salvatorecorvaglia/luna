@@ -62,7 +62,7 @@ export function TerminalSearchBar({
         <span
           className={
             match.total === 0
-              ? 'text-[10px] text-destructive tabular-nums'
+              ? 'text-[10px] text-destructive-fg tabular-nums'
               : 'text-[10px] text-muted-foreground tabular-nums'
           }
           aria-live="polite"

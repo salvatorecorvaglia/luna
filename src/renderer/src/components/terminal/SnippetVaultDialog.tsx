@@ -441,7 +441,7 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
                         <button
                           onClick={() => handleDeleteSnippet(s.id)}
                           title="Delete snippet"
-                          className="rounded-md border border-destructive/20 bg-destructive/10 p-1.5 text-destructive hover:bg-destructive/20 transition-colors cursor-pointer"
+                          className="rounded-md border border-destructive/20 bg-destructive/10 p-1.5 text-destructive-fg hover:bg-destructive/20 transition-colors cursor-pointer"
                         >
                           <Trash2 className="size-3.5" />
                         </button>

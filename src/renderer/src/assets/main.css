@@ -41,8 +41,24 @@
   --color-muted-foreground: hsl(240 5% 72%);
   --color-accent: hsl(240 3.7% 15.9%);
   --color-accent-foreground: hsl(0 0% 98%);
+  /* Surface fill for destructive buttons. Dark enough that
+     --color-destructive-foreground (near-white) sits at ~7:1 on top of it. */
   --color-destructive: hsl(0 62.8% 30.6%);
   --color-destructive-foreground: hsl(0 0% 98%);
+  /*
+   * Destructive *text* on the app background.
+   *
+   * --color-destructive is a fill, not an ink: at 30.6% lightness it scores
+   * roughly 1.8:1 against --color-background, far under the 4.5:1 WCAG AA
+   * floor. It was nonetheless used as a text color in ~30 places, including
+   * .form-error, .required-mark, and — worst — the "previously trusted
+   * fingerprint" and MITM warning in the host-key dialog. The single most
+   * safety-critical string in the app was rendered nearly invisible.
+   *
+   * This token is the ink counterpart: ~7:1 on --color-background. Same
+   * treatment --color-muted-foreground already got above.
+   */
+  --color-destructive-fg: hsl(0 91% 71%);
   --color-border: hsl(240 3.7% 15.9%);
   --color-input: hsl(240 3.7% 15.9%);
   --color-ring: hsl(240 4.9% 83.9%);
@@ -338,10 +354,11 @@ button:focus-visible,
   gap: 0.25rem;
   margin-top: 0.25rem;
   font-size: 0.6875rem;
-  color: var(--color-destructive);
+  /* Ink token, not the fill token — see the note in @theme. */
+  color: var(--color-destructive-fg);
 }
 .required-mark {
-  color: var(--color-destructive);
+  color: var(--color-destructive-fg);
   margin-left: 0.125rem;
 }
 

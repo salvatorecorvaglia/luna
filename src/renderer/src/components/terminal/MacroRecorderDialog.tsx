@@ -182,7 +182,7 @@ export function MacroRecorderDialog({ open, onClose, onRunMacro }: MacroRecorder
 
                 <button
                   onClick={handleStartRecording}
-                  className="flex items-center gap-1.5 rounded-lg bg-destructive/10 text-destructive border border-destructive/20 px-3 py-1.5 text-xs font-medium hover:bg-destructive/20 transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 rounded-lg bg-destructive/10 text-destructive-fg border border-destructive/20 px-3 py-1.5 text-xs font-medium hover:bg-destructive/20 transition-colors cursor-pointer"
                 >
                   <Circle className="size-3 fill-destructive animate-pulse" />
                   Record Macro
@@ -191,7 +191,7 @@ export function MacroRecorderDialog({ open, onClose, onRunMacro }: MacroRecorder
             ) : (
               <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-destructive">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-destructive-fg">
                     <Circle className="size-3 fill-destructive animate-ping" />
                     <span>Recording Macro... ({recordedSteps.length} step(s))</span>
                   </div>
@@ -288,7 +288,7 @@ export function MacroRecorderDialog({ open, onClose, onRunMacro }: MacroRecorder
                         <button
                           onClick={() => handleDeleteMacro(m.id)}
                           title="Delete Macro"
-                          className="rounded-md border border-destructive/20 bg-destructive/10 p-1.5 text-destructive hover:bg-destructive/20 transition-colors cursor-pointer"
+                          className="rounded-md border border-destructive/20 bg-destructive/10 p-1.5 text-destructive-fg hover:bg-destructive/20 transition-colors cursor-pointer"
                         >
                           <Trash2 className="size-3.5" />
                         </button>

@@ -42,6 +42,18 @@ const HEX_CLASS_RE =
 
 const ARBITRARY_Z_RE = /\bz-\[[0-9]+\]/;
 
+/**
+ * `--color-destructive` is a *fill* (30.6% lightness). Using it as a text
+ * color scores ~1.8:1 against --color-background — well under WCAG AA — and
+ * that is exactly what ~30 call sites did, including the host-key dialog's
+ * MITM warning. `text-destructive-fg` is the ink counterpart.
+ *
+ * Matches bare `text-destructive` (optionally with an opacity modifier) but
+ * not the two legitimate suffixed tokens: `text-destructive-fg` (the ink) and
+ * `text-destructive-foreground` (the on-fill pair).
+ */
+const DESTRUCTIVE_INK_RE = /\btext-destructive(?![-\w])/;
+
 function* walk(dir: string): Generator<string> {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
@@ -83,6 +95,10 @@ function scan(file: string): Violation[] {
       const z = ARBITRARY_Z_RE.exec(line);
       if (z) out.push({ file: relPath, line: i + 1, rule: 'arbitrary-z-index', match: z[0] });
     }
+
+    const ink = DESTRUCTIVE_INK_RE.exec(line);
+    if (ink)
+      out.push({ file: relPath, line: i + 1, rule: 'destructive-fill-as-ink', match: ink[0] });
   }
   return out;
 }
@@ -115,6 +131,19 @@ describe('design-token coverage', () => {
       const report = offenders.map((v) => `  ${v.file}:${v.line}  ${v.match}`).join('\n');
       throw new Error(
         `Hex-literal arbitrary classes leaked into components. Add a token in assets/main.css and reference it instead.\n${report}`,
+      );
+    }
+    expect(offenders).toHaveLength(0);
+  });
+
+  it('renderer components use text-destructive-fg for destructive text', () => {
+    const offenders = allViolations.filter((v) => v.rule === 'destructive-fill-as-ink');
+    if (offenders.length > 0) {
+      const report = offenders
+        .map((v) => `  ${v.file}:${v.line}  ${v.match} — use text-destructive-fg.`)
+        .join('\n');
+      throw new Error(
+        `--color-destructive is a surface fill and fails WCAG AA as a text color (~1.8:1 on the app background). Use text-destructive-fg for text; keep bg-destructive/border-destructive for fills.\n${report}`,
       );
     }
     expect(offenders).toHaveLength(0);
