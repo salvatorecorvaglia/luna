@@ -1,5 +1,5 @@
 import { toastArgs } from '@shared/error-messages';
-import { DEFAULT_SETTINGS } from '@shared/types/settings';
+import { type AppSettings, DEFAULT_SETTINGS } from '@shared/types/settings';
 import type { TerminalThemeName } from '@shared/types/terminal';
 import { useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -70,6 +70,9 @@ export function SettingsPanel() {
   const [maxReconnectAttempts, setMaxReconnectAttempts] = useState(
     DEFAULT_SETTINGS['ssh.maxReconnectAttempts'],
   );
+  const [allowPublicBind, setAllowPublicBind] = useState(
+    DEFAULT_SETTINGS['ssh.allowPublicPortForwardBind'],
+  );
   const [appVersion, setAppVersion] = useState('0.0.0');
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
 
@@ -91,12 +94,17 @@ export function SettingsPanel() {
         setKeepAliveInterval(Number(settings['ssh.keepAliveInterval']) / 1000);
       if (settings['ssh.maxReconnectAttempts'] != null)
         setMaxReconnectAttempts(Number(settings['ssh.maxReconnectAttempts']));
+      if (settings['ssh.allowPublicPortForwardBind'] != null)
+        setAllowPublicBind(Boolean(settings['ssh.allowPublicPortForwardBind']));
     });
   }, [settingsOpen, setFontSize, setScrollback]);
 
-  const persistSetting = useCallback((key: string, value: unknown) => {
-    void window.api.settings.set(key, JSON.stringify(value));
-  }, []);
+  const persistSetting = useCallback(
+    <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
+      void window.api.settings.set(key, JSON.stringify(value));
+    },
+    [],
+  );
 
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -266,9 +274,19 @@ export function SettingsPanel() {
                   value={maxReconnectAttempts}
                   min={0}
                   max={20}
+                  disabled={!autoReconnect}
                   onChange={(v) => {
                     setMaxReconnectAttempts(v);
                     persistSetting('ssh.maxReconnectAttempts', v);
+                  }}
+                />
+                <Toggle
+                  label="Allow public port-forward binds"
+                  description="Lets local and dynamic tunnels listen on non-loopback addresses, making them reachable from other machines on your network. Leave off unless you need it."
+                  enabled={allowPublicBind}
+                  onToggle={(v) => {
+                    setAllowPublicBind(v);
+                    persistSetting('ssh.allowPublicPortForwardBind', v);
                   }}
                 />
               </Section>
@@ -485,11 +503,11 @@ function Section({
   return (
     <section className="border-t border-border/60 pt-5 first:border-t-0 first:pt-0">
       <div className="flex items-center gap-2 mb-3.5">
-        <span className={danger ? 'text-destructive' : 'text-muted-foreground'}>{icon}</span>
+        <span className={danger ? 'text-destructive-fg' : 'text-muted-foreground'}>{icon}</span>
         <h3
           className={cn(
             'text-base font-semibold tracking-tight',
-            danger ? 'text-destructive' : 'text-foreground',
+            danger ? 'text-destructive-fg' : 'text-foreground',
           )}
         >
           {title}
@@ -516,6 +534,7 @@ function EditableNumberRow({
   max,
   step = 1,
   suffix = '',
+  disabled = false,
   onChange,
 }: {
   label: string;
@@ -524,6 +543,8 @@ function EditableNumberRow({
   max: number;
   step?: number;
   suffix?: string;
+  /** Greys out the whole row when the setting it refines has no effect. */
+  disabled?: boolean;
   onChange: (value: number) => void;
 }) {
   // Custom stepper buttons replace the native browser spinners, which are
@@ -532,7 +553,7 @@ function EditableNumberRow({
   const clamp = (v: number) => Math.min(max, Math.max(min, v));
   const inputId = useId();
   return (
-    <div className="flex items-center justify-between py-1">
+    <div className={cn('flex items-center justify-between py-1', disabled && 'opacity-50')}>
       <label htmlFor={inputId} className="text-xs text-muted-foreground">
         {label}
       </label>
@@ -540,7 +561,7 @@ function EditableNumberRow({
         <button
           type="button"
           onClick={() => onChange(clamp(value - step))}
-          disabled={value <= min}
+          disabled={disabled || value <= min}
           aria-label={`Decrease ${label}`}
           className="flex size-7 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
         >
@@ -552,6 +573,7 @@ function EditableNumberRow({
           inputMode="numeric"
           pattern="[0-9]*"
           value={value}
+          disabled={disabled}
           onChange={(e) => {
             const v = parseInt(e.target.value, 10);
 
@@ -563,7 +585,7 @@ function EditableNumberRow({
         <button
           type="button"
           onClick={() => onChange(clamp(value + step))}
-          disabled={value >= max}
+          disabled={disabled || value >= max}
           aria-label={`Increase ${label}`}
           className="flex size-7 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
         >

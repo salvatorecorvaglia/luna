@@ -10,9 +10,11 @@ export function useSettings() {
 }
 
 export function useSetting<K extends keyof AppSettings>(key: K) {
-  return useQuery<string | null>({
+  return useQuery<AppSettings[K] | null>({
     queryKey: ['settings', key],
-    queryFn: () => window.api.settings.get(key),
+    // The main process decodes the stored JSON, so this matches the value
+    // shape you'd get from `useSettings()[key]`.
+    queryFn: () => window.api.settings.get(key) as Promise<AppSettings[K] | null>,
     staleTime: 30_000,
   });
 }

@@ -50,10 +50,7 @@ export const IPC = {
   S3_GENERATE_PRESIGNED_URL: 's3:generate-presigned-url',
 
   // Shell & Local PTY
-  SHELL_TEST: 'shell:test',
-  SHELL_READ_DIR: 'shell:read-dir',
   SHELL_JOIN_PATH: 'shell:join-path',
-  SHELL_PARSE_CONFIG: 'shell:parse-config',
   SHELL_CLI_REFERENCE: 'shell:cli-reference',
   SHELL_SEARCH_HISTORY: 'shell:search-history',
   SHELL_EXPORT_AUDIT_LOG: 'shell:export-audit-log',

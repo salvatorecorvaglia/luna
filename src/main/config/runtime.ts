@@ -50,6 +50,26 @@ export const DEFAULTS = {
 
 type DefaultsShape = typeof DEFAULTS;
 
+/**
+ * Safe range for each tunable, keyed by the *settings* key so the IPC write
+ * path (`settings.ipc.ts`) and this read path share one table. They used to
+ * encode bounds independently — and in fact the write path rejected these
+ * keys entirely, so the read-side clamps below were the only thing enforcing
+ * anything. Exporting the table makes drift impossible.
+ */
+export const RUNTIME_BOUNDS: Record<string, { min: number; max: number }> = {
+  'sftp.idleTimeoutMs': { min: 100, max: 24 * 60 * 60 * 1000 },
+  'sftp.idleCheckIntervalMs': { min: 100, max: 24 * 60 * 60 * 1000 },
+  'sftp.abortCleanupDelayMs': { min: 25, max: 1_000 },
+  'ssh.reconnectBaseDelayMs': { min: 100, max: 24 * 60 * 60 * 1000 },
+  'ssh.reconnectMaxDelayMs': { min: 100, max: 24 * 60 * 60 * 1000 },
+  's3.uploadQueueSize': { min: 1, max: 32 },
+  's3.uploadPartSizeBytes': { min: 5 * 1024 * 1024, max: 256 * 1024 * 1024 },
+  'sftp.transferChunkSizeBytes': { min: 4 * 1024, max: 4 * 1024 * 1024 },
+  'sftp.transferConcurrency': { min: 1, max: 256 },
+  'sftp.transferHighWaterMarkBytes': { min: 16 * 1024, max: 16 * 1024 * 1024 },
+};
+
 /** Settings-keys mirrored 1:1 with DEFAULTS so tests can audit the contract. */
 export const SETTING_KEYS: Record<keyof DefaultsShape, string> = {
   SFTP_IDLE_TIMEOUT_MS: 'sftp.idleTimeoutMs',
@@ -92,35 +112,47 @@ export function getRuntimeNumber<K extends keyof DefaultsShape>(name: K): number
   if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) {
     return DEFAULTS[name];
   }
-  // Per-tunable bounds: refuse obviously wrong overrides rather than
-  // letting a bad settings row break the SFTP/S3 layer at runtime.
-  switch (name) {
-    case 'S3_UPLOAD_PART_SIZE_BYTES':
-      // S3 requires ≥ 5 MiB parts; cap at 256 MiB to keep RAM in check.
-      if (raw < 5 * 1024 * 1024 || raw > 256 * 1024 * 1024) return DEFAULTS[name];
-      break;
-    case 'S3_UPLOAD_QUEUE_SIZE':
-      if (raw < 1 || raw > 32) return DEFAULTS[name];
-      break;
-    case 'SFTP_TRANSFER_CHUNK_SIZE_BYTES':
-      if (raw < 4 * 1024 || raw > 4 * 1024 * 1024) return DEFAULTS[name];
-      break;
-    case 'SFTP_TRANSFER_CONCURRENCY':
-      if (raw < 1 || raw > 256) return DEFAULTS[name];
-      break;
-    case 'SFTP_TRANSFER_HIGH_WATER_MARK_BYTES':
-      if (raw < 16 * 1024 || raw > 16 * 1024 * 1024) return DEFAULTS[name];
-      break;
-    case 'SFTP_ABORT_CLEANUP_DELAY_MS':
-      if (raw < 25 || raw > 1_000) return DEFAULTS[name];
-      break;
-    case 'SFTP_IDLE_TIMEOUT_MS':
-    case 'SFTP_IDLE_CHECK_INTERVAL_MS':
-    case 'SSH_RECONNECT_BASE_DELAY_MS':
-    case 'SSH_RECONNECT_MAX_DELAY_MS':
-      // Keep timers between 100ms and 24h.
-      if (raw < 100 || raw > 24 * 60 * 60 * 1000) return DEFAULTS[name];
-      break;
+  // Per-tunable bounds: refuse obviously wrong overrides rather than letting
+  // a bad settings row break the SFTP/S3 layer at runtime. The IPC write path
+  // rejects out-of-range values too, but a hand-edited sqlite file or a row
+  // written by an older build can still land here.
+  const bounds = RUNTIME_BOUNDS[SETTING_KEYS[name]];
+  if (bounds && (raw < bounds.min || raw > bounds.max)) {
+    return DEFAULTS[name];
   }
   return raw;
+}
+
+/**
+ * Per-call tunables that sit on a transfer's hot path.
+ *
+ * `getRuntimeNumber` performs a synchronous sqlite read; the streaming code
+ * called it three times per transfer (and once per abort), putting a blocking
+ * file read on the path of every upload and download. Snapshot the group once
+ * and invalidate when settings change.
+ */
+export interface TransferTunables {
+  chunkSize: number;
+  concurrency: number;
+  highWaterMark: number;
+  abortCleanupDelayMs: number;
+}
+
+let transferTunables: TransferTunables | null = null;
+
+export function getTransferTunables(): TransferTunables {
+  if (!transferTunables) {
+    transferTunables = {
+      chunkSize: getRuntimeNumber('SFTP_TRANSFER_CHUNK_SIZE_BYTES'),
+      concurrency: getRuntimeNumber('SFTP_TRANSFER_CONCURRENCY'),
+      highWaterMark: getRuntimeNumber('SFTP_TRANSFER_HIGH_WATER_MARK_BYTES'),
+      abortCleanupDelayMs: getRuntimeNumber('SFTP_ABORT_CLEANUP_DELAY_MS'),
+    };
+  }
+  return transferTunables;
+}
+
+/** Drop the cached snapshot. Called by `SETTINGS_SET` so overrides take effect. */
+export function invalidateRuntimeCache(): void {
+  transferTunables = null;
 }

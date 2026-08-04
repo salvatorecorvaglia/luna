@@ -16,6 +16,7 @@ import type {
 } from '@shared/types/ipc';
 // No sftp imports needed here anymore
 import type { AuditExportOptions } from '@shared/types/session-audit';
+import type { AppSettings } from '@shared/types/settings';
 import type { CreateSnippetInput, UpdateSnippetInput } from '@shared/types/snippet';
 import type {
   S3ConnectParams,
@@ -185,6 +186,8 @@ const api = {
     upload: (params: StorageTransferParams) => invoke(IPC.STORAGE_UPLOAD, params),
     onListTruncated: createEventListener(IPC.STORAGE_LIST_TRUNCATED),
     compareDirectories: (params: {
+      /** Optional: when supplied the call draws from that session's rate bucket. */
+      sessionId?: string;
       localEntries: { relativePath: string; size: number; mtime: number }[];
       remoteEntries: StorageEntry[];
       direction?: 'sync-to-remote' | 'sync-to-local' | 'bi-directional';
@@ -258,8 +261,8 @@ const api = {
 
   // Settings
   settings: {
-    get: (key: string) => invoke(IPC.SETTINGS_GET, key as never),
-    set: (key: string, value: string) => invoke(IPC.SETTINGS_SET, { key: key as never, value }),
+    get: (key: keyof AppSettings) => invoke(IPC.SETTINGS_GET, key),
+    set: (key: keyof AppSettings, value: string) => invoke(IPC.SETTINGS_SET, { key, value }),
     getAll: () => invoke(IPC.SETTINGS_GET_ALL),
   },
 

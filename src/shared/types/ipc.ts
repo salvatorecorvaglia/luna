@@ -210,7 +210,11 @@ export interface IpcHandlerMap {
   };
 
   // Settings
-  'settings:get': { request: keyof AppSettings; response: string | null };
+  /** Returns the decoded value — same shape as an entry of `settings:get-all`. */
+  'settings:get': {
+    request: keyof AppSettings;
+    response: AppSettings[keyof AppSettings] | null;
+  };
   'settings:set': { request: { key: keyof AppSettings; value: string }; response: void };
   'settings:get-all': { request: void; response: Partial<AppSettings> };
 
