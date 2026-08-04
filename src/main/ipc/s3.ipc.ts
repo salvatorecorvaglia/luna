@@ -5,7 +5,8 @@ import type { S3ConnectParams, S3TestConnectionConfig } from '@shared/types/stor
 import { registerHandler } from '../lib/ipc-handler';
 import log from '../lib/logger';
 import { releaseStorageBucket } from '../lib/rate-limiter';
-import { assertNonEmptyString } from '../lib/validate';
+import { SlidingWindowLimiter } from '../lib/sliding-window-limiter';
+import { assertBoundedInt, assertNonEmptyString } from '../lib/validate';
 import { retrieveS3Credential } from '../services/credential-store';
 import { type ConnectionRow, getDatabase } from '../services/database';
 import { buildS3ClientConfig } from '../services/s3/s3-helpers';
@@ -13,6 +14,20 @@ import { type S3SessionOptions, s3StorageProvider } from '../services/s3/s3-prov
 import { storageRegistry } from '../services/storage/registry';
 
 const MAX_SECRET_LEN = 4096;
+
+/** AWS SigV4 refuses presigned URLs valid for more than 7 days. */
+const MAX_PRESIGN_EXPIRY_SEC = 7 * 24 * 60 * 60;
+/** Below a minute the URL is unusable by the time it reaches the clipboard. */
+const MIN_PRESIGN_EXPIRY_SEC = 60;
+const DEFAULT_PRESIGN_EXPIRY_SEC = 3600;
+
+/**
+ * Presigned URLs are bearer credentials, so minting them is rate-limited
+ * independently of the ordinary storage token bucket: a renderer that can
+ * generate them without limit can exfiltrate a whole bucket as shareable
+ * links without ever transferring a byte through Luna.
+ */
+const presignLimiter = new SlidingWindowLimiter(30, 60_000, 'Presigned URL generation');
 
 function loadConfig(connectionId: string): S3SessionOptions {
   const db = getDatabase();
@@ -168,9 +183,17 @@ export function registerS3Handlers(): void {
       _event,
       params: { sessionId: string; path: string; expiresSec: number },
     ): Promise<string> => {
+      presignLimiter.check();
       assertNonEmptyString(params.sessionId, 'sessionId');
       assertNonEmptyString(params.path, 'path');
-      const expiresSec = params.expiresSec || 3600;
+      // A presigned URL is a bearer token for the object: anyone holding it
+      // can read the file for its whole lifetime, with no further auth. The
+      // handler used to accept any number, so a renderer could mint a URL
+      // valid for years — or hand the SDK a value it rejects with an opaque
+      // signing error. SigV4 caps validity at 7 days; enforce that, and
+      // require an explicit value rather than silently defaulting.
+      const expiresSec = params.expiresSec ?? DEFAULT_PRESIGN_EXPIRY_SEC;
+      assertBoundedInt(expiresSec, 'expiresSec', MIN_PRESIGN_EXPIRY_SEC, MAX_PRESIGN_EXPIRY_SEC);
       return s3StorageProvider.getPresignedUrl(params.sessionId, params.path, expiresSec);
     },
   );

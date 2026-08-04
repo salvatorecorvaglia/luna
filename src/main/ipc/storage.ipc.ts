@@ -12,6 +12,11 @@ import { transferQueue } from '../services/transfer-queue';
 
 export { __resetStorageRateLimiter } from '../lib/rate-limiter';
 
+/** Per-side ceiling on folder-comparison input. */
+const MAX_COMPARE_ENTRIES = 50_000;
+
+const VALID_SYNC_DIRECTIONS = new Set(['sync-to-remote', 'sync-to-local', 'bi-directional']);
+
 import { ErrorCode, LunaError } from '@shared/errors';
 import type {
   StorageDeleteParams,
@@ -120,16 +125,45 @@ export function registerStorageHandlers(): void {
     (
       _event,
       params: {
+        sessionId?: string;
         localEntries: { relativePath: string; size: number; mtime: number }[];
         remoteEntries: StorageEntry[];
         direction?: 'sync-to-remote' | 'sync-to-local' | 'bi-directional';
       },
     ) => {
-      return folderSyncService.compareDirectories(
-        params.localEntries || [],
-        params.remoteEntries || [],
-        params.direction,
-      );
+      // This handler was previously unvalidated and unmetered — the only limit
+      // was the global 4 MiB IPC payload cap, which still allows tens of
+      // thousands of entries per call, repeated as fast as the renderer can
+      // issue them. Comparison is O(n) with a Map per side, so that is a
+      // straightforward way to pin the main process.
+      const localEntries = params.localEntries ?? [];
+      const remoteEntries = params.remoteEntries ?? [];
+      if (!Array.isArray(localEntries) || !Array.isArray(remoteEntries)) {
+        throw new LunaError(
+          'localEntries and remoteEntries must be arrays',
+          ErrorCode.VALIDATION_ERROR,
+        );
+      }
+      if (localEntries.length > MAX_COMPARE_ENTRIES || remoteEntries.length > MAX_COMPARE_ENTRIES) {
+        throw new LunaError(
+          `Folder comparison is limited to ${MAX_COMPARE_ENTRIES} entries per side. Sync a narrower subtree.`,
+          ErrorCode.VALIDATION_ERROR,
+          { limit: MAX_COMPARE_ENTRIES },
+        );
+      }
+      if (params.direction !== undefined && !VALID_SYNC_DIRECTIONS.has(params.direction)) {
+        throw new LunaError(
+          `direction must be one of ${Array.from(VALID_SYNC_DIRECTIONS).join('|')}`,
+          ErrorCode.VALIDATION_ERROR,
+        );
+      }
+      // Comparison is per-session work like every other storage op, so it
+      // draws from the same bucket when a session id is supplied.
+      if (params.sessionId) {
+        assertNonEmptyString(params.sessionId, 'sessionId');
+        takeStorageToken(params.sessionId);
+      }
+      return folderSyncService.compareDirectories(localEntries, remoteEntries, params.direction);
     },
   );
 }

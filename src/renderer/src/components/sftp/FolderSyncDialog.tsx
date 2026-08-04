@@ -70,6 +70,7 @@ export function FolderSyncDialog({
 
       // Compare
       const res = await window.api.storage.compareDirectories({
+        sessionId,
         localEntries: localFormatted,
         remoteEntries: remoteFiles,
         direction,

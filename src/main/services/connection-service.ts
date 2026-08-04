@@ -5,6 +5,7 @@ import type {
   Connection,
   CreateConnectionInput,
   ExportedConnection,
+  PortForwardingConfig,
   UpdateConnectionInput,
 } from '@shared/types/connection';
 import { dialog } from 'electron';
@@ -19,8 +20,63 @@ import {
 } from '../lib/validate';
 import { deleteCredential, retrieveS3Credential, storeCredential } from './credential-store';
 import { CONNECTION_COLUMNS, type ConnectionRow, getDatabase } from './database';
+import { validatePortForwardConfig } from './ssh/port-forward-config';
 
 const VALID_AUTH_TYPES = ['password', 'key', 'key+passphrase'] as const;
+
+/**
+ * Length caps on free-text columns. Without them a pasted multi-line blob
+ * becomes a connection name or a sidebar folder header, wrecking the layout
+ * with no way to tell what happened.
+ */
+const MAX_NAME_LEN = 200;
+const MAX_FOLDER_LEN = 100;
+const MAX_HOST_LEN = 255;
+const MAX_USERNAME_LEN = 255;
+const MAX_COLOR_TAG_LEN = 64;
+
+function assertNoNullBytes(value: unknown, name: string): asserts value is string {
+  if (typeof value !== 'string') throw validationError(`${name} must be a string`);
+  if (value.includes('\0')) throw validationError(`${name} must not contain null bytes`);
+}
+
+function assertBoundedLength(value: string, name: string, max: number): void {
+  if (value.length > max) {
+    throw validationError(`${name} must be at most ${max} characters`);
+  }
+}
+
+/**
+ * Validate a `portForwards` array from the renderer. Public binds are allowed
+ * at *save* time regardless of the setting — the setting is enforced when the
+ * forward is actually started, so a user can keep a saved config while the
+ * toggle is off without losing it on every edit.
+ */
+function normalisePortForwardsInput(raw: unknown): PortForwardingConfig[] {
+  if (raw == null) return [];
+  if (!Array.isArray(raw)) throw validationError('portForwards must be an array');
+  return raw.map((entry) => validatePortForwardConfig(entry, { allowPublicBind: true }));
+}
+
+/**
+ * Decode the `port_forwards` JSON column defensively.
+ *
+ * A bare `JSON.parse` here meant one malformed row — from a partial write, a
+ * hand-edited sqlite file, or a future schema change — threw out of
+ * `listConnections()` and blanked the entire sidebar, with no way for the user
+ * to reach the connection and fix it. Degrade to "this connection has no
+ * forwards" instead.
+ */
+function parsePortForwardsColumn(raw: string | null, connectionId: string): PortForwardingConfig[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    log.warn(`[Connections] Ignoring malformed port_forwards JSON on connection ${connectionId}`);
+    return [];
+  }
+}
 
 export function rowToConnection(row: ConnectionRow): Connection {
   return {
@@ -43,7 +99,7 @@ export function rowToConnection(row: ConnectionRow): Connection {
     isHidden: row.is_hidden === 1,
     keepaliveInterval: row.keepalive_interval || undefined,
     keepaliveCountMax: row.keepalive_count_max || undefined,
-    portForwards: row.port_forwards ? JSON.parse(row.port_forwards) : [],
+    portForwards: parsePortForwardsColumn(row.port_forwards, row.id),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -88,20 +144,53 @@ export class ConnectionService {
 
   createConnection(input: CreateConnectionInput): Connection {
     const db = getDatabase();
-    if (!input.name?.trim()) throw validationError('Connection name is required');
+    // Create used to validate far less than update: no null-byte checks, no
+    // length caps, no authType allowlist, no port-forward shape check. That
+    // asymmetry meant a value the update path rejected could still be written
+    // by create and then read back everywhere. Both paths now enforce the
+    // same rules.
+    assertNonEmptyString(input.name, 'name');
+    assertBoundedLength(input.name, 'name', MAX_NAME_LEN);
     const provider = input.provider ?? 'sftp';
+    if (provider !== 'sftp' && provider !== 's3') {
+      throw validationError('provider must be "sftp" or "s3"');
+    }
+
+    const folder = input.folder?.trim() || 'default';
+    assertNoNullBytes(folder, 'folder');
+    assertBoundedLength(folder, 'folder', MAX_FOLDER_LEN);
+    if (input.colorTag != null) {
+      assertNoNullBytes(input.colorTag, 'colorTag');
+      assertBoundedLength(input.colorTag, 'colorTag', MAX_COLOR_TAG_LEN);
+    }
 
     if (provider === 'sftp') {
-      if (!input.host?.trim()) throw validationError('Host is required');
-      if (!input.username?.trim()) throw validationError('Username is required');
-      if (typeof input.port !== 'number' || input.port < 1 || input.port > 65535) {
-        throw validationError('Port must be between 1 and 65535');
+      assertNonEmptyString(input.host, 'host');
+      assertBoundedLength(input.host, 'host', MAX_HOST_LEN);
+      assertNonEmptyString(input.username, 'username');
+      assertBoundedLength(input.username, 'username', MAX_USERNAME_LEN);
+      assertBoundedInt(input.port, 'port', 1, 65535);
+      if (!input.authType || !VALID_AUTH_TYPES.includes(input.authType)) {
+        throw validationError(`authType must be one of ${VALID_AUTH_TYPES.join('|')}`);
       }
-      if (!input.authType) throw validationError('authType is required');
-    } else if (provider === 's3') {
-      if (!input.accessKeyId?.trim()) throw validationError('Access Key ID is required');
-      if (!input.secretAccessKey?.trim()) throw validationError('Secret Access Key is required');
+      if (input.privateKeyPath != null && input.privateKeyPath !== '') {
+        assertNoNullBytes(input.privateKeyPath, 'privateKeyPath');
+      }
+    } else {
+      assertNonEmptyString(input.accessKeyId, 'accessKeyId');
+      assertNonEmptyString(input.secretAccessKey, 'secretAccessKey');
+      for (const field of ['endpoint', 'region', 'defaultBucket'] as const) {
+        const value = input[field];
+        if (value != null && value !== '') {
+          assertNoNullBytes(value, field);
+          assertBoundedLength(value, field, MAX_HOST_LEN);
+        }
+      }
     }
+
+    // Validated up front so a bad forward is rejected at save time rather than
+    // silently dropped when the session later tries to start it.
+    const portForwards = normalisePortForwardsInput(input.portForwards);
 
     const id = uuidv4();
     const now = Math.floor(Date.now() / 1000);
@@ -132,12 +221,12 @@ export class ConnectionService {
         provider === 's3' ? input.region || null : null,
         provider === 's3' ? input.defaultBucket || null : null,
         provider === 's3' ? (input.forcePathStyle ? 1 : 0) : null,
-        input.folder || 'default',
+        folder,
         input.colorTag || null,
         input.isHidden ? 1 : 0,
         input.keepaliveInterval ?? 0,
         input.keepaliveCountMax ?? 3,
-        input.portForwards ? JSON.stringify(input.portForwards) : '[]',
+        JSON.stringify(portForwards),
         now,
         now,
       );
@@ -214,7 +303,8 @@ export class ConnectionService {
         } else if (typeof raw !== 'string') {
           throw validationError('folder must be a string');
         } else {
-          if (raw.includes('\0')) throw validationError('folder must not contain null bytes');
+          assertNoNullBytes(raw, 'folder');
+          assertBoundedLength(raw, 'folder', MAX_FOLDER_LEN);
           value = raw;
         }
       } else if (key === 'forcePathStyle' || key === 'isHidden') {
@@ -239,18 +329,17 @@ export class ConnectionService {
           value = raw;
         }
       } else if (key === 'portForwards') {
-        if (raw === null) {
-          value = '[]';
-        } else if (!Array.isArray(raw)) {
-          throw validationError('portForwards must be an array');
-        } else {
-          value = JSON.stringify(raw);
-        }
+        value = JSON.stringify(normalisePortForwardsInput(raw));
       } else if (key === 'port') {
         assertBoundedInt(raw, 'port', 1, 65535);
         value = raw;
       } else if (key === 'name' || key === 'host' || key === 'username') {
         assertNonEmptyString(raw, key);
+        assertBoundedLength(
+          raw,
+          key,
+          key === 'name' ? MAX_NAME_LEN : key === 'host' ? MAX_HOST_LEN : MAX_USERNAME_LEN,
+        );
         value = raw;
       } else if (key === 'authType') {
         if (typeof raw !== 'string' || !VALID_AUTH_TYPES.includes(raw as AuthType)) {

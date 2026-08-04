@@ -33,6 +33,18 @@ const MAX_PTY_SEND_BYTES = 65536;
 const MAX_PTY_EMIT_BYTES = 1024 * 1024;
 
 /**
+ * Hard cap on concurrent local shells. Every other resource in the app is
+ * bounded (queued transfers, tracked rate-limit buckets, SFTP leases) but
+ * spawn was not: a renderer loop — buggy or hostile — could fork unbounded
+ * login shells, each of which sources the user's full shell profile. 32 is
+ * well past any plausible tab count.
+ */
+const MAX_LOCAL_SESSIONS = 32;
+
+/** Flush interval for coalescing PTY output into one IPC message. */
+const PTY_FLUSH_INTERVAL_MS = 16;
+
+/**
  * Whitelist of POSIX shells we're willing to spawn. process.env.SHELL is
  * attacker-influenceable (parent process, IDE launcher, sourced .env), so we
  * refuse to hand it straight to pty.spawn().
@@ -75,6 +87,13 @@ export function registerLocalTerminalHandlers(): void {
       assertBoundedInt(cols, 'cols', 1, 500);
       assertBoundedInt(rows, 'rows', 1, 500);
       if (sessions.has(sessionId)) return;
+      if (sessions.size >= MAX_LOCAL_SESSIONS) {
+        throw new LunaError(
+          `Too many local terminals open (max ${MAX_LOCAL_SESSIONS}). Close one and try again.`,
+          ErrorCode.FORBIDDEN,
+          { reason: 'session-limit', limit: MAX_LOCAL_SESSIONS },
+        );
+      }
 
       const shell = detectShell();
       const args = process.platform !== 'win32' ? ['--login'] : [];
@@ -107,7 +126,54 @@ export function registerLocalTerminalHandlers(): void {
       // StringDecoder buffers incomplete UTF-8 sequences across emits so we
       // never hand a half-multibyte character to the renderer.
       const decoder = new StringDecoder('utf8');
+
+      /**
+       * Send one frame, re-resolving the window each time.
+       *
+       * The window must be re-checked at *send* time, not at enqueue time.
+       * The flush runs on a 16 ms timer, so a window destroyed between the
+       * `onData` callback and the timer firing left the old code calling
+       * `webContents.send` on a destroyed object. That throws from inside a
+       * timer callback — an unhandled exception, which the process-level
+       * handler answers with `process.exit(1)`. Closing the window while a
+       * chatty command was running could take the whole app down with it.
+       */
+      const emit = (data: string): boolean => {
+        const win = getMainWindow();
+        if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return false;
+        win.webContents.send(IPC.LOCAL_TERMINAL_ON_DATA, { sessionId, data });
+        return true;
+      };
+
+      const flush = (): void => {
+        const currentTb = localTerminalBuffers.get(sessionId);
+        if (!currentTb) return;
+        const combined = currentTb.data.join('');
+        currentTb.data = [];
+        currentTb.timer = null;
+        if (combined.length === 0) return;
+
+        const buf = Buffer.from(combined, 'utf8');
+        if (buf.byteLength <= MAX_PTY_EMIT_BYTES) {
+          emit(combined);
+          return;
+        }
+        // Chunk on byte boundaries; StringDecoder reassembles UTF-8 sequences
+        // straddling chunk edges so a 4-byte emoji can't be corrupted.
+        for (let offset = 0; offset < buf.byteLength; offset += MAX_PTY_EMIT_BYTES) {
+          const slice = buf.subarray(offset, offset + MAX_PTY_EMIT_BYTES);
+          const chunk = decoder.write(slice);
+          // Stop early if the window went away mid-chunk-loop; the remaining
+          // slices have nowhere to go.
+          if (chunk.length > 0 && !emit(chunk)) return;
+        }
+        const tail = decoder.end();
+        if (tail.length > 0) emit(tail);
+      };
+
       ptyProcess.onData((data: string) => {
+        // Cheap early-out: don't accumulate output for a window that's gone.
+        // The authoritative check lives in emit().
         const win = getMainWindow();
         if (!win || win.isDestroyed()) return;
 
@@ -120,33 +186,20 @@ export function registerLocalTerminalHandlers(): void {
 
         if (!tb.timer) {
           tb.timer = setTimeout(() => {
-            const currentTb = localTerminalBuffers.get(sessionId);
-            if (!currentTb) return;
-            const combined = currentTb.data.join('');
-            currentTb.data = [];
-            currentTb.timer = null;
-
-            if (combined.length > 0) {
-              const buf = Buffer.from(combined, 'utf8');
-              if (buf.byteLength <= MAX_PTY_EMIT_BYTES) {
-                win.webContents.send(IPC.LOCAL_TERMINAL_ON_DATA, { sessionId, data: combined });
-              } else {
-                // Chunk on byte boundaries; StringDecoder reassembles UTF-8 sequences
-                // straddling chunk edges so a 4-byte emoji can't be corrupted.
-                for (let offset = 0; offset < buf.byteLength; offset += MAX_PTY_EMIT_BYTES) {
-                  const slice = buf.subarray(offset, offset + MAX_PTY_EMIT_BYTES);
-                  const chunk = decoder.write(slice);
-                  if (chunk.length > 0) {
-                    win.webContents.send(IPC.LOCAL_TERMINAL_ON_DATA, { sessionId, data: chunk });
-                  }
-                }
-                const tail = decoder.end();
-                if (tail.length > 0) {
-                  win.webContents.send(IPC.LOCAL_TERMINAL_ON_DATA, { sessionId, data: tail });
-                }
+            try {
+              flush();
+            } catch (err) {
+              // A throw here would escape the timer as an uncaught exception
+              // and kill the process. Losing a frame of terminal output is a
+              // vastly better outcome.
+              log.error(`[LocalTerminal] Flush failed for session ${sessionId}:`, err);
+              const tb = localTerminalBuffers.get(sessionId);
+              if (tb) {
+                tb.data = [];
+                tb.timer = null;
               }
             }
-          }, 16);
+          }, PTY_FLUSH_INTERVAL_MS);
         }
       });
 
@@ -158,7 +211,7 @@ export function registerLocalTerminalHandlers(): void {
           localTerminalBuffers.delete(sessionId);
         }
         const win = getMainWindow();
-        if (win && !win.isDestroyed()) {
+        if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
           win.webContents.send(IPC.LOCAL_TERMINAL_ON_EXIT, { sessionId, exitCode });
         }
         log.info(`[LocalTerminal] Session ${sessionId} exited with code ${exitCode}`);

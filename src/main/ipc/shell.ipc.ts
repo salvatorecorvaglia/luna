@@ -40,13 +40,13 @@ export function registerShellHandlers(): void {
     const entries = await readdir(normalized, { withFileTypes: true });
     const results: LocalFileEntry[] = [];
 
-    const limit = 50; // Batch limit to prevent OS file descriptor exhaustion
-    const chunks: (typeof entries)[] = [];
-    for (let i = 0; i < entries.length; i += limit) {
-      chunks.push(entries.slice(i, i + limit));
-    }
-
-    for (const chunk of chunks) {
+    // Batch limit to prevent OS file descriptor exhaustion. Iterate with an
+    // index rather than materialising a `chunks` array first — that copied
+    // every entry into a second structure before doing any work, which on a
+    // large directory doubled peak memory for no benefit.
+    const BATCH = 50;
+    for (let start = 0; start < entries.length; start += BATCH) {
+      const chunk = entries.slice(start, start + BATCH);
       const chunkResults = await Promise.all(
         chunk.map(async (entry) => {
           const fullPath = join(normalized, entry.name);

@@ -4,10 +4,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const handlers = new Map<string, (...args: unknown[]) => unknown>();
 
 const send = vi.fn();
+// Both the window and its webContents can be torn down independently, and the
+// production code checks both before sending — a webContents destroyed while
+// the BrowserWindow object is still alive is exactly the race that used to
+// crash the main process from inside the flush timer.
+let windowDestroyed = false;
+let webContentsDestroyed = false;
 const mockWindow = {
-  isDestroyed: () => false,
-  webContents: { send },
+  isDestroyed: () => windowDestroyed,
+  webContents: { send, isDestroyed: () => webContentsDestroyed },
 };
+
+/** Test helper: simulate the user closing the window mid-stream. */
+function destroyMockWindow(): void {
+  windowDestroyed = true;
+  webContentsDestroyed = true;
+}
 
 vi.mock('electron', () => ({
   ipcMain: {
@@ -63,6 +75,8 @@ beforeEach(() => {
   send.mockClear();
   spawn.mockClear();
   ptyInstances.length = 0;
+  windowDestroyed = false;
+  webContentsDestroyed = false;
   // Each test should start with a clean session map. Easiest reset is to
   // dispose any stragglers from a prior test in this module's lifecycle.
   disposeLocalTerminals();
@@ -107,6 +121,38 @@ describe('local-terminal IPC — spawn', () => {
     // After exit the session is gone — send-data on the same id is a no-op.
     await handlers.get(IPC.LOCAL_TERMINAL_SEND_DATA)!({}, { sessionId: 's1', data: 'x' });
     expect(ptyInstances[0].write).not.toHaveBeenCalled();
+  });
+
+  it('does not send to a window destroyed between output and the flush timer', async () => {
+    // Regression: the window was checked when the PTY produced output but not
+    // again inside the 16ms flush timer, so closing the window mid-stream
+    // called send() on a destroyed webContents. That throws from a timer
+    // callback, which the process-level handler answers with process.exit(1).
+    vi.useFakeTimers();
+    try {
+      await handlers.get(IPC.LOCAL_TERMINAL_SPAWN)!({}, { sessionId: 's1', cols: 80, rows: 24 });
+      ptyInstances[0].__dataCb?.('output produced while the window was alive');
+      destroyMockWindow();
+
+      expect(() => vi.advanceTimersByTime(16)).not.toThrow();
+      expect(send).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('refuses to spawn past the concurrent-session cap', async () => {
+    const spawnHandler = handlers.get(IPC.LOCAL_TERMINAL_SPAWN)!;
+    for (let i = 0; i < 32; i++) {
+      await spawnHandler({}, { sessionId: `cap-${i}`, cols: 80, rows: 24 });
+    }
+    expect(spawn).toHaveBeenCalledTimes(32);
+
+    await expect(spawnHandler({}, { sessionId: 'cap-33', cols: 80, rows: 24 })).rejects.toThrow(
+      /Too many local terminals/,
+    );
+    // The rejected spawn must not have started a process.
+    expect(spawn).toHaveBeenCalledTimes(32);
   });
 });
 
