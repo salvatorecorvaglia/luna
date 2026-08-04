@@ -8,7 +8,7 @@ import { useTransferStore } from '@/stores/transfer-store';
 
 export function StatusBar() {
   const sessions = useTerminalStore((s) => s.sessions);
-  const activeTabId = useTerminalStore((s) => s.activeTabId);
+  const activeSessionId = useTerminalStore((s) => s.activeSessionId);
   const transfers = useTransferStore((s) => s.transfers);
   const toggleQueueExpanded = useTransferStore((s) => s.toggleQueueExpanded);
 
@@ -33,7 +33,7 @@ export function StatusBar() {
     };
   }, []);
 
-  const activeSession = activeTabId ? sessions.get(activeTabId) : null;
+  const activeSession = activeSessionId ? sessions.get(activeSessionId) : null;
   const activeSessions = useMemo(
     () => Array.from(sessions.values()).filter((s) => s.status === 'connected').length,
     [sessions],
@@ -55,7 +55,7 @@ export function StatusBar() {
               {activeSession.status === 'connected' ? (
                 <Wifi className="size-3.5 flex-shrink-0 text-success" />
               ) : (
-                <WifiOff className="size-3.5 flex-shrink-0 text-destructive" />
+                <WifiOff className="size-3.5 flex-shrink-0 text-destructive-fg" />
               )}
               <span
                 className="max-w-[240px] truncate font-medium text-foreground/90"
@@ -69,7 +69,7 @@ export function StatusBar() {
                   activeSession.status === 'connected'
                     ? 'bg-success/10 text-success'
                     : activeSession.status === 'error'
-                      ? 'bg-destructive/10 text-destructive'
+                      ? 'bg-destructive/10 text-destructive-fg'
                       : 'bg-warning/10 text-warning',
                 )}
               >

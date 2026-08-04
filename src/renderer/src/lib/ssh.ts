@@ -23,7 +23,8 @@ export async function connectToHost(connectionId: string): Promise<void> {
 }
 
 async function connectToHostImpl(connectionId: string): Promise<void> {
-  const { sessions, addSession, updateSessionStatus, setActiveTab } = useTerminalStore.getState();
+  const { sessions, addSession, updateSessionStatus, setActiveSession } =
+    useTerminalStore.getState();
 
   // 1. Check local store
   const existing = Array.from(sessions.values()).find(
@@ -47,7 +48,7 @@ async function connectToHostImpl(connectionId: string): Promise<void> {
           status: sess.status,
           title: connectionName,
         });
-        setActiveTab(sess.id);
+        setActiveSession(sess.id);
         useUIStore.getState().setActiveView('terminal');
         return;
       }
@@ -57,7 +58,7 @@ async function connectToHostImpl(connectionId: string): Promise<void> {
   }
 
   if (existing) {
-    setActiveTab(existing.id);
+    setActiveSession(existing.id);
     useUIStore.getState().setActiveView('terminal');
     return;
   }

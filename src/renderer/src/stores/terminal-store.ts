@@ -35,6 +35,26 @@ const VALID_THEMES: TerminalThemeName[] = [
   'monokai',
 ];
 
+function clampScrollback(lines: number): number {
+  if (!Number.isFinite(lines)) return DEFAULT_SCROLLBACK;
+  return Math.min(LIMITS.MAX_SCROLLBACK, Math.max(LIMITS.MIN_SCROLLBACK, Math.round(lines)));
+}
+
+const DEFAULT_SCROLLBACK = 10000;
+
+function getInitialScrollback(): number {
+  try {
+    const saved = localStorage.getItem('luna-terminal-scrollback');
+    if (saved) {
+      const parsed = Number(saved);
+      if (Number.isFinite(parsed)) return clampScrollback(parsed);
+    }
+  } catch {
+    // localStorage may be unavailable
+  }
+  return DEFAULT_SCROLLBACK;
+}
+
 function getInitialTerminalTheme(): TerminalThemeName {
   try {
     const saved = localStorage.getItem('luna-terminal-theme');
@@ -169,10 +189,80 @@ export function findTabIdForSession(
   return null;
 }
 
+/** The slice of store state that detaching a session rewrites. */
+type DetachResult = Pick<TerminalState, 'sessions' | 'tabOrder' | 'activeSessionId' | 'layouts'>;
+
+/**
+ * Remove one session from the store: drop it from `sessions`, prune its leaf
+ * from the owning tab's pane tree, collapse the tab if that leaf was the last
+ * one, and pick a sensible next active pane.
+ *
+ * `removeSession` and `closeTab` were byte-for-byte identical apart from the
+ * IPC teardown call at the end; both now route through here so they cannot
+ * disagree about which pane gets focus after a close.
+ *
+ * `closeOtherTabs` and `closeTabsToRight` still open-code their own variant of
+ * the same rule — they drop whole tabs at once rather than one leaf, so they
+ * don't fit this signature. Unifying them means reworking this to take a set
+ * of session ids; worth doing, not done here.
+ */
+function detachSession(state: TerminalState, sessionId: string): DetachResult {
+  const sessions = new Map(state.sessions);
+  sessions.delete(sessionId);
+
+  const tabId = findTabIdForSession(state.layouts, sessionId);
+  if (!tabId) {
+    // Session isn't in any layout (tests, or a session added before layouts
+    // existed). Fall back to treating the session id as its own tab.
+    const tabOrder = state.tabOrder.filter((id) => id !== sessionId);
+    return {
+      sessions,
+      tabOrder,
+      layouts: state.layouts,
+      activeSessionId:
+        state.activeSessionId === sessionId
+          ? (tabOrder[tabOrder.length - 1] ?? null)
+          : state.activeSessionId,
+    };
+  }
+
+  const layouts = new Map(state.layouts);
+  const updatedLayout = removeLeafFromTree(layouts.get(tabId)!, sessionId);
+  let tabOrder = [...state.tabOrder];
+  let activeSessionId = state.activeSessionId;
+
+  if (updatedLayout === null) {
+    // Last pane in the tab — the whole tab goes away.
+    tabOrder = tabOrder.filter((id) => id !== tabId);
+    layouts.delete(tabId);
+    if (activeSessionId === sessionId || (activeSessionId && !sessions.has(activeSessionId))) {
+      const nextTabId = tabOrder[tabOrder.length - 1] ?? null;
+      const nextLayout = nextTabId ? layouts.get(nextTabId) : undefined;
+      activeSessionId = nextLayout ? getFirstLeafSessionId(nextLayout) : null;
+    }
+  } else {
+    layouts.set(tabId, updatedLayout);
+    if (activeSessionId === sessionId) {
+      activeSessionId = getFirstLeafSessionId(updatedLayout);
+    }
+  }
+
+  return { sessions, tabOrder, activeSessionId, layouts };
+}
+
+/** Tear down the backing transport for a session, picking the right channel. */
+function disposeTransport(session: TerminalSession | undefined, sessionId: string): void {
+  if (session?.type === 'local') {
+    void window.api.localTerminal.kill(sessionId);
+  } else {
+    void window.api.ssh.disconnect(sessionId);
+  }
+}
+
 interface TerminalState {
   sessions: Map<string, TerminalSession>;
   tabOrder: string[];
-  activeTabId: string | null;
+  activeSessionId: string | null;
   layouts: Map<string, PaneNode>;
   terminalTheme: TerminalThemeName;
   fontSize: number;
@@ -181,7 +271,7 @@ interface TerminalState {
   addSession: (session: TerminalSession) => void;
   removeSession: (sessionId: string) => void;
   updateSessionStatus: (sessionId: string, status: SessionStatus) => void;
-  setActiveTab: (sessionId: string) => void;
+  setActiveSession: (sessionId: string) => void;
   setTabOrder: (order: string[]) => void;
   setTerminalTheme: (theme: TerminalThemeName) => void;
   setFontSize: (size: number) => void;
@@ -202,63 +292,27 @@ interface TerminalState {
 export const useTerminalStore = create<TerminalState>((set, get) => ({
   sessions: new Map(),
   tabOrder: [],
-  activeTabId: null,
+  activeSessionId: null,
   layouts: new Map(),
   terminalTheme: getInitialTerminalTheme(),
   fontSize: getInitialFontSize(),
-  scrollback: 10000,
+  scrollback: getInitialScrollback(),
 
   addSession: (session) =>
     set((s) => {
       if (s.sessions.has(session.id)) {
-        return { activeTabId: session.id };
+        return { activeSessionId: session.id };
       }
       const sessions = new Map(s.sessions);
       sessions.set(session.id, session);
       const tabOrder = [...s.tabOrder, session.id];
       const layouts = new Map(s.layouts);
       layouts.set(session.id, { type: 'terminal', sessionId: session.id });
-      return { sessions, tabOrder, activeTabId: session.id, layouts };
+      return { sessions, tabOrder, activeSessionId: session.id, layouts };
     }),
 
-  removeSession: (sessionId) =>
-    set((s) => {
-      const tabId = findTabIdForSession(s.layouts, sessionId);
-      if (!tabId) {
-        // Fallback for non-layout sessions (e.g. tests or custom initial sessions)
-        const sessions = new Map(s.sessions);
-        sessions.delete(sessionId);
-        const tabOrder = s.tabOrder.filter((id) => id !== sessionId);
-        const activeTabId =
-          s.activeTabId === sessionId ? tabOrder[tabOrder.length - 1] || null : s.activeTabId;
-        return { sessions, tabOrder, activeTabId };
-      }
-
-      const sessions = new Map(s.sessions);
-      sessions.delete(sessionId);
-
-      const layouts = new Map(s.layouts);
-      const updatedLayout = removeLeafFromTree(layouts.get(tabId)!, sessionId);
-      let tabOrder = [...s.tabOrder];
-      let activeTabId = s.activeTabId;
-
-      if (updatedLayout === null) {
-        tabOrder = tabOrder.filter((id) => id !== tabId);
-        layouts.delete(tabId);
-
-        if (activeTabId === sessionId || (activeTabId && !sessions.has(activeTabId))) {
-          const nextTabId = tabOrder[tabOrder.length - 1] || null;
-          activeTabId = nextTabId ? getFirstLeafSessionId(layouts.get(nextTabId)!) : null;
-        }
-      } else {
-        layouts.set(tabId, updatedLayout);
-        if (activeTabId === sessionId) {
-          activeTabId = getFirstLeafSessionId(updatedLayout);
-        }
-      }
-
-      return { sessions, tabOrder, activeTabId, layouts };
-    }),
+  /** Drop a session from the store without touching its transport. */
+  removeSession: (sessionId) => set((s) => detachSession(s, sessionId)),
 
   updateSessionStatus: (sessionId, status) =>
     set((s) => {
@@ -270,9 +324,9 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       return { sessions };
     }),
 
-  setActiveTab: (sessionId) =>
+  setActiveSession: (sessionId) =>
     set(() => ({
-      activeTabId: sessionId,
+      activeSessionId: sessionId,
     })),
 
   setTabOrder: (order) => set({ tabOrder: order }),
@@ -296,7 +350,20 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     void window.api.settings.set('terminal.fontSize', JSON.stringify(clamped));
     set({ fontSize: clamped });
   },
-  setScrollback: (lines) => set({ scrollback: lines }),
+  setScrollback: (lines) => {
+    // Persist like fontSize and theme do. This was the odd one out: the
+    // Settings panel wrote it to the DB itself, but any other caller (and the
+    // localStorage mirror the other two keep for instant restore on next
+    // launch) silently lost the value on reload.
+    const clamped = clampScrollback(lines);
+    try {
+      localStorage.setItem('luna-terminal-scrollback', String(clamped));
+    } catch {
+      // localStorage may be unavailable
+    }
+    void window.api.settings.set('terminal.scrollback', JSON.stringify(clamped));
+    set({ scrollback: clamped });
+  },
   initializeSettings: (settings) => {
     set(() => {
       const updates: Partial<TerminalState> = {};
@@ -318,7 +385,13 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
         }
       }
       if (settings.scrollback) {
-        updates.scrollback = settings.scrollback;
+        const clamped = clampScrollback(settings.scrollback);
+        updates.scrollback = clamped;
+        try {
+          localStorage.setItem('luna-terminal-scrollback', String(clamped));
+        } catch {
+          // ignore
+        }
       }
       return updates;
     });
@@ -334,52 +407,12 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       return { sessions };
     }),
 
+  /** Close a session *and* tear down its SSH connection / local PTY. */
   closeTab: (sessionId) => {
-    let type: 'ssh' | 'local' | undefined;
-    set((s) => {
-      type = s.sessions.get(sessionId)?.type;
-      const tabId = findTabIdForSession(s.layouts, sessionId);
-      if (!tabId) {
-        // Fallback for sessions not in layout (tests)
-        const sessions = new Map(s.sessions);
-        sessions.delete(sessionId);
-        const tabOrder = s.tabOrder.filter((id) => id !== sessionId);
-        const activeTabId =
-          s.activeTabId === sessionId ? tabOrder[tabOrder.length - 1] || null : s.activeTabId;
-        return { sessions, tabOrder, activeTabId };
-      }
-
-      const sessions = new Map(s.sessions);
-      sessions.delete(sessionId);
-
-      const layouts = new Map(s.layouts);
-      const updatedLayout = removeLeafFromTree(layouts.get(tabId)!, sessionId);
-      let tabOrder = [...s.tabOrder];
-      let activeTabId = s.activeTabId;
-
-      if (updatedLayout === null) {
-        tabOrder = tabOrder.filter((id) => id !== tabId);
-        layouts.delete(tabId);
-
-        if (activeTabId === sessionId || (activeTabId && !sessions.has(activeTabId))) {
-          const nextTabId = tabOrder[tabOrder.length - 1] || null;
-          activeTabId = nextTabId ? getFirstLeafSessionId(layouts.get(nextTabId)!) : null;
-        }
-      } else {
-        layouts.set(tabId, updatedLayout);
-        if (activeTabId === sessionId) {
-          activeTabId = getFirstLeafSessionId(updatedLayout);
-        }
-      }
-
-      return { sessions, tabOrder, activeTabId, layouts };
-    });
-
-    if (type === 'local') {
-      void window.api.localTerminal.kill(sessionId);
-    } else {
-      void window.api.ssh.disconnect(sessionId);
-    }
+    // Read the session before the store update removes it.
+    const session = get().sessions.get(sessionId);
+    set((s) => detachSession(s, sessionId));
+    disposeTransport(session, sessionId);
   },
 
   closeOtherTabs: (sessionId) => {
@@ -397,12 +430,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     }
 
     for (const id of toCloseSessionIds) {
-      const s = sessions.get(id);
-      if (s?.type === 'local') {
-        void window.api.localTerminal.kill(id);
-      } else {
-        void window.api.ssh.disconnect(id);
-      }
+      disposeTransport(sessions.get(id), id);
     }
 
     set((s) => {
@@ -416,7 +444,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
         sessions: newSessions,
         layouts: newLayouts,
         tabOrder: newTabOrder,
-        activeTabId: sessionId,
+        activeSessionId: sessionId,
       };
     });
   },
@@ -438,12 +466,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     }
 
     for (const id of toCloseSessionIds) {
-      const s = sessions.get(id);
-      if (s?.type === 'local') {
-        void window.api.localTerminal.kill(id);
-      } else {
-        void window.api.ssh.disconnect(id);
-      }
+      disposeTransport(sessions.get(id), id);
     }
 
     set((s) => {
@@ -453,16 +476,16 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       for (const tId of toCloseTabIds) newLayouts.delete(tId);
       const newTabOrder = s.tabOrder.slice(0, idx + 1);
 
-      const isStillActive = s.activeTabId && !toCloseSessionIds.includes(s.activeTabId);
-      const activeTabId = isStillActive
-        ? s.activeTabId
+      const isStillActive = s.activeSessionId && !toCloseSessionIds.includes(s.activeSessionId);
+      const activeSessionId = isStillActive
+        ? s.activeSessionId
         : getFirstLeafSessionId(newLayouts.get(tabId)!);
 
       return {
         sessions: newSessions,
         layouts: newLayouts,
         tabOrder: newTabOrder,
-        activeTabId,
+        activeSessionId,
       };
     });
   },
@@ -502,7 +525,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       return {
         sessions: newSessions,
         layouts: newLayouts,
-        activeTabId: newSessionId,
+        activeSessionId: newSessionId,
       };
     });
 
@@ -530,9 +553,9 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
 }));
 
 /** Selective store hook helpers to avoid unnecessary component re-renders */
-export const useActiveTabId = () => useTerminalStore((s) => s.activeTabId);
+export const useActiveSessionId = () => useTerminalStore((s) => s.activeSessionId);
 export const useTerminalFontSize = () => useTerminalStore((s) => s.fontSize);
 export const useTerminalTheme = () => useTerminalStore((s) => s.terminalTheme);
 export const useTerminalTabOrder = () => useTerminalStore((s) => s.tabOrder);
 export const useActiveSession = () =>
-  useTerminalStore((s) => (s.activeTabId ? s.sessions.get(s.activeTabId) : undefined));
+  useTerminalStore((s) => (s.activeSessionId ? s.sessions.get(s.activeSessionId) : undefined));

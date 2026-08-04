@@ -20,8 +20,15 @@ function getFirstLeafIdFromRoot(node: PaneNode): string {
 }
 
 export function TerminalViewContainer({ type }: TerminalViewContainerProps) {
-  const { sessions, tabOrder, activeTabId, terminalTheme, layouts, addSession, setActiveTab } =
-    useTerminalStore();
+  const {
+    sessions,
+    tabOrder,
+    activeSessionId,
+    terminalTheme,
+    layouts,
+    addSession,
+    setActiveSession,
+  } = useTerminalStore();
 
   const filteredTabs = useMemo(() => {
     return tabOrder.filter((id) => {
@@ -32,16 +39,16 @@ export function TerminalViewContainer({ type }: TerminalViewContainerProps) {
   }, [tabOrder, sessions, type]);
 
   const activeFilteredTabId = useMemo(() => {
-    if (!activeTabId) return filteredTabs[0] || null;
-    if (filteredTabs.includes(activeTabId)) return activeTabId;
+    if (!activeSessionId) return filteredTabs[0] || null;
+    if (filteredTabs.includes(activeSessionId)) return activeSessionId;
     for (const tabId of filteredTabs) {
       const root = layouts.get(tabId);
-      if (root && hasSessionInTree(root, activeTabId)) {
+      if (root && hasSessionInTree(root, activeSessionId)) {
         return tabId;
       }
     }
     return filteredTabs[0] || null;
-  }, [filteredTabs, activeTabId, layouts]);
+  }, [filteredTabs, activeSessionId, layouts]);
 
   const handleNewTab = useCallback(() => {
     if (type === 'local') {
@@ -54,7 +61,7 @@ export function TerminalViewContainer({ type }: TerminalViewContainerProps) {
         title: 'Local',
         type: 'local',
       });
-      setActiveTab(sessionId);
+      setActiveSession(sessionId);
     } else {
       const { activeConnectionId } = useConnectionStore.getState();
       if (activeConnectionId) {
@@ -63,7 +70,7 @@ export function TerminalViewContainer({ type }: TerminalViewContainerProps) {
         useConnectionStore.getState().openCreateForm();
       }
     }
-  }, [type, addSession, setActiveTab]);
+  }, [type, addSession, setActiveSession]);
 
   const autoSpawnRef = useRef(false);
 
@@ -84,7 +91,7 @@ export function TerminalViewContainer({ type }: TerminalViewContainerProps) {
     const handler = (e: KeyboardEvent) => {
       if (!e.metaKey && !e.ctrlKey) return;
 
-      const { sessions, tabOrder, setActiveTab, activeTabId, closeTab, layouts } =
+      const { sessions, tabOrder, setActiveSession, activeSessionId, closeTab, layouts } =
         useTerminalStore.getState();
       const modeTabs = tabOrder.filter((id) => {
         const s = sessions.get(id);
@@ -96,14 +103,14 @@ export function TerminalViewContainer({ type }: TerminalViewContainerProps) {
       // Cmd+W
       if (e.key === 'w' && !e.shiftKey) {
         if (
-          activeTabId &&
+          activeSessionId &&
           modeTabs.some((tabId) => {
             const root = layouts.get(tabId);
-            return root && hasSessionInTree(root, activeTabId);
+            return root && hasSessionInTree(root, activeSessionId);
           })
         ) {
           e.preventDefault();
-          closeTab(activeTabId);
+          closeTab(activeSessionId);
           return;
         }
       }
@@ -117,9 +124,9 @@ export function TerminalViewContainer({ type }: TerminalViewContainerProps) {
         const root = layouts.get(tabId);
         if (root) {
           const firstLeafId = getFirstLeafIdFromRoot(root);
-          setActiveTab(firstLeafId);
+          setActiveSession(firstLeafId);
         } else {
-          setActiveTab(tabId);
+          setActiveSession(tabId);
         }
         return;
       }
@@ -139,7 +146,7 @@ export function TerminalViewContainer({ type }: TerminalViewContainerProps) {
           if (!rootNode) return null;
           return (
             <div key={tabId} className={tabId === activeFilteredTabId ? 'h-full w-full' : 'hidden'}>
-              <SplitLayout node={rootNode} tabId={tabId} activeSessionId={activeTabId} />
+              <SplitLayout node={rootNode} tabId={tabId} activeSessionId={activeSessionId} />
             </div>
           );
         })}

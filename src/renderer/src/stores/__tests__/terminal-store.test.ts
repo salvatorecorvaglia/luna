@@ -35,7 +35,7 @@ describe('terminal-store-splits', () => {
     useTerminalStore.setState({
       sessions: new Map(),
       tabOrder: [],
-      activeTabId: null,
+      activeSessionId: null,
       layouts: new Map(),
     });
   });
@@ -53,7 +53,7 @@ describe('terminal-store-splits', () => {
 
     const state = useTerminalStore.getState();
     expect(state.tabOrder).toEqual(['session-1']);
-    expect(state.activeTabId).toBe('session-1');
+    expect(state.activeSessionId).toBe('session-1');
     expect(state.layouts.get('session-1')).toEqual({
       type: 'terminal',
       sessionId: 'session-1',
@@ -87,7 +87,7 @@ describe('terminal-store-splits', () => {
       if (left.type === 'terminal' && right.type === 'terminal') {
         expect(left.sessionId).toBe('session-1');
         const newSessionId = right.sessionId;
-        expect(state.activeTabId).toBe(newSessionId);
+        expect(state.activeSessionId).toBe(newSessionId);
         expect(sshConnect).toHaveBeenCalledWith({
           connectionId: 'conn-1',
           sessionId: newSessionId,
@@ -155,7 +155,7 @@ describe('terminal-store-splits', () => {
       type: 'terminal',
       sessionId: 'session-1',
     });
-    expect(stateAfterClose.activeTabId).toBe('session-1');
+    expect(stateAfterClose.activeSessionId).toBe('session-1');
     expect(sshDisconnect).toHaveBeenCalledWith(splitSessionId);
   });
 
@@ -176,7 +176,7 @@ describe('terminal-store-splits', () => {
     expect(state.sessions.size).toBe(0);
     expect(state.tabOrder).toEqual([]);
     expect(state.layouts.size).toBe(0);
-    expect(state.activeTabId).toBeNull();
+    expect(state.activeSessionId).toBeNull();
     expect(sshDisconnect).toHaveBeenCalledWith('session-1');
   });
 
@@ -204,7 +204,7 @@ describe('terminal-store-splits', () => {
 
   it('provides working slice selectors', () => {
     useTerminalStore.setState({
-      activeTabId: 'session-99',
+      activeSessionId: 'session-99',
       fontSize: 16,
       terminalTheme: 'tokyo-night',
       tabOrder: ['session-99'],
@@ -223,7 +223,7 @@ describe('terminal-store-splits', () => {
     });
 
     const state = useTerminalStore.getState();
-    expect(state.activeTabId).toBe('session-99');
+    expect(state.activeSessionId).toBe('session-99');
     expect(state.fontSize).toBe(16);
     expect(state.terminalTheme).toBe('tokyo-night');
     expect(state.tabOrder).toEqual(['session-99']);

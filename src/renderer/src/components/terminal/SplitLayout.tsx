@@ -18,7 +18,7 @@ export function SplitLayout({ node, tabId, activeSessionId }: SplitLayoutProps) 
   const splitSession = useTerminalStore((s) => s.splitSession);
   const closeTab = useTerminalStore((s) => s.closeTab);
   const updateSplitRatio = useTerminalStore((s) => s.updateSplitRatio);
-  const setActiveTab = useTerminalStore((s) => s.setActiveTab);
+  const setActiveSession = useTerminalStore((s) => s.setActiveSession);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [isResizing, setIsResizing] = useState(false);
@@ -65,7 +65,7 @@ export function SplitLayout({ node, tabId, activeSessionId }: SplitLayoutProps) 
     return (
       <div
         onClick={() => {
-          if (!isActive) setActiveTab(node.sessionId);
+          if (!isActive) setActiveSession(node.sessionId);
         }}
         className={cn(
           'group relative h-full w-full border transition-all duration-150 overflow-hidden',
@@ -101,7 +101,7 @@ export function SplitLayout({ node, tabId, activeSessionId }: SplitLayoutProps) 
               e.stopPropagation();
               closeTab(node.sessionId);
             }}
-            className="p-1 hover:bg-destructive/20 hover:text-destructive rounded text-muted-foreground cursor-pointer"
+            className="p-1 hover:bg-destructive/20 hover:text-destructive-fg rounded text-muted-foreground cursor-pointer"
             title="Close Pane"
           >
             <X className="size-3.5" />

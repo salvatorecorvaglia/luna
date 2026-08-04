@@ -16,8 +16,8 @@ export function LocalTerminalTabs() {
   const {
     sessions,
     tabOrder,
-    activeTabId,
-    setActiveTab,
+    activeSessionId,
+    setActiveSession,
     setTabOrder,
     closeTab,
     renameTab,
@@ -33,15 +33,15 @@ export function LocalTerminalTabs() {
   );
 
   const activeLocalTabId = useMemo(() => {
-    if (!activeTabId) return null;
+    if (!activeSessionId) return null;
     for (const tabId of localTabs) {
       const root = layouts.get(tabId);
-      if (root && hasSessionInTree(root, activeTabId)) {
+      if (root && hasSessionInTree(root, activeSessionId)) {
         return tabId;
       }
     }
     return null;
-  }, [localTabs, activeTabId, layouts]);
+  }, [localTabs, activeSessionId, layouts]);
 
   const handleCloseTab = useCallback(
     (tabId: string) => {
@@ -68,8 +68,8 @@ export function LocalTerminalTabs() {
       title: 'Local',
       type: 'local',
     });
-    setActiveTab(sessionId);
-  }, [addSession, setActiveTab]);
+    setActiveSession(sessionId);
+  }, [addSession, setActiveSession]);
 
   const handleReorder = useCallback(
     (newOrder: string[]) => {
@@ -87,12 +87,12 @@ export function LocalTerminalTabs() {
     (tabId: string) => {
       const root = layouts.get(tabId);
       if (root) {
-        setActiveTab(getFirstLeafSessionId(root));
+        setActiveSession(getFirstLeafSessionId(root));
       } else {
-        setActiveTab(tabId);
+        setActiveSession(tabId);
       }
     },
-    [layouts, setActiveTab],
+    [layouts, setActiveSession],
   );
 
   return (

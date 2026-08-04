@@ -125,7 +125,7 @@ export function ConnectionItem({
         (s.status === 'connected' || s.status === 'connecting' || s.status === 'reconnecting'),
     );
     if (existingSession) {
-      useTerminalStore.getState().setActiveTab(existingSession.id);
+      useTerminalStore.getState().setActiveSession(existingSession.id);
       return;
     }
 

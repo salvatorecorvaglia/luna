@@ -39,8 +39,8 @@ export function TerminalTabs() {
   const {
     sessions,
     tabOrder,
-    activeTabId,
-    setActiveTab,
+    activeSessionId,
+    setActiveSession,
     setTabOrder,
     closeTab,
     renameTab,
@@ -71,15 +71,15 @@ export function TerminalTabs() {
   );
 
   const activeSshTabId = useMemo(() => {
-    if (!activeTabId) return null;
+    if (!activeSessionId) return null;
     for (const tabId of sshTabs) {
       const root = layouts.get(tabId);
-      if (root && hasSessionInTree(root, activeTabId)) {
+      if (root && hasSessionInTree(root, activeSessionId)) {
         return tabId;
       }
     }
     return null;
-  }, [sshTabs, activeTabId, layouts]);
+  }, [sshTabs, activeSessionId, layouts]);
 
   const handleReorder = useCallback(
     (newOrder: string[]) => {
@@ -126,12 +126,12 @@ export function TerminalTabs() {
     (tabId: string) => {
       const root = layouts.get(tabId);
       if (root) {
-        setActiveTab(getFirstLeafSessionId(root));
+        setActiveSession(getFirstLeafSessionId(root));
       } else {
-        setActiveTab(tabId);
+        setActiveSession(tabId);
       }
     },
-    [layouts, setActiveTab],
+    [layouts, setActiveSession],
   );
 
   return (
@@ -208,7 +208,7 @@ export function TerminalTabs() {
           className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
           title="Terminal Macro Recorder"
         >
-          <Circle className="size-3.5 text-destructive/80" />
+          <Circle className="size-3.5 text-destructive-fg/80" />
         </button>
 
         <button
@@ -243,12 +243,12 @@ export function TerminalTabs() {
         open={showCliRef}
         onClose={() => setShowCliRef(false)}
         onRunCommand={(cmd) => {
-          if (activeTabId) {
-            const session = sessions.get(activeTabId);
+          if (activeSessionId) {
+            const session = sessions.get(activeSessionId);
             if (session?.type === 'local') {
-              window.api.localTerminal.sendData({ sessionId: activeTabId, data: `${cmd}\n` });
+              window.api.localTerminal.sendData({ sessionId: activeSessionId, data: `${cmd}\n` });
             } else {
-              window.api.ssh.sendData({ sessionId: activeTabId, data: `${cmd}\n` });
+              window.api.ssh.sendData({ sessionId: activeSessionId, data: `${cmd}\n` });
             }
           }
         }}
@@ -257,11 +257,11 @@ export function TerminalTabs() {
       <AuditExportDialog
         open={showAuditExport}
         onClose={() => setShowAuditExport(false)}
-        sessionId={activeTabId || ''}
+        sessionId={activeSessionId || ''}
         sessionTitle={
-          activeTabId
-            ? sessions.get(activeTabId)?.title ||
-              sessions.get(activeTabId)?.connectionName ||
+          activeSessionId
+            ? sessions.get(activeSessionId)?.title ||
+              sessions.get(activeSessionId)?.connectionName ||
               'Terminal Session'
             : 'Terminal Session'
         }
@@ -271,13 +271,13 @@ export function TerminalTabs() {
         open={showMacroRecorder}
         onClose={() => setShowMacroRecorder(false)}
         onRunMacro={(sequence) => {
-          if (activeTabId) {
-            const session = sessions.get(activeTabId);
+          if (activeSessionId) {
+            const session = sessions.get(activeSessionId);
             for (const cmd of sequence) {
               if (session?.type === 'local') {
-                window.api.localTerminal.sendData({ sessionId: activeTabId, data: `${cmd}\n` });
+                window.api.localTerminal.sendData({ sessionId: activeSessionId, data: `${cmd}\n` });
               } else {
-                window.api.ssh.sendData({ sessionId: activeTabId, data: `${cmd}\n` });
+                window.api.ssh.sendData({ sessionId: activeSessionId, data: `${cmd}\n` });
               }
             }
           }
@@ -288,12 +288,15 @@ export function TerminalTabs() {
         open={showSnippetVault}
         onClose={() => setShowSnippetVault(false)}
         onRunSnippet={(command) => {
-          if (activeTabId) {
-            const session = sessions.get(activeTabId);
+          if (activeSessionId) {
+            const session = sessions.get(activeSessionId);
             if (session?.type === 'local') {
-              window.api.localTerminal.sendData({ sessionId: activeTabId, data: `${command}\n` });
+              window.api.localTerminal.sendData({
+                sessionId: activeSessionId,
+                data: `${command}\n`,
+              });
             } else {
-              window.api.ssh.sendData({ sessionId: activeTabId, data: `${command}\n` });
+              window.api.ssh.sendData({ sessionId: activeSessionId, data: `${command}\n` });
             }
           }
         }}
@@ -421,7 +424,7 @@ const Tab = memo(function Tab({
         case 'reconnecting':
           return <Loader2 className="size-3 text-warning animate-spin" />;
         case 'error':
-          return <WifiOff className="size-3 text-destructive" />;
+          return <WifiOff className="size-3 text-destructive-fg" />;
         default:
           return <div className="size-2 rounded-full bg-muted-foreground/30" />;
       }

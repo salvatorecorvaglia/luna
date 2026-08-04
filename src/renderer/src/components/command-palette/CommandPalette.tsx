@@ -72,7 +72,8 @@ export function CommandPalette() {
     setSettingsOpen,
     setShortcutsHelpOpen,
   } = useUIStore();
-  const { setTerminalTheme, activeTabId, tabOrder, setActiveTab, closeTab } = useTerminalStore();
+  const { setTerminalTheme, activeSessionId, tabOrder, setActiveSession, closeTab } =
+    useTerminalStore();
   const { openCreateForm } = useConnectionStore();
   const { toggleHiddenFiles, showHiddenFiles } = useStorageStore();
   const { data: connections = [] } = useConnections();
@@ -242,8 +243,8 @@ export function CommandPalette() {
       },
     ];
 
-    if (activeTabId && tabOrder.length > 0) {
-      const idx = tabOrder.indexOf(activeTabId);
+    if (activeSessionId && tabOrder.length > 0) {
+      const idx = tabOrder.indexOf(activeSessionId);
       const next = tabOrder[(idx + 1) % tabOrder.length];
       const prev = tabOrder[(idx - 1 + tabOrder.length) % tabOrder.length];
       cmds.push(
@@ -252,7 +253,7 @@ export function CommandPalette() {
           label: 'Close Active Terminal Tab',
           icon: <X className="size-4" aria-hidden="true" />,
           category: 'Terminal',
-          action: () => closeTab(activeTabId),
+          action: () => closeTab(activeSessionId),
           keywords: ['close', 'tab', 'kill'],
           shortcut: [MOD, 'W'],
         },
@@ -261,7 +262,7 @@ export function CommandPalette() {
           label: 'Next Terminal Tab',
           icon: <ChevronRight className="size-4" aria-hidden="true" />,
           category: 'Terminal',
-          action: () => setActiveTab(next),
+          action: () => setActiveSession(next),
           shortcut: [MOD, '⇧', ']'],
         },
         {
@@ -269,7 +270,7 @@ export function CommandPalette() {
           label: 'Previous Terminal Tab',
           icon: <ChevronLeft className="size-4" aria-hidden="true" />,
           category: 'Terminal',
-          action: () => setActiveTab(prev),
+          action: () => setActiveSession(prev),
           shortcut: [MOD, '⇧', '['],
         },
       );
@@ -284,9 +285,9 @@ export function CommandPalette() {
     setTerminalTheme,
     toggleHiddenFiles,
     showHiddenFiles,
-    activeTabId,
+    activeSessionId,
     tabOrder,
-    setActiveTab,
+    setActiveSession,
     closeTab,
     setShortcutsHelpOpen,
   ]);

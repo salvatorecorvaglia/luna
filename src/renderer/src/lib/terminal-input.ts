@@ -124,18 +124,18 @@ export function buildTerminalKeyHandler(
 
     if (isMacSplitVertical || isWinLinuxSplitVertical) {
       e.preventDefault();
-      const { activeTabId, splitSession } = useTerminalStore.getState();
-      if (activeTabId) {
-        splitSession(activeTabId, 'vertical');
+      const { activeSessionId, splitSession } = useTerminalStore.getState();
+      if (activeSessionId) {
+        splitSession(activeSessionId, 'vertical');
       }
       return false;
     }
 
     if (isMacSplitHorizontal || isWinLinuxSplitHorizontal) {
       e.preventDefault();
-      const { activeTabId, splitSession } = useTerminalStore.getState();
-      if (activeTabId) {
-        splitSession(activeTabId, 'horizontal');
+      const { activeSessionId, splitSession } = useTerminalStore.getState();
+      if (activeSessionId) {
+        splitSession(activeSessionId, 'horizontal');
       }
       return false;
     }
@@ -149,19 +149,19 @@ export function buildTerminalKeyHandler(
 
     if (isNextPane || isPrevPane) {
       e.preventDefault();
-      const { activeTabId, layouts, setActiveTab } = useTerminalStore.getState();
-      if (activeTabId) {
-        const tabId = findTabIdForSession(layouts, activeTabId);
+      const { activeSessionId, layouts, setActiveSession } = useTerminalStore.getState();
+      if (activeSessionId) {
+        const tabId = findTabIdForSession(layouts, activeSessionId);
         if (tabId) {
           const root = layouts.get(tabId);
           if (root) {
             const allIds = getAllSessionIdsFromTree(root);
-            const idx = allIds.indexOf(activeTabId);
+            const idx = allIds.indexOf(activeSessionId);
             if (idx !== -1) {
               const nextIdx = isNextPane
                 ? (idx + 1) % allIds.length
                 : (idx - 1 + allIds.length) % allIds.length;
-              setActiveTab(allIds[nextIdx]);
+              setActiveSession(allIds[nextIdx]);
             }
           }
         }

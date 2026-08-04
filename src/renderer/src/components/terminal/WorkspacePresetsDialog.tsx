@@ -43,7 +43,7 @@ export function WorkspacePresetsDialog({
   const [newPresetName, setNewPresetName] = useState('');
 
   const sessions = useTerminalStore((s) => s.sessions);
-  const activeTabId = useTerminalStore((s) => s.activeTabId);
+  const activeSessionId = useTerminalStore((s) => s.activeSessionId);
 
   const fetchWorkspaces = useCallback(async () => {
     try {
@@ -90,7 +90,12 @@ export function WorkspacePresetsDialog({
         name: newPresetName.trim(),
         layout: {
           connectionIds: Array.from(new Set(connectedConnectionIds)),
-          activeTabId: activeTabId ?? undefined,
+          // The persisted field keeps its original name: workspace layouts are
+          // stored as JSON in the DB, so renaming it here would silently drop
+          // the active pane from every preset saved by an earlier build. The
+          // store-side name was the inaccurate one — it always held a session
+          // id — and that is what got corrected.
+          activeTabId: activeSessionId ?? undefined,
         },
       });
       toast.success(`Saved workspace preset "${newPresetName}"`);
@@ -271,7 +276,7 @@ export function WorkspacePresetsDialog({
                       <button
                         onClick={() => handleDeleteWorkspace(w.id)}
                         title="Delete preset"
-                        className="rounded-md border border-destructive/20 bg-destructive/10 p-1.5 text-destructive hover:bg-destructive/20 transition-colors cursor-pointer"
+                        className="rounded-md border border-destructive/20 bg-destructive/10 p-1.5 text-destructive-fg hover:bg-destructive/20 transition-colors cursor-pointer"
                       >
                         <Trash2 className="size-3.5" />
                       </button>
