@@ -20,11 +20,12 @@ import { Upload } from '@aws-sdk/lib-storage';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { BINARY_PREVIEW_EXTENSIONS, IPC, LIMITS } from '@shared/constants';
 import type { StorageEntry, StorageStatResult } from '@shared/types/storage-provider';
-import { getRuntimeNumber } from '../../config/runtime';
+import { getRuntimeNumber, getTransferTunables } from '../../config/runtime';
 import { AbortError, S3StorageError } from '../../lib/errors';
 import log from '../../lib/logger';
 import { TimeoutError, withTimeout } from '../../lib/with-timeout';
 import { emitToRenderer } from '../emit';
+import { runPipeTransfer } from '../storage/pipe-transfer';
 import type { StepCallback, StorageProvider } from '../storage/types';
 import { buildS3ClientConfig, objectToEntry, prefixToEntry, wrapS3Error } from './s3-helpers';
 import { parseS3Path } from './s3-paths';
@@ -493,62 +494,35 @@ class S3StorageProvider implements StorageProvider {
     }
 
     const writeStream = createWriteStream(localPath);
-    let transferred = 0;
 
-    // Race guard: an abort that lands microseconds after 'finish' would
-    // otherwise unlink a complete file. Verify the on-disk size before
-    // discarding the local copy.
-    const cleanupPartial = async (): Promise<void> => {
-      await new Promise<void>((resolve) => {
-        body.destroy();
-        writeStream.destroy();
-        setTimeout(resolve, getRuntimeNumber('SFTP_ABORT_CLEANUP_DELAY_MS'));
-      });
-      if (total > 0) {
-        try {
-          const stats = await fsStat(localPath);
-          if (stats.size >= total) return;
-        } catch {
-          // ENOENT or stat error — fall through to unlink
+    return runPipeTransfer({
+      source: body,
+      sink: writeStream,
+      signal,
+      total,
+      onStep,
+      isComplete: () => writeStream.writableFinished,
+      discardPartial: async () => {
+        // An abort that lands microseconds after the last write must not
+        // unlink a file that is already complete on disk.
+        if (total > 0) {
+          try {
+            const stats = await fsStat(localPath);
+            if (stats.size >= total) return;
+          } catch {
+            // ENOENT or stat error — fall through to unlink
+          }
         }
-      }
-      await unlink(localPath).catch((err: NodeJS.ErrnoException) => {
-        if (err.code !== 'ENOENT') {
-          log.warn(`[S3] Failed to remove partial download ${localPath}:`, err.message);
-        }
-      });
-    };
-
-    return new Promise<void>((resolve, reject) => {
-      let settled = false;
-      const settle = (fn: () => void): void => {
-        if (settled) return;
-        settled = true;
-        signal.removeEventListener('abort', onAbort);
-        fn();
-      };
-      const onAbort = (): void => {
-        if (writeStream.writableFinished) {
-          settle(() => resolve());
-          return;
-        }
-        settle(() => cleanupPartial().finally(() => reject(new AbortError('Transfer cancelled'))));
-      };
-      signal.addEventListener('abort', onAbort, { once: true });
-
-      body.on('data', (chunk: Buffer) => {
-        transferred += chunk.length;
-        onStep(transferred, chunk.length, total);
-      });
-      body.on('error', (err) => {
-        settle(() => cleanupPartial().finally(() => reject(wrapS3Error('download-stream', err))));
-      });
-      writeStream.on('error', (err) => {
-        settle(() => cleanupPartial().finally(() => reject(err)));
-      });
-      writeStream.on('finish', () => settle(() => resolve()));
-
-      body.pipe(writeStream);
+        await unlink(localPath).catch((err: NodeJS.ErrnoException) => {
+          if (err.code !== 'ENOENT') {
+            log.warn(`[S3] Failed to remove partial download ${localPath}:`, err.message);
+          }
+        });
+      },
+      abortCleanupDelayMs: getTransferTunables().abortCleanupDelayMs,
+      // Keeps a mid-stream S3 failure classified as an S3 error rather than
+      // surfacing a bare SDK error the transfer queue can't categorise.
+      mapSourceError: (err) => wrapS3Error('download-stream', err),
     });
   }
 

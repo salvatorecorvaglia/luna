@@ -1,4 +1,4 @@
-import { toastArgs } from '@shared/error-messages';
+import { isCancellation, toastArgs } from '@shared/error-messages';
 import { useCallback } from 'react';
 import { toast } from 'sonner';
 import type { FileEntry } from '@/components/sftp/FilePane';
@@ -92,6 +92,10 @@ export function useSftpDnd({
           sessionId: activeSessionId,
         });
       } catch (err: unknown) {
+        // A cancel that lands while the transfer is still being set up rejects
+        // the enqueue. That's the user's own action (or a disconnect) — not a
+        // failure to report as one.
+        if (isCancellation(err)) return;
         toast.error(...toastArgs(err, 'Download failed'));
       }
     },
@@ -139,6 +143,7 @@ export function useSftpDnd({
           sessionId: activeSessionId,
         });
       } catch (err: unknown) {
+        if (isCancellation(err)) return;
         toast.error(...toastArgs(err, 'Upload failed'));
       }
     },

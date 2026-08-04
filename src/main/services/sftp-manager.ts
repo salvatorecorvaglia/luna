@@ -3,13 +3,14 @@ import { stat as fsStat, unlink } from 'node:fs/promises';
 import { BINARY_PREVIEW_EXTENSIONS, LIMITS } from '@shared/constants';
 import type { SftpEntry } from '@shared/types/sftp';
 import type { ReadStreamOptions, SFTPWrapper, WriteStreamOptions } from 'ssh2';
-import { getRuntimeNumber } from '../config/runtime';
-import { AbortError, SftpTransferError, SshConnectionError } from '../lib/errors';
+import { getRuntimeNumber, getTransferTunables } from '../config/runtime';
+import { SftpTransferError, SshConnectionError } from '../lib/errors';
 import log from '../lib/logger';
 import { releaseStorageBucket } from '../lib/rate-limiter';
 import { withTimeout } from '../lib/with-timeout';
 import { formatPermissions, isSessionFatal } from './sftp/sftp-helpers';
 import { sshManager } from './ssh-manager';
+import { runPipeTransfer } from './storage/pipe-transfer';
 
 // Deliberately do NOT import transferQueue here — that created a cycle
 // (sftp-manager ↔ transfer-queue). Transfer enqueueing is the IPC layer's
@@ -21,7 +22,8 @@ type StepCallback = (transferred: number, chunk: number, total: number) => void;
 // them in the settings table makes them tunable without a rebuild.
 const IDLE_TIMEOUT_MS = getRuntimeNumber('SFTP_IDLE_TIMEOUT_MS');
 const IDLE_CHECK_INTERVAL_MS = getRuntimeNumber('SFTP_IDLE_CHECK_INTERVAL_MS');
-const ABORT_CLEANUP_DELAY_MS = getRuntimeNumber('SFTP_ABORT_CLEANUP_DELAY_MS');
+// The abort-cleanup delay is read per transfer via getTransferTunables() so a
+// settings change takes effect without a restart.
 
 class SftpManager {
   private sftpSessions = new Map<string, SFTPWrapper>();
@@ -482,11 +484,9 @@ class SftpManager {
       // size unknown — progress will lack a denominator
     }
 
-    const chunkSize = getRuntimeNumber('SFTP_TRANSFER_CHUNK_SIZE_BYTES');
-    const concurrency = getRuntimeNumber('SFTP_TRANSFER_CONCURRENCY');
-    const highWaterMark = getRuntimeNumber('SFTP_TRANSFER_HIGH_WATER_MARK_BYTES');
+    // One snapshot per transfer instead of three synchronous sqlite reads.
+    const { chunkSize, concurrency, highWaterMark, abortCleanupDelayMs } = getTransferTunables();
 
-    let transferred = 0;
     const readStream = sftp.createReadStream(remotePath, {
       chunkSize,
       concurrency,
@@ -494,70 +494,34 @@ class SftpManager {
     } as unknown as ReadStreamOptions);
     const writeStream = createWriteStream(localPath, { highWaterMark });
 
-    // Race guard: an abort landing microseconds after the last byte hit disk
-    // would otherwise destroy() the writeStream (preventing 'finish') and
-    // unlink a complete file. Before discarding the partial download, verify
-    // the file on disk doesn't already match the expected size.
-    const cleanupOnAbort = async (): Promise<void> => {
-      await new Promise<void>((resolve) => {
-        readStream.destroy();
-        writeStream.destroy();
-        setTimeout(resolve, ABORT_CLEANUP_DELAY_MS);
-      });
-      if (total > 0) {
-        try {
-          const stats = await fsStat(localPath);
-          if (stats.size >= total) return;
-        } catch {
-          // ENOENT or stat error — fall through to unlink (no-op if missing)
+    return runPipeTransfer({
+      source: readStream,
+      sink: writeStream,
+      signal,
+      total,
+      onStep,
+      // An abort landing microseconds after the last byte hit disk must not
+      // discard a complete file.
+      isComplete: () => writeStream.writableFinished,
+      discardPartial: async () => {
+        // Second race guard, for the case where the abort arrived while the
+        // final write was still in flight: if what's on disk already matches
+        // the expected size, the download did finish — keep it.
+        if (total > 0) {
+          try {
+            const stats = await fsStat(localPath);
+            if (stats.size >= total) return;
+          } catch {
+            // ENOENT or stat error — fall through to unlink (no-op if missing)
+          }
         }
-      }
-      await unlink(localPath).catch((err: NodeJS.ErrnoException) => {
-        if (err.code !== 'ENOENT') {
-          log.warn(`[SFTP] Failed to remove partial download ${localPath}:`, err.message);
-        }
-      });
-    };
-
-    return new Promise<void>((resolve, reject) => {
-      let settled = false;
-      const settle = (fn: () => void): void => {
-        if (settled) return;
-        settled = true;
-        signal.removeEventListener('abort', onAbort);
-        fn();
-      };
-      const onAbort = (): void => {
-        // If 'finish' has already been emitted (the abort lost the race), the
-        // file is fully on disk — resolve instead of running the cleanup path.
-        if (writeStream.writableFinished) {
-          settle(() => resolve());
-          return;
-        }
-        settle(() => cleanupOnAbort().finally(() => reject(new AbortError('Transfer cancelled'))));
-      };
-
-      if (signal.aborted) {
-        onAbort();
-        return;
-      }
-      signal.addEventListener('abort', onAbort, { once: true });
-
-      readStream.on('data', (chunk: Buffer | string) => {
-        transferred += chunk.length;
-        onStep(transferred, chunk.length, total);
-      });
-      readStream.on('error', (err: Error) => {
-        settle(() => cleanupOnAbort().finally(() => reject(err)));
-      });
-      writeStream.on('error', (err: Error) => {
-        settle(() => cleanupOnAbort().finally(() => reject(err)));
-      });
-      writeStream.on('finish', () => {
-        settle(() => resolve());
-      });
-
-      readStream.pipe(writeStream);
+        await unlink(localPath).catch((err: NodeJS.ErrnoException) => {
+          if (err.code !== 'ENOENT') {
+            log.warn(`[SFTP] Failed to remove partial download ${localPath}:`, err.message);
+          }
+        });
+      },
+      abortCleanupDelayMs,
     });
   }
 
@@ -596,11 +560,8 @@ class SftpManager {
       // size unknown
     }
 
-    const chunkSize = getRuntimeNumber('SFTP_TRANSFER_CHUNK_SIZE_BYTES');
-    const concurrency = getRuntimeNumber('SFTP_TRANSFER_CONCURRENCY');
-    const highWaterMark = getRuntimeNumber('SFTP_TRANSFER_HIGH_WATER_MARK_BYTES');
+    const { chunkSize, concurrency, highWaterMark, abortCleanupDelayMs } = getTransferTunables();
 
-    let transferred = 0;
     let writeClosed = false;
     const readStream = createReadStream(localPath, { highWaterMark });
     const writeStream = sftp.createWriteStream(remotePath, {
@@ -608,60 +569,28 @@ class SftpManager {
       concurrency,
       highWaterMark,
     } as unknown as WriteStreamOptions);
+    // Latched before runPipeTransfer's own 'close' handler resolves, so both
+    // the abort guard and discardPartial see an accurate flag.
+    writeStream.on('close', () => {
+      writeClosed = true;
+    });
 
-    // Race guard: if 'close' has already been emitted (upload completed
-    // on the remote), an abort landing immediately after must NOT unlink
-    // the now-complete remote file.
-    const cleanupOnAbort = async (): Promise<void> => {
-      await new Promise<void>((resolve) => {
-        readStream.destroy();
-        writeStream.destroy();
-        setTimeout(resolve, ABORT_CLEANUP_DELAY_MS);
-      });
-      if (writeClosed) return;
-      await new Promise<void>((resolve) => {
-        sftp.unlink(remotePath, () => resolve());
-      });
-    };
-
-    return new Promise<void>((resolve, reject) => {
-      let settled = false;
-      const settle = (fn: () => void): void => {
-        if (settled) return;
-        settled = true;
-        signal.removeEventListener('abort', onAbort);
-        fn();
-      };
-      const onAbort = (): void => {
-        if (writeClosed) {
-          settle(() => resolve());
-          return;
-        }
-        settle(() => cleanupOnAbort().finally(() => reject(new AbortError('Transfer cancelled'))));
-      };
-
-      if (signal.aborted) {
-        onAbort();
-        return;
-      }
-      signal.addEventListener('abort', onAbort, { once: true });
-
-      readStream.on('data', (chunk: Buffer | string) => {
-        transferred += chunk.length;
-        onStep(transferred, chunk.length, total);
-      });
-      readStream.on('error', (err: Error) => {
-        settle(() => cleanupOnAbort().finally(() => reject(err)));
-      });
-      writeStream.on('error', (err: Error) => {
-        settle(() => cleanupOnAbort().finally(() => reject(err)));
-      });
-      writeStream.on('close', () => {
-        writeClosed = true;
-        settle(() => resolve());
-      });
-
-      readStream.pipe(writeStream);
+    return runPipeTransfer({
+      source: readStream,
+      sink: writeStream,
+      signal,
+      total,
+      onStep,
+      // If 'close' already fired the upload landed on the remote; an abort
+      // arriving immediately after must not unlink a complete file.
+      isComplete: () => writeClosed,
+      discardPartial: async () => {
+        if (writeClosed) return;
+        await new Promise<void>((resolve) => {
+          sftp.unlink(remotePath, () => resolve());
+        });
+      },
+      abortCleanupDelayMs,
     });
   }
 

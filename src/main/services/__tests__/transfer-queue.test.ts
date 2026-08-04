@@ -121,7 +121,7 @@ describe('transferQueue', () => {
     // yet. The transfer then started running after stat() resolved, ignoring
     // the user's cancel. Fix: pre-allocate the AbortController so cancel()
     // can abort the reserved transfer; enqueue() honours the abort post-await
-    // by emitting TRANSFER_CANCELLED and skipping the queue push.
+    // by rejecting instead of pushing to the queue.
     let releaseStat: ((value: { size: number }) => void) | undefined;
     const pendingStat = new Promise<{ size: number }>((resolve) => {
       releaseStat = resolve;
@@ -142,13 +142,79 @@ describe('transferQueue', () => {
 
     transferQueue.cancel(reservedId);
     releaseStat!({ size: 0 });
-    const id = await inflight;
 
-    expect(id).toBe(reservedId);
+    // enqueue() rejects rather than resolving with the id. The caller does not
+    // have the id yet, so a TRANSFER_CANCELLED event fired here would arrive
+    // before the renderer has a row to apply it to — and the row it creates
+    // afterwards would sit at "queued" forever. Rejecting is the only signal
+    // the caller can actually observe.
+    await expect(inflight).rejects.toThrow(/cancelled before it started/);
+
     expect(transferQueue.getActiveCount()).toBe(0);
     expect(transferQueue.getQueuedCount()).toBe(0);
     expect(stubProvider.streamUpload).not.toHaveBeenCalled();
-    expect(emitsOf(IPC.TRANSFER_CANCELLED)).toHaveLength(1);
+    // No ghost event for a transfer the renderer never learned about.
+    expect(emitsOf(IPC.TRANSFER_CANCELLED)).toHaveLength(0);
+  });
+
+  it('aborts reservations still inside the stat() window on cancelAll', async () => {
+    // Reserved transfers live in neither `queue` nor `active`, so a cancelAll
+    // that only drained those let a transfer reserved during shutdown start
+    // afterwards — precisely the window the reservation exists to cover.
+    let releaseStat: ((stats: { size: number }) => void) | undefined;
+    (fsStat as unknown as { mockReturnValueOnce: (v: unknown) => void }).mockReturnValueOnce(
+      new Promise<{ size: number }>((resolve) => {
+        releaseStat = resolve;
+      }),
+    );
+
+    const inflight = transferQueue.enqueue('upload', 'sess', '/quit', '/quit-r');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    transferQueue.cancelAll();
+    releaseStat!({ size: 0 });
+
+    await expect(inflight).rejects.toThrow(/cancelled before it started/);
+    expect(stubProvider.streamUpload).not.toHaveBeenCalled();
+    expect(transferQueue.getTotalCount()).toBe(0);
+  });
+
+  it('aborts reservations for a disconnecting session', async () => {
+    let releaseStat: ((stats: { size: number }) => void) | undefined;
+    (fsStat as unknown as { mockReturnValueOnce: (v: unknown) => void }).mockReturnValueOnce(
+      new Promise<{ size: number }>((resolve) => {
+        releaseStat = resolve;
+      }),
+    );
+
+    const inflight = transferQueue.enqueue('upload', 'doomed', '/l', '/r');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    transferQueue.cancelBySession('doomed');
+    releaseStat!({ size: 0 });
+
+    await expect(inflight).rejects.toThrow(/cancelled before it started/);
+    expect(stubProvider.streamUpload).not.toHaveBeenCalled();
+  });
+
+  it('leaves reservations for other sessions alone', async () => {
+    let releaseStat: ((stats: { size: number }) => void) | undefined;
+    (fsStat as unknown as { mockReturnValueOnce: (v: unknown) => void }).mockReturnValueOnce(
+      new Promise<{ size: number }>((resolve) => {
+        releaseStat = resolve;
+      }),
+    );
+
+    const inflight = transferQueue.enqueue('upload', 'keeper', '/l', '/r');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    transferQueue.cancelBySession('some-other-session');
+    releaseStat!({ size: 0 });
+
+    await expect(inflight).resolves.toBeTypeOf('string');
   });
 
   it('frees the dedup slot after cancel so a re-enqueue is a fresh transfer', async () => {

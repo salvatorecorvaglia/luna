@@ -21,11 +21,20 @@ interface QueuedTransfer {
   controller: AbortController;
   lastEmitTime: number;
   lastTransferred: number;
+  /**
+   * Set once a TRANSFER_CANCELLED has been emitted for this transfer, so the
+   * eager ack in `cancel()` and the unwind in `executeTransfer()` can't both
+   * fire one. The renderer store is idempotent, but a duplicate event is
+   * still a lie about how many things happened.
+   */
+  cancelEmitted?: boolean;
 }
 
 interface ReservedTransfer {
   id: string;
   key: string;
+  /** Needed so cancelBySession can reach transfers still inside the stat() window. */
+  sessionId: string;
   controller: AbortController;
 }
 
@@ -107,7 +116,7 @@ class TransferQueue {
     const transferId = uuidv4();
     const controller = new AbortController();
     this.dedupIndex.set(key, transferId);
-    this.reserved.set(transferId, { id: transferId, key, controller });
+    this.reserved.set(transferId, { id: transferId, key, sessionId, controller });
 
     try {
       let size = 0;
@@ -123,12 +132,14 @@ class TransferQueue {
         // size will be reported by progress callback
       }
 
-      // If cancel() ran during the stat() await, the controller was aborted
-      // and the dedup reservation was already dropped. Emit a cancellation
-      // event and bail out so the transfer never reaches the queue.
+      // Cancelled during the stat() await (app quit, session disconnect, or an
+      // explicit cancel). Throw rather than emitting TRANSFER_CANCELLED and
+      // returning the id: the caller does not have the id yet, so an event
+      // fired now arrives before the renderer has any row to apply it to, and
+      // the row it creates afterwards sticks at "queued" forever. Rejecting is
+      // the only signal the caller can actually observe.
       if (controller.signal.aborted) {
-        emitToRenderer(IPC.TRANSFER_CANCELLED, { transferId });
-        return transferId;
+        throw new AbortError('Transfer cancelled before it started');
       }
 
       const fileName = basename(type === 'upload' ? localPath : remotePath);
@@ -191,6 +202,14 @@ class TransferQueue {
     const active = this.active.get(transferId);
     if (active) {
       active.controller.abort();
+      // Acknowledge immediately rather than waiting for executeTransfer's
+      // catch to run. On a wedged SFTP channel the abort handler can take
+      // seconds to settle (or never settle at all), during which the row just
+      // sat there looking like the click had done nothing.
+      if (!active.cancelEmitted) {
+        active.cancelEmitted = true;
+        emitToRenderer(IPC.TRANSFER_CANCELLED, { transferId });
+      }
       return;
     }
 
@@ -292,7 +311,11 @@ class TransferQueue {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Transfer failed';
       if (controller.signal.aborted || err instanceof AbortError) {
-        emitToRenderer(IPC.TRANSFER_CANCELLED, { transferId: id });
+        // cancel() may have already acknowledged this — don't emit twice.
+        if (!transfer.cancelEmitted) {
+          transfer.cancelEmitted = true;
+          emitToRenderer(IPC.TRANSFER_CANCELLED, { transferId: id });
+        }
       } else {
         emitToRenderer(IPC.TRANSFER_ERROR, {
           transferId: id,
@@ -340,6 +363,14 @@ class TransferQueue {
       transfer.controller.abort();
       emitToRenderer(IPC.TRANSFER_CANCELLED, { transferId: transfer.id });
     }
+    // Reserved transfers are mid-`stat()` and appear in neither collection
+    // above. Clearing the map without aborting them let a transfer that was
+    // reserved during shutdown proceed to the queue *after* cancelAll had
+    // supposedly drained everything — which is exactly the window the
+    // reservation exists to cover.
+    for (const reserved of this.reserved.values()) {
+      reserved.controller.abort();
+    }
     this.active.clear();
     this.queue = [];
     this.queuedMap.clear();
@@ -354,6 +385,12 @@ class TransferQueue {
     }
     for (const t of this.active.values()) {
       if (t.sessionId === sessionId) toCancel.push(t.id);
+    }
+    // Same blind spot as cancelAll: a transfer still inside enqueue()'s stat()
+    // window belongs to this session but is in neither collection, so a
+    // disconnect would leave it to start against a dead session.
+    for (const r of this.reserved.values()) {
+      if (r.sessionId === sessionId) toCancel.push(r.id);
     }
     for (const id of toCancel) this.cancel(id);
   }

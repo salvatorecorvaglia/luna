@@ -1,4 +1,4 @@
-import { toastArgs } from '@shared/error-messages';
+import { isCancellation, toastArgs } from '@shared/error-messages';
 import { Plus, RefreshCcw, Unplug, WifiOff } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -231,6 +231,8 @@ export function SftpManager() {
         });
         toast.success(`Download started: ${entry.name}`);
       } catch (err: unknown) {
+        // Cancelled during setup (user action / disconnect) — not a failure.
+        if (isCancellation(err)) return;
         toast.error(...toastArgs(err, 'Download failed'));
       }
     },
@@ -263,6 +265,7 @@ export function SftpManager() {
         });
         toast.success(`Upload started: ${entry.name}`);
       } catch (err: unknown) {
+        if (isCancellation(err)) return;
         toast.error(...toastArgs(err, 'Upload failed'));
       }
     },
@@ -519,7 +522,7 @@ export function SftpManager() {
           aria-live="polite"
         >
           <div className="text-center">
-            <WifiOff className="size-8 mx-auto text-destructive/60 mb-2" aria-hidden="true" />
+            <WifiOff className="size-8 mx-auto text-destructive-fg/60 mb-2" aria-hidden="true" />
             <p className="text-sm font-medium text-foreground/80">Connection lost</p>
             <p className="mt-1 text-xs text-muted-foreground/60">{overlayMessage}</p>
             {activeSession &&
