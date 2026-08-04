@@ -88,6 +88,41 @@ export function assertSafeAbsolutePath(value: unknown, name: string): asserts va
 }
 
 /**
+ * Expand a leading `~` to the user's real home directory and resolve to an
+ * absolute, canonical path.
+ *
+ * Uses `os.homedir()` rather than `$HOME`, which can be unset or empty — in
+ * which case naive string expansion turns `~/..` into `/..`.
+ *
+ * This block was copy-pasted verbatim into four exported functions below.
+ * Sharing it means a fix to the expansion rules (a new prefix form, a
+ * platform quirk) lands in one place instead of three-and-a-half.
+ */
+function expandTilde(rawPath: string, name: string): string {
+  assertNonEmptyString(rawPath, name);
+  const home = homedir();
+  const expanded =
+    rawPath === '~'
+      ? home
+      : rawPath.startsWith('~/') || rawPath.startsWith('~\\')
+        ? `${home}${sep}${rawPath.slice(2)}`
+        : rawPath;
+  if (!isAbsolute(expanded)) {
+    throw validationError(`${name} must be absolute or start with ~`);
+  }
+  return resolvePath(expanded);
+}
+
+/** Expand `~`, then require the result to sit inside the home subtree. */
+function expandTildeInHome(rawPath: string, name: string): string {
+  const resolved = expandTilde(rawPath, name);
+  if (!isInsideDir(resolved, homedir())) {
+    throw new LunaError(`${name} must be inside the home directory`, ErrorCode.FORBIDDEN);
+  }
+  return resolved;
+}
+
+/**
  * Expand a leading `~` to the user's real home directory and confine the
  * resolved path to that subtree. Falls back to lstat-based realpath only when
  * the file already exists, so callers can validate intent before opening.
@@ -100,21 +135,8 @@ export async function expandAndConfineToHome(
   name: string,
   options: { requireExists?: boolean } = {},
 ): Promise<string> {
-  assertNonEmptyString(rawPath, name);
   const home = homedir();
-  const expanded =
-    rawPath === '~'
-      ? home
-      : rawPath.startsWith('~/') || rawPath.startsWith('~\\')
-        ? `${home}${sep}${rawPath.slice(2)}`
-        : rawPath;
-  if (!isAbsolute(expanded)) {
-    throw validationError(`${name} must be absolute or start with ~`);
-  }
-  const resolved = resolvePath(expanded);
-  if (!isInsideDir(resolved, home)) {
-    throw new LunaError(`${name} must be inside the home directory`, ErrorCode.FORBIDDEN);
-  }
+  const resolved = expandTildeInHome(rawPath, name);
   if (options.requireExists) {
     const real = await realpath(resolved);
     if (!isInsideDir(real, home)) {
@@ -136,22 +158,7 @@ export async function expandAndConfineToHome(
  * file exists when they open it.
  */
 export function expandAndConfineToHomeSync(rawPath: string, name: string): string {
-  assertNonEmptyString(rawPath, name);
-  const home = homedir();
-  const expanded =
-    rawPath === '~'
-      ? home
-      : rawPath.startsWith('~/') || rawPath.startsWith('~\\')
-        ? `${home}${sep}${rawPath.slice(2)}`
-        : rawPath;
-  if (!isAbsolute(expanded)) {
-    throw validationError(`${name} must be absolute or start with ~`);
-  }
-  const resolved = resolvePath(expanded);
-  if (!isInsideDir(resolved, home)) {
-    throw new LunaError(`${name} must be inside the home directory`, ErrorCode.FORBIDDEN);
-  }
-  return resolved;
+  return expandTildeInHome(rawPath, name);
 }
 
 /**
@@ -213,20 +220,7 @@ export async function expandAndValidatePrivateKeyPath(
   rawPath: string,
   name: string,
 ): Promise<string> {
-  assertNonEmptyString(rawPath, name);
-  const home = homedir();
-  const expanded =
-    rawPath === '~'
-      ? home
-      : rawPath.startsWith('~/') || rawPath.startsWith('~\\')
-        ? `${home}${sep}${rawPath.slice(2)}`
-        : rawPath;
-  if (!isAbsolute(expanded)) {
-    throw validationError(`${name} must be absolute or start with ~`);
-  }
-  const resolved = resolvePath(expanded);
-  const real = await realpath(resolved);
-  return real;
+  return realpath(expandTilde(rawPath, name));
 }
 
 /**
@@ -234,16 +228,5 @@ export async function expandAndValidatePrivateKeyPath(
  * Used inside connection import to canonicalize key paths without blocking disk I/O.
  */
 export function expandAndValidatePrivateKeyPathSync(rawPath: string, name: string): string {
-  assertNonEmptyString(rawPath, name);
-  const home = homedir();
-  const expanded =
-    rawPath === '~'
-      ? home
-      : rawPath.startsWith('~/') || rawPath.startsWith('~\\')
-        ? `${home}${sep}${rawPath.slice(2)}`
-        : rawPath;
-  if (!isAbsolute(expanded)) {
-    throw validationError(`${name} must be absolute or start with ~`);
-  }
-  return resolvePath(expanded);
+  return expandTilde(rawPath, name);
 }

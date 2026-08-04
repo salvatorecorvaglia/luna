@@ -16,6 +16,7 @@ const CODE_DESCRIPTIONS: Record<ErrorCode, string> = {
   [ErrorCode.SFTP_ERROR]: 'SFTP error',
   [ErrorCode.S3_ERROR]: 'S3 error',
   [ErrorCode.NETWORK_ERROR]: 'Network error — check your connection',
+  [ErrorCode.CANCELLED]: 'Cancelled',
   [ErrorCode.AUTO_UPDATER_ERROR]: 'Updater error',
 };
 
@@ -70,6 +71,18 @@ export function formatError(err: unknown, prefix?: string): FormattedError {
     title: prefix ?? message,
     description: prefix ? message : undefined,
   };
+}
+
+/**
+ * True when the throw represents a deliberate cancellation rather than a
+ * failure. Callers use it to stay quiet instead of raising an error toast for
+ * something the user (or a shutdown) asked for.
+ *
+ * Checked by code, not message: `metadata` deliberately does not cross the
+ * IPC bridge, so the code is the only stable discriminator available.
+ */
+export function isCancellation(err: unknown): boolean {
+  return LunaError.isLunaError(err) && err.code === ErrorCode.CANCELLED;
 }
 
 /**

@@ -9,6 +9,12 @@ export enum ErrorCode {
   SFTP_ERROR = 'SFTP_ERROR',
   S3_ERROR = 'S3_ERROR',
   NETWORK_ERROR = 'NETWORK_ERROR',
+  /**
+   * The operation was deliberately cancelled (user action, app quit, session
+   * disconnect). Distinct from a failure: the UI should acknowledge it
+   * quietly rather than presenting it as something that went wrong.
+   */
+  CANCELLED = 'CANCELLED',
   AUTO_UPDATER_ERROR = 'AUTO_UPDATER_ERROR',
 }
 

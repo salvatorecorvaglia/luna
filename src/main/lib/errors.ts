@@ -14,10 +14,16 @@ export class SftpTransferError extends LunaError {
   }
 }
 
-/** Signals that a transfer (or a generic op) was aborted by the caller. */
-export class AbortError extends Error {
+/**
+ * Signals that a transfer (or a generic op) was aborted by the caller.
+ *
+ * Extends LunaError with a dedicated CANCELLED code so the renderer can tell
+ * "you cancelled this" apart from "this failed" after crossing IPC — where
+ * only `code` and `message` survive.
+ */
+export class AbortError extends LunaError {
   constructor(message = 'Aborted') {
-    super(message);
+    super(message, ErrorCode.CANCELLED);
     this.name = 'AbortError';
   }
 }
