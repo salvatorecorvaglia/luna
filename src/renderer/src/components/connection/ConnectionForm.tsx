@@ -31,6 +31,7 @@ import { FormField } from './FormField';
 import { S3Fields } from './S3Fields';
 import { SftpFields } from './SftpFields';
 import { useConnectionFormState } from './use-connection-form-state';
+import { useConnectionTest } from './use-connection-test';
 
 export function ConnectionForm() {
   const { connectionFormOpen, editingConnectionId, duplicatingConnectionId, closeForm } =
@@ -66,18 +67,14 @@ export function ConnectionForm() {
    * inline instead of only learning at submit-time via a toast.
    */
   const [privateKeyProbeError, setPrivateKeyProbeError] = useState<string | undefined>(undefined);
-  const [testing, setTesting] = useState(false);
-  // Inline result of the most recent Test Connection run. Surfaced beneath
-  // the footer Test button so users can read it at their own pace, instead
-  // of relying on a toast that disappears after a few seconds.
-  const [testResult, setTestResult] = useState<{
-    status: 'success' | 'error';
-    message: string;
-  } | null>(null);
-  // Holds the test-connection AbortController so the user can cancel a hung
-  // test before the IPC reply (10 s+ for unreachable hosts).
-  const testRunRef = useRef<{ controller: AbortController; runId: number } | null>(null);
-  const testRunCounter = useRef(0);
+  // Test-connection lifecycle (run id, abort, watchdog) lives in its own hook —
+  // it is separate machinery from the form's field state.
+  const {
+    testing,
+    result: testResult,
+    clearResult: clearTestResult,
+    runTest,
+  } = useConnectionTest();
 
   const dialogRef = useRef<HTMLDivElement>(null);
   const fieldId = useId();
@@ -150,7 +147,7 @@ export function ConnectionForm() {
   const [prevFormOpen, setPrevFormOpen] = useState(connectionFormOpen);
   if (prevFormOpen !== connectionFormOpen) {
     setPrevFormOpen(connectionFormOpen);
-    if (!connectionFormOpen) setTestResult(null);
+    if (!connectionFormOpen) clearTestResult();
   }
 
   // Guarded close: prompt to confirm discard if the user has typed anything.
@@ -372,138 +369,14 @@ export function ConnectionForm() {
     }
   }
 
-  function cancelTest(): void {
-    const run = testRunRef.current;
-    if (!run) return;
-    run.controller.abort();
-    testRunRef.current = null;
-    setTesting(false);
-    setTestResult(null);
-  }
-
-  /**
-   * Hard ceiling on a single test run. The main-side handler already times
-   * out the SSH connect at LIMITS.SSH_CONNECT_TIMEOUT_MS (60s), but if the
-   * IPC itself stalls (main crash, paused renderer-host link) the button
-   * would otherwise stay stuck on "Testing…" forever. 65s gives the server
-   * a clean grace window without leaving the user waiting indefinitely.
-   */
-  const TEST_HARD_TIMEOUT_MS = 65_000;
-
-  async function handleTest() {
-    if (testRunRef.current) {
-      cancelTest();
-      return;
-    }
-    // Clear stale result so the panel doesn't show a misleading prior success
-    // while a fresh run is in flight.
-    setTestResult(null);
-
-    const runId = ++testRunCounter.current;
-    const controller = new AbortController();
-    testRunRef.current = { controller, runId };
-    const watchdog = setTimeout(() => {
-      if (testRunRef.current?.runId !== runId) return;
-      controller.abort();
-      testRunRef.current = null;
-      setTesting(false);
-      setTestResult({
-        status: 'error',
-        message: 'Test timed out — main process not responding',
-      });
-    }, TEST_HARD_TIMEOUT_MS);
-    controller.signal.addEventListener('abort', () => clearTimeout(watchdog), { once: true });
-
-    const isStillCurrent = (): boolean =>
-      testRunRef.current?.runId === runId && !controller.signal.aborted;
-
-    if (common.provider === 'sftp') {
-      if (!sftp.host.trim() || !sftp.username.trim()) {
-        setTestResult({
-          status: 'error',
-          message: 'Host and Username are required to test',
-        });
-        testRunRef.current = null;
-        return;
-      }
-      setTesting(true);
-      try {
-        const result = await window.api.ssh.testConnection({
-          config: {
-            host: sftp.host.trim(),
-
-            port: parseInt(sftp.port) || 22,
-            username: sftp.username.trim(),
-            authType: sftp.authType,
-            privateKeyPath: sftp.privateKeyPath || undefined,
-            password: sftp.password || undefined,
-            passphrase: sftp.passphrase || undefined,
-            keepaliveInterval: (parseInt(sftp.keepaliveInterval) || 10) * 1000,
-            keepaliveCountMax: parseInt(sftp.keepaliveCountMax) || 3,
-          },
-        });
-        if (!isStillCurrent()) return;
-        if (result.ok) {
-          setTestResult({ status: 'success', message: 'Connection successful' });
-        } else {
-          setTestResult({
-            status: 'error',
-            message: result.error || 'Connection failed',
-          });
-        }
-      } finally {
-        clearTimeout(watchdog);
-        if (testRunRef.current?.runId === runId) {
-          testRunRef.current = null;
-          setTesting(false);
-        }
-      }
-    } else {
-      const useStored = isEditing && !s3.accessKeyId.trim() && !s3.secretAccessKey.trim();
-      if (!useStored && (!s3.accessKeyId.trim() || !s3.secretAccessKey.trim())) {
-        setTestResult({
-          status: 'error',
-          message: 'Access Key ID and Secret Access Key are required to test',
-        });
-        testRunRef.current = null;
-        return;
-      }
-      setTesting(true);
-      try {
-        const result = await window.api.s3.testConnection(
-          useStored
-            ? { connectionId: editingConnectionId || undefined }
-            : {
-                config: {
-                  endpoint: s3.host.trim()
-                    ? `${s3.protocol}://${s3.host.trim()}${s3.port.trim() ? `:${s3.port.trim()}` : ''}`
-                    : undefined,
-                  region: s3.region.trim() || undefined,
-                  forcePathStyle: s3.forcePathStyle,
-                  accessKeyId: s3.accessKeyId.trim(),
-                  secretAccessKey: s3.secretAccessKey,
-                  sessionToken: s3.sessionToken || undefined,
-                  defaultBucket: s3.defaultBucket.trim() || undefined,
-                },
-              },
-        );
-        if (!isStillCurrent()) return;
-        if (result.ok) {
-          setTestResult({ status: 'success', message: 'S3 connection successful' });
-        } else {
-          setTestResult({
-            status: 'error',
-            message: result.error || 'S3 connection failed',
-          });
-        }
-      } finally {
-        clearTimeout(watchdog);
-        if (testRunRef.current?.runId === runId) {
-          testRunRef.current = null;
-          setTesting(false);
-        }
-      }
-    }
+  function handleTest(): void {
+    void runTest({
+      provider: common.provider,
+      sftp,
+      s3,
+      editingConnectionId,
+      isEditing,
+    });
   }
 
   async function handleBrowseKey() {
@@ -845,21 +718,21 @@ export function ConnectionForm() {
                       />
                     ) : (
                       <AlertCircle
-                        className="size-4 shrink-0 text-destructive mt-0.5"
+                        className="size-4 shrink-0 text-destructive-fg mt-0.5"
                         aria-hidden="true"
                       />
                     )}
                     <p
                       className={cn(
                         'flex-1 text-xs leading-relaxed',
-                        testResult.status === 'success' ? 'text-foreground' : 'text-destructive',
+                        testResult.status === 'success' ? 'text-foreground' : 'text-destructive-fg',
                       )}
                     >
                       {testResult.message}
                     </p>
                     <button
                       type="button"
-                      onClick={() => setTestResult(null)}
+                      onClick={clearTestResult}
                       aria-label="Dismiss test result"
                       className="btn-icon !p-0.5 !min-w-0 !min-h-0 -mr-0.5 -mt-0.5"
                     >

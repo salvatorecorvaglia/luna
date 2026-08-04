@@ -20,17 +20,28 @@ export default defineConfig({
         'src/test/**',
         'src/renderer/src/themes/terminal/**'
       ],
-      // Floor — covers validation (incl. symlink jail), host-key TOFU and
-      // IPv6 disambiguation, transfer-queue, credential round-trip + IPC
-      // byte-length cap + ring-buffer rate limiter, emit redaction, ssh.ipc
-      // validation, db.ipc import sanitization, db migrations, error-map
-      // classification, and terminal-output sanitisation. Raise as new
-      // tests are added rather than treating these as final goals.
+      // Floor — covers validation (incl. symlink jail), host-key TOFU +
+      // IPv6 disambiguation + OpenSSH fingerprint format, SOCKS5 request
+      // parsing (fragmentation and malformed input), port-forward config
+      // validation and the public-bind gate, password-manager reference
+      // grammar and argument-injection refusal, sliding-window rate limiting,
+      // transfer-queue, credential round-trip, emit redaction plus the
+      // RAW_CHANNELS allowlist, IPC error shape (no stack/metadata across the
+      // bridge), local-terminal output batching and the session cap,
+      // connection create/update validation parity, db migrations, error-map
+      // classification, terminal-output sanitisation, the host-key dialog's
+      // reject path, the port-forward runtime against real sockets (bind
+      // failure, teardown of live connections, fragmented SOCKS handshakes),
+      // and the shared abortable-stream skeleton's abort/completion races.
+      //
+      // A ratchet, not a target: raise these whenever a run reports higher so
+      // coverage can't silently regress. Actuals at the time of writing are
+      // ~41/32/34/40; the floors sit just under to absorb ordinary churn.
       thresholds: {
-        lines: 34,
-        functions: 28,
-        branches: 25,
-        statements: 33
+        lines: 40,
+        functions: 33,
+        branches: 32,
+        statements: 40
       }
     }
   },

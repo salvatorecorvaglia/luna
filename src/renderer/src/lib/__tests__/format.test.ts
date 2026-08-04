@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatEta, formatSize, formatSpeed } from '../format';
+import { formatDate, formatEta, formatSize, formatSpeed } from '../format';
 
 describe('formatSize', () => {
   it('returns em-dash for non-positive byte counts', () => {
@@ -14,6 +14,25 @@ describe('formatSize', () => {
   it('formats kilobytes and megabytes with one decimal', () => {
     expect(formatSize(1536)).toBe('1.5 KB');
     expect(formatSize(5 * 1024 * 1024)).toBe('5.0 MB');
+  });
+
+  it('scales through gigabytes and terabytes', () => {
+    expect(formatSize(1024 ** 3)).toBe('1.0 GB');
+    expect(formatSize(1024 ** 4)).toBe('1.0 TB');
+  });
+});
+
+describe('formatDate', () => {
+  it('includes the time for a timestamp in the current year', () => {
+    const anHourAgo = Math.floor(Date.now() / 1000) - 3600;
+    // Same-year timestamps show time-of-day, which is what makes a directory
+    // listing readable at a glance; older ones fall back to the year.
+    expect(formatDate(anHourAgo)).toMatch(/\d{1,2}:\d{2}/);
+  });
+
+  it('includes the year for a timestamp from a previous year', () => {
+    const ts = Math.floor(new Date(2020, 0, 15).getTime() / 1000);
+    expect(formatDate(ts)).toContain('2020');
   });
 });
 
