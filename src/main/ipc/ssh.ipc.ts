@@ -78,7 +78,15 @@ export function registerSshHandlers(): void {
         ErrorCode.VALIDATION_ERROR,
       );
     }
-    sshManager.sendData(params.sessionId, params.data);
+    // A silent no-op here reads to the user as "my keyboard stopped working".
+    // Surface the dead-session case so the terminal can show why.
+    if (!sshManager.sendData(params.sessionId, params.data)) {
+      throw new LunaError(
+        `Session ${params.sessionId} is not connected — input was not delivered`,
+        ErrorCode.NOT_FOUND,
+        { sessionId: params.sessionId, reason: 'shell-not-writable' },
+      );
+    }
   });
 
   registerHandler(
@@ -166,6 +174,9 @@ export function registerSshHandlers(): void {
     IPC.SSH_START_PORT_FORWARD,
     (_event, params: { sessionId: string; config: PortForwardingConfig }) => {
       assertNonEmptyString(params.sessionId, 'sessionId');
+      // `config` is validated inside startSinglePortForward via
+      // validatePortForwardConfig — keeping it there means the stored-row path
+      // and the interactive path cannot drift apart.
       return sshManager.startSinglePortForward(params.sessionId, params.config);
     },
   );

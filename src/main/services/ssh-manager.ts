@@ -1,4 +1,3 @@
-import { createServer, connect as netConnect } from 'node:net';
 import { IPC, LIMITS } from '@shared/constants';
 import { ErrorCode, LunaError } from '@shared/errors';
 import type {
@@ -16,7 +15,9 @@ import { TimeoutError, withTimeout } from '../lib/with-timeout';
 import { type ConnectionRow, getDatabase, getSetting } from './database';
 import { emitToRenderer } from './emit';
 import { PendingHostKeyRegistry } from './ssh/host-key-flow';
-import { buildConnectConfig } from './ssh/ssh-config';
+import { type PortForwardHandle, startPortForward } from './ssh/port-forward';
+import { parseStoredPortForwards, validatePortForwardConfig } from './ssh/port-forward-config';
+import { buildConnectConfig, type ConnectParams } from './ssh/ssh-config';
 import { sshStreamBuffer } from './ssh/ssh-stream-buffer';
 
 /**
@@ -47,17 +48,6 @@ interface StreamListeners {
   onStderrData: (data: Buffer) => void;
 }
 
-export interface InternalPortForward {
-  id: string;
-  config: PortForwardingConfig;
-  status: 'active' | 'error' | 'stopped';
-  error?: string;
-  bytesRead: number;
-  bytesWritten: number;
-  activeConnections: number;
-  close: () => Promise<void>;
-}
-
 interface SshSession {
   id: string;
   connectionId: string;
@@ -77,7 +67,7 @@ interface SshSession {
   historyId?: string;
   cols?: number;
   rows?: number;
-  portForwards?: InternalPortForward[];
+  portForwards?: PortForwardHandle[];
 }
 
 /** Maximum delay between reconnect attempts (ms). The backoff doubles up to this cap. */
@@ -85,12 +75,24 @@ const MAX_RECONNECT_DELAY_MS = getRuntimeNumber('SSH_RECONNECT_MAX_DELAY_MS');
 /** Base delay for the first reconnect attempt (ms). */
 const RECONNECT_BASE_DELAY_MS = getRuntimeNumber('SSH_RECONNECT_BASE_DELAY_MS');
 
+/**
+ * How often to prune `connection_history`. The prune used to run on every
+ * successful connect, executing a correlated `NOT IN (SELECT … ORDER BY …
+ * LIMIT 1000)` subquery each time — a full scan + sort on the hot connect
+ * path for a table that only needs trimming occasionally.
+ */
+const HISTORY_PRUNE_INTERVAL_MS = 60 * 60 * 1000;
+/** Retained `connection_history` rows. */
+const HISTORY_RETENTION_ROWS = 1000;
+
 class SshManager {
   private sessions = new Map<string, SshSession>();
   private onDisconnectCallbacks: ((sessionId: string) => void)[] = [];
   private onConnectCallbacks: ((sessionId: string) => void)[] = [];
   /** Candidate host keys captured during a rejected verification, awaiting user trust. */
   private pendingHostKeys = new PendingHostKeyRegistry();
+  /** Timestamp of the last `connection_history` prune — see pruneHistoryIfDue. */
+  private lastHistoryPruneAt = 0;
 
   /**
    * Trust a captured host key so the next connect succeeds.
@@ -140,6 +142,44 @@ class SshManager {
       sessionId: session.id,
       status,
     });
+  }
+
+  /**
+   * Close out the history row opened at connect time. Shared by the manual
+   * `disconnect()` path and `retireSession()`; previously only the former
+   * wrote it, so a session that exhausted its reconnect attempts left a row
+   * with a null `disconnected_at` forever.
+   */
+  private recordDisconnectHistory(session: SshSession): void {
+    if (!session.historyId) return;
+    try {
+      const db = getDatabase();
+      const now = Math.floor(Date.now() / 1000);
+      db.prepare(
+        'UPDATE connection_history SET disconnected_at = ?, duration_secs = (? - connected_at) WHERE id = ?',
+      ).run(now, now, session.historyId);
+    } catch (err) {
+      log.warn(`[SSH] Failed to record disconnect history for ${session.historyId}:`, err);
+    }
+    session.historyId = undefined;
+  }
+
+  /**
+   * Trim `connection_history` at most once an hour rather than on every
+   * connect. The delete is a full scan + sort of the table; running it inline
+   * with each handshake put that cost on the interactive connect path for no
+   * benefit — a few hundred extra rows between prunes are harmless.
+   */
+  private pruneHistoryIfDue(db: ReturnType<typeof getDatabase>): void {
+    const now = Date.now();
+    if (now - this.lastHistoryPruneAt < HISTORY_PRUNE_INTERVAL_MS) return;
+    this.lastHistoryPruneAt = now;
+    db.prepare(
+      `DELETE FROM connection_history
+       WHERE id NOT IN (
+         SELECT id FROM connection_history ORDER BY connected_at DESC LIMIT ?
+       )`,
+    ).run(HISTORY_RETENTION_ROWS);
   }
 
   async connect(
@@ -271,23 +311,28 @@ class SshManager {
             historyId,
             connectionId,
           );
-          // Prune history: retain the most recent 1,000 entries
-          db.prepare(
-            'DELETE FROM connection_history WHERE id NOT IN (SELECT id FROM connection_history ORDER BY connected_at DESC LIMIT 1000)',
-          ).run();
+          this.pruneHistoryIfDue(db);
         } catch (err) {
           log.warn(`[SSH] Failed to record connection info for ${connectionId}:`, err);
         }
 
-        try {
-          this.startPortForwards(session, row.port_forwards);
-        } catch (err) {
-          log.error(`[SSH] Failed to start port forwards for session ${sessionId}:`, err);
-        }
+        // Fire-and-forget: a forward that fails to bind must not block the
+        // shell from opening. Each failure is reported individually so the
+        // user learns *which* tunnel died rather than losing the session.
+        void this.startConfiguredPortForwards(session, row.port_forwards);
 
         client.shell({ term: 'xterm-256color', cols, rows }, (err, stream) => {
           if (err) {
-            // Clean up session on shell creation failure
+            // Clean up session on shell creation failure. Destroy the client
+            // too — without it the TCP socket and keepalive timer stay alive
+            // on a Client nothing references any more.
+            this.cleanupPortForwards(session);
+            try {
+              client.removeAllListeners();
+              client.destroy();
+            } catch {
+              // already torn down
+            }
             this.sessions.delete(sessionId);
             settle({ success: false, error: err.message });
             return;
@@ -415,12 +460,32 @@ class SshManager {
   private cleanupPortForwards(session: SshSession): void {
     if (session.portForwards) {
       for (const pf of session.portForwards) {
+        pf.status = 'stopped';
         pf.close().catch((err) => {
           log.warn(`[SSH] Failed to close port forward:`, err);
         });
       }
       delete session.portForwards;
     }
+  }
+
+  /** Project a live handle into the renderer-facing shape. */
+  private toActiveInfo(session: SshSession, pf: PortForwardHandle): ActivePortForwardInfo {
+    return {
+      id: pf.id,
+      connectionId: session.connectionId,
+      sessionId: session.id,
+      type: pf.config.type,
+      bindAddress: pf.config.bindAddress,
+      localPort: pf.config.localPort,
+      remoteHost: pf.config.remoteHost,
+      remotePort: pf.config.remotePort,
+      status: pf.status,
+      error: pf.error,
+      bytesRead: pf.bytesRead,
+      bytesWritten: pf.bytesWritten,
+      activeConnections: pf.activeConnections,
+    };
   }
 
   listActivePortForwards(sessionId?: string): ActivePortForwardInfo[] {
@@ -432,32 +497,79 @@ class SshManager {
     for (const session of sessions) {
       if (!session.portForwards) continue;
       for (const pf of session.portForwards) {
-        results.push({
-          id: pf.id,
-          connectionId: session.connectionId,
-          sessionId: session.id,
-          type: pf.config.type,
-          bindAddress: pf.config.bindAddress || '127.0.0.1',
-          localPort: pf.config.localPort,
-          remoteHost: pf.config.remoteHost,
-          remotePort: pf.config.remotePort,
-          status: pf.status,
-          error: pf.error,
-          bytesRead: pf.bytesRead,
-          bytesWritten: pf.bytesWritten,
-          activeConnections: pf.activeConnections,
-        });
+        results.push(this.toActiveInfo(session, pf));
       }
     }
     return results;
   }
 
-  startSinglePortForward(sessionId: string, config: PortForwardingConfig): ActivePortForwardInfo {
+  /**
+   * Whether the user has opted into binding local/dynamic forwards to a
+   * non-loopback address. Defaults to false — see port-forward-config.ts.
+   */
+  private allowPublicBind(): boolean {
+    return getSetting<boolean>('ssh.allowPublicPortForwardBind', false) === true;
+  }
+
+  /**
+   * Start a forward requested interactively from the Tunnel Manager.
+   * Async so a bind failure (EADDRINUSE, EACCES, remote refusal) reaches the
+   * renderer as a real error instead of a handle that claims to be active.
+   */
+  async startSinglePortForward(
+    sessionId: string,
+    rawConfig: unknown,
+  ): Promise<ActivePortForwardInfo> {
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new LunaError(`Session ${sessionId} not found`, ErrorCode.NOT_FOUND);
     }
-    return this.startOnePortForward(session, config);
+    const config = validatePortForwardConfig(rawConfig, {
+      allowPublicBind: this.allowPublicBind(),
+    });
+    if (!config.id) config.id = uuidv4();
+
+    // Reject a duplicate local bind up front with a clear message rather than
+    // letting the OS return an opaque EADDRINUSE.
+    if (config.type !== 'remote') {
+      const clash = this.findLocalBindClash(config);
+      if (clash) {
+        throw new LunaError(
+          `Port ${config.localPort} is already forwarded by "${clash.config.name ?? clash.id}"`,
+          ErrorCode.VALIDATION_ERROR,
+          { reason: 'port-in-use', localPort: config.localPort },
+        );
+      }
+    }
+
+    const handle = await startPortForward(session.client, config);
+    // The session could have been torn down while we awaited the bind.
+    if (this.sessions.get(sessionId) !== session) {
+      await handle.close().catch(() => {});
+      throw new LunaError(
+        `Session ${sessionId} closed while starting forward`,
+        ErrorCode.NOT_FOUND,
+      );
+    }
+    session.portForwards ??= [];
+    session.portForwards.push(handle);
+    return this.toActiveInfo(session, handle);
+  }
+
+  /** Find an active local/dynamic forward already bound to the same host:port. */
+  private findLocalBindClash(config: PortForwardingConfig): PortForwardHandle | undefined {
+    for (const session of this.sessions.values()) {
+      for (const pf of session.portForwards ?? []) {
+        if (pf.status !== 'active' || pf.config.type === 'remote') continue;
+        if (
+          pf.config.localPort === config.localPort &&
+          pf.config.bindAddress === config.bindAddress
+        ) {
+          return pf;
+        }
+      }
+    }
+    return undefined;
   }
 
   async stopSinglePortForward(sessionId: string, forwardId: string): Promise<void> {
@@ -473,242 +585,44 @@ class SshManager {
     }
   }
 
-  private startPortForwards(session: SshSession, portForwardsJson: string | null): void {
-    if (!portForwardsJson) return;
-    let configs: PortForwardingConfig[];
-    try {
-      configs = JSON.parse(portForwardsJson);
-    } catch (err) {
-      log.error('[SSH] Failed to parse port forwards JSON:', err);
-      return;
-    }
-    if (!Array.isArray(configs) || configs.length === 0) return;
-
-    for (const config of configs) {
-      this.startOnePortForward(session, config);
-    }
-  }
-
-  private startOnePortForward(
+  /**
+   * Start the forwards saved on the connection row. Invalid entries are
+   * dropped during parsing; entries that fail to bind are reported to the
+   * renderer individually so one busy port doesn't silently disable the rest.
+   */
+  private async startConfiguredPortForwards(
     session: SshSession,
-    config: PortForwardingConfig,
-  ): ActivePortForwardInfo {
-    if (!session.portForwards) {
-      session.portForwards = [];
-    }
+    portForwardsJson: string | null,
+  ): Promise<void> {
+    const configs = parseStoredPortForwards(portForwardsJson, {
+      allowPublicBind: this.allowPublicBind(),
+    });
+    if (configs.length === 0) return;
 
-    const forwardId = config.id || uuidv4();
-    const entry: InternalPortForward = {
-      id: forwardId,
-      config,
-      status: 'active',
-      bytesRead: 0,
-      bytesWritten: 0,
-      activeConnections: 0,
-      close: async () => {},
-    };
-
-    if (config.type === 'local') {
-      const server = createServer((socket) => {
-        entry.activeConnections++;
-        socket.on('data', (d) => {
-          entry.bytesRead += d.length;
-        });
-        const client = session.client;
-        client.forwardOut(
-          config.bindAddress || '127.0.0.1',
-          config.localPort,
-          config.remoteHost || '127.0.0.1',
-          config.remotePort || 80,
-          (err, stream) => {
-            if (err) {
-              log.error(`[SSH] Local port forward forwardOut failed on ${config.localPort}:`, err);
-              entry.activeConnections = Math.max(0, entry.activeConnections - 1);
-              socket.destroy();
-              return;
-            }
-            stream.on('data', (d: Buffer) => {
-              entry.bytesWritten += d.length;
-            });
-            socket.pipe(stream).pipe(socket);
-            socket.on('close', () => {
-              entry.activeConnections = Math.max(0, entry.activeConnections - 1);
-            });
-            socket.on('error', () => stream.end());
-            stream.on('error', () => socket.destroy());
-          },
-        );
-      });
-
-      server.on('error', (err) => {
-        log.error(`[SSH] Local port forward server error on port ${config.localPort}:`, err);
-        entry.status = 'error';
-        entry.error = err.message;
-      });
-
-      server.listen(config.localPort, config.bindAddress || '127.0.0.1', () => {
-        log.info(
-          `[SSH] Local port forward listening on ${config.bindAddress || '127.0.0.1'}:${config.localPort}`,
-        );
-      });
-
-      entry.close = () => new Promise<void>((resolveClose) => server.close(() => resolveClose()));
-    } else if (config.type === 'remote') {
-      const client = session.client;
-      const remoteBind = config.bindAddress || '127.0.0.1';
-      const remotePort = config.localPort;
-      const localDestHost = config.remoteHost || '127.0.0.1';
-      const localDestPort = config.remotePort || 80;
-
-      client.forwardIn(remoteBind, remotePort, (err) => {
-        if (err) {
-          log.error(`[SSH] Remote port forward forwardIn failed for ${remotePort}:`, err);
-          entry.status = 'error';
-          entry.error = err.message;
-        } else {
-          log.info(`[SSH] Remote port forward requested on remote ${remoteBind}:${remotePort}`);
-        }
-      });
-
-      // biome-ignore lint/suspicious/noExplicitAny: ssh2 tcp connection info
-      const tcpListener = (info: any, accept: () => any, reject: () => void) => {
-        if (info.destPort === remotePort) {
-          entry.activeConnections++;
-          const localSocket = netConnect(localDestPort, localDestHost, () => {
-            const stream = accept();
-            stream.on('data', (d: Buffer) => {
-              entry.bytesRead += d.length;
-            });
-            localSocket.on('data', (d) => {
-              entry.bytesWritten += d.length;
-            });
-            localSocket.pipe(stream).pipe(localSocket);
-            localSocket.on('close', () => {
-              entry.activeConnections = Math.max(0, entry.activeConnections - 1);
-            });
-            localSocket.on('error', () => stream.end());
-            stream.on('error', () => localSocket.destroy());
-          });
-          localSocket.on('error', (err) => {
-            log.error(`[SSH] Remote port forward local connect failed:`, err);
-            entry.activeConnections = Math.max(0, entry.activeConnections - 1);
-            reject();
-          });
-        }
-      };
-
-      client.on('tcp connection', tcpListener);
-
-      entry.close = () =>
-        new Promise<void>((resolveClose) => {
-          client.off('tcp connection', tcpListener);
-          client.unforwardIn(remoteBind, remotePort, () => resolveClose());
-        });
-    } else if (config.type === 'dynamic') {
-      const server = createServer((socket) => {
-        entry.activeConnections++;
-        socket.on('close', () => {
-          entry.activeConnections = Math.max(0, entry.activeConnections - 1);
-        });
-        let stage = 0;
-        socket.on('data', (chunk: Buffer) => {
-          entry.bytesRead += chunk.length;
-          const client = session.client;
-          if (stage === 0) {
-            if (chunk[0] !== 0x05) {
-              socket.destroy();
-              return;
-            }
-            const response = Buffer.from([0x05, 0x00]);
-            socket.write(response);
-            stage = 1;
-          } else if (stage === 1) {
-            if (chunk[0] !== 0x05 || chunk[1] !== 0x01) {
-              socket.write(
-                Buffer.from([0x05, 0x07, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
-              );
-              socket.destroy();
-              return;
-            }
-            let offset = 4;
-            const atyp = chunk[3];
-            let host = '';
-            if (atyp === 0x01) {
-              host = `${chunk[4]}.${chunk[5]}.${chunk[6]}.${chunk[7]}`;
-              offset = 8;
-            } else if (atyp === 0x03) {
-              const len = chunk[4];
-              host = chunk.toString('utf8', 5, 5 + len);
-              offset = 5 + len;
-            } else if (atyp === 0x04) {
-              const groups: string[] = [];
-              for (let i = 0; i < 16; i += 2) {
-                groups.push(chunk.readUInt16BE(4 + i).toString(16));
-              }
-              host = groups.join(':');
-              offset = 20;
-            } else {
-              socket.destroy();
-              return;
-            }
-            const port = chunk.readUInt16BE(offset);
-
-            client.forwardOut('127.0.0.1', config.localPort, host, port, (err, stream) => {
-              if (err) {
-                log.error(`[SSH] Dynamic SOCKS5 forwardOut failed to ${host}:${port}:`, err);
-                socket.write(
-                  Buffer.from([0x05, 0x05, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
-                );
-                socket.destroy();
-                return;
-              }
-              socket.write(
-                Buffer.from([0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
-              );
-              stream.on('data', (d: Buffer) => {
-                entry.bytesWritten += d.length;
-              });
-              socket.pipe(stream).pipe(socket);
-              socket.on('error', () => stream.end());
-              stream.on('error', () => socket.destroy());
-            });
-            stage = 2;
+    // Started in parallel: forwards are independent, and binding is the slow
+    // part. Serialising them meant one forward waiting on a slow remote
+    // `forwardIn` delayed every later tunnel on the same session.
+    await Promise.all(
+      configs.map(async (config) => {
+        try {
+          const handle = await startPortForward(session.client, config);
+          // The session may have been torn down while we were binding.
+          if (this.sessions.get(session.id) !== session) {
+            await handle.close().catch(() => {});
+            return;
           }
-        });
-      });
-
-      server.on('error', (err) => {
-        log.error(`[SSH] Dynamic SOCKS5 proxy server error on port ${config.localPort}:`, err);
-        entry.status = 'error';
-        entry.error = err.message;
-      });
-
-      server.listen(config.localPort, config.bindAddress || '127.0.0.1', () => {
-        log.info(
-          `[SSH] Dynamic SOCKS5 proxy server listening on ${config.bindAddress || '127.0.0.1'}:${config.localPort}`,
-        );
-      });
-
-      entry.close = () => new Promise<void>((resolveClose) => server.close(() => resolveClose()));
-    }
-
-    session.portForwards.push(entry);
-
-    return {
-      id: entry.id,
-      connectionId: session.connectionId,
-      sessionId: session.id,
-      type: entry.config.type,
-      bindAddress: entry.config.bindAddress || '127.0.0.1',
-      localPort: entry.config.localPort,
-      remoteHost: entry.config.remoteHost,
-      remotePort: entry.config.remotePort,
-      status: entry.status,
-      error: entry.error,
-      bytesRead: entry.bytesRead,
-      bytesWritten: entry.bytesWritten,
-      activeConnections: entry.activeConnections,
-    };
+          session.portForwards ??= [];
+          session.portForwards.push(handle);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          log.error(`[SSH] Port forward on ${config.localPort} failed to start: ${message}`);
+          emitToRenderer(IPC.SSH_ON_ERROR, {
+            sessionId: session.id,
+            error: `Port forward ${config.name ?? config.localPort} could not start: ${message}`,
+          });
+        }
+      }),
+    );
   }
 
   private handleDisconnect(sessionId: string): void {
@@ -727,8 +641,43 @@ class SshManager {
       cb(sessionId);
     }
 
-    // Auto-reconnect
+    // Auto-reconnect, if the user hasn't turned it off. The `ssh.autoReconnect`
+    // setting has always been surfaced in the Settings panel and persisted,
+    // but nothing read it — a user who deliberately disabled reconnection
+    // still got reconnected. Honour it here, at the single entry point.
+    if (getSetting<boolean>('ssh.autoReconnect', true) === false) {
+      this.retireSession(session, 'disconnected');
+      return;
+    }
     this.attemptReconnect(sessionId);
+  }
+
+  /**
+   * Drop a session that will not be reconnected. Without this the entry stayed
+   * in `this.sessions` forever holding a dead Client, so `listSessions()` (and
+   * therefore renderer session recovery) kept reporting a session that could
+   * never carry traffic again.
+   */
+  private retireSession(session: SshSession, status: SessionStatus): void {
+    if (session.reconnectTimer) {
+      clearTimeout(session.reconnectTimer);
+      session.reconnectTimer = null;
+    }
+    session.reconnecting = false;
+    session.reconnectGen++;
+    this.setStatus(session, status);
+    this.cleanupPortForwards(session);
+    this.cleanupStreamListeners(session);
+    try {
+      session.client.removeAllListeners();
+      session.client.destroy();
+    } catch {
+      // already torn down
+    }
+    this.recordDisconnectHistory(session);
+    if (this.sessions.get(session.id) === session) {
+      this.sessions.delete(session.id);
+    }
   }
 
   private attemptReconnect(sessionId: string): void {
@@ -740,8 +689,12 @@ class SshManager {
 
     const maxAttempts = getSetting('ssh.maxReconnectAttempts', 5);
     if (session.reconnectAttempts >= maxAttempts) {
-      session.reconnecting = false;
-      this.setStatus(session, 'error');
+      log.warn(`[SSH] Giving up on ${sessionId} after ${maxAttempts} reconnect attempts`);
+      emitToRenderer(IPC.SSH_ON_ERROR, {
+        sessionId,
+        error: `Reconnection failed after ${maxAttempts} attempts. Reconnect manually to try again.`,
+      });
+      this.retireSession(session, 'error');
       return;
     }
 
@@ -815,11 +768,20 @@ class SshManager {
     }, delay);
   }
 
-  sendData(sessionId: string, data: string): void {
+  /**
+   * Write keystrokes to the session's shell.
+   *
+   * Returns false when the write could not be delivered. Silently dropping
+   * input made a half-dead session indistinguishable from a working one: the
+   * user typed, nothing echoed, and no error appeared anywhere. The IPC layer
+   * turns a false return into a structured error the terminal can surface.
+   */
+  sendData(sessionId: string, data: string): boolean {
     const session = this.sessions.get(sessionId);
-    if (session?.shell?.writable) {
-      session.shell.write(data);
-    }
+    if (!session) return false;
+    if (!session.shell?.writable) return false;
+    session.shell.write(data);
+    return true;
   }
 
   resize(sessionId: string, cols: number, rows: number): void {
@@ -859,18 +821,7 @@ class SshManager {
       log.error(`[SSH] Error closing session ${sessionId}:`, err);
     }
 
-    // Record disconnect in history
-    if (session.historyId) {
-      try {
-        const db = getDatabase();
-        const now = Math.floor(Date.now() / 1000);
-        db.prepare(
-          'UPDATE connection_history SET disconnected_at = ?, duration_secs = (? - connected_at) WHERE id = ?',
-        ).run(now, now, session.historyId);
-      } catch (err) {
-        log.warn(`[SSH] Failed to record disconnect history for ${session.historyId}:`, err);
-      }
-    }
+    this.recordDisconnectHistory(session);
 
     session.status = 'disconnected';
     this.sessions.delete(sessionId);
@@ -884,6 +835,73 @@ class SshManager {
     } catch {
       // best-effort cleanup
     }
+  }
+
+  /**
+   * Resolve test-connection parameters from either a saved connection row or
+   * a raw config supplied by the form.
+   *
+   * Both branches produce the same `ConnectParams`, so they are built directly
+   * rather than laundered through eight mutable locals — the previous shape
+   * made it impossible to see at a glance which fields the saved-connection
+   * branch deliberately leaves unset (password/passphrase, which come from the
+   * credential store inside buildConnectConfig, never from the row).
+   */
+  private resolveTestParams(params: {
+    connectionId?: string;
+    config?: {
+      host: string;
+      port: number;
+      username: string;
+      authType: AuthType;
+      privateKeyPath?: string;
+      password?: string;
+      passphrase?: string;
+      keepaliveInterval?: number;
+      keepaliveCountMax?: number;
+    };
+  }): { params: ConnectParams } | { error: string } {
+    if (params.config) {
+      const c = params.config;
+      return {
+        params: {
+          host: c.host,
+          port: c.port,
+          username: c.username,
+          authType: c.authType,
+          privateKeyPath: c.privateKeyPath,
+          password: c.password,
+          passphrase: c.passphrase,
+          keepaliveInterval: c.keepaliveInterval,
+          keepaliveCountMax: c.keepaliveCountMax,
+        },
+      };
+    }
+
+    if (!params.connectionId) {
+      return { error: 'Invalid test parameters' };
+    }
+
+    const row = getDatabase()
+      .prepare(`SELECT ${SSH_CONNECT_COLUMNS} FROM connections WHERE id = ?`)
+      .get(params.connectionId) as SshConnectRow | undefined;
+    if (!row) return { error: 'Connection not found' };
+    if (row.provider !== 'sftp') return { error: 'Not an SSH connection' };
+    if (!row.host || !row.username || !row.auth_type || row.port == null) {
+      return { error: 'SSH connection is missing required fields' };
+    }
+
+    return {
+      params: {
+        host: row.host,
+        port: row.port,
+        username: row.username,
+        authType: row.auth_type,
+        privateKeyPath: row.private_key_path || undefined,
+        keepaliveInterval: row.keepalive_interval || undefined,
+        keepaliveCountMax: row.keepalive_count_max || undefined,
+      },
+    };
   }
 
   /**
@@ -904,64 +922,13 @@ class SshManager {
       keepaliveCountMax?: number;
     };
   }): Promise<{ ok: boolean; error?: string }> {
-    let host: string, port: number, username: string, authType: AuthType;
-    let privateKeyPath: string | undefined;
-    let password: string | undefined;
-    let passphrase: string | undefined;
-    let keepaliveInterval: number | undefined;
-    let keepaliveCountMax: number | undefined;
+    const resolved = this.resolveTestParams(params);
+    if ('error' in resolved) return { ok: false, error: resolved.error };
 
-    if (params.config) {
-      host = params.config.host;
-      port = params.config.port;
-      username = params.config.username;
-      authType = params.config.authType;
-      privateKeyPath = params.config.privateKeyPath;
-      password = params.config.password;
-      passphrase = params.config.passphrase;
-      keepaliveInterval = params.config.keepaliveInterval;
-      keepaliveCountMax = params.config.keepaliveCountMax;
-    } else if (params.connectionId) {
-      const db = getDatabase();
-      const row = db
-        .prepare(`SELECT ${SSH_CONNECT_COLUMNS} FROM connections WHERE id = ?`)
-        .get(params.connectionId) as SshConnectRow | undefined;
-      if (!row) return { ok: false, error: 'Connection not found' };
-      if (row.provider !== 'sftp') {
-        return { ok: false, error: 'Not an SSH connection' };
-      }
-      if (!row.host || !row.username || !row.auth_type || row.port == null) {
-        return { ok: false, error: 'SSH connection is missing required fields' };
-      }
-
-      host = row.host;
-      port = row.port;
-      username = row.username;
-      authType = row.auth_type;
-      privateKeyPath = row.private_key_path || undefined;
-      keepaliveInterval = row.keepalive_interval || undefined;
-      keepaliveCountMax = row.keepalive_count_max || undefined;
-    } else {
-      return { ok: false, error: 'Invalid test parameters' };
-    }
-
-    const { config, error: configError } = await buildConnectConfig(
-      {
-        host,
-        port,
-        username,
-        authType,
-        privateKeyPath,
-        password,
-        passphrase,
-        keepaliveInterval,
-        keepaliveCountMax,
-      },
-      {
-        pendingHostKeys: this.pendingHostKeys,
-        connectionId: params.connectionId,
-      },
-    );
+    const { config, error: configError } = await buildConnectConfig(resolved.params, {
+      pendingHostKeys: this.pendingHostKeys,
+      connectionId: params.connectionId,
+    });
     if (configError) {
       return { ok: false, error: configError };
     }

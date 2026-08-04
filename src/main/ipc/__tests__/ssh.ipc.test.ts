@@ -17,7 +17,9 @@ vi.mock('../../services/ssh-manager', () => ({
   sshManager: {
     connect: vi.fn().mockResolvedValue({ success: true }),
     disconnect: vi.fn(),
-    sendData: vi.fn(),
+    // Returns true = "delivered to a writable shell". The IPC layer turns a
+    // false return into a NOT_FOUND so a dead session can't swallow keystrokes.
+    sendData: vi.fn().mockReturnValue(true),
     testConnection: vi.fn().mockResolvedValue({ ok: true }),
     resize: vi.fn(),
     trustPendingHostKey: vi.fn().mockReturnValue('SHA256:fp'),

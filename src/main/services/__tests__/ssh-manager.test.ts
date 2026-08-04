@@ -2,8 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getDatabase } from '../database';
 import { sshManager } from '../ssh-manager';
 
+// Faithful-enough stand-in for a net.Server: the production code subscribes
+// with once()/off() for the bind-failure path, so a mock that only implements
+// on() silently diverges from the real object.
 const serverInstance = {
   on: vi.fn(),
+  once: vi.fn(),
+  off: vi.fn(),
   listen: vi.fn((_port, _host, cb) => cb && cb()),
   close: vi.fn((cb) => cb && cb()),
 };
@@ -190,10 +195,12 @@ describe('sshManager', () => {
 
     const connectResult = await sshManager.connect('port-forward-session', 'conn-id-1');
     expect(connectResult.success).toBe(true);
+    // Forwards start in parallel alongside the shell rather than blocking it,
+    // so let their bind promises settle before asserting.
+    await vi.waitFor(() => expect(serverInstance.listen).toHaveBeenCalledTimes(2));
 
     // Should create local servers for Local and SOCKS5 forwarding rules
     expect(createServerMock).toHaveBeenCalledTimes(2);
-    expect(serverInstance.listen).toHaveBeenCalledTimes(2);
 
     // Now disconnect
     sshManager.disconnect('port-forward-session');
