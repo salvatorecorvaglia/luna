@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { formatHostKey, updateHostKey, verifyHostKey } from '../host-key-store';
+import { fingerprintKey, formatHostKey, updateHostKey, verifyHostKey } from '../host-key-store';
 
 // In-memory shim of the subset of better-sqlite3 used by host-key-store.
 // We avoid loading the native module here because its ABI is compiled for
@@ -121,5 +122,53 @@ describe('host-key-store IPv6', () => {
     // `[::]:1` vs `[::1]:22` — distinct primary keys.
     const v = verifyHostKey('::1', 22, Buffer.from('host-colon'), 'ssh-ed25519');
     expect(v.isFirst).toBe(true);
+  });
+});
+
+describe('fingerprintKey — OpenSSH compatibility', () => {
+  // The whole point of showing a fingerprint is that a user can compare it to
+  // what the server administrator reads off `ssh-keygen -lf`. OpenSSH prints
+  // SHA256:<base64> with the padding stripped; emitting padded base64 meant
+  // Luna's string never matched, on every first connection — training users to
+  // ignore the one check that detects a MITM.
+  it('emits unpadded base64, matching ssh-keygen -lf output', () => {
+    const fp = fingerprintKey(Buffer.from('some-host-key-material'));
+    expect(fp.endsWith('=')).toBe(false);
+    expect(fp).not.toContain('=');
+  });
+
+  it('matches a known SHA-256 digest with padding removed', () => {
+    // Recomputed here rather than hardcoded, so the test documents the exact
+    // transformation (sha256 → base64 → strip padding) instead of asserting a
+    // magic constant that says nothing about why.
+    const input = Buffer.from('luna');
+    const padded = createHash('sha256').update(input).digest('base64');
+    expect(padded.endsWith('=')).toBe(true);
+    expect(fingerprintKey(input)).toBe(padded.replace(/=+$/, ''));
+  });
+
+  it('produces a 43-character string for any key (32-byte digest)', () => {
+    for (const material of ['a', 'ssh-ed25519 AAAA...', 'x'.repeat(1000)]) {
+      expect(fingerprintKey(Buffer.from(material))).toHaveLength(43);
+    }
+  });
+
+  it('is stable and distinct across different keys', () => {
+    const a = fingerprintKey(Buffer.from('key-a'));
+    const b = fingerprintKey(Buffer.from('key-b'));
+    expect(a).toBe(fingerprintKey(Buffer.from('key-a')));
+    expect(a).not.toBe(b);
+  });
+
+  it('round-trips through store + verify with the unpadded form', () => {
+    // Guards the migration contract: what updateHostKey persists must be what
+    // verifyHostKey later compares against.
+    const key = Buffer.from('ed25519-material');
+    updateHostKey('example.com', 22, key, 'ssh-ed25519');
+    expect(verifyHostKey('example.com', 22, key, 'ssh-ed25519')).toEqual({
+      trusted: true,
+      changed: false,
+      isFirst: false,
+    });
   });
 });

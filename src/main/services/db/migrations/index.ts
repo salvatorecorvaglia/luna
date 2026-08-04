@@ -24,6 +24,7 @@ import m012 from './012_connection_is_hidden';
 import m015 from './015_connection_list_composite_indexes';
 import m016 from './016_connection_advanced_configs';
 import m017 from './017_snippets_and_workspaces';
+import m018 from './018_unpadded_host_key_fingerprints';
 
 export interface Migration {
   /** Stable identifier persisted in the `_migrations` table — never rename. */
@@ -46,4 +47,5 @@ export const migrations: Migration[] = [
   m015,
   m016,
   m017,
+  m018,
 ];

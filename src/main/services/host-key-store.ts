@@ -31,8 +31,22 @@ export function isAllowedHostKeyAlgorithm(algorithm: string): boolean {
   return ALLOWED_HOST_KEY_ALGORITHMS.has(algorithm);
 }
 
+/**
+ * SHA-256 host-key fingerprint in OpenSSH's format.
+ *
+ * OpenSSH prints `SHA256:<unpadded base64>` — `ssh-keygen -lf`, `ssh-keyscan`,
+ * and the "authenticity of host … can't be established" prompt all omit the
+ * `=` padding. We used to emit padded base64, so the string Luna showed in the
+ * host-key dialog never matched the one an admin would read off the server.
+ * That defeats the only purpose of showing a fingerprint: a user comparing the
+ * two saw a mismatch on every single first connection, and the reliable way to
+ * make that stop is to stop checking.
+ *
+ * The stored value is the fingerprint itself, so trimming padding here changes
+ * what `verifyHostKey` compares against. Migration 018 rewrites existing rows.
+ */
 export function fingerprintKey(key: Buffer): string {
-  return createHash('sha256').update(key).digest('base64');
+  return createHash('sha256').update(key).digest('base64').replace(/=+$/, '');
 }
 
 export function getStoredHostKey(
