@@ -201,4 +201,32 @@ describe('terminal-store-splits', () => {
       expect(root.ratio).toBe(0.7);
     }
   });
+
+  it('provides working slice selectors', () => {
+    useTerminalStore.setState({
+      activeTabId: 'session-99',
+      fontSize: 16,
+      terminalTheme: 'tokyo-night',
+      tabOrder: ['session-99'],
+      sessions: new Map([
+        [
+          'session-99',
+          {
+            id: 'session-99',
+            connectionId: 'conn-99',
+            connectionName: 'Server 99',
+            status: 'connected',
+            title: 'Server 99',
+          },
+        ],
+      ]),
+    });
+
+    const state = useTerminalStore.getState();
+    expect(state.activeTabId).toBe('session-99');
+    expect(state.fontSize).toBe(16);
+    expect(state.terminalTheme).toBe('tokyo-night');
+    expect(state.tabOrder).toEqual(['session-99']);
+    expect(state.sessions.get('session-99')?.connectionName).toBe('Server 99');
+  });
 });

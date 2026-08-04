@@ -528,3 +528,12 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     });
   },
 }));
+
+/** Selective store hook helpers to avoid unnecessary component re-renders */
+export const useActiveTabId = () => useTerminalStore((s) => s.activeTabId);
+export const useTerminalFontSize = () => useTerminalStore((s) => s.fontSize);
+export const useTerminalTheme = () => useTerminalStore((s) => s.terminalTheme);
+export const useTerminalTabOrder = () => useTerminalStore((s) => s.tabOrder);
+export const useActiveSession = () =>
+  useTerminalStore((s) => (s.activeTabId ? s.sessions.get(s.activeTabId) : undefined));
+
