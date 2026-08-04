@@ -536,4 +536,3 @@ export const useTerminalTheme = () => useTerminalStore((s) => s.terminalTheme);
 export const useTerminalTabOrder = () => useTerminalStore((s) => s.tabOrder);
 export const useActiveSession = () =>
   useTerminalStore((s) => (s.activeTabId ? s.sessions.get(s.activeTabId) : undefined));
-

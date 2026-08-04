@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Terminal Store Selectors**: Added selective slice selectors (`useActiveSessionId`, `useActiveLayoutTree`, `useSessionLayout`, `useSessionFilter`, `useActiveFilter`) to `terminal-store` to prevent unnecessary component re-renders.
+
+### Improved
+
+- **Testing & Tooling**: Added test coverage for selective terminal store selectors in `terminal-store.test.ts` and updated project dependencies.
+
 ## [1.0.0] - 2026-08-01
 
 ### Added
