@@ -88,6 +88,9 @@ pnpm run test:watch
 
 # Check test coverage report
 pnpm run test:coverage
+
+# Run Playwright end-to-end tests against the built Electron app
+pnpm run test:e2e
 ```
 
 ---

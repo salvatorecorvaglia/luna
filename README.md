@@ -109,6 +109,9 @@ pnpm run test:watch
 
 # Run tests with HTML coverage reports
 pnpm run test:coverage
+
+# Run Playwright end-to-end tests against the built application
+pnpm run test:e2e
 ```
 
 ---
