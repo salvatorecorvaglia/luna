@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Project Rebranding**: Renamed the application from Lunar to Luna across all system components, build configurations (`electron-builder.yml`, `package.json`), IPC channels, and UI elements.
 - **Terminal Architecture**: Consolidated local and remote terminal rendering components into a unified `TerminalViewContainer`.
 - **CI/CD Pipelines**: Updated GitHub Actions CI and release workflows to align with latest build runners and pipeline standards.
-- **Dependencies & Tooling**: Updated core project dependencies and workspace configuration (`pnpm-workspace.yaml`).
+- **Dependencies & Tooling**: Updated core project dependencies, workspace configuration (`pnpm-workspace.yaml`), and `packageManager` specification to `pnpm@11.17.0`, removing redundant `@types/uuid` stub dependency.
 - **Unified IPC Bridge Seam**: Standardized renderer IPC invocations to route through `getApi()`, preserving structured `LunaError` objects and error codes across the context bridge.
 - **Terminal Store Naming & Teardown**: Renamed `activeTabId` to `activeSessionId` across renderer modules for accurate semantics, consolidated session cleanup via `detachSession()`, and ensured terminal scrollback settings persist in the database.
 - **Connection Form Test Lifecycle**: Extracted test-connection state, abort handling, and watchdog timers into a dedicated `useConnectionTest` hook.
