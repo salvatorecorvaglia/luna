@@ -10,10 +10,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Terminal Store Selectors**: Added selective slice selectors (`useActiveSessionId`, `useActiveLayoutTree`, `useSessionLayout`, `useSessionFilter`, `useActiveFilter`) to `terminal-store` to prevent unnecessary component re-renders.
+- **Port Forwarding Security Setting**: Added `ssh.allowPublicPortForwardBind` setting to control whether local and dynamic SSH port forwards can bind to non-loopback network interfaces.
+- **Testing & E2E Harness**: Added Playwright end-to-end testing harness against the Electron application, expanded test coverage for high-risk dialogs (`HostKeyDialog`, `CliReferenceDialog`, `TunnelManagerDialog`), and ratcheted overall coverage thresholds.
+
+### Changed & Refactored
+
+- **Unified IPC Bridge Seam**: Standardized renderer IPC invocations to route through `getApi()`, preserving structured `LunaError` objects and error codes across the context bridge.
+- **Terminal Store Naming & Teardown**: Renamed `activeTabId` to `activeSessionId` across renderer modules for accurate semantics, consolidated session cleanup via `detachSession()`, and ensured terminal scrollback settings persist in the database.
+- **Connection Form Test Lifecycle**: Extracted test-connection state, abort handling, and watchdog timers into a dedicated `useConnectionTest` hook.
 
 ### Improved
 
-- **Testing & Tooling**: Added test coverage for selective terminal store selectors in `terminal-store.test.ts` and updated project dependencies.
+- **Accessibility & Contrast**: Added `--color-destructive-fg` design token to meet WCAG AA contrast standards (4.5:1 floor) for destructive text, form errors, and security warnings.
+- **Motion Accessibility**: Configured Framer Motion (`reducedMotion="user"`) to respect OS-level reduced motion preferences across all modals and overlays.
+- **Error Resiliency & Isolation**: Added per-view `ErrorBoundary` wrappers to prevent file browser or view-level render crashes from blanking active terminal sessions.
+- **Virtual File Preview**: Virtualized line rendering in `FilePreview` to handle large files (up to 5 MB) efficiently without lag or DOM overhead.
+- **Theme-Aware Toast Notifications**: Updated toast styling to inherit active terminal theme design tokens instead of fixed dark backgrounds.
+
+### Fixed
+
+- **SOCKS5 Parser Crash**: Refactored SOCKS5 request handling into a total, non-throwing parser that buffers data across TCP segments, preventing main-process crashes on fragmented frames.
+- **IPC Error & Stack Trace Leaks**: Prevented internal main-process stack traces, file paths, and module layouts from leaking to the renderer process during IPC errors.
+- **External Secret Lookup Security**: Implemented strict rate limiting (10 requests/min) and argument validation for external password manager CLI lookups to prevent flag and argument injection.
+- **OpenSSH Host Fingerprints**: Updated host-key fingerprinting to standard unpadded OpenSSH format (`SHA256:...`) and added automatic database migration (`018`) for existing trusted keys to eliminate false MITM alerts.
+- **Settings Reachability**: Derived IPC settings validation from `DEFAULT_SETTINGS` so all configurable tunables (`ssh.connectTimeoutMs`, `sftp.*`, `s3.*`) are accessible and synchronized via IPC.
+- **Local PTY Safety & Caps**: Added a 32-session limit for local terminal PTY processes and prevented main process crashes when flushing output buffers to destroyed windows.
+- **Transfer Reservation Lifecycle**: Resolved race conditions in file transfer cancellations by rejecting early-cancelled reservations and sharing a robust abortable-stream helper across SFTP and S3 operations.
+- **SSH Reconnection & Teardown**: Enforced `ssh.autoReconnect` user preferences, ensured proper session cleanup on failure, and moved connection history pruning off the interactive connection path.
+- **Keyboard Shortcuts**: Prevented `?` key from triggering the shortcuts overlay while typing in terminal shells, and fixed view-switching keyboard chords to match physical keycodes.
 
 ## [1.0.0] - 2026-08-01
 
