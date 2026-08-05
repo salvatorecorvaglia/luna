@@ -9,18 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Terminal Session Audit Export**: Integrated `SessionAuditService` and `AuditExportDialog` allowing export of terminal session logs in JSON, HTML, or plain text formats with customizable log metadata.
+- **CLI Reference Guide**: Added interactive `CliReferenceDialog` and `CliReferenceService` for quick command lookup and reference documentation within the terminal workstation.
+- **Shell History Search**: Introduced `ShellHistoryService` for indexing and fast searching across command execution history.
+- **Folder Synchronization**: Added `FolderSyncService` and `FolderSyncDialog` for directional and bidirectional directory syncing between local and remote filesystems with conflict detection.
+- **Password Manager**: Integrated `PasswordManagerService` for generating strong passwords and managing stored credentials.
+- **Terminal Macro Recorder**: Added `MacroRecorderDialog` for recording, managing, and replaying automated terminal keystroke sequences.
+- **Snippet Vault**: Added persistent `SnippetVaultDialog` and `SnippetWorkspaceService` with SQLite database migration support (`017_snippets_and_workspaces.ts`) for organizing and executing saved command snippets.
+- **Workspace Presets**: Integrated `WorkspacePresetsDialog` to save, load, and restore multi-tab and split-pane terminal workspace arrangements.
+- **Terminal Output Filter Bar**: Added `TerminalFilterBar` for real-time text and regex filtering of live terminal scrollback streams.
+- **Broadcast Input Bar**: Added `BroadcastInputBar` allowing broadcast of keyboard input across multiple active terminal sessions simultaneously.
+- **Port Forwarding & Tunnel Manager**: Added `TunnelManagerDialog` and SSH tunneling support in `SshManager` for local, remote, and dynamic SOCKS port forwarding, complete with status bar indicators.
 - **Terminal Store Selectors**: Added selective slice selectors (`useActiveSessionId`, `useActiveLayoutTree`, `useSessionLayout`, `useSessionFilter`, `useActiveFilter`) to `terminal-store` to prevent unnecessary component re-renders.
 - **Port Forwarding Security Setting**: Added `ssh.allowPublicPortForwardBind` setting to control whether local and dynamic SSH port forwards can bind to non-loopback network interfaces.
 - **Testing & E2E Harness**: Added Playwright end-to-end testing harness against the Electron application, expanded test coverage for high-risk dialogs (`HostKeyDialog`, `CliReferenceDialog`, `TunnelManagerDialog`), and ratcheted overall coverage thresholds.
 
 ### Changed & Refactored
 
+- **Project Rebranding**: Renamed the application from Lunar to Luna across all system components, build configurations (`electron-builder.yml`, `package.json`), IPC channels, and UI elements.
+- **Terminal Architecture**: Consolidated local and remote terminal rendering components into a unified `TerminalViewContainer`.
+- **CI/CD Pipelines**: Updated GitHub Actions CI and release workflows to align with latest build runners and pipeline standards.
+- **Dependencies & Tooling**: Updated core project dependencies and workspace configuration (`pnpm-workspace.yaml`).
 - **Unified IPC Bridge Seam**: Standardized renderer IPC invocations to route through `getApi()`, preserving structured `LunaError` objects and error codes across the context bridge.
 - **Terminal Store Naming & Teardown**: Renamed `activeTabId` to `activeSessionId` across renderer modules for accurate semantics, consolidated session cleanup via `detachSession()`, and ensured terminal scrollback settings persist in the database.
 - **Connection Form Test Lifecycle**: Extracted test-connection state, abort handling, and watchdog timers into a dedicated `useConnectionTest` hook.
 
 ### Improved
 
+- **File Preview**: Added search, word wrap, and live log tailing capabilities to `FilePreview`.
+- **UI Components & Workflows**: Streamlined UI components and interaction workflows across Snippet Vault, Macro Recorder, Folder Sync, Tunnel Manager, and Terminal Tabs.
+- **Code Optimization & Type Safety**: Applied `as const` assertions to motion variants, updated component ref types to support `null`, and optimized Vite manual chunking logic.
 - **Accessibility & Contrast**: Added `--color-destructive-fg` design token to meet WCAG AA contrast standards (4.5:1 floor) for destructive text, form errors, and security warnings.
 - **Motion Accessibility**: Configured Framer Motion (`reducedMotion="user"`) to respect OS-level reduced motion preferences across all modals and overlays.
 - **Error Resiliency & Isolation**: Added per-view `ErrorBoundary` wrappers to prevent file browser or view-level render crashes from blanking active terminal sessions.
@@ -38,35 +56,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Transfer Reservation Lifecycle**: Resolved race conditions in file transfer cancellations by rejecting early-cancelled reservations and sharing a robust abortable-stream helper across SFTP and S3 operations.
 - **SSH Reconnection & Teardown**: Enforced `ssh.autoReconnect` user preferences, ensured proper session cleanup on failure, and moved connection history pruning off the interactive connection path.
 - **Keyboard Shortcuts**: Prevented `?` key from triggering the shortcuts overlay while typing in terminal shells, and fixed view-switching keyboard chords to match physical keycodes.
-
-## [1.0.0] - 2026-08-01
-
-### Added
-
-- **Terminal Session Audit Export**: Integrated `SessionAuditService` and `AuditExportDialog` allowing export of terminal session logs in JSON, HTML, or plain text formats with customizable log metadata.
-- **CLI Reference Guide**: Added interactive `CliReferenceDialog` and `CliReferenceService` for quick command lookup and reference documentation within the terminal workstation.
-- **Shell History Search**: Introduced `ShellHistoryService` for indexing and fast searching across command execution history.
-- **Folder Synchronization**: Added `FolderSyncService` and `FolderSyncDialog` for directional and bidirectional directory syncing between local and remote filesystems with conflict detection.
-- **Password Manager**: Integrated `PasswordManagerService` for generating strong passwords and managing stored credentials.
-- **Terminal Macro Recorder**: Added `MacroRecorderDialog` for recording, managing, and replaying automated terminal keystroke sequences.
-- **Snippet Vault**: Added persistent `SnippetVaultDialog` and `SnippetWorkspaceService` with SQLite database migration support (`017_snippets_and_workspaces.ts`) for organizing and executing saved command snippets.
-- **Workspace Presets**: Integrated `WorkspacePresetsDialog` to save, load, and restore multi-tab and split-pane terminal workspace arrangements.
-- **Terminal Output Filter Bar**: Added `TerminalFilterBar` for real-time text and regex filtering of live terminal scrollback streams.
-- **Broadcast Input Bar**: Added `BroadcastInputBar` allowing broadcast of keyboard input across multiple active terminal sessions simultaneously.
-- **Port Forwarding & Tunnel Manager**: Added `TunnelManagerDialog` and SSH tunneling support in `SshManager` for local, remote, and dynamic SOCKS port forwarding, complete with status bar indicators.
-
-### Changed
-
-- **Project Rebranding**: Renamed the application from Lunar to Luna across all system components, build configurations (`electron-builder.yml`, `package.json`), IPC channels, and UI elements.
-- **Terminal Architecture**: Consolidated local and remote terminal rendering components into a unified `TerminalViewContainer`.
-- **CI/CD Pipelines**: Updated GitHub Actions CI and release workflows to align with latest build runners and pipeline standards.
-- **Dependencies & Tooling**: Updated core project dependencies and workspace configuration (`pnpm-workspace.yaml`).
-
-### Improved
-
-- **File Preview**: Added search, word wrap, and live log tailing capabilities to `FilePreview`.
-- **UI Components & Workflows**: Streamlined UI components and interaction workflows across Snippet Vault, Macro Recorder, Folder Sync, Tunnel Manager, and Terminal Tabs.
-- **Code Optimization & Type Safety**: Applied `as const` assertions to motion variants, updated component ref types to support `null`, and optimized Vite manual chunking logic.
 
 ## [0.16.0] - 2026-07-26
 
