@@ -39,12 +39,17 @@ export default defineConfig({
       //
       // A ratchet, not a target: raise these whenever a run reports higher so
       // coverage can't silently regress. Actuals at the time of writing are
-      // ~41/32/34/40; the floors sit just under to absorb ordinary churn.
+      // ~46/38/40/45; the floors sit just under to absorb ordinary churn.
+      //
+      // Note these cover the vitest suite only. The Playwright suite under
+      // e2e/ is excluded above and is not measured here — it exists to prove
+      // main/preload/renderer agree at runtime, which is not a line-coverage
+      // question.
       thresholds: {
-        lines: 40,
-        functions: 33,
-        branches: 32,
-        statements: 40
+        lines: 45,
+        functions: 39,
+        branches: 38,
+        statements: 44
       }
     }
   },
