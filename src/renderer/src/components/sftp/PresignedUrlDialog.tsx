@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { Z } from '@/lib/z-layers';
+import { getApi } from '@/services/api';
 
 interface PresignedUrlDialogProps {
   open: boolean;
@@ -73,7 +74,7 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
     }
 
     try {
-      const url = await window.api.s3.generatePresignedUrl({
+      const url = await getApi().s3.generatePresignedUrl({
         sessionId,
         path: entry.path,
         expiresSec,
@@ -107,6 +108,7 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
       {open && entry && (
         <>
           <motion.div
+            key="overlay"
             variants={overlayVariants}
             initial="initial"
             animate="animate"
@@ -114,6 +116,7 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
             className={`fixed inset-0 ${Z.confirm} bg-black/60 backdrop-blur-sm`}
           />
           <motion.div
+            key="panel"
             variants={dialogVariants}
             initial="initial"
             animate="animate"

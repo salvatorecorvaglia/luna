@@ -3,6 +3,7 @@ import { Activity, Network, Upload, Wifi, WifiOff } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { TunnelManagerDialog } from '@/components/connection/TunnelManagerDialog';
 import { cn } from '@/lib/utils';
+import { getApi } from '@/services/api';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { useTransferStore } from '@/stores/transfer-store';
 
@@ -19,7 +20,7 @@ export function StatusBar() {
     let unmounted = false;
     const fetchTunnels = async () => {
       try {
-        const list = await window.api.ssh.listActivePortForwards();
+        const list = await getApi().ssh.listActivePortForwards();
         if (!unmounted) setTunnels(list);
       } catch {
         // Ignored

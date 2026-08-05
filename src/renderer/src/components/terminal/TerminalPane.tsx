@@ -3,6 +3,7 @@ import { RefreshCcw } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { sanitizeTerminalText } from '@/lib/terminal-output';
+import { getApi } from '@/services/api';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { TerminalSearchBar } from './TerminalSearchBar';
 import { type TerminalTransport, useTerminalSession } from './use-terminal-session';
@@ -18,9 +19,9 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
 
   const transport = useMemo<TerminalTransport>(
     () => ({
-      sendData: (p) => window.api.ssh.sendData(p),
-      resize: (p) => window.api.ssh.resize(p),
-      onData: (cb) => window.api.ssh.onData(cb),
+      sendData: (p) => getApi().ssh.sendData(p),
+      resize: (p) => getApi().ssh.resize(p),
+      onData: (cb) => getApi().ssh.onData(cb),
     }),
     [],
   );
@@ -44,13 +45,13 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
     logTag: 'TerminalPane',
     initErrorMessage: 'Failed to initialize terminal — try reopening the tab.',
     onReady: ({ terminal }) => {
-      const cleanupClose = window.api.ssh.onClose((event) => {
+      const cleanupClose = getApi().ssh.onClose((event) => {
         if (event.sessionId === sessionId) {
           terminal.write('\r\n\x1b[31m--- Connection closed ---\x1b[0m\r\n');
         }
       });
 
-      const cleanupError = window.api.ssh.onError((event) => {
+      const cleanupError = getApi().ssh.onError((event) => {
         if (event.sessionId === sessionId) {
           terminal.write(
             `\r\n\x1b[31m--- Error: ${sanitizeTerminalText(event.error)} ---\x1b[0m\r\n`,
@@ -59,7 +60,7 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
       });
 
       const { updateSessionStatus } = useTerminalStore.getState();
-      const cleanupStatus = window.api.ssh.onStatus(
+      const cleanupStatus = getApi().ssh.onStatus(
         (event: { sessionId: string; status: SessionStatus }) => {
           if (event.sessionId === sessionId) {
             updateSessionStatus(sessionId, event.status);
@@ -120,7 +121,7 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
               onClick={() => {
                 if (session?.connectionId) {
                   useTerminalStore.getState().updateSessionStatus(sessionId, 'connecting');
-                  void window.api.ssh.connect({ connectionId: session.connectionId, sessionId });
+                  void getApi().ssh.connect({ connectionId: session.connectionId, sessionId });
                 }
               }}
               className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"

@@ -22,6 +22,7 @@ import { useDeleteConnection, useUpdateConnection } from '@/hooks/use-connection
 import { connectToS3 } from '@/lib/s3';
 import { connectToHost } from '@/lib/ssh';
 import { cn } from '@/lib/utils';
+import { getApi } from '@/services/api';
 import { useConnectionStore } from '@/stores/connection-store';
 import { useStorageStore } from '@/stores/storage-store';
 import { useTerminalStore } from '@/stores/terminal-store';
@@ -139,8 +140,10 @@ export function ConnectionItem({
           (s) => s.connectionId === connection.id,
         );
         if (existing) {
-          window.api.transfers?.cancelBySession?.(existing.id).catch(() => {});
-          await window.api.s3.disconnect(existing.id);
+          getApi()
+            .transfers?.cancelBySession?.(existing.id)
+            .catch(() => {});
+          await getApi().s3.disconnect(existing.id);
           useStorageStore.getState().removeStorageSession(existing.id);
           if (useStorageStore.getState().activeSessionId === existing.id) {
             useStorageStore.getState().setActiveSessionId(null);
@@ -153,7 +156,9 @@ export function ConnectionItem({
           (s) => s.connectionId === connection.id,
         );
         for (const s of activeSshSessions) {
-          window.api.transfers?.cancelBySession?.(s.id).catch(() => {});
+          getApi()
+            .transfers?.cancelBySession?.(s.id)
+            .catch(() => {});
           useTerminalStore.getState().closeTab(s.id);
         }
         if (useTerminalStore.getState().sessions.size === 0) {
@@ -180,12 +185,14 @@ export function ConnectionItem({
           )?.id;
 
       if (sessionId) {
-        window.api.transfers?.cancelBySession?.(sessionId).catch(() => {});
+        getApi()
+          .transfers?.cancelBySession?.(sessionId)
+          .catch(() => {});
         if (isS3) {
-          await window.api.s3.disconnect(sessionId);
+          await getApi().s3.disconnect(sessionId);
           useStorageStore.getState().removeStorageSession(sessionId);
         } else {
-          void window.api.ssh.disconnect(sessionId);
+          void getApi().ssh.disconnect(sessionId);
           useTerminalStore.getState().removeSession(sessionId);
         }
       }

@@ -54,6 +54,14 @@ const ARBITRARY_Z_RE = /\bz-\[[0-9]+\]/;
  */
 const DESTRUCTIVE_INK_RE = /\btext-destructive(?![-\w])/;
 
+/**
+ * Renderer code must reach IPC through `getApi()` (services/api.ts), never the
+ * `window.api` global. The seam exists so component tests can inject a fake
+ * without mutating a global; it previously eroded to 1-of-138 adoption because
+ * nothing enforced it.
+ */
+const WINDOW_API_RE = /\bwindow\.api\b/;
+
 function* walk(dir: string): Generator<string> {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
@@ -99,6 +107,10 @@ function scan(file: string): Violation[] {
     const ink = DESTRUCTIVE_INK_RE.exec(line);
     if (ink)
       out.push({ file: relPath, line: i + 1, rule: 'destructive-fill-as-ink', match: ink[0] });
+
+    const globalApi = WINDOW_API_RE.exec(line);
+    if (globalApi)
+      out.push({ file: relPath, line: i + 1, rule: 'window-api-global', match: globalApi[0] });
   }
   return out;
 }
@@ -144,6 +156,19 @@ describe('design-token coverage', () => {
         .join('\n');
       throw new Error(
         `--color-destructive is a surface fill and fails WCAG AA as a text color (~1.8:1 on the app background). Use text-destructive-fg for text; keep bg-destructive/border-destructive for fills.\n${report}`,
+      );
+    }
+    expect(offenders).toHaveLength(0);
+  });
+
+  it('renderer components reach IPC through the getApi() seam', () => {
+    const offenders = allViolations.filter((v) => v.rule === 'window-api-global');
+    if (offenders.length > 0) {
+      const report = offenders
+        .map((v) => `  ${v.file}:${v.line}  ${v.match} — import { getApi } from '@/services/api'.`)
+        .join('\n');
+      throw new Error(
+        `The window.api global leaked back into components. Call getApi() instead so tests can inject a fake without mutating globals.\n${report}`,
       );
     }
     expect(offenders).toHaveLength(0);

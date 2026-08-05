@@ -19,6 +19,7 @@ import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { cancelTransfer } from '@/hooks/use-transfers';
 import { formatEta, formatSize, formatSpeed } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { getApi } from '@/services/api';
 import { useTransferStore } from '@/stores/transfer-store';
 
 export function TransferQueue() {
@@ -36,12 +37,12 @@ export function TransferQueue() {
     try {
       const transferId =
         item.type === 'download'
-          ? await window.api.storage.download({
+          ? await getApi().storage.download({
               sessionId: item.sessionId,
               remotePath: item.remotePath,
               localPath: item.localPath,
             })
-          : await window.api.storage.upload({
+          : await getApi().storage.upload({
               sessionId: item.sessionId,
               localPath: item.localPath,
               remotePath: item.remotePath,

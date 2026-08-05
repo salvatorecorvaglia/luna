@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { Z } from '@/lib/z-layers';
+import { getApi } from '@/services/api';
 import { useStorageStore } from '@/stores/storage-store';
 
 function detectLanguage(name: string): string {
@@ -122,10 +123,10 @@ export function FilePreview() {
     setIsSaving(true);
     try {
       if (previewFile.isLocal) {
-        await window.api.shell.writeFile(previewFile.path, editorContent);
+        await getApi().shell.writeFile(previewFile.path, editorContent);
       } else {
         if (!previewFile.sessionId) throw new Error('No active session to save remote file');
-        await window.api.storage.writeFile({
+        await getApi().storage.writeFile({
           sessionId: previewFile.sessionId,
           path: previewFile.path,
           content: editorContent,
@@ -235,6 +236,7 @@ export function FilePreview() {
       {previewFile && (
         <>
           <motion.div
+            key="overlay"
             variants={overlayVariants}
             initial="initial"
             animate="animate"
@@ -243,6 +245,7 @@ export function FilePreview() {
             onClick={handleClose}
           />
           <motion.div
+            key="panel"
             variants={dialogVariants}
             initial="initial"
             animate="animate"

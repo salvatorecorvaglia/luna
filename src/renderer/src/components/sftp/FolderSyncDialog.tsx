@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { Z } from '@/lib/z-layers';
+import { getApi } from '@/services/api';
 
 interface FolderSyncDialogProps {
   open: boolean;
@@ -60,16 +61,16 @@ export function FolderSyncDialog({
     setLoading(true);
     try {
       // List local files
-      const localFiles = await window.api.shell.readdir(localPath);
+      const localFiles = await getApi().shell.readdir(localPath);
       const localFormatted = localFiles
         .filter((f) => !f.isDirectory)
         .map((f) => ({ relativePath: f.name, size: f.size, mtime: f.modifiedAt }));
 
       // List remote files
-      const remoteFiles = await window.api.storage.list({ sessionId, path: remotePath });
+      const remoteFiles = await getApi().storage.list({ sessionId, path: remotePath });
 
       // Compare
-      const res = await window.api.storage.compareDirectories({
+      const res = await getApi().storage.compareDirectories({
         sessionId,
         localEntries: localFormatted,
         remoteEntries: remoteFiles,
@@ -106,24 +107,24 @@ export function FolderSyncDialog({
     try {
       for (const item of diffResult.items) {
         if (item.recommendedAction === 'upload') {
-          const lPath = await window.api.shell.joinPath(localPath, item.relativePath);
+          const lPath = await getApi().shell.joinPath(localPath, item.relativePath);
           const rPath = remotePath.endsWith('/')
             ? `${remotePath}${item.relativePath}`
             : `${remotePath}/${item.relativePath}`;
 
-          await window.api.storage.upload({
+          await getApi().storage.upload({
             sessionId,
             localPath: lPath,
             remotePath: rPath,
           });
           enqueued++;
         } else if (item.recommendedAction === 'download') {
-          const lPath = await window.api.shell.joinPath(localPath, item.relativePath);
+          const lPath = await getApi().shell.joinPath(localPath, item.relativePath);
           const rPath = remotePath.endsWith('/')
             ? `${remotePath}${item.relativePath}`
             : `${remotePath}/${item.relativePath}`;
 
-          await window.api.storage.download({
+          await getApi().storage.download({
             sessionId,
             localPath: lPath,
             remotePath: rPath,

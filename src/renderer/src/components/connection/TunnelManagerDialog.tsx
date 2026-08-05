@@ -16,6 +16,7 @@ import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { Z } from '@/lib/z-layers';
+import { getApi } from '@/services/api';
 
 interface TunnelManagerDialogProps {
   open: boolean;
@@ -66,13 +67,13 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
 
   const fetchActiveData = useCallback(async () => {
     try {
-      const active = await window.api.app.getActiveSessions();
+      const active = await getApi().app.getActiveSessions();
       setActiveSessions(active.ssh);
       if (active.ssh.length > 0 && !selectedSessionId) {
         setSelectedSessionId(active.ssh[0].id);
       }
 
-      const activeTunnels = await window.api.ssh.listActivePortForwards();
+      const activeTunnels = await getApi().ssh.listActivePortForwards();
       setTunnels(activeTunnels);
     } catch (err) {
       console.error('Failed to fetch active tunnels:', err);
@@ -99,7 +100,7 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
 
   const handleStopTunnel = async (sessionId: string, forwardId: string) => {
     try {
-      await window.api.ssh.stopPortForward({ sessionId, forwardId });
+      await getApi().ssh.stopPortForward({ sessionId, forwardId });
       toast.success('Port forward stopped');
       fetchActiveData();
     } catch (err) {
@@ -130,7 +131,7 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
     };
 
     try {
-      await window.api.ssh.startPortForward({
+      await getApi().ssh.startPortForward({
         sessionId: selectedSessionId,
         config,
       });

@@ -2,6 +2,7 @@ import { isCancellation, toastArgs } from '@shared/error-messages';
 import { useCallback } from 'react';
 import { toast } from 'sonner';
 import type { FileEntry } from '@/components/sftp/FilePane';
+import { getApi } from '@/services/api';
 import { useTransferStore } from '@/stores/transfer-store';
 
 interface UseSftpDndArgs {
@@ -72,9 +73,9 @@ export function useSftpDnd({
         return;
       }
 
-      const localDest = await window.api.shell.joinPath(localPath, fileName);
+      const localDest = await getApi().shell.joinPath(localPath, fileName);
       try {
-        const transferId = await window.api.storage.download({
+        const transferId = await getApi().storage.download({
           sessionId: activeSessionId,
           remotePath: remoteSrc,
           localPath: localDest,
@@ -125,7 +126,7 @@ export function useSftpDnd({
       }
       const remoteDest = remotePath === '/' ? `/${fileName}` : `${remotePath}/${fileName}`;
       try {
-        const transferId = await window.api.storage.upload({
+        const transferId = await getApi().storage.upload({
           sessionId: activeSessionId,
           localPath: localSrc,
           remotePath: remoteDest,

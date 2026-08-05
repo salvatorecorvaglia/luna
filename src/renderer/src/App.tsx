@@ -49,6 +49,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useSessionRecovery } from '@/hooks/use-session-recovery';
 import { useTransferEventListener } from '@/hooks/use-transfers';
 import { useUpdaterEventListener } from '@/hooks/use-updater';
+import { getApi } from '@/services/api';
 import { applyUIThemeTokens, buildUIThemeTokens } from '@/themes/ui-from-terminal';
 
 /**
@@ -82,8 +83,8 @@ export default function App() {
 
   // Load settings from DB on mount to prevent localStorage drift
   useEffect(() => {
-    window.api.settings
-      .getAll()
+    getApi()
+      .settings.getAll()
       .then((settings) => {
         const theme = settings['terminal.theme'] as TerminalThemeName | undefined;
         const fontSize = settings['terminal.fontSize'] as number | undefined;
@@ -117,21 +118,23 @@ export default function App() {
   useEffect(() => {
     if (warnedAboutBackend) return;
     let cancelled = false;
-    void window.api.app.getCredentialBackend().then((status) => {
-      if (cancelled) return;
-      if (status.backend === 'plaintext') {
-        toast.warning(
-          'Credentials are stored with a plaintext master key on this machine. Install gnome-keyring or libsecret-1-0 and restart to migrate to OS-protected storage.',
-          { duration: 12000, icon: <ShieldAlert className="size-4" aria-hidden="true" /> },
-        );
-      } else if (status.backend === 'inMemory') {
-        toast.warning(
-          'OS-level secret storage is unavailable. Saving connection passwords is disabled. Install gnome-keyring or libsecret-1-0 and restart to enable.',
-          { duration: 12000, icon: <ShieldAlert className="size-4" aria-hidden="true" /> },
-        );
-      }
-      setWarnedAboutBackend(true);
-    });
+    void getApi()
+      .app.getCredentialBackend()
+      .then((status) => {
+        if (cancelled) return;
+        if (status.backend === 'plaintext') {
+          toast.warning(
+            'Credentials are stored with a plaintext master key on this machine. Install gnome-keyring or libsecret-1-0 and restart to migrate to OS-protected storage.',
+            { duration: 12000, icon: <ShieldAlert className="size-4" aria-hidden="true" /> },
+          );
+        } else if (status.backend === 'inMemory') {
+          toast.warning(
+            'OS-level secret storage is unavailable. Saving connection passwords is disabled. Install gnome-keyring or libsecret-1-0 and restart to enable.',
+            { duration: 12000, icon: <ShieldAlert className="size-4" aria-hidden="true" /> },
+          );
+        }
+        setWarnedAboutBackend(true);
+      });
     return () => {
       cancelled = true;
     };
@@ -141,7 +144,7 @@ export default function App() {
   // a corrupted or attacker-modified credential row immediately rather than
   // discovering it via a broken connection attempt.
   useEffect(() => {
-    const cleanup = window.api.credentials.onTamper((event) => {
+    const cleanup = getApi().credentials.onTamper((event) => {
       toast.error(
         `Stored credential for ${event.connectionId.slice(0, 8)}… could not be decrypted and was dropped. Re-enter it in the connection form.`,
         {
@@ -159,7 +162,7 @@ export default function App() {
   // buckets; without this toast the user sees a normal-looking listing and
   // has no way to know they need to drill into a sub-prefix to see the rest.
   useEffect(() => {
-    const cleanup = window.api.storage.onListTruncated((event) => {
+    const cleanup = getApi().storage.onListTruncated((event) => {
       useStorageStore.getState().setPathTruncated(event.sessionId, event.path, true);
       toast.warning(
         `Showing the first ${event.returned.toLocaleString()} entries of ${event.path}. The bucket has more — open a sub-prefix to see them.`,

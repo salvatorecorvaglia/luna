@@ -74,6 +74,7 @@ export function ShortcutsHelp() {
       {isOpen && (
         <>
           <motion.div
+            key="overlay"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -81,6 +82,7 @@ export function ShortcutsHelp() {
             className={`fixed inset-0 ${Z.modal} bg-black/60 backdrop-blur-md`}
           />
           <motion.div
+            key="panel"
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}

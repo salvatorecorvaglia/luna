@@ -70,6 +70,7 @@ export function ConfirmDialog({
       {open && (
         <>
           <motion.div
+            key="overlay"
             variants={overlayVariants}
             initial="initial"
             animate="animate"
@@ -77,6 +78,7 @@ export function ConfirmDialog({
             className={`fixed inset-0 ${Z.confirm} bg-black/60 backdrop-blur-sm`}
           />
           <motion.div
+            key="panel"
             variants={dialogVariants}
             initial="initial"
             animate="animate"

@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { Z } from '@/lib/z-layers';
+import { getApi } from '@/services/api';
 
 interface AuditExportDialogProps {
   open: boolean;
@@ -59,7 +60,7 @@ export function AuditExportDialog({
       const ext = format === 'html' ? 'html' : format === 'json' ? 'json' : 'txt';
       const defaultName = `audit-${sessionTitle.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now()}.${ext}`;
 
-      const savePath = await window.api.shell.saveFileDialog({
+      const savePath = await getApi().shell.saveFileDialog({
         defaultPath: defaultName,
         filters: [{ name: `${format.toUpperCase()} Log File`, extensions: [ext] }],
         content: '',
@@ -70,7 +71,7 @@ export function AuditExportDialog({
         return;
       }
 
-      await window.api.shell.exportAuditLog({
+      await getApi().shell.exportAuditLog({
         sessionId,
         sessionTitle,
         bufferText,

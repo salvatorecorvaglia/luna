@@ -1,6 +1,7 @@
 import type { LocalFileEntry } from '@shared/types/sftp';
 import type { StorageEntry } from '@shared/types/storage-provider';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { getApi } from '@/services/api';
 
 /**
  * Provider-agnostic remote directory hook. Routes through the unified
@@ -17,7 +18,7 @@ export function useSftpDirectory(
 ) {
   return useQuery<StorageEntry[]>({
     queryKey: ['storage', sessionId, path],
-    queryFn: () => window.api.storage.list({ sessionId: sessionId!, path }),
+    queryFn: () => getApi().storage.list({ sessionId: sessionId!, path }),
     enabled: (options.enabled ?? true) && !!sessionId && !!path,
     staleTime: 60_000,
     retry: false,
@@ -29,7 +30,7 @@ export const useStorageDirectory = useSftpDirectory;
 export function useLocalDirectory(path: string) {
   return useQuery<LocalFileEntry[]>({
     queryKey: ['local-dir', path],
-    queryFn: () => window.api.shell.readdir(path),
+    queryFn: () => getApi().shell.readdir(path),
     enabled: !!path,
     staleTime: 60_000,
     retry: false,

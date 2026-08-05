@@ -9,6 +9,7 @@ import { attachFocusTrap } from '@/lib/focus-trap';
 import { connectToHost } from '@/lib/ssh';
 import { cn } from '@/lib/utils';
 import { Z } from '@/lib/z-layers';
+import { getApi } from '@/services/api';
 
 const overlayVariants = {
   initial: { opacity: 0 },
@@ -34,7 +35,7 @@ export function HostKeyDialog() {
   const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const cleanup = window.api.ssh.onHostKeyChange((payload: SshHostKeyChangeEvent) => {
+    const cleanup = getApi().ssh.onHostKeyChange((payload: SshHostKeyChangeEvent) => {
       setEvent(payload);
       setLoading(false);
       setCopied(false);
@@ -46,7 +47,7 @@ export function HostKeyDialog() {
     if (!event) return;
     setLoading(true);
     try {
-      const result = await window.api.ssh.trustHostKey({
+      const result = await getApi().ssh.trustHostKey({
         host: event.host,
         port: event.port,
       });
@@ -98,6 +99,7 @@ export function HostKeyDialog() {
       {event && (
         <>
           <motion.div
+            key="overlay"
             variants={overlayVariants}
             initial="initial"
             animate="animate"
@@ -105,6 +107,7 @@ export function HostKeyDialog() {
             className={`fixed inset-0 ${Z.hostKeyDialog} bg-black/60 backdrop-blur-sm`}
           />
           <motion.div
+            key="panel"
             variants={dialogVariants}
             initial="initial"
             animate="animate"

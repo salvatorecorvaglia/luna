@@ -12,6 +12,7 @@ import {
   useSftpDirectory,
 } from '@/hooks/use-sftp';
 import { useSftpDnd } from '@/hooks/use-sftp-dnd';
+import { getApi } from '@/services/api';
 import { useConnectionStore } from '@/stores/connection-store';
 import { useStorageStore } from '@/stores/storage-store';
 import { useTerminalStore } from '@/stores/terminal-store';
@@ -149,8 +150,8 @@ export function SftpManager() {
   // Set local path to home directory on mount
   useEffect(() => {
     if (!localPath) {
-      window.api.shell
-        .homeDir()
+      getApi()
+        .shell.homeDir()
         .then(setLocalPath)
         .catch(() => {
           setLocalPath('/');
@@ -210,9 +211,9 @@ export function SftpManager() {
     async (entry: FileEntry) => {
       if (!activeSessionId || entry.isDirectory) return;
 
-      const localDest = await window.api.shell.joinPath(localPath, entry.name);
+      const localDest = await getApi().shell.joinPath(localPath, entry.name);
       try {
-        const transferId = await window.api.storage.download({
+        const transferId = await getApi().storage.download({
           sessionId: activeSessionId,
           remotePath: entry.path,
           localPath: localDest,
@@ -246,7 +247,7 @@ export function SftpManager() {
 
       const remoteDest = remotePath === '/' ? `/${entry.name}` : `${remotePath}/${entry.name}`;
       try {
-        const transferId = await window.api.storage.upload({
+        const transferId = await getApi().storage.upload({
           sessionId: activeSessionId,
           localPath: entry.path,
           remotePath: remoteDest,
@@ -298,7 +299,7 @@ export function SftpManager() {
           return;
         }
 
-        const { content } = await window.api.storage.readFile({
+        const { content } = await getApi().storage.readFile({
           sessionId: activeSessionId,
           path: entry.path,
         });
@@ -334,7 +335,7 @@ export function SftpManager() {
           return;
         }
 
-        const { content } = (await window.api.shell.readFile(entry.path)) as {
+        const { content } = (await getApi().shell.readFile(entry.path)) as {
           content: string;
         };
         const type = mimeForExt(ext, isPdf);
@@ -367,7 +368,7 @@ export function SftpManager() {
       const parentPath = renameTarget.path.substring(0, renameTarget.path.lastIndexOf('/')) || '/';
       const newPath = parentPath === '/' ? `/${newName}` : `${parentPath}/${newName}`;
       try {
-        await window.api.storage.rename({
+        await getApi().storage.rename({
           sessionId: activeSessionId,
           oldPath: renameTarget.path,
           newPath,
@@ -392,7 +393,7 @@ export function SftpManager() {
     setDeleteTarget(null);
 
     try {
-      await window.api.storage.delete({
+      await getApi().storage.delete({
         sessionId: activeSessionId,
         path: entry.path,
         isDirectory: entry.isDirectory,
@@ -422,7 +423,7 @@ export function SftpManager() {
 
       const newPath = remotePath === '/' ? `/${name}` : `${remotePath}/${name}`;
       try {
-        await window.api.storage.mkdir({ sessionId: activeSessionId, path: newPath });
+        await getApi().storage.mkdir({ sessionId: activeSessionId, path: newPath });
         toast.success(`Created folder "${name}"`);
         invalidateSftp(activeSessionId, remotePath);
       } catch (err: unknown) {
@@ -534,7 +535,7 @@ export function SftpManager() {
                       useTerminalStore
                         .getState()
                         .updateSessionStatus(activeSessionId, 'connecting');
-                      void window.api.ssh.connect({
+                      void getApi().ssh.connect({
                         connectionId: activeSession.connectionId,
                         sessionId: activeSessionId,
                       });

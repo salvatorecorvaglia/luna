@@ -1,3 +1,5 @@
+import { getApi } from '@/services/api';
+
 /**
  * Renderer-side logger that forwards messages to the main process logger.
  * This ensures all logs (Main and Renderer) end up in the same log file.
@@ -11,9 +13,11 @@ function forward(
   // window close). We never want a log line to surface as an unhandled
   // rejection — it would mask the original error the caller was trying to
   // log. Swallow into the renderer console so the message is still visible.
-  window.api.log(level, message, context).catch((err: unknown) => {
-    console.error('[logger] forward to main failed', err);
-  });
+  getApi()
+    .log(level, message, context)
+    .catch((err: unknown) => {
+      console.error('[logger] forward to main failed', err);
+    });
 }
 
 export const logger = {

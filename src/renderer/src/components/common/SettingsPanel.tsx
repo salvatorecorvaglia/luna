@@ -23,6 +23,7 @@ import { Toggle } from '@/components/ui';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { cn } from '@/lib/utils';
 import { Z } from '@/lib/z-layers';
+import { getApi } from '@/services/api';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { useUIStore } from '@/stores/ui-store';
 import lunaLogo from '../../../../../resources/luna.png';
@@ -79,29 +80,32 @@ export function SettingsPanel() {
   // Load settings from DB on open
   useEffect(() => {
     if (!settingsOpen) return;
-    void window.api.app.getVersion().then(setAppVersion);
-    void window.api.settings.getAll().then((settings: Record<string, unknown>) => {
-      if (settings['terminal.fontSize'] != null) setFontSize(Number(settings['terminal.fontSize']));
-      if (settings['terminal.scrollback'] != null)
-        setScrollback(Number(settings['terminal.scrollback']));
-      if (settings['transfer.concurrency'] != null)
-        setConcurrency(Number(settings['transfer.concurrency']));
-      if (settings['ssh.autoReconnect'] != null)
-        setAutoReconnect(Boolean(settings['ssh.autoReconnect']));
-      if (settings['ssh.readyTimeout'] != null)
-        setReadyTimeout(Number(settings['ssh.readyTimeout']) / 1000);
-      if (settings['ssh.keepAliveInterval'] != null)
-        setKeepAliveInterval(Number(settings['ssh.keepAliveInterval']) / 1000);
-      if (settings['ssh.maxReconnectAttempts'] != null)
-        setMaxReconnectAttempts(Number(settings['ssh.maxReconnectAttempts']));
-      if (settings['ssh.allowPublicPortForwardBind'] != null)
-        setAllowPublicBind(Boolean(settings['ssh.allowPublicPortForwardBind']));
-    });
+    void getApi().app.getVersion().then(setAppVersion);
+    void getApi()
+      .settings.getAll()
+      .then((settings: Record<string, unknown>) => {
+        if (settings['terminal.fontSize'] != null)
+          setFontSize(Number(settings['terminal.fontSize']));
+        if (settings['terminal.scrollback'] != null)
+          setScrollback(Number(settings['terminal.scrollback']));
+        if (settings['transfer.concurrency'] != null)
+          setConcurrency(Number(settings['transfer.concurrency']));
+        if (settings['ssh.autoReconnect'] != null)
+          setAutoReconnect(Boolean(settings['ssh.autoReconnect']));
+        if (settings['ssh.readyTimeout'] != null)
+          setReadyTimeout(Number(settings['ssh.readyTimeout']) / 1000);
+        if (settings['ssh.keepAliveInterval'] != null)
+          setKeepAliveInterval(Number(settings['ssh.keepAliveInterval']) / 1000);
+        if (settings['ssh.maxReconnectAttempts'] != null)
+          setMaxReconnectAttempts(Number(settings['ssh.maxReconnectAttempts']));
+        if (settings['ssh.allowPublicPortForwardBind'] != null)
+          setAllowPublicBind(Boolean(settings['ssh.allowPublicPortForwardBind']));
+      });
   }, [settingsOpen, setFontSize, setScrollback]);
 
   const persistSetting = useCallback(
     <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
-      void window.api.settings.set(key, JSON.stringify(value));
+      void getApi().settings.set(key, JSON.stringify(value));
     },
     [],
   );
@@ -136,6 +140,7 @@ export function SettingsPanel() {
       {settingsOpen && (
         <>
           <motion.div
+            key="overlay"
             variants={overlayVariants}
             initial="initial"
             animate="animate"
@@ -144,6 +149,7 @@ export function SettingsPanel() {
             className={`fixed inset-0 ${Z.panel} bg-black/60 backdrop-blur-sm`}
           />
           <motion.div
+            key="panel"
             variants={panelVariants}
             initial="initial"
             animate="animate"
@@ -311,7 +317,7 @@ export function SettingsPanel() {
                   <button
                     onClick={async () => {
                       try {
-                        const connections = await window.api.connections.export();
+                        const connections = await getApi().connections.export();
                         if (connections.length === 0) {
                           toast.info('No connections to export');
                           return;
@@ -322,7 +328,7 @@ export function SettingsPanel() {
                         // (legacy exports) for backward compatibility.
                         const envelope = { version: 1, connections };
                         const content = JSON.stringify(envelope, null, 2);
-                        const saved = await window.api.shell.saveFileDialog({
+                        const saved = await getApi().shell.saveFileDialog({
                           defaultPath: 'luna-connections.json',
                           filters: [{ name: 'JSON', extensions: ['json'] }],
                           content,
@@ -341,7 +347,7 @@ export function SettingsPanel() {
                   <button
                     onClick={async () => {
                       try {
-                        const { imported, skipped } = await window.api.connections.importFromFile();
+                        const { imported, skipped } = await getApi().connections.importFromFile();
                         if (imported === -1) return; // Dialog cancelled
                         if (imported > 0) {
                           // Invalidate connections query so the sidebar updates
@@ -375,7 +381,7 @@ export function SettingsPanel() {
                     onClick={async () => {
                       try {
                         const { imported, skipped } =
-                          await window.api.connections.importFromSshConfig();
+                          await getApi().connections.importFromSshConfig();
                         if (imported === -1) return; // Dialog/File cancelled
                         if (imported > 0) {
                           void queryClient.invalidateQueries({ queryKey: ['connections'] });
@@ -407,7 +413,7 @@ export function SettingsPanel() {
 
               {/* Logs */}
               <Section title="Diagnostics" icon={<FileText className="size-4" />}>
-                <button onClick={() => window.api.app.openLogFile()} className="btn-outline w-full">
+                <button onClick={() => getApi().app.openLogFile()} className="btn-outline w-full">
                   <FileText className="size-3.5" />
                   Open log file
                 </button>
@@ -472,7 +478,7 @@ export function SettingsPanel() {
             destructive
             onConfirm={async () => {
               try {
-                await window.api.connections.deleteAll();
+                await getApi().connections.deleteAll();
                 void queryClient.invalidateQueries({ queryKey: ['connections'] });
                 toast.success('All connections deleted');
                 setConfirmDeleteAll(false);

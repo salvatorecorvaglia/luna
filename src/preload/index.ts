@@ -1,5 +1,5 @@
 import { IPC } from '@shared/constants';
-import { ErrorCode, LunaError } from '@shared/errors';
+import { ErrorCode } from '@shared/errors';
 import type {
   AuthType,
   CreateConnectionInput,
@@ -37,40 +37,55 @@ import { contextBridge, ipcRenderer } from 'electron';
 type CleanupFn = () => void;
 
 /**
- * Strip the `Error invoking remote method '<channel>': Error: ` prefix and
- * reconstitute a LunaError if the underlying error is structured.
+ * Structured error payload handed to the renderer.
+ *
+ * `contextBridge` clones thrown values, and for an `Error` it preserves only
+ * `message` and `stack` — the class, the `name`, and any own properties are
+ * dropped. A `LunaError` reconstructed here therefore arrived in the renderer
+ * as a bare `Error`, so `err.code` was always undefined and every consumer
+ * that branched on it (cancellation detection, the per-code description in
+ * `formatError`) silently never fired in a real build. Unit tests could not
+ * catch this: they never cross a real bridge.
+ *
+ * A plain object *is* cloned with all its own properties, so that is what we
+ * reject with. `src/renderer/src/services/api.ts` turns it back into a real
+ * `LunaError` at the single seam every renderer call already goes through.
  */
-function unwrapIpcError(err: unknown): unknown {
-  if (!(err instanceof Error)) return err;
+export interface IpcErrorPayload {
+  /** Discriminator so the renderer seam can tell this from an arbitrary throw. */
+  __lunaError: true;
+  code: ErrorCode;
+  message: string;
+}
 
-  // Electron's default prefix
+/**
+ * Strip the `Error invoking remote method '<channel>': Error: ` prefix and
+ * recover the `{code, message}` main encoded into the message.
+ */
+function toIpcErrorPayload(err: unknown): IpcErrorPayload {
+  const fallback = (message: string, code = ErrorCode.INTERNAL_ERROR): IpcErrorPayload => ({
+    __lunaError: true,
+    code,
+    message,
+  });
+
+  if (!(err instanceof Error)) return fallback(String(err));
+
   const match = err.message.match(/^Error invoking remote method '[^']+': (?:Error: )?(.*)$/s);
   const message = match ? match[1] : err.message;
 
-  // Try to see if the message is a JSON-serialized LunaError
-  // (In some Electron versions/configs, custom Error properties might not survive,
-  // but if we throw a LunaError it might have those properties if it's the same process,
-  // but across IPC they might be lost depending on Electron version.)
-
-  // If it's already an object with 'code' and 'message', it might have survived serialization
-  if ('code' in err && 'message' in err) {
-    return LunaError.fromUnknown(err);
-  }
-
-  // If it's a string that looks like JSON, it might be our serialized error
   if (message.startsWith('{') && message.endsWith('}')) {
     try {
-      const parsed = JSON.parse(message);
+      const parsed = JSON.parse(message) as { code?: ErrorCode; message?: string };
       if (parsed.code && parsed.message) {
-        return LunaError.fromUnknown(parsed);
+        return fallback(parsed.message, parsed.code);
       }
     } catch {
-      // Not JSON, continue with original message
+      // Not our envelope — fall through and surface the raw text.
     }
   }
 
-  // If it's a standard error, just wrap it as INTERNAL_ERROR
-  return new LunaError(message, ErrorCode.INTERNAL_ERROR);
+  return fallback(message);
 }
 
 /**
@@ -94,7 +109,7 @@ function invoke<K extends IpcChannel>(
       ? (ipcRenderer.invoke(channel, args[0]) as Promise<IpcResponse<K>>)
       : (ipcRenderer.invoke(channel) as Promise<IpcResponse<K>>);
   return result.catch((err) => {
-    throw unwrapIpcError(err);
+    throw toIpcErrorPayload(err);
   }) as Promise<IpcResponse<K>>;
 }
 

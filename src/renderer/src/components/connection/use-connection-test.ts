@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { getApi } from '@/services/api';
 import type { S3State, SftpState } from './use-connection-form-state';
 
 /**
@@ -120,7 +121,7 @@ export function useConnectionTest(): UseConnectionTestApi {
         }
         setTesting(true);
         try {
-          const res = await window.api.ssh.testConnection({
+          const res = await getApi().ssh.testConnection({
             config: {
               host: sftp.host.trim(),
               port: parseInt(sftp.port) || 22,
@@ -154,7 +155,7 @@ export function useConnectionTest(): UseConnectionTestApi {
       }
       setTesting(true);
       try {
-        const res = await window.api.s3.testConnection(
+        const res = await getApi().s3.testConnection(
           useStored
             ? { connectionId: editingConnectionId || undefined }
             : {

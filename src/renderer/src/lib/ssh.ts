@@ -1,6 +1,7 @@
 import { toastArgs } from '@shared/error-messages';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
+import { getApi } from '@/services/api';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { useUIStore } from '@/stores/ui-store';
 
@@ -34,11 +35,11 @@ async function connectToHostImpl(connectionId: string): Promise<void> {
   // 2. If not in store, check main process (prevents race after Cmd+R)
   if (!existing) {
     try {
-      const { ssh } = await window.api.app.getActiveSessions();
+      const { ssh } = await getApi().app.getActiveSessions();
       const sess = ssh.find((s) => s.connectionId === connectionId);
       if (sess) {
         let connectionName = 'SSH';
-        const conn = await window.api.connections.get(sess.connectionId);
+        const conn = await getApi().connections.get(sess.connectionId);
         if (conn) connectionName = conn.name;
 
         addSession({
@@ -67,7 +68,7 @@ async function connectToHostImpl(connectionId: string): Promise<void> {
 
   let connectionName = 'Unknown';
   try {
-    const conn = await window.api.connections.get(connectionId);
+    const conn = await getApi().connections.get(connectionId);
     if (conn) {
       connectionName = conn.name;
     }
@@ -84,7 +85,7 @@ async function connectToHostImpl(connectionId: string): Promise<void> {
   });
 
   try {
-    const result = await window.api.ssh.connect({
+    const result = await getApi().ssh.connect({
       connectionId,
       sessionId,
     });

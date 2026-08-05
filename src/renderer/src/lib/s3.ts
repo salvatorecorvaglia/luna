@@ -1,6 +1,7 @@
 import { toastArgs } from '@shared/error-messages';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
+import { getApi } from '@/services/api';
 import { useStorageStore } from '@/stores/storage-store';
 import { useUIStore } from '@/stores/ui-store';
 
@@ -27,7 +28,7 @@ export async function connectToS3(connectionId: string): Promise<string | null> 
   // 2. If not in store, check main process (prevents race after Cmd+R)
   if (!existing) {
     try {
-      const { s3 } = await window.api.app.getActiveSessions();
+      const { s3 } = await getApi().app.getActiveSessions();
       const sess = s3.find((s) => s.connectionId === connectionId);
       if (sess) {
         addStorageSession({
@@ -58,7 +59,7 @@ export async function connectToS3(connectionId: string): Promise<string | null> 
   let connectionName = 'S3';
   let initialPath = '/';
   try {
-    const conn = await window.api.connections.get(connectionId);
+    const conn = await getApi().connections.get(connectionId);
     if (conn) {
       connectionName = conn.name;
       if (conn.defaultBucket) initialPath = `/${conn.defaultBucket}`;
@@ -77,7 +78,7 @@ export async function connectToS3(connectionId: string): Promise<string | null> 
   });
 
   try {
-    await window.api.s3.connect({ sessionId, connectionId });
+    await getApi().s3.connect({ sessionId, connectionId });
     updateStorageSessionStatus(sessionId, 'connected');
     setActiveSessionId(sessionId);
     return sessionId;
@@ -91,7 +92,7 @@ export async function connectToS3(connectionId: string): Promise<string | null> 
 export async function disconnectS3(sessionId: string): Promise<void> {
   const { removeStorageSession, activeSessionId, setActiveSessionId } = useStorageStore.getState();
   try {
-    await window.api.s3.disconnect(sessionId);
+    await getApi().s3.disconnect(sessionId);
   } catch {
     // best-effort
   }

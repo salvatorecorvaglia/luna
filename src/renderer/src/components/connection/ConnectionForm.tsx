@@ -25,6 +25,7 @@ import {
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { cn } from '@/lib/utils';
 import { Z } from '@/lib/z-layers';
+import { getApi } from '@/services/api';
 import { useConnectionStore } from '@/stores/connection-store';
 import { COLOR_OPTIONS, dialogVariants, overlayVariants } from './connection-form.constants';
 import { FormField } from './FormField';
@@ -243,7 +244,7 @@ export function ConnectionForm() {
         return;
       }
       try {
-        const probe = await window.api.shell.checkFile(path);
+        const probe = await getApi().shell.checkFile(path);
         if (cancelled) return;
         setPrivateKeyProbeError(
           probe.ok
@@ -298,7 +299,7 @@ export function ConnectionForm() {
       (sftp.authType === 'key' || sftp.authType === 'key+passphrase') &&
       sftp.privateKeyPath.trim().length > 0
     ) {
-      const probe = await window.api.shell.checkFile(sftp.privateKeyPath.trim());
+      const probe = await getApi().shell.checkFile(sftp.privateKeyPath.trim());
       if (!probe.ok) {
         const reason =
           probe.reason === 'missing'
@@ -380,7 +381,7 @@ export function ConnectionForm() {
   }
 
   async function handleBrowseKey() {
-    const path = await window.api.shell.openFileDialog({
+    const path = await getApi().shell.openFileDialog({
       filters: [
         { name: 'SSH Keys', extensions: ['pem', 'key', 'ppk', 'pub', 'p8', 'p8e', 'ssh2', ''] },
       ],
@@ -401,6 +402,7 @@ export function ConnectionForm() {
         <>
           {/* Backdrop */}
           <motion.div
+            key="overlay"
             variants={overlayVariants}
             initial="initial"
             animate="animate"
@@ -410,6 +412,7 @@ export function ConnectionForm() {
 
           {/* Dialog */}
           <motion.div
+            key="panel"
             variants={dialogVariants}
             initial="initial"
             animate="animate"

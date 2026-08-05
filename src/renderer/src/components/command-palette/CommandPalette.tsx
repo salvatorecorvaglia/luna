@@ -27,6 +27,7 @@ import { useConnections } from '@/hooks/use-connections';
 import { connectToHost } from '@/lib/ssh';
 import { cn } from '@/lib/utils';
 import { Z } from '@/lib/z-layers';
+import { getApi } from '@/services/api';
 import { useConnectionStore } from '@/stores/connection-store';
 import { useStorageStore } from '@/stores/storage-store';
 import { useTerminalStore } from '@/stores/terminal-store';
@@ -393,140 +394,144 @@ export function CommandPalette() {
   };
 
   return (
-    <AnimatePresence>
-      {commandPaletteOpen && (
-        <>
-          <motion.div
-            variants={overlayVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            onClick={() => setCommandPaletteOpen(false)}
-            className={cn('fixed inset-0 bg-black/50 backdrop-blur-sm', Z.modal)}
-          />
-          <motion.div
-            variants={dialogVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            className={cn(
-              'no-drag fixed left-1/2 top-[20%] w-full max-w-lg -translate-x-1/2',
-              Z.modal,
-            )}
-          >
-            <div className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-xl">
-              {/* Search input */}
-              <div className="flex items-center border-b border-border/60 px-3 rounded-t-xl">
-                <Search className="size-4 text-muted-foreground/60 flex-shrink-0" tabIndex={-1} />
-                <input
-                  type="text"
-                  placeholder="Type a command..."
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  className="flex-1 border-none bg-transparent py-3 pl-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 !outline-none !ring-0 focus:!outline-none focus:!ring-0 focus:!shadow-none focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!shadow-none rounded-lg transition-all duration-200"
-                  autoFocus
-                />
+    <>
+      <AnimatePresence>
+        {commandPaletteOpen && (
+          <>
+            <motion.div
+              key="overlay"
+              variants={overlayVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              onClick={() => setCommandPaletteOpen(false)}
+              className={cn('fixed inset-0 bg-black/50 backdrop-blur-sm', Z.modal)}
+            />
+            <motion.div
+              key="panel"
+              variants={dialogVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className={cn(
+                'no-drag fixed left-1/2 top-[20%] w-full max-w-lg -translate-x-1/2',
+                Z.modal,
+              )}
+            >
+              <div className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-xl">
+                {/* Search input */}
+                <div className="flex items-center border-b border-border/60 px-3 rounded-t-xl">
+                  <Search className="size-4 text-muted-foreground/60 flex-shrink-0" tabIndex={-1} />
+                  <input
+                    type="text"
+                    placeholder="Type a command..."
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    className="flex-1 border-none bg-transparent py-3 pl-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 !outline-none !ring-0 focus:!outline-none focus:!ring-0 focus:!shadow-none focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!shadow-none rounded-lg transition-all duration-200"
+                    autoFocus
+                  />
 
-                <button
-                  onClick={() => setCommandPaletteOpen(false)}
-                  className="btn-icon !p-1.5 ml-1"
-                  aria-label="Close command palette"
-                >
-                  <X className="size-4" />
-                </button>
-              </div>
+                  <button
+                    onClick={() => setCommandPaletteOpen(false)}
+                    className="btn-icon !p-1.5 ml-1"
+                    aria-label="Close command palette"
+                  >
+                    <X className="size-4" />
+                  </button>
+                </div>
 
-              {/* Results */}
-              <div ref={listRef} className="max-h-[300px] overflow-y-auto p-1.5">
-                {filtered.length === 0 ? (
-                  <div className="py-8 text-center text-xs text-muted-foreground/60">
-                    No commands found
-                  </div>
-                ) : (
-                  Array.from(grouped.entries()).map(([category, cmds]) => (
-                    <div key={category}>
-                      <div className="px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
-                        {category}
-                      </div>
-                      {cmds.map((cmd) => {
-                        const index = flatIndexMap.get(cmd.id) ?? 0;
-                        const isSelected = index === selectedIndex;
-                        return (
-                          <button
-                            key={cmd.id}
-                            data-selected={isSelected}
-                            onClick={() => executeCommand(cmd)}
-                            onMouseEnter={() => setSelectedIndex(index)}
-                            className={cn(
-                              'flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm cursor-pointer',
-                              isSelected ? 'bg-accent text-foreground' : 'text-muted-foreground',
-                            )}
-                          >
-                            <div
+                {/* Results */}
+                <div ref={listRef} className="max-h-[300px] overflow-y-auto p-1.5">
+                  {filtered.length === 0 ? (
+                    <div className="py-8 text-center text-xs text-muted-foreground/60">
+                      No commands found
+                    </div>
+                  ) : (
+                    Array.from(grouped.entries()).map(([category, cmds]) => (
+                      <div key={category}>
+                        <div className="px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
+                          {category}
+                        </div>
+                        {cmds.map((cmd) => {
+                          const index = flatIndexMap.get(cmd.id) ?? 0;
+                          const isSelected = index === selectedIndex;
+                          return (
+                            <button
+                              key={cmd.id}
+                              data-selected={isSelected}
+                              onClick={() => executeCommand(cmd)}
+                              onMouseEnter={() => setSelectedIndex(index)}
                               className={cn(
-                                'flex-shrink-0',
-                                isSelected ? 'text-foreground' : 'text-muted-foreground/60',
+                                'flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm cursor-pointer',
+                                isSelected ? 'bg-accent text-foreground' : 'text-muted-foreground',
                               )}
                             >
-                              {cmd.icon}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="text-[13px]">{cmd.label}</div>
-                              {cmd.description && (
-                                <div className="truncate text-[11px] text-muted-foreground/60">
-                                  {cmd.description}
+                              <div
+                                className={cn(
+                                  'flex-shrink-0',
+                                  isSelected ? 'text-foreground' : 'text-muted-foreground/60',
+                                )}
+                              >
+                                {cmd.icon}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="text-[13px]">{cmd.label}</div>
+                                {cmd.description && (
+                                  <div className="truncate text-[11px] text-muted-foreground/60">
+                                    {cmd.description}
+                                  </div>
+                                )}
+                              </div>
+                              {cmd.shortcut && (
+                                <div className="flex flex-shrink-0 items-center gap-0.5">
+                                  {cmd.shortcut.map((key) => (
+                                    <kbd
+                                      key={key}
+                                      className="rounded border border-border/60 bg-muted/50 px-1 py-px font-mono text-[10px] text-muted-foreground"
+                                    >
+                                      {key}
+                                    </kbd>
+                                  ))}
                                 </div>
                               )}
-                            </div>
-                            {cmd.shortcut && (
-                              <div className="flex flex-shrink-0 items-center gap-0.5">
-                                {cmd.shortcut.map((key) => (
-                                  <kbd
-                                    key={key}
-                                    className="rounded border border-border/60 bg-muted/50 px-1 py-px font-mono text-[10px] text-muted-foreground"
-                                  >
-                                    {key}
-                                  </kbd>
-                                ))}
-                              </div>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ))
-                )}
-              </div>
-
-              {/* Footer */}
-              <div className="flex items-center justify-between border-t border-border/60 px-3 py-1.5 text-[11px] text-muted-foreground/50 rounded-b-xl">
-                <div className="flex items-center gap-3">
-                  <span className="flex items-center gap-1">
-                    <kbd className="rounded border border-border/60 bg-muted/50 px-1 py-px font-mono text-[10px]">
-                      ↑↓
-                    </kbd>
-                    navigate
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <kbd className="rounded border border-border/60 bg-muted/50 px-1 py-px font-mono text-[10px]">
-                      ↵
-                    </kbd>
-                    select
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <kbd className="rounded border border-border/60 bg-muted/50 px-1 py-px font-mono text-[10px]">
-                      esc
-                    </kbd>
-                    close
-                  </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ))
+                  )}
                 </div>
-                <span>{filtered.length} commands</span>
+
+                {/* Footer */}
+                <div className="flex items-center justify-between border-t border-border/60 px-3 py-1.5 text-[11px] text-muted-foreground/50 rounded-b-xl">
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1">
+                      <kbd className="rounded border border-border/60 bg-muted/50 px-1 py-px font-mono text-[10px]">
+                        ↑↓
+                      </kbd>
+                      navigate
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <kbd className="rounded border border-border/60 bg-muted/50 px-1 py-px font-mono text-[10px]">
+                        ↵
+                      </kbd>
+                      select
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <kbd className="rounded border border-border/60 bg-muted/50 px-1 py-px font-mono text-[10px]">
+                        esc
+                      </kbd>
+                      close
+                    </span>
+                  </div>
+                  <span>{filtered.length} commands</span>
+                </div>
               </div>
-            </div>
-          </motion.div>
-        </>
-      )}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
       <ConfirmDialog
         open={confirmDeleteAll}
         title="Delete all connections?"
@@ -535,7 +540,7 @@ export function CommandPalette() {
         destructive
         onConfirm={async () => {
           try {
-            await window.api.connections.deleteAll();
+            await getApi().connections.deleteAll();
             void queryClient.invalidateQueries({ queryKey: ['connections'] });
             toast.success('All connections deleted');
             setConfirmDeleteAll(false);
@@ -546,6 +551,6 @@ export function CommandPalette() {
         }}
         onCancel={() => setConfirmDeleteAll(false)}
       />
-    </AnimatePresence>
+    </>
   );
 }

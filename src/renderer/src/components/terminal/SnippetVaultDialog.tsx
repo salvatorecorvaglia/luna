@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { Z } from '@/lib/z-layers';
+import { getApi } from '@/services/api';
 
 interface SnippetVaultDialogProps {
   open: boolean;
@@ -54,7 +55,7 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
 
   const fetchSnippets = useCallback(async () => {
     try {
-      const list = await window.api.snippets.list();
+      const list = await getApi().snippets.list();
       setSnippets(list);
     } catch (err) {
       console.error('Failed to load snippets:', err);
@@ -112,7 +113,7 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
 
     try {
       if (editingSnippet?.id) {
-        await window.api.snippets.update({
+        await getApi().snippets.update({
           id: editingSnippet.id,
           title: formTitle,
           command: formCommand,
@@ -121,7 +122,7 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
         });
         toast.success('Snippet updated');
       } else {
-        await window.api.snippets.create({
+        await getApi().snippets.create({
           title: formTitle,
           command: formCommand,
           tags: tagsArr,
@@ -138,7 +139,7 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
 
   const handleDeleteSnippet = async (id: string) => {
     try {
-      await window.api.snippets.delete(id);
+      await getApi().snippets.delete(id);
       toast.success('Snippet deleted');
       fetchSnippets();
     } catch (err) {

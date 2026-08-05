@@ -7,6 +7,7 @@ import type {
 } from '@shared/types/terminal';
 import { v4 as uuidv4 } from 'uuid';
 import { create } from 'zustand';
+import { getApi } from '@/services/api';
 
 function clampFontSize(size: number): number {
   if (!Number.isFinite(size)) return LIMITS.DEFAULT_FONT_SIZE;
@@ -253,9 +254,9 @@ function detachSession(state: TerminalState, sessionId: string): DetachResult {
 /** Tear down the backing transport for a session, picking the right channel. */
 function disposeTransport(session: TerminalSession | undefined, sessionId: string): void {
   if (session?.type === 'local') {
-    void window.api.localTerminal.kill(sessionId);
+    void getApi().localTerminal.kill(sessionId);
   } else {
-    void window.api.ssh.disconnect(sessionId);
+    void getApi().ssh.disconnect(sessionId);
   }
 }
 
@@ -337,7 +338,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     } catch {
       // localStorage may be unavailable
     }
-    void window.api.settings.set('terminal.theme', JSON.stringify(theme));
+    void getApi().settings.set('terminal.theme', JSON.stringify(theme));
     set({ terminalTheme: theme });
   },
   setFontSize: (size) => {
@@ -347,7 +348,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     } catch {
       // localStorage may be unavailable
     }
-    void window.api.settings.set('terminal.fontSize', JSON.stringify(clamped));
+    void getApi().settings.set('terminal.fontSize', JSON.stringify(clamped));
     set({ fontSize: clamped });
   },
   setScrollback: (lines) => {
@@ -361,7 +362,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     } catch {
       // localStorage may be unavailable
     }
-    void window.api.settings.set('terminal.scrollback', JSON.stringify(clamped));
+    void getApi().settings.set('terminal.scrollback', JSON.stringify(clamped));
     set({ scrollback: clamped });
   },
   initializeSettings: (settings) => {
@@ -530,8 +531,8 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     });
 
     if (parentSession.type !== 'local') {
-      window.api.ssh
-        .connect({
+      getApi()
+        .ssh.connect({
           connectionId: parentSession.connectionId,
           sessionId: newSessionId,
         })

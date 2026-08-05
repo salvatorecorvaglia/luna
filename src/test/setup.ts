@@ -35,3 +35,21 @@ vi.mock('electron-log/main', () => ({
     debug: vi.fn(),
   },
 }));
+
+// jsdom implements neither of these, and both are called from ordinary
+// component effects (scroll-into-view on keyboard navigation, ResizeObserver
+// in the terminal panes). Without the stubs a component under test throws
+// from an effect, which surfaces as an unrelated-looking failure.
+if (typeof globalThis.Element !== 'undefined' && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = function scrollIntoView(): void {
+    /* no-op: layout does not exist in jsdom */
+  };
+}
+
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class ResizeObserver {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  } as unknown as typeof ResizeObserver;
+}

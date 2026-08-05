@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { toast } from 'sonner';
+import { getApi } from '@/services/api';
 
 /**
  * Subscribes to auto-update IPC events and displays toast notifications.
@@ -7,7 +8,7 @@ import { toast } from 'sonner';
  */
 export function useUpdaterEventListener(): void {
   useEffect(() => {
-    const cleanupAvailable = window.api.app.onUpdateAvailable(({ version }) => {
+    const cleanupAvailable = getApi().app.onUpdateAvailable(({ version }) => {
       toast.info(`Update v${version} available`, {
         description: 'A new version is ready to download.',
         duration: Infinity,
@@ -15,7 +16,7 @@ export function useUpdaterEventListener(): void {
         action: {
           label: 'Download',
           onClick: () => {
-            void window.api.app.installUpdate();
+            void getApi().app.installUpdate();
             toast.loading('Downloading update…', {
               id: 'update-progress',
               duration: Infinity,
@@ -25,14 +26,14 @@ export function useUpdaterEventListener(): void {
       });
     });
 
-    const cleanupProgress = window.api.app.onUpdateDownloadProgress(({ percent }) => {
+    const cleanupProgress = getApi().app.onUpdateDownloadProgress(({ percent }) => {
       toast.loading(`Downloading update… ${Math.round(percent)}%`, {
         id: 'update-progress',
         duration: Infinity,
       });
     });
 
-    const cleanupDownloaded = window.api.app.onUpdateDownloaded(() => {
+    const cleanupDownloaded = getApi().app.onUpdateDownloaded(() => {
       toast.dismiss('update-progress');
       toast.success('Update downloaded', {
         description: 'Luna will update when you restart the app.',
@@ -41,13 +42,13 @@ export function useUpdaterEventListener(): void {
         action: {
           label: 'Restart now',
           onClick: () => {
-            void window.api.app.installUpdate();
+            void getApi().app.installUpdate();
           },
         },
       });
     });
 
-    const cleanupError = window.api.app.onUpdateError(({ error }) => {
+    const cleanupError = getApi().app.onUpdateError(({ error }) => {
       toast.dismiss('update-progress');
       toast.error('Update failed', {
         description: error,

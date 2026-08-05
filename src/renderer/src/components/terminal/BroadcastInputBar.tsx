@@ -1,6 +1,7 @@
 import { CheckSquare, Radio, Send, Square, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { getApi } from '@/services/api';
 import { useTerminalStore } from '@/stores/terminal-store';
 
 interface BroadcastInputBarProps {
@@ -55,9 +56,9 @@ export function BroadcastInputBar({ open, onClose }: BroadcastInputBarProps) {
       const session = sessions.get(sessionId);
       if (!session) continue;
       if (session.type === 'local') {
-        window.api.localTerminal.sendData({ sessionId, data: dataToSend });
+        getApi().localTerminal.sendData({ sessionId, data: dataToSend });
       } else {
-        window.api.ssh.sendData({ sessionId, data: dataToSend });
+        getApi().ssh.sendData({ sessionId, data: dataToSend });
       }
     }
 

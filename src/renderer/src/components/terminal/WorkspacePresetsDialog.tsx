@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { Z } from '@/lib/z-layers';
+import { getApi } from '@/services/api';
 import { useTerminalStore } from '@/stores/terminal-store';
 
 interface WorkspacePresetsDialogProps {
@@ -47,7 +48,7 @@ export function WorkspacePresetsDialog({
 
   const fetchWorkspaces = useCallback(async () => {
     try {
-      const list = await window.api.workspaces.list();
+      const list = await getApi().workspaces.list();
       setWorkspaces(list);
     } catch (err) {
       console.error('Failed to load workspaces:', err);
@@ -86,7 +87,7 @@ export function WorkspacePresetsDialog({
     }
 
     try {
-      await window.api.workspaces.create({
+      await getApi().workspaces.create({
         name: newPresetName.trim(),
         layout: {
           connectionIds: Array.from(new Set(connectedConnectionIds)),
@@ -109,7 +110,7 @@ export function WorkspacePresetsDialog({
 
   const handleDeleteWorkspace = async (id: string) => {
     try {
-      await window.api.workspaces.delete(id);
+      await getApi().workspaces.delete(id);
       toast.success('Workspace preset deleted');
       fetchWorkspaces();
     } catch (err) {

@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { Z } from '@/lib/z-layers';
+import { getApi } from '@/services/api';
 
 interface CliReferenceDialogProps {
   open: boolean;
@@ -39,7 +40,7 @@ export function CliReferenceDialog({ open, onClose, onRunCommand }: CliReference
   const fetchDocs = useCallback(async (q: string) => {
     setLoading(true);
     try {
-      const results = await window.api.shell.cliReference(q);
+      const results = await getApi().shell.cliReference(q);
       setDocs(results);
     } catch (err) {
       console.error('CLI reference fetch error:', err);

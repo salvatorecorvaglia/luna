@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { getApi } from '@/services/api';
 import { useUIStore } from '@/stores/ui-store';
 import lunaLogo from '../../../../../resources/luna.png';
 
@@ -27,19 +28,19 @@ export function TitleBar() {
   const isMac = IS_MAC;
 
   useEffect(() => {
-    const check = async () => setIsMaximized(await window.api.window.isMaximized());
+    const check = async () => setIsMaximized(await getApi().window.isMaximized());
     void check();
     // Re-check on resize so the icon stays correct after OS window management
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  const handleMinimize = () => window.api.window.minimize();
+  const handleMinimize = () => getApi().window.minimize();
   const handleMaximize = async () => {
-    await window.api.window.maximize();
-    setIsMaximized(await window.api.window.isMaximized());
+    await getApi().window.maximize();
+    setIsMaximized(await getApi().window.isMaximized());
   };
-  const handleClose = () => window.api.window.close();
+  const handleClose = () => getApi().window.close();
 
   return (
     <div

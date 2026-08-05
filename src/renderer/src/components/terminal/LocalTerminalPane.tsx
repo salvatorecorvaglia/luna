@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react';
 import { toast } from 'sonner';
+import { getApi } from '@/services/api';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { TerminalSearchBar } from './TerminalSearchBar';
 import { type TerminalTransport, useTerminalSession } from './use-terminal-session';
@@ -14,9 +15,9 @@ export function LocalTerminalPane({ sessionId, isActive }: LocalTerminalPaneProp
 
   const transport = useMemo<TerminalTransport>(
     () => ({
-      sendData: (p) => window.api.localTerminal.sendData(p),
-      resize: (p) => window.api.localTerminal.resize(p),
-      onData: (cb) => window.api.localTerminal.onData(cb),
+      sendData: (p) => getApi().localTerminal.sendData(p),
+      resize: (p) => getApi().localTerminal.resize(p),
+      onData: (cb) => getApi().localTerminal.onData(cb),
     }),
     [],
   );
@@ -41,15 +42,15 @@ export function LocalTerminalPane({ sessionId, isActive }: LocalTerminalPaneProp
     onReady: ({ terminal }) => {
       if (!spawnedRef.current) {
         spawnedRef.current = true;
-        window.api.localTerminal
-          .spawn({ sessionId, cols: terminal.cols, rows: terminal.rows })
+        getApi()
+          .localTerminal.spawn({ sessionId, cols: terminal.cols, rows: terminal.rows })
           .catch((err: unknown) => {
             console.error('[LocalTerminalPane] spawn failed', err);
             toast.error('Failed to start local terminal.');
           });
       }
 
-      const cleanupExit = window.api.localTerminal.onExit((event) => {
+      const cleanupExit = getApi().localTerminal.onExit((event) => {
         if (event.sessionId === sessionId) {
           terminal.write(`\r\n\x1b[33m--- Shell exited (code ${event.exitCode}) ---\x1b[0m\r\n`);
           useTerminalStore.getState().updateSessionStatus(sessionId, 'disconnected');

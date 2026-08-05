@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { getApi } from '@/services/api';
 import { useStorageStore } from '@/stores/storage-store';
 import { useTerminalStore } from '@/stores/terminal-store';
 
@@ -14,7 +15,7 @@ export function useSessionRecovery() {
     let cancelled = false;
     const recover = async () => {
       try {
-        const { ssh, s3 } = await window.api.app.getActiveSessions();
+        const { ssh, s3 } = await getApi().app.getActiveSessions();
         if (cancelled) return;
 
         // Recover SSH sessions (Terminal)
@@ -26,7 +27,7 @@ export function useSessionRecovery() {
           if (!existing) {
             let connectionName = 'SSH';
             try {
-              const conn = await window.api.connections.get(sess.connectionId);
+              const conn = await getApi().connections.get(sess.connectionId);
               if (conn) connectionName = conn.name;
             } catch {
               // ignore

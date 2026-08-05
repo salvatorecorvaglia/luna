@@ -81,6 +81,7 @@ export function PromptDialog({
       {open && (
         <>
           <motion.div
+            key="overlay"
             variants={overlayVariants}
             initial="initial"
             animate="animate"
@@ -88,6 +89,7 @@ export function PromptDialog({
             className={`fixed inset-0 ${Z.modal} bg-black/60 backdrop-blur-sm`}
           />
           <motion.div
+            key="panel"
             variants={dialogVariants}
             initial="initial"
             animate="animate"

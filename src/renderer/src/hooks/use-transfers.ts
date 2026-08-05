@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useInvalidateLocalDir, useInvalidateSftp } from '@/hooks/use-sftp';
+import { getApi } from '@/services/api';
 import { type ProgressSample, useTransferStore } from '@/stores/transfer-store';
 
 /**
@@ -58,7 +59,7 @@ export function useTransferEventListener(): void {
         rafHandle.current = null;
       }
     };
-    const cleanupProgress = window.api.transfers.onProgress((event) => {
+    const cleanupProgress = getApi().transfers.onProgress((event) => {
       pending.current.set(event.transferId, {
         transferId: event.transferId,
         transferred: event.transferred,
@@ -69,7 +70,7 @@ export function useTransferEventListener(): void {
       }
     });
 
-    const cleanupComplete = window.api.transfers.onComplete((event) => {
+    const cleanupComplete = getApi().transfers.onComplete((event) => {
       const transfer = useTransferStore.getState().transfers.get(event.transferId);
       const sessionId = transfer?.sessionId;
       dropPending(event.transferId);
@@ -83,12 +84,12 @@ export function useTransferEventListener(): void {
       invalidateLocal(parentDir(transfer?.localPath));
     });
 
-    const cleanupError = window.api.transfers.onError((event) => {
+    const cleanupError = getApi().transfers.onError((event) => {
       dropPending(event.transferId);
       errorTransfer(event.transferId, event.error, event.errorClass);
     });
 
-    const cleanupCancelled = window.api.transfers.onCancelled((event) => {
+    const cleanupCancelled = getApi().transfers.onCancelled((event) => {
       const transfer = useTransferStore.getState().transfers.get(event.transferId);
       const sessionId = transfer?.sessionId;
       dropPending(event.transferId);
@@ -125,5 +126,5 @@ export function useTransferEventListener(): void {
  * Cancel a transfer by ID. Delegates to main process.
  */
 export function cancelTransfer(transferId: string): void {
-  void window.api.transfers.cancel(transferId);
+  void getApi().transfers.cancel(transferId);
 }

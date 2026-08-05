@@ -28,6 +28,7 @@ import { TerminalFilterBar } from '@/components/terminal/TerminalFilterBar';
 import { WorkspacePresetsDialog } from '@/components/terminal/WorkspacePresetsDialog';
 import { connectToHost } from '@/lib/ssh';
 import { cn } from '@/lib/utils';
+import { getApi } from '@/services/api';
 import {
   getAllSessionIdsFromTree,
   getFirstLeafSessionId,
@@ -246,9 +247,9 @@ export function TerminalTabs() {
           if (activeSessionId) {
             const session = sessions.get(activeSessionId);
             if (session?.type === 'local') {
-              window.api.localTerminal.sendData({ sessionId: activeSessionId, data: `${cmd}\n` });
+              getApi().localTerminal.sendData({ sessionId: activeSessionId, data: `${cmd}\n` });
             } else {
-              window.api.ssh.sendData({ sessionId: activeSessionId, data: `${cmd}\n` });
+              getApi().ssh.sendData({ sessionId: activeSessionId, data: `${cmd}\n` });
             }
           }
         }}
@@ -275,9 +276,9 @@ export function TerminalTabs() {
             const session = sessions.get(activeSessionId);
             for (const cmd of sequence) {
               if (session?.type === 'local') {
-                window.api.localTerminal.sendData({ sessionId: activeSessionId, data: `${cmd}\n` });
+                getApi().localTerminal.sendData({ sessionId: activeSessionId, data: `${cmd}\n` });
               } else {
-                window.api.ssh.sendData({ sessionId: activeSessionId, data: `${cmd}\n` });
+                getApi().ssh.sendData({ sessionId: activeSessionId, data: `${cmd}\n` });
               }
             }
           }
@@ -291,12 +292,12 @@ export function TerminalTabs() {
           if (activeSessionId) {
             const session = sessions.get(activeSessionId);
             if (session?.type === 'local') {
-              window.api.localTerminal.sendData({
+              getApi().localTerminal.sendData({
                 sessionId: activeSessionId,
                 data: `${command}\n`,
               });
             } else {
-              window.api.ssh.sendData({ sessionId: activeSessionId, data: `${command}\n` });
+              getApi().ssh.sendData({ sessionId: activeSessionId, data: `${command}\n` });
             }
           }
         }}

@@ -99,18 +99,6 @@
           }
         }
       }
-    },
-    {
-      "includes": [
-        "src/test/integration/connections.test.tsx"
-      ],
-      "linter": {
-        "rules": {
-          "correctness": {
-            "noUnusedImports": "off"
-          }
-        }
-      }
     }
   ]
 }
