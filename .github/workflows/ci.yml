@@ -93,13 +93,56 @@ jobs:
           retention-days: 14
 
   # ──────────────────────────────────────────────
+  # End-to-end (real Electron main + preload + renderer)
+  # ──────────────────────────────────────────────
+  e2e:
+    name: E2E (Electron)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [quality]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Fix node-gyp permissions
+        shell: bash
+        run: find /Users/runner /home/runner ~/.pnpm-store -name "gyp_main.py" -exec chmod +x {} + 2>/dev/null || true
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build application
+        run: pnpm run build
+
+      # Electron needs a display server on Linux runners; xvfb-run supplies one.
+      - name: Run Playwright E2E
+        run: xvfb-run --auto-servernum pnpm exec playwright test
+
+      - name: Upload E2E report on failure
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+
+  # ──────────────────────────────────────────────
   # Build Verification (all platforms)
   # ──────────────────────────────────────────────
   build:
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
-    needs: [quality, test]
+    needs: [quality, test, e2e]
     strategy:
       fail-fast: false
       matrix:

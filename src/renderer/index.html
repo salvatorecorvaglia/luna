@@ -9,10 +9,16 @@
       the comment there for the rationale on each directive (notably why
       'unsafe-inline' is required for style-src, and why frame-src allows
       data: but not 'self').
+
+      `frame-ancestors` is deliberately absent here: it is ignored when
+      delivered via <meta> and the browser logs an error for it on every load.
+      The directive only has effect as a response header, which is where
+      main/index.ts sets it for packaged builds. Listing it here bought
+      nothing and produced a console error that masked real ones.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; frame-src data:; frame-ancestors 'none'; base-uri 'self'; form-action 'none'; worker-src 'self' blob:; media-src 'self' blob: data:; upgrade-insecure-requests;"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; frame-src data:; base-uri 'self'; form-action 'none'; worker-src 'self' blob:; media-src 'self' blob: data:; upgrade-insecure-requests;"
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
