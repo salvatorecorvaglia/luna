@@ -42,7 +42,6 @@ export default defineConfig({
             if (id.includes('@tanstack/react-query')) return 'react-query';
             if (id.includes('@tanstack/react-virtual')) return 'react-virtual';
             if (id.includes('framer-motion')) return 'framer-motion';
-            if (id.includes('cmdk')) return 'cmdk';
             return undefined;
           }
         }
