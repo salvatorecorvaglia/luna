@@ -1,8 +1,6 @@
 # Contributing to Luna 🌙
 
-First off, thank you for taking the time to contribute! Contributions from the community make Luna better for everyone.
-
-Here is a guide to help get you started with development and to ensure a smooth contribution process.
+Thank you for your interest in contributing to **Luna**! We welcome contributions, bug reports, feature requests, and security improvements from the community.
 
 ---
 
