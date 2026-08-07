@@ -1,7 +1,9 @@
 # Logs
-logs
+logs/
 *.log
 npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
 lerna-debug.log*
 
 # Diagnostic reports
@@ -13,49 +15,25 @@ pids
 *.seed
 *.pid.lock
 
-# Dependency directories
+# Dependency directories & caches
 node_modules/
 jspm_packages/
+.pnpm-store/
+.npm/
+.stylelintcache/
+.vite/
 
 # TypeScript cache
 *.tsbuildinfo
 
-# Optional npm cache directory
-.npm
-
-# Optional stylelint cache
-.stylelintcache
-
 # dotenv environment variable files
 .env
+.env.*
 .env.development.local
 .env.test.local
 .env.production.local
 .env.local
-
-# Mac OS files
-.DS_Store
-*.AppleDouble
-.LSOverride
-
-# Thumbnails
-._*
-
-# Files that might appear in the root of a volume
-.DocumentRevisions-V100
-.fseventsd
-.Spotlight-V100
-.TemporaryItems
-.Trashes
-.VolumeIcon.icns
-.com.apple.timemachine.donotpresent
-
-# Directories potentially created on remote AFP share
-.AppleDB
-.AppleDesktop
-Network Trash Folder
-Temporary Items
-.apdisk
+!.env.example
 
 # IDEs and Editors
 .vscode/*
@@ -65,14 +43,17 @@ Temporary Items
 !.vscode/launch.json
 .idea/
 .fleet/
+.zed/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
 
-# Electron-vite compiled output
+# Electron-vite & native build outputs
 out/
+build/Release/
+*.node
 
 # Electron-builder distribution artifacts
 dist/
@@ -90,14 +71,44 @@ credentials.dat
 *.db-wal
 *.db-shm
 
-# Coverage
+# Testing & Coverage
 coverage/
+.vitest/
+.biome_cache/
 
 # Husky internal
 .husky/_
 
 # SBOM artifacts
 sbom.cyclonedx.json
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# macOS / OS files
+.DS_Store
+.DS_Store?
+*.AppleDouble
+.LSOverride
+._*
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
 
 # AI Tools & Agents
 .openai/
@@ -118,10 +129,6 @@ claude-settings.json
 .codex/
 .cagent/
 .cursor/
+.windsurf/
+.cline/
 CLAUDE.md
-
-# Playwright
-/test-results/
-/playwright-report/
-/blob-report/
-/playwright/.cache/
