@@ -39,7 +39,7 @@ To contribute code, you will need to set up a local development environment.
 To keep Luna's codebase clean and maintainable, please follow these guidelines when writing code:
 
 ### Tech Stack Standards
-*   **Frontend UI:** We use **React 18** and **Tailwind CSS v4** (using `@tailwindcss/vite` configuration). Ensure your styles leverage utility classes and follow the design guidelines.
+*   **Frontend UI:** We use **React 19** and **Tailwind CSS v4** (using `@tailwindcss/vite` configuration). Ensure your styles leverage utility classes and follow the design guidelines.
 *   **State Management:** Global UI state and session properties are managed with **Zustand**. Keep state structures simple and slice-based.
 *   **Data Fetching:** For remote state, use **TanStack Query** (React Query) to leverage clean caching and status state.
 *   **Database & Persistence:** SQLite database migrations are located under `src/main/services/db/migrations/`. When introducing schema updates (such as new tables or columns), add a new versioned migration file and register it in `src/main/services/db/migrations/index.ts`.

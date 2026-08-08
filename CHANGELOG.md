@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **IPC Service Input Validation**: Implemented comprehensive input validation and payload sanitization across all main-process IPC service handlers (`LocalTerminalIPC`, `SnippetWorkspaceIPC`, `SSHIPC`, `StorageIPC`, `ConnectionService`, `FolderSyncService`, `SnippetWorkspaceService`, `UpdaterService`).
+- **IPC & Service Unit Testing**: Added unit test suites for main process IPC handlers (`local-terminal.ipc.test.ts`, `snippet-workspace.ipc.test.ts`, `ssh.ipc.test.ts`), service validations (`connection-service-validation.test.ts`, `folder-sync-service.test.ts`, `snippet-workspace-service.test.ts`, `updater.test.ts`), design tokens (`design-tokens.test.ts`), and terminal output helpers (`terminal-output.test.ts`).
+
+### Improved
+
+- **Accessibility & ARIA Standards**: Standardized ARIA roles, labels (`aria-label`), modal titles, description attributes, and focus states across interactive dialog components (`TunnelManagerDialog`, `FolderSyncDialog`, `PresignedUrlDialog`, `AuditExportDialog`, `CliReferenceDialog`, `MacroRecorderDialog`, `SnippetVaultDialog`, `TerminalSearchBar`, `WorkspacePresetsDialog`, `SettingsPanel`, `ConnectionForm`, `SftpFields`, `ContextMenu`).
+- **Dependencies Update**: Upgraded `@aws-sdk/*` dependencies (`client-s3`, `lib-storage`, `s3-request-presigner`) to `^3.1104.0`, `better-sqlite3` to `^13.0.3`, and `lucide-react` to `^1.29.0`.
+- **Test Configuration**: Updated `vitest.config.ts` coverage thresholds and refined Biome linting configuration.
+
 ## [1.0.0] - 2026-08-06
 
 ### Added

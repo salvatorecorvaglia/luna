@@ -35,6 +35,7 @@
 *   **Presigned URLs:** Generate temporary access URLs for object sharing with customizable expiration times.
 
 ### 🔒 Enterprise-Grade Security & Credential Tools
+*   **IPC Payload Validation:** Enforces strict payload validation and input sanitization across all main-process IPC service handlers to protect internal services.
 *   **Built-in Password Manager:** Generate strong passwords with configurable complexity and securely manage stored credentials.
 *   **OS-Protected Credentials:** Integrates with system keychains (Keychain Services on macOS, Credential Manager on Windows, Gnome Keyring/libsecret on Linux) to prevent credential leakage.
 *   **Tamper Protection:** Actively audits and alerts the operator of corrupted or unauthorized credential modifications on disk.
