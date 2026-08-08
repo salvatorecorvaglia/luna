@@ -462,10 +462,13 @@ export function ConnectionForm() {
                 <div className="flex-1 overflow-y-auto p-5 space-y-5">
                   {/* Provider toggle */}
                   <div>
-                    <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <span
+                      id="conn-provider-label"
+                      className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
+                    >
                       <Cloud className="size-3.5" />
                       Provider
-                    </label>
+                    </span>
                     <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Provider">
                       <button
                         type="button"
@@ -552,10 +555,13 @@ export function ConnectionForm() {
 
                   {/* Color Tag */}
                   <div>
-                    <label className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <span
+                      id="conn-color-tag-label"
+                      className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
+                    >
                       <Palette className="size-3.5" />
                       Color Tag
-                    </label>
+                    </span>
                     <div className="flex gap-2.5" role="radiogroup" aria-label="Color tag">
                       {COLOR_OPTIONS.map((color) => (
                         <button

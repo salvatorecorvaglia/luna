@@ -202,6 +202,9 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
 
         <motion.div
           ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="snippet-vault-dialog-title"
           variants={dialogVariants}
           initial="initial"
           animate="animate"
@@ -215,7 +218,9 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
                 <Code className="size-5" />
               </div>
               <div>
-                <h2 className="text-base font-semibold">Snippet & Script Vault</h2>
+                <h2 id="snippet-vault-dialog-title" className="text-base font-semibold">
+                  Snippet & Script Vault
+                </h2>
                 <p className="text-xs text-muted-foreground">
                   Store, search, and run reusable command scripts with parameter templates
                 </p>
@@ -276,8 +281,14 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
 
                 <div className="space-y-3 text-xs">
                   <div>
-                    <label className="block text-muted-foreground mb-1">Snippet Title</label>
+                    <label
+                      htmlFor="snippet-snippet-title"
+                      className="block text-muted-foreground mb-1"
+                    >
+                      Snippet Title
+                    </label>
                     <input
+                      id="snippet-snippet-title"
                       type="text"
                       value={formTitle}
                       onChange={(e) => setFormTitle(e.target.value)}
@@ -287,12 +298,16 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
                   </div>
 
                   <div>
-                    <label className="block text-muted-foreground mb-1">
+                    <label
+                      htmlFor="snippet-command-template-use-for-dynamic-prompts"
+                      className="block text-muted-foreground mb-1"
+                    >
                       Command Template (Use{' '}
                       <code className="bg-muted px-1 rounded">{'{{param}}'}</code> for dynamic
                       prompts)
                     </label>
                     <textarea
+                      id="snippet-command-template-use-for-dynamic-prompts"
                       value={formCommand}
                       onChange={(e) => setFormCommand(e.target.value)}
                       placeholder="docker logs -f --tail 100 {{container_name}}"
@@ -302,10 +317,14 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
                   </div>
 
                   <div>
-                    <label className="block text-muted-foreground mb-1">
+                    <label
+                      htmlFor="snippet-tags-comma-separated"
+                      className="block text-muted-foreground mb-1"
+                    >
                       Tags (comma separated)
                     </label>
                     <input
+                      id="snippet-tags-comma-separated"
                       type="text"
                       value={formTags}
                       onChange={(e) => setFormTags(e.target.value)}
@@ -347,10 +366,17 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
                 <div className="space-y-2.5">
                   {Object.keys(variableValues).map((varKey) => (
                     <div key={varKey}>
-                      <label className="block text-xs font-mono text-primary mb-1">
+                      {/* Per-key id — this block renders once per variable, so
+                          a static id would collide across iterations and every
+                          label would point at the first input. */}
+                      <label
+                        htmlFor={`snippet-var-${varKey}`}
+                        className="block text-xs font-mono text-primary mb-1"
+                      >
                         {`{{ ${varKey} }}`}
                       </label>
                       <input
+                        id={`snippet-var-${varKey}`}
                         type="text"
                         value={variableValues[varKey]}
                         onChange={(e) =>

@@ -102,41 +102,61 @@ export function FolderSyncDialog({
   const handleExecuteSync = async () => {
     if (!diffResult || diffResult.items.length === 0) return;
     setSyncing(true);
+
+    // Each file is enqueued independently. The loop used to abort on the first
+    // rejection, so one unwritable path left the user with a partial sync, a
+    // generic error, and no way to tell which files had actually been queued.
+    // Failures are collected instead and reported alongside the successes.
+    const failures: { relativePath: string; message: string }[] = [];
     let enqueued = 0;
 
     try {
       for (const item of diffResult.items) {
-        if (item.recommendedAction === 'upload') {
+        const direction =
+          item.recommendedAction === 'upload'
+            ? 'upload'
+            : item.recommendedAction === 'download'
+              ? 'download'
+              : null;
+        if (!direction) continue;
+
+        try {
           const lPath = await getApi().shell.joinPath(localPath, item.relativePath);
           const rPath = remotePath.endsWith('/')
             ? `${remotePath}${item.relativePath}`
             : `${remotePath}/${item.relativePath}`;
 
-          await getApi().storage.upload({
+          await getApi().storage[direction]({
             sessionId,
             localPath: lPath,
             remotePath: rPath,
           });
           enqueued++;
-        } else if (item.recommendedAction === 'download') {
-          const lPath = await getApi().shell.joinPath(localPath, item.relativePath);
-          const rPath = remotePath.endsWith('/')
-            ? `${remotePath}${item.relativePath}`
-            : `${remotePath}/${item.relativePath}`;
-
-          await getApi().storage.download({
-            sessionId,
-            localPath: lPath,
-            remotePath: rPath,
+        } catch (err) {
+          failures.push({
+            relativePath: item.relativePath,
+            message: err instanceof Error ? err.message : String(err),
           });
-          enqueued++;
         }
       }
 
-      toast.success(`Enqueued ${enqueued} differential sync transfer(s)`);
-      onClose();
-    } catch (err) {
-      toast.error(`Sync execution failed: ${(err as Error).message}`);
+      if (failures.length === 0) {
+        toast.success(`Enqueued ${enqueued} differential sync transfer(s)`);
+        onClose();
+      } else if (enqueued === 0) {
+        // Nothing got through — keep the dialog open so the user can retry
+        // without re-running the comparison.
+        toast.error(`Sync failed: no transfers could be queued. ${failures[0].message}`);
+      } else {
+        toast.warning(`Enqueued ${enqueued} transfer(s); ${failures.length} could not be queued`, {
+          description: failures
+            .slice(0, 3)
+            .map((f) => `${f.relativePath}: ${f.message}`)
+            .join('\n'),
+          duration: 10000,
+        });
+        onClose();
+      }
     } finally {
       setSyncing(false);
     }
@@ -161,6 +181,9 @@ export function FolderSyncDialog({
 
         <motion.div
           ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="folder-sync-dialog-title"
           variants={dialogVariants}
           initial="initial"
           animate="animate"
@@ -174,9 +197,20 @@ export function FolderSyncDialog({
                 <FolderSync className="size-5" />
               </div>
               <div>
-                <h2 className="text-base font-semibold">Differential Folder Synchronizer</h2>
+                <h2 id="folder-sync-dialog-title" className="text-base font-semibold">
+                  Differential Folder Synchronizer
+                </h2>
+                {/*
+                  Says "files in this folder", not "folders", on purpose: the
+                  comparison lists one level and filters directories out
+                  (`!f.isDirectory` in runFolderComparison), so a tree that
+                  differs only inside a subdirectory reports zero differences.
+                  Describing it as a folder sync made that read as "everything
+                  is up to date" rather than "subfolders weren't examined".
+                */}
                 <p className="text-xs text-muted-foreground">
-                  Compare local and remote folders side-by-side and execute differential sync
+                  Compare files in this folder and queue the differences. Subfolders are not
+                  examined.
                 </p>
               </div>
             </div>

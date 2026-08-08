@@ -168,3 +168,144 @@ describe('rowToConnection', () => {
     expect(rowToConnection(row).portForwards).toEqual(forwards);
   });
 });
+
+/**
+ * The import path used to write straight to SQL with none of the rules
+ * `createConnection` enforces — no length caps, no null-byte checks, no port
+ * range, no authType allowlist, no port-forward validation. It is reachable
+ * from `connection:import` and from any `.json` / `.ini` / `.mxtsessions`
+ * file the user opens, so it is the least trustworthy input in the app and
+ * had the weakest checks. Both paths now share `normaliseConnectionFields`.
+ */
+describe('importConnections validation parity', () => {
+  const validExport = {
+    name: 'imported',
+    provider: 'sftp' as const,
+    host: 'example.com',
+    port: 22,
+    username: 'deploy',
+    authType: 'password' as const,
+  };
+
+  it('imports a well-formed entry', () => {
+    const result = service.importConnections([validExport]);
+    expect(result).toEqual({ imported: 1, skipped: [] });
+  });
+
+  it.each([
+    ['an over-long name', { ...validExport, name: 'x'.repeat(201) }],
+    ['a null byte in the host', { ...validExport, host: 'exam\0ple.com' }],
+    ['an over-long folder', { ...validExport, folder: 'x'.repeat(101) }],
+    ['a port of 0', { ...validExport, port: 0 }],
+    ['a port above 65535', { ...validExport, port: 70000 }],
+    ['a negative port', { ...validExport, port: -1 }],
+    ['a non-integer port', { ...validExport, port: 22.5 }],
+    ['an invalid authType', { ...validExport, authType: 'kerberos' as never }],
+    ['a null byte in privateKeyPath', { ...validExport, privateKeyPath: 'k\0ey' }],
+    ['an out-of-range keepaliveInterval', { ...validExport, keepaliveInterval: -5 }],
+    [
+      'a port forward with an out-of-range local port',
+      {
+        ...validExport,
+        portForwards: [{ type: 'local', localPort: 99999, remotePort: 80 }] as never,
+      },
+    ],
+    [
+      'a port forward with an unknown type',
+      { ...validExport, portForwards: [{ type: 'magic', localPort: 8080 }] as never },
+    ],
+  ])('skips an entry with %s instead of importing it', (_label, entry) => {
+    const result = service.importConnections([entry]);
+    expect(result.imported).toBe(0);
+    expect(result.skipped).toHaveLength(1);
+    expect(result.skipped[0].name).toBe(entry.name);
+    // The user needs to know *why*, not just that something was dropped.
+    expect(result.skipped[0].reason).toBeTruthy();
+  });
+
+  it('skips only the bad entry and imports the rest', () => {
+    // One malformed row in a large export must not cost the user everything
+    // else in the file.
+    const result = service.importConnections([
+      validExport,
+      { ...validExport, name: 'bad', port: 70000 },
+      { ...validExport, name: 'also-fine' },
+    ]);
+    expect(result.imported).toBe(2);
+    expect(result.skipped).toEqual([{ name: 'bad', reason: expect.stringContaining('port') }]);
+  });
+
+  it('applies SSH defaults for entries that legitimately omit them', () => {
+    // ~/.ssh/config routinely omits Port and never states an auth type.
+    const result = service.importConnections([
+      { name: 'defaults', host: 'h.example.com', username: 'u' },
+    ]);
+    expect(result.imported).toBe(1);
+    expect(lastInsertValues[4]).toBe(22); // port
+    expect(lastInsertValues[6]).toBe('password'); // auth_type
+  });
+
+  it('normalises port forwards rather than storing them verbatim', () => {
+    service.importConnections([
+      {
+        ...validExport,
+        name: 'with-forward',
+        portForwards: [{ type: 'local', localPort: 8080, remotePort: 80 }] as never,
+      },
+    ]);
+    const stored = JSON.parse(lastInsertValues[17] as string);
+    // Defaults are filled in by the validator, exactly as on the create path.
+    expect(stored[0]).toMatchObject({
+      type: 'local',
+      localPort: 8080,
+      remotePort: 80,
+      bindAddress: '127.0.0.1',
+      remoteHost: '127.0.0.1',
+    });
+  });
+
+  it('never marks an imported connection hidden', () => {
+    // Import ignores the exported isHidden flag: a hidden connection the user
+    // can't see is indistinguishable from an import that silently failed.
+    service.importConnections([{ ...validExport, isHidden: true }]);
+    expect(lastInsertValues[14]).toBe(0);
+  });
+
+  it('rejects a non-array payload', () => {
+    expect(() => service.importConnections('nope' as never)).toThrow(/must be an array/);
+  });
+
+  it('skips duplicates by name', () => {
+    const result = service.importConnections([validExport, validExport]);
+    expect(result.imported).toBe(1);
+    expect(result.skipped[0].reason).toMatch(/already exists/);
+  });
+});
+
+describe('renameFolder validation', () => {
+  it('rejects an over-long folder name', () => {
+    // Same column create and update cap at 100 chars; rename wrote to it
+    // unchecked, so it was the way to get an oversized sidebar header in.
+    expect(() =>
+      service.renameFolder({ oldName: 'a', newName: 'x'.repeat(101), provider: 'sftp' }),
+    ).toThrow(/at most/);
+  });
+
+  it('rejects a null byte in the new name', () => {
+    expect(() =>
+      service.renameFolder({ oldName: 'a', newName: 'fol\0der', provider: 'sftp' }),
+    ).toThrow(/null bytes/);
+  });
+
+  it('rejects an unknown provider', () => {
+    expect(() =>
+      service.renameFolder({ oldName: 'a', newName: 'b', provider: 'ftp' as never }),
+    ).toThrow(/provider/);
+  });
+
+  it('accepts a well-formed rename', () => {
+    expect(() =>
+      service.renameFolder({ oldName: 'a', newName: 'b', provider: 'sftp' }),
+    ).not.toThrow();
+  });
+});

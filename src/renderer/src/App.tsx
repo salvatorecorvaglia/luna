@@ -134,6 +134,14 @@ export default function App() {
           );
         }
         setWarnedAboutBackend(true);
+      })
+      .catch((err) => {
+        // Every sibling effect in this file handles rejection; this one didn't,
+        // so a failing probe surfaced as an unhandled rejection instead of a
+        // log line. Not being able to read the backend status is not worth a
+        // toast — the user can't act on it — but it must not go unobserved.
+        console.error('Failed to read credential-store backend:', err);
+        if (!cancelled) setWarnedAboutBackend(true);
       });
     return () => {
       cancelled = true;

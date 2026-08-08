@@ -3,6 +3,24 @@ import type { StorageEntry } from '@shared/types/storage-provider';
 
 export type { FolderDiffItem, FolderDiffResult };
 
+/**
+ * How far two timestamps may drift before a file counts as modified.
+ *
+ * **Seconds, not milliseconds.** Every producer feeding this comparison stores
+ * whole seconds: local entries come from `shell:readdir`
+ * (`Math.floor(mtimeMs / 1000)`), SFTP entries from `attrs.mtime`, and S3
+ * entries from `Math.floor(LastModified.getTime() / 1000)`. The value here was
+ * `2000` — a millisecond constant applied to second-granularity input, so the
+ * real tolerance was 2000 seconds (~33 minutes). Any file edited within the
+ * last half hour whose size happened to match was reported `identical` and
+ * silently skipped by the sync, and `bi-directional` never reached its
+ * conflict branch for those files at all.
+ *
+ * 2 s absorbs filesystem/protocol rounding (FAT stores mtime at 2 s
+ * granularity) without hiding a real edit.
+ */
+const MTIME_TOLERANCE_SEC = 2;
+
 export class FolderSyncService {
   /**
    * Compares local file entries with remote storage entries relative to their root folders.
@@ -56,8 +74,8 @@ export class FolderSyncService {
         });
       } else if (local && remote) {
         const sizeMatch = local.size === remote.size;
-        const timeDiff = Math.abs((local.mtime || 0) - (remote.modifiedAt || 0));
-        const modified = !sizeMatch || timeDiff > 2000;
+        const timeDiffSec = Math.abs((local.mtime || 0) - (remote.modifiedAt || 0));
+        const modified = !sizeMatch || timeDiffSec > MTIME_TOLERANCE_SEC;
 
         if (modified) {
           modifiedCount++;

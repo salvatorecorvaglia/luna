@@ -10,6 +10,12 @@ import { getMainWindow } from './app.ipc';
 
 interface LocalPtySession {
   pty: pty.IPty;
+  /**
+   * Drains this session's coalescing buffer to the renderer immediately.
+   * Held on the session so teardown paths outside the spawn closure (kill,
+   * quit) can drain before discarding — see `drainAndDropBuffer`.
+   */
+  flush: () => void;
 }
 
 const sessions = new Map<string, LocalPtySession>();
@@ -20,6 +26,36 @@ interface TerminalBuffer {
 }
 
 const localTerminalBuffers = new Map<string, TerminalBuffer>();
+
+/**
+ * Deliver whatever is still buffered for a session, then drop the buffer.
+ *
+ * Output is coalesced on a 16 ms timer, so at any instant up to a frame of
+ * shell output is sitting in memory. Every teardown path used to just
+ * `clearTimeout` and delete the entry, which threw that frame away — the tail
+ * of the last command's output, or an error printed immediately before the
+ * shell exited, simply never reached xterm. The user saw
+ * `--- Shell exited (code N) ---` with the interesting part missing above it.
+ *
+ * Called before the session is removed from `sessions`, because `flush` is
+ * reached through the session record.
+ */
+function drainAndDropBuffer(sessionId: string): void {
+  const buffer = localTerminalBuffers.get(sessionId);
+  if (buffer) {
+    // Cancel the pending timer first: flush() nulls the field as it runs, so
+    // reading it afterwards would leave a stray timer armed on a dead session.
+    if (buffer.timer) clearTimeout(buffer.timer);
+    try {
+      sessions.get(sessionId)?.flush();
+    } catch (err) {
+      // A failed final flush costs one frame of output; it must never take
+      // the process down from inside an exit handler.
+      log.error(`[LocalTerminal] Final flush failed for session ${sessionId}:`, err);
+    }
+    localTerminalBuffers.delete(sessionId);
+  }
+}
 
 /** Upper bound on a single PTY write from the renderer. Matches the SSH cap. */
 const MAX_PTY_SEND_BYTES = 65536;
@@ -121,8 +157,6 @@ export function registerLocalTerminalHandlers(): void {
         },
       });
 
-      sessions.set(sessionId, { pty: ptyProcess });
-
       // StringDecoder buffers incomplete UTF-8 sequences across emits so we
       // never hand a half-multibyte character to the renderer.
       const decoder = new StringDecoder('utf8');
@@ -171,6 +205,10 @@ export function registerLocalTerminalHandlers(): void {
         if (tail.length > 0) emit(tail);
       };
 
+      // Registered only now that `flush` exists — teardown paths reach it
+      // through this record.
+      sessions.set(sessionId, { pty: ptyProcess, flush });
+
       ptyProcess.onData((data: string) => {
         // Cheap early-out: don't accumulate output for a window that's gone.
         // The authoritative check lives in emit().
@@ -204,12 +242,11 @@ export function registerLocalTerminalHandlers(): void {
       });
 
       ptyProcess.onExit(({ exitCode }: { exitCode: number }) => {
+        // Drain before dropping the session, and before the on-exit notice, so
+        // the shell's final output lands *above* the "Shell exited" banner
+        // rather than being discarded with the buffer.
+        drainAndDropBuffer(sessionId);
         sessions.delete(sessionId);
-        const buffer = localTerminalBuffers.get(sessionId);
-        if (buffer) {
-          if (buffer.timer) clearTimeout(buffer.timer);
-          localTerminalBuffers.delete(sessionId);
-        }
         const win = getMainWindow();
         if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
           win.webContents.send(IPC.LOCAL_TERMINAL_ON_EXIT, { sessionId, exitCode });
@@ -231,12 +268,10 @@ export function registerLocalTerminalHandlers(): void {
     } catch (err) {
       log.warn(`[LocalTerminal] Error killing session ${sessionId}:`, err);
     }
+    // Deliver anything already buffered before the session record (and with it
+    // the flush closure) goes away.
+    drainAndDropBuffer(sessionId);
     sessions.delete(sessionId);
-    const buffer = localTerminalBuffers.get(sessionId);
-    if (buffer) {
-      if (buffer.timer) clearTimeout(buffer.timer);
-      localTerminalBuffers.delete(sessionId);
-    }
   });
 
   // Send data to a session
@@ -278,7 +313,13 @@ export function registerLocalTerminalHandlers(): void {
   );
 }
 
-/** Kill all local sessions on app quit. */
+/**
+ * Kill all local sessions on app quit.
+ *
+ * Deliberately does *not* drain buffers the way `kill` and `onExit` do: the
+ * renderer is being torn down in the same breath, so a final frame has nowhere
+ * to land and `emit()` would refuse it anyway.
+ */
 export function disposeLocalTerminals(): void {
   const ids = Array.from(sessions.keys());
   for (const id of ids) {

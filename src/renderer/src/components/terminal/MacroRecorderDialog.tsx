@@ -144,6 +144,9 @@ export function MacroRecorderDialog({ open, onClose, onRunMacro }: MacroRecorder
 
         <motion.div
           ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="macro-recorder-dialog-title"
           variants={dialogVariants}
           initial="initial"
           animate="animate"
@@ -157,7 +160,9 @@ export function MacroRecorderDialog({ open, onClose, onRunMacro }: MacroRecorder
                 <Circle className="size-5" />
               </div>
               <div>
-                <h2 className="text-base font-semibold">Terminal Macro Recorder</h2>
+                <h2 id="macro-recorder-dialog-title" className="text-base font-semibold">
+                  Terminal Macro Recorder
+                </h2>
                 <p className="text-xs text-muted-foreground">
                   Record keystroke sequences to replay automated tasks on active shell sessions
                 </p>

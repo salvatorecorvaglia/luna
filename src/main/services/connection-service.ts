@@ -1,4 +1,6 @@
 import { readFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { ErrorCode, LunaError } from '@shared/errors';
 import type {
   AuthType,
@@ -8,6 +10,8 @@ import type {
   PortForwardingConfig,
   UpdateConnectionInput,
 } from '@shared/types/connection';
+import type { StorageProviderKind } from '@shared/types/storage-provider';
+import type Database from 'better-sqlite3';
 import { dialog } from 'electron';
 import { v4 as uuidv4 } from 'uuid';
 import { detectAndImport } from '../lib/importers';
@@ -34,6 +38,8 @@ const MAX_FOLDER_LEN = 100;
 const MAX_HOST_LEN = 255;
 const MAX_USERNAME_LEN = 255;
 const MAX_COLOR_TAG_LEN = 64;
+/** Generous cap on a filesystem path — well past PATH_MAX on every platform. */
+const MAX_PATH_LEN = 4096;
 
 function assertNoNullBytes(value: unknown, name: string): asserts value is string {
   if (typeof value !== 'string') throw validationError(`${name} must be a string`);
@@ -44,6 +50,29 @@ function assertBoundedLength(value: string, name: string, max: number): void {
   if (value.length > max) {
     throw validationError(`${name} must be at most ${max} characters`);
   }
+}
+
+/**
+ * Range-check an optional numeric field, substituting `fallback` when it is
+ * absent. Keepalive values reached the DB unchecked on both the create and the
+ * import path — a negative or absurd interval is handed straight to ssh2's
+ * timer setup.
+ */
+function assertOptionalBoundedNumber(
+  value: unknown,
+  name: string,
+  min: number,
+  max: number,
+  fallback: number,
+): number {
+  if (value == null || value === '') return fallback;
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw validationError(`${name} must be a number`);
+  }
+  if (value < min || value > max) {
+    throw validationError(`${name} must be between ${min} and ${max}`);
+  }
+  return value;
 }
 
 /**
@@ -76,6 +105,239 @@ function parsePortForwardsColumn(raw: string | null, connectionId: string): Port
     log.warn(`[Connections] Ignoring malformed port_forwards JSON on connection ${connectionId}`);
     return [];
   }
+}
+
+/**
+ * A connection's persistable fields after validation and defaulting — the
+ * exact shape `insertConnectionRow` writes.
+ */
+interface NormalisedConnectionFields {
+  provider: StorageProviderKind;
+  name: string;
+  host: string | null;
+  port: number | null;
+  username: string | null;
+  authType: AuthType | null;
+  privateKeyPath: string | null;
+  endpoint: string | null;
+  region: string | null;
+  defaultBucket: string | null;
+  forcePathStyle: number | null;
+  folder: string;
+  colorTag: string | null;
+  isHidden: number;
+  keepaliveInterval: number;
+  keepaliveCountMax: number;
+  portForwards: PortForwardingConfig[];
+}
+
+interface NormaliseOptions {
+  /**
+   * Used when the input omits `port`. Import files legitimately leave it out
+   * (the SSH default is implied); the create form never does, so create
+   * passes nothing and an absent port is a validation error.
+   */
+  portDefault?: number;
+  /** Same idea for `authType`. */
+  authTypeDefault?: AuthType;
+  /**
+   * Canonicalise `privateKeyPath` against the home directory. Import does
+   * this because the path came from another machine's config file; the create
+   * form's path was picked with a native file dialog on this machine.
+   */
+  expandKeyPath?: boolean;
+}
+
+/**
+ * Validate and normalise the fields shared by every write path.
+ *
+ * `createConnection` and `importConnections` used to each open-code their own
+ * subset of these rules, and import's subset was empty: it wrote `name`,
+ * `folder`, `port`, `authType` and `port_forwards` straight to SQL with no
+ * length caps, no null-byte checks, no range check and no allowlist. So a
+ * value `create` rejected could still be written by importing a crafted
+ * `.json` / `.ini` / `.mxtsessions` file — or by a renderer calling
+ * `connection:import` directly — and then be read back everywhere as if it
+ * had been validated. Both paths now route through this function, which is
+ * the only way to keep them from drifting again.
+ *
+ * Throws `LunaError(VALIDATION_ERROR)`. Import catches and records the reason
+ * per entry; create lets it propagate to the renderer.
+ */
+function normaliseConnectionFields(
+  input: CreateConnectionInput | ExportedConnection,
+  options: NormaliseOptions = {},
+): NormalisedConnectionFields {
+  const name = typeof input.name === 'string' ? input.name.trim() : input.name;
+  assertNonEmptyString(name, 'name');
+  assertBoundedLength(name, 'name', MAX_NAME_LEN);
+
+  const provider = input.provider ?? 'sftp';
+  if (provider !== 'sftp' && provider !== 's3') {
+    throw validationError('provider must be "sftp" or "s3"');
+  }
+
+  const folder = input.folder?.trim() || 'default';
+  assertNoNullBytes(folder, 'folder');
+  assertBoundedLength(folder, 'folder', MAX_FOLDER_LEN);
+
+  let colorTag: string | null = null;
+  if (input.colorTag != null && input.colorTag !== '') {
+    assertNoNullBytes(input.colorTag, 'colorTag');
+    assertBoundedLength(input.colorTag, 'colorTag', MAX_COLOR_TAG_LEN);
+    colorTag = input.colorTag;
+  }
+
+  const keepaliveInterval = assertOptionalBoundedNumber(
+    input.keepaliveInterval,
+    'keepaliveInterval',
+    0,
+    600_000,
+    0,
+  );
+  const keepaliveCountMax = assertOptionalBoundedNumber(
+    input.keepaliveCountMax,
+    'keepaliveCountMax',
+    0,
+    100,
+    3,
+  );
+
+  // Public binds are permitted at *save* time regardless of the setting; the
+  // gate is enforced when a forward is actually started, so a saved config
+  // survives the toggle being off.
+  const portForwards = normalisePortForwardsInput(input.portForwards);
+
+  const base = {
+    provider,
+    name,
+    folder,
+    colorTag,
+    isHidden: input.isHidden ? 1 : 0,
+    keepaliveInterval,
+    keepaliveCountMax,
+    portForwards,
+  };
+
+  if (provider === 'sftp') {
+    const host = typeof input.host === 'string' ? input.host.trim() : input.host;
+    assertNonEmptyString(host, 'host');
+    assertBoundedLength(host, 'host', MAX_HOST_LEN);
+
+    const username = typeof input.username === 'string' ? input.username.trim() : input.username;
+    assertNonEmptyString(username, 'username');
+    assertBoundedLength(username, 'username', MAX_USERNAME_LEN);
+
+    const port = input.port ?? options.portDefault;
+    assertBoundedInt(port, 'port', 1, 65535);
+
+    const authType = input.authType ?? options.authTypeDefault;
+    if (!authType || !VALID_AUTH_TYPES.includes(authType)) {
+      throw validationError(`authType must be one of ${VALID_AUTH_TYPES.join('|')}`);
+    }
+
+    let privateKeyPath: string | null = null;
+    if (input.privateKeyPath != null && input.privateKeyPath !== '') {
+      assertNoNullBytes(input.privateKeyPath, 'privateKeyPath');
+      assertBoundedLength(input.privateKeyPath, 'privateKeyPath', MAX_PATH_LEN);
+      privateKeyPath = input.privateKeyPath;
+      if (options.expandKeyPath) {
+        try {
+          privateKeyPath = expandAndConfineToHomeSync(input.privateKeyPath, 'privateKeyPath');
+        } catch {
+          // A key living outside the home subtree is legitimate (/etc/ssh,
+          // a mounted secrets volume), so keep the literal path — the SSH
+          // layer validates it again at connect time.
+          privateKeyPath = input.privateKeyPath;
+        }
+      }
+    }
+
+    return {
+      ...base,
+      host,
+      port,
+      username,
+      authType,
+      privateKeyPath,
+      endpoint: null,
+      region: null,
+      defaultBucket: null,
+      forcePathStyle: null,
+    };
+  }
+
+  const s3Text: Record<'endpoint' | 'region' | 'defaultBucket', string | null> = {
+    endpoint: null,
+    region: null,
+    defaultBucket: null,
+  };
+  for (const field of ['endpoint', 'region', 'defaultBucket'] as const) {
+    const value = input[field];
+    if (value != null && value !== '') {
+      assertNoNullBytes(value, field);
+      assertBoundedLength(value, field, MAX_HOST_LEN);
+      s3Text[field] = value;
+    }
+  }
+
+  return {
+    ...base,
+    host: null,
+    port: null,
+    username: null,
+    authType: null,
+    privateKeyPath: null,
+    ...s3Text,
+    forcePathStyle: input.forcePathStyle ? 1 : 0,
+  };
+}
+
+/**
+ * The one `INSERT INTO connections` in the codebase. Create and import used
+ * byte-identical 20-column statements; keeping two meant a new column could be
+ * added to one and silently missed by the other.
+ */
+function insertConnectionRow(
+  db: Database.Database,
+  id: string,
+  fields: NormalisedConnectionFields,
+  now: number,
+): void {
+  db.prepare(
+    `
+    INSERT INTO connections (
+      id, name, provider, host, port, username, auth_type, private_key_path,
+      endpoint, region, default_bucket, force_path_style,
+      folder, color_tag,
+      is_hidden,
+      keepalive_interval, keepalive_count_max, port_forwards,
+      created_at, updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `,
+  ).run(
+    id,
+    fields.name,
+    fields.provider,
+    fields.host,
+    fields.port,
+    fields.username,
+    fields.authType,
+    fields.privateKeyPath,
+    fields.endpoint,
+    fields.region,
+    fields.defaultBucket,
+    fields.forcePathStyle,
+    fields.folder,
+    fields.colorTag,
+    fields.isHidden,
+    fields.keepaliveInterval,
+    fields.keepaliveCountMax,
+    JSON.stringify(fields.portForwards),
+    now,
+    now,
+  );
 }
 
 export function rowToConnection(row: ConnectionRow): Connection {
@@ -144,92 +406,25 @@ export class ConnectionService {
 
   createConnection(input: CreateConnectionInput): Connection {
     const db = getDatabase();
-    // Create used to validate far less than update: no null-byte checks, no
-    // length caps, no authType allowlist, no port-forward shape check. That
-    // asymmetry meant a value the update path rejected could still be written
-    // by create and then read back everywhere. Both paths now enforce the
-    // same rules.
-    assertNonEmptyString(input.name, 'name');
-    assertBoundedLength(input.name, 'name', MAX_NAME_LEN);
-    const provider = input.provider ?? 'sftp';
-    if (provider !== 'sftp' && provider !== 's3') {
-      throw validationError('provider must be "sftp" or "s3"');
-    }
+    // Shared with the import path — see normaliseConnectionFields. Create,
+    // update and import all enforce the same rules now; they used to enforce
+    // three different subsets, so a value one path rejected could be written
+    // by another and read back everywhere as if it had been checked.
+    const fields = normaliseConnectionFields(input);
+    const provider = fields.provider;
 
-    const folder = input.folder?.trim() || 'default';
-    assertNoNullBytes(folder, 'folder');
-    assertBoundedLength(folder, 'folder', MAX_FOLDER_LEN);
-    if (input.colorTag != null) {
-      assertNoNullBytes(input.colorTag, 'colorTag');
-      assertBoundedLength(input.colorTag, 'colorTag', MAX_COLOR_TAG_LEN);
-    }
-
-    if (provider === 'sftp') {
-      assertNonEmptyString(input.host, 'host');
-      assertBoundedLength(input.host, 'host', MAX_HOST_LEN);
-      assertNonEmptyString(input.username, 'username');
-      assertBoundedLength(input.username, 'username', MAX_USERNAME_LEN);
-      assertBoundedInt(input.port, 'port', 1, 65535);
-      if (!input.authType || !VALID_AUTH_TYPES.includes(input.authType)) {
-        throw validationError(`authType must be one of ${VALID_AUTH_TYPES.join('|')}`);
-      }
-      if (input.privateKeyPath != null && input.privateKeyPath !== '') {
-        assertNoNullBytes(input.privateKeyPath, 'privateKeyPath');
-      }
-    } else {
+    // Credentials are the one thing import can't supply (they're stripped on
+    // export), so this check stays on the create path.
+    if (provider === 's3') {
       assertNonEmptyString(input.accessKeyId, 'accessKeyId');
       assertNonEmptyString(input.secretAccessKey, 'secretAccessKey');
-      for (const field of ['endpoint', 'region', 'defaultBucket'] as const) {
-        const value = input[field];
-        if (value != null && value !== '') {
-          assertNoNullBytes(value, field);
-          assertBoundedLength(value, field, MAX_HOST_LEN);
-        }
-      }
     }
-
-    // Validated up front so a bad forward is rejected at save time rather than
-    // silently dropped when the session later tries to start it.
-    const portForwards = normalisePortForwardsInput(input.portForwards);
 
     const id = uuidv4();
     const now = Math.floor(Date.now() / 1000);
 
     const createTx = db.transaction(() => {
-      db.prepare(
-        `
-        INSERT INTO connections (
-          id, name, provider, host, port, username, auth_type, private_key_path,
-          endpoint, region, default_bucket, force_path_style,
-          folder, color_tag,
-          is_hidden,
-          keepalive_interval, keepalive_count_max, port_forwards,
-          created_at, updated_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-      ).run(
-        id,
-        input.name,
-        provider,
-        provider === 'sftp' ? (input.host ?? null) : null,
-        provider === 'sftp' ? (input.port ?? null) : null,
-        provider === 'sftp' ? (input.username ?? null) : null,
-        provider === 'sftp' ? (input.authType ?? null) : null,
-        provider === 'sftp' ? input.privateKeyPath || null : null,
-        provider === 's3' ? input.endpoint || null : null,
-        provider === 's3' ? input.region || null : null,
-        provider === 's3' ? input.defaultBucket || null : null,
-        provider === 's3' ? (input.forcePathStyle ? 1 : 0) : null,
-        folder,
-        input.colorTag || null,
-        input.isHidden ? 1 : 0,
-        input.keepaliveInterval ?? 0,
-        input.keepaliveCountMax ?? 3,
-        JSON.stringify(portForwards),
-        now,
-        now,
-      );
+      insertConnectionRow(db, id, fields, now);
 
       // Store credentials.
       if (provider === 'sftp') {
@@ -295,6 +490,17 @@ export class ConnectionService {
           throw validationError(`${key} must be a string`);
         } else {
           if (raw.includes('\0')) throw validationError(`${key} must not contain null bytes`);
+          // Same caps the create path applies. Update checked null bytes but
+          // not length, so an unbounded blob could still reach these columns.
+          assertBoundedLength(
+            raw,
+            key,
+            key === 'privateKeyPath'
+              ? MAX_PATH_LEN
+              : key === 'colorTag'
+                ? MAX_COLOR_TAG_LEN
+                : MAX_HOST_LEN,
+          );
           value = raw;
         }
       } else if (key === 'folder') {
@@ -313,21 +519,9 @@ export class ConnectionService {
         }
         value = raw ? 1 : 0;
       } else if (key === 'keepaliveInterval') {
-        if (raw === null || raw === '') {
-          value = 0;
-        } else if (typeof raw !== 'number') {
-          throw validationError('keepaliveInterval must be a number');
-        } else {
-          value = raw;
-        }
+        value = assertOptionalBoundedNumber(raw, 'keepaliveInterval', 0, 600_000, 0);
       } else if (key === 'keepaliveCountMax') {
-        if (raw === null || raw === '') {
-          value = 3;
-        } else if (typeof raw !== 'number') {
-          throw validationError('keepaliveCountMax must be a number');
-        } else {
-          value = raw;
-        }
+        value = assertOptionalBoundedNumber(raw, 'keepaliveCountMax', 0, 100, 3);
       } else if (key === 'portForwards') {
         value = JSON.stringify(normalisePortForwardsInput(raw));
       } else if (key === 'port') {
@@ -403,6 +597,15 @@ export class ConnectionService {
     const db = getDatabase();
     if (!params.oldName || !params.newName) {
       throw validationError('oldName and newName are required');
+    }
+    // The `folder` column is capped and null-byte-checked on create and
+    // update; rename wrote to the same column with neither check, so it was
+    // the way to get an oversized folder header into the sidebar.
+    assertNoNullBytes(params.oldName, 'oldName');
+    assertNoNullBytes(params.newName, 'newName');
+    assertBoundedLength(params.newName, 'newName', MAX_FOLDER_LEN);
+    if (params.provider !== 'sftp' && params.provider !== 's3') {
+      throw validationError('provider must be "sftp" or "s3"');
     }
     const now = Math.floor(Date.now() / 1000);
     db.prepare(
@@ -521,64 +724,29 @@ export class ConnectionService {
           continue;
         }
 
-        const provider = item.provider === 's3' ? 's3' : 'sftp';
-
-        if (provider === 'sftp') {
-          if (!item.host?.trim() || !item.username?.trim()) {
-            skipped.push({ name, reason: 'SFTP connections require host and username' });
-            continue;
-          }
+        // Import entries come from another machine's config file — a WinSCP
+        // .ini, a PuTTY registry dump, ~/.ssh/config — or straight from the
+        // renderer via `connection:import`. None of that is trustworthy, and
+        // this loop used to write it to SQL with no checks whatsoever.
+        //
+        // A throw becomes a skip rather than aborting the whole import: one
+        // malformed entry in a 200-connection file shouldn't cost the user the
+        // other 199, and they get told exactly which one and why.
+        let fields: NormalisedConnectionFields;
+        try {
+          fields = normaliseConnectionFields(
+            { ...item, isHidden: false },
+            { portDefault: 22, authTypeDefault: 'password', expandKeyPath: true },
+          );
+        } catch (err) {
+          skipped.push({
+            name,
+            reason: err instanceof Error ? err.message : 'Invalid connection data',
+          });
+          continue;
         }
 
-        let keyPath: string | null = null;
-        if (provider === 'sftp' && item.privateKeyPath) {
-          if (item.privateKeyPath.includes('\0')) {
-            skipped.push({ name, reason: 'privateKeyPath must not contain null bytes' });
-            continue;
-          }
-          try {
-            keyPath = expandAndConfineToHomeSync(item.privateKeyPath, 'privateKeyPath');
-          } catch {
-            keyPath = item.privateKeyPath;
-          }
-        }
-
-        const id = uuidv4();
-        const now = Math.floor(Date.now() / 1000);
-
-        db.prepare(
-          `
-          INSERT INTO connections (
-            id, name, provider, host, port, username, auth_type, private_key_path,
-            endpoint, region, default_bucket, force_path_style,
-            folder, color_tag,
-            is_hidden, keepalive_interval, keepalive_count_max, port_forwards,
-            created_at, updated_at
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-        ).run(
-          id,
-          name,
-          provider,
-          provider === 'sftp' ? (item.host?.trim() ?? null) : null,
-          provider === 'sftp' ? (item.port ?? 22) : null,
-          provider === 'sftp' ? (item.username?.trim() ?? null) : null,
-          provider === 'sftp' ? (item.authType ?? 'password') : null,
-          provider === 'sftp' ? keyPath : null,
-          provider === 's3' ? item.endpoint || null : null,
-          provider === 's3' ? item.region || null : null,
-          provider === 's3' ? item.defaultBucket || null : null,
-          provider === 's3' ? (item.forcePathStyle ? 1 : 0) : null,
-          item.folder || 'default',
-          item.colorTag || null,
-          0,
-          item.keepaliveInterval ?? 0,
-          item.keepaliveCountMax ?? 3,
-          item.portForwards ? JSON.stringify(item.portForwards) : '[]',
-          now,
-          now,
-        );
+        insertConnectionRow(db, uuidv4(), fields, Math.floor(Date.now() / 1000));
 
         existingNames.add(name);
         imported++;
@@ -618,8 +786,12 @@ export class ConnectionService {
     imported: number;
     skipped: { name: string; reason: string }[];
   }> {
-    const home = process.env.HOME || process.env.USERPROFILE || '';
-    const sshConfigPath = `${home}/.ssh/config`;
+    // `os.homedir()`, not `$HOME`: the env var can be unset or empty (launchd,
+    // a stripped systemd unit), in which case the old string concatenation
+    // resolved to `/.ssh/config`. It also hardcoded `/`, which is wrong on
+    // Windows. This is the same rule `lib/validate.ts` documents for every
+    // other home-relative path in the app.
+    const sshConfigPath = join(homedir(), '.ssh', 'config');
     let fileContent: string;
     try {
       fileContent = await readFile(sshConfigPath, 'utf-8');

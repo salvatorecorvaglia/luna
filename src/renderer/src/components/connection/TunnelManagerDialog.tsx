@@ -173,6 +173,9 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
 
         <motion.div
           ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="tunnel-manager-dialog-title"
           variants={dialogVariants}
           initial="initial"
           animate="animate"
@@ -186,7 +189,9 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
                 <Network className="size-5" />
               </div>
               <div>
-                <h2 className="text-base font-semibold">Active Port Forwards & Tunnels</h2>
+                <h2 id="tunnel-manager-dialog-title" className="text-base font-semibold">
+                  Active Port Forwards & Tunnels
+                </h2>
                 <p className="text-xs text-muted-foreground">
                   Manage live SSH tunnels, SOCKS5 proxies, and local/remote port mappings
                 </p>
@@ -239,8 +244,14 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
 
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <div>
-                    <label className="block text-muted-foreground mb-1">Target SSH Session</label>
+                    <label
+                      htmlFor="tunnel-target-ssh-session"
+                      className="block text-muted-foreground mb-1"
+                    >
+                      Target SSH Session
+                    </label>
                     <select
+                      id="tunnel-target-ssh-session"
                       value={selectedSessionId}
                       onChange={(e) => setSelectedSessionId(e.target.value)}
                       className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs focus:outline-hidden focus:ring-1 focus:ring-primary"
@@ -254,8 +265,14 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
                   </div>
 
                   <div>
-                    <label className="block text-muted-foreground mb-1">Tunnel Type</label>
+                    <label
+                      htmlFor="tunnel-tunnel-type"
+                      className="block text-muted-foreground mb-1"
+                    >
+                      Tunnel Type
+                    </label>
                     <select
+                      id="tunnel-tunnel-type"
                       value={newType}
                       onChange={(e) => setNewType(e.target.value as 'local' | 'remote' | 'dynamic')}
                       className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs focus:outline-hidden focus:ring-1 focus:ring-primary"
@@ -267,8 +284,14 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
                   </div>
 
                   <div>
-                    <label className="block text-muted-foreground mb-1">Bind Address</label>
+                    <label
+                      htmlFor="tunnel-bind-address"
+                      className="block text-muted-foreground mb-1"
+                    >
+                      Bind Address
+                    </label>
                     <input
+                      id="tunnel-bind-address"
                       type="text"
                       value={newBindAddress}
                       onChange={(e) => setNewBindAddress(e.target.value)}
@@ -278,8 +301,11 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
                   </div>
 
                   <div>
-                    <label className="block text-muted-foreground mb-1">Local Port</label>
+                    <label htmlFor="tunnel-local-port" className="block text-muted-foreground mb-1">
+                      Local Port
+                    </label>
                     <input
+                      id="tunnel-local-port"
                       type="number"
                       value={newLocalPort}
                       onChange={(e) => setNewLocalPort(e.target.value)}
@@ -291,8 +317,14 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
                   {newType !== 'dynamic' && (
                     <>
                       <div>
-                        <label className="block text-muted-foreground mb-1">Destination Host</label>
+                        <label
+                          htmlFor="tunnel-destination-host"
+                          className="block text-muted-foreground mb-1"
+                        >
+                          Destination Host
+                        </label>
                         <input
+                          id="tunnel-destination-host"
                           type="text"
                           value={newRemoteHost}
                           onChange={(e) => setNewRemoteHost(e.target.value)}
@@ -302,8 +334,14 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
                       </div>
 
                       <div>
-                        <label className="block text-muted-foreground mb-1">Destination Port</label>
+                        <label
+                          htmlFor="tunnel-destination-port"
+                          className="block text-muted-foreground mb-1"
+                        >
+                          Destination Port
+                        </label>
                         <input
+                          id="tunnel-destination-port"
                           type="number"
                           value={newRemotePort}
                           onChange={(e) => setNewRemotePort(e.target.value)}

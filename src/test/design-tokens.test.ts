@@ -174,6 +174,46 @@ describe('design-token coverage', () => {
     expect(offenders).toHaveLength(0);
   });
 
+  /**
+   * A component that installs a focus trap is, by definition, a modal: it is
+   * deliberately holding keyboard focus against the rest of the page. Assistive
+   * technology only learns that from `role="dialog"` + `aria-modal="true"`, and
+   * only gets a usable name from `aria-labelledby`.
+   *
+   * Seven of the fourteen trap-installing dialogs declared none of it, so a
+   * screen reader announced an unlabelled `<div>` while the user's keyboard was
+   * confined to it. Biome's a11y ruleset — which would have flagged this — is
+   * largely disabled in biome.json, so this guard is what holds the line.
+   */
+  it('every focus-trapping dialog declares its modal role and an accessible name', () => {
+    const offenders: string[] = [];
+    for (const file of walk(COMPONENTS_DIR)) {
+      const source = readFileSync(file, 'utf8');
+      if (!source.includes('attachFocusTrap')) continue;
+
+      const relPath = relative(REPO_ROOT, file);
+      const missing: string[] = [];
+      // `alertdialog` is the correct role for a modal that interrupts with an
+      // important message — the host-key MITM warning and the terminal error
+      // overlay both use it deliberately.
+      if (!/role="(?:dialog|alertdialog)"/.test(source)) {
+        missing.push('role="dialog" (or "alertdialog")');
+      }
+      if (!/aria-modal="true"/.test(source)) missing.push('aria-modal="true"');
+      if (!/aria-labelledby=/.test(source) && !/aria-label=/.test(source)) {
+        missing.push('aria-labelledby (or aria-label)');
+      }
+      if (missing.length > 0) offenders.push(`  ${relPath} — missing ${missing.join(', ')}`);
+    }
+
+    if (offenders.length > 0) {
+      throw new Error(
+        `Focus-trapping dialogs must be announced as modals. Add role="dialog" aria-modal="true" and point aria-labelledby at the dialog's heading id.\n${offenders.join('\n')}`,
+      );
+    }
+    expect(offenders).toHaveLength(0);
+  });
+
   it('renderer components use Z.* constants instead of hardcoded z-[N]', () => {
     const offenders = allViolations.filter((v) => v.rule === 'arbitrary-z-index');
     if (offenders.length > 0) {

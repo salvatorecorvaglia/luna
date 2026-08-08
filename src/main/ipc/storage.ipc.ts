@@ -106,6 +106,17 @@ export function registerStorageHandlers(): void {
     },
   );
 
+  // These two deliberately do NOT call takeStorageToken, unlike every other
+  // handler in this file.
+  //
+  // The token bucket is 30 deep, refilling at 10/sec — sized for interactive
+  // browsing. Enqueueing is a legitimately bursty operation: a folder sync or
+  // a multi-file drag-and-drop fires one call per file, so metering it here
+  // would reject the tail of any bulk transfer with a rate-limit error the
+  // user can do nothing about. The real bound is the queue itself
+  // (LIMITS.MAX_QUEUED_TRANSFERS = 1000, enforced in transferQueue.enqueue),
+  // which is the correct place for it: it caps depth rather than arrival rate,
+  // and the actual network work is already bounded by MAX_CONCURRENT_TRANSFERS.
   registerHandler(IPC.STORAGE_DOWNLOAD, async (_event, params: StorageTransferParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
     assertValidPath(params.remotePath, 'remotePath');

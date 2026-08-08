@@ -173,10 +173,13 @@ export function SftpFields({
 
       {/* Auth Type */}
       <div>
-        <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        <span
+          id="sftp-authentication-label"
+          className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
+        >
           <Key className="size-3.5" />
           Authentication
-        </label>
+        </span>
         <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Authentication type">
           {AUTH_TYPES.map((type) => (
             <button
@@ -359,12 +362,19 @@ export function SftpFields({
 
             {/* Port Forwarding rules list */}
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              <span
+                id="sftp-port-forwarding-rules-label"
+                className="mb-1.5 block text-xs font-medium text-muted-foreground"
+              >
                 Port Forwarding Rules
-              </label>
+              </span>
 
               {(sftp.portForwards || []).length > 0 ? (
-                <div className="mb-3 space-y-2 rounded-lg border border-border/60 bg-background/30 p-2.5">
+                <div
+                  role="group"
+                  aria-labelledby="sftp-port-forwarding-rules-label"
+                  className="mb-3 space-y-2 rounded-lg border border-border/60 bg-background/30 p-2.5"
+                >
                   {(sftp.portForwards || []).map((pf) => (
                     <div
                       key={pf.id}
@@ -409,10 +419,14 @@ export function SftpFields({
                   <div className="grid grid-cols-3 gap-2">
                     {/* Rule Type */}
                     <div className="col-span-1">
-                      <label className="mb-1 block text-[10px] font-medium text-muted-foreground">
+                      <label
+                        htmlFor="sftp-type"
+                        className="mb-1 block text-[10px] font-medium text-muted-foreground"
+                      >
                         Type
                       </label>
                       <select
+                        id="sftp-type"
                         value={newRule.type}
                         onChange={(e) =>
                           setNewRule({
@@ -429,10 +443,14 @@ export function SftpFields({
                     </div>
                     {/* Bind Address */}
                     <div className="col-span-1">
-                      <label className="mb-1 block text-[10px] font-medium text-muted-foreground">
+                      <label
+                        htmlFor="sftp-bind-address"
+                        className="mb-1 block text-[10px] font-medium text-muted-foreground"
+                      >
                         Bind Address
                       </label>
                       <input
+                        id="sftp-bind-address"
                         type="text"
                         placeholder="127.0.0.1"
                         value={newRule.bindAddress}
@@ -442,10 +460,14 @@ export function SftpFields({
                     </div>
                     {/* Local Port */}
                     <div className="col-span-1">
-                      <label className="mb-1 block text-[10px] font-medium text-muted-foreground">
+                      <label
+                        htmlFor="sftp-port-445"
+                        className="mb-1 block text-[10px] font-medium text-muted-foreground"
+                      >
                         Port
                       </label>
                       <input
+                        id="sftp-port-445"
                         type="number"
                         placeholder="8080"
                         value={newRule.localPort}
@@ -459,10 +481,14 @@ export function SftpFields({
                     <div className="grid grid-cols-3 gap-2">
                       {/* Destination Host */}
                       <div className="col-span-2">
-                        <label className="mb-1 block text-[10px] font-medium text-muted-foreground">
+                        <label
+                          htmlFor="sftp-destination-host"
+                          className="mb-1 block text-[10px] font-medium text-muted-foreground"
+                        >
                           Destination Host
                         </label>
                         <input
+                          id="sftp-destination-host"
                           type="text"
                           placeholder="localhost"
                           value={newRule.remoteHost}
@@ -472,10 +498,14 @@ export function SftpFields({
                       </div>
                       {/* Destination Port */}
                       <div className="col-span-1">
-                        <label className="mb-1 block text-[10px] font-medium text-muted-foreground">
+                        <label
+                          htmlFor="sftp-port"
+                          className="mb-1 block text-[10px] font-medium text-muted-foreground"
+                        >
                           Port
                         </label>
                         <input
+                          id="sftp-port"
                           type="number"
                           placeholder="80"
                           value={newRule.remotePort}

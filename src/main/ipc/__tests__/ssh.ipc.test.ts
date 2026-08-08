@@ -32,6 +32,8 @@ vi.mock('../../services/ssh-manager', () => ({
 }));
 
 import { sshManager } from '../../services/ssh-manager';
+import { storageRegistry } from '../../services/storage/registry';
+import { sftpStorageProvider } from '../../services/storage/sftp-storage-provider';
 import { registerSshHandlers } from '../ssh.ipc';
 
 const sshManagerMock = sshManager as unknown as Record<string, ReturnType<typeof vi.fn>>;
@@ -44,6 +46,61 @@ beforeEach(() => {
     }
   }
   registerSshHandlers();
+});
+
+/**
+ * The storage registry is the seam between an SSH session and the SFTP file
+ * browser. These tests drive the two lifecycle callbacks directly because that
+ * is the only way to observe an *automatic* reconnect: it never goes through
+ * an IPC handler, so no handler-level test can reach it.
+ */
+describe('ssh.ipc storage-provider lifecycle', () => {
+  /** Invoke the last callback handed to `sshManager.onSessionConnect`. */
+  const fireConnect = (sessionId: string): void => {
+    const calls = sshManagerMock.onSessionConnect.mock.calls;
+    (calls[calls.length - 1][0] as (id: string) => void)(sessionId);
+  };
+  /** Invoke the last callback handed to `sshManager.onSessionDisconnect`. */
+  const fireDisconnect = (sessionId: string): void => {
+    const calls = sshManagerMock.onSessionDisconnect.mock.calls;
+    (calls[calls.length - 1][0] as (id: string) => void)(sessionId);
+  };
+
+  it('registers the SFTP provider when a session connects', () => {
+    storageRegistry.unregister('sess-connect');
+    fireConnect('sess-connect');
+    expect(storageRegistry.get('sess-connect')).toBe(sftpStorageProvider);
+  });
+
+  it('re-registers the provider after an automatic reconnect', () => {
+    // First connect via the IPC handler, as a real renderer would.
+    storageRegistry.register('sess-reconnect', sftpStorageProvider);
+    expect(storageRegistry.get('sess-reconnect')).toBe(sftpStorageProvider);
+
+    // Transport drops: ssh-manager fires onSessionDisconnect, which unregisters.
+    fireDisconnect('sess-reconnect');
+    expect(storageRegistry.get('sess-reconnect')).toBeUndefined();
+
+    // ssh-manager reconnects internally — no IPC involved. Before this
+    // callback was wired up the session came back with no provider and every
+    // storage call threw NOT_FOUND.
+    fireConnect('sess-reconnect');
+    expect(storageRegistry.get('sess-reconnect')).toBe(sftpStorageProvider);
+    expect(() => storageRegistry.require('sess-reconnect')).not.toThrow();
+
+    storageRegistry.unregister('sess-reconnect');
+  });
+
+  it('clears the closing marker so a reconnect is not poisoned', () => {
+    storageRegistry.register('sess-closing', sftpStorageProvider);
+    storageRegistry.markClosing('sess-closing');
+    expect(() => storageRegistry.require('sess-closing')).toThrow(/closing/);
+
+    fireConnect('sess-closing');
+    expect(() => storageRegistry.require('sess-closing')).not.toThrow();
+
+    storageRegistry.unregister('sess-closing');
+  });
 });
 
 describe('ssh.ipc validation', () => {

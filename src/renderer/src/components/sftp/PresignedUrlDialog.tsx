@@ -150,10 +150,17 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
 
               <div className="mt-4 space-y-4">
                 <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80">
+                  <span
+                    id="presign-file-name-label"
+                    className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80"
+                  >
                     File Name
-                  </label>
-                  <div className="mt-1 text-xs text-foreground bg-accent/30 rounded-lg p-2 border border-border/40 truncate">
+                  </span>
+                  <div
+                    role="group"
+                    aria-labelledby="presign-file-name-label"
+                    className="mt-1 text-xs text-foreground bg-accent/30 rounded-lg p-2 border border-border/40 truncate"
+                  >
                     {entry.name}
                   </div>
                 </div>
@@ -161,10 +168,17 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
                 {!generatedUrl ? (
                   <>
                     <div>
-                      <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 block mb-1.5">
+                      <span
+                        id="presign-link-expiry-duration-label"
+                        className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 block mb-1.5"
+                      >
                         Link Expiry Duration
-                      </label>
-                      <div className="grid grid-cols-5 gap-2">
+                      </span>
+                      <div
+                        role="group"
+                        aria-labelledby="presign-link-expiry-duration-label"
+                        className="grid grid-cols-5 gap-2"
+                      >
                         {(['1m', '1h', '1d', '7d'] as const).map((type) => {
                           const label =
                             type === '1m'
@@ -205,10 +219,14 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
 
                     {expiryType === 'custom' && (
                       <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 block">
+                        <label
+                          htmlFor="presign-expiry-time-seconds"
+                          className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 block"
+                        >
                           Expiry Time (Seconds)
                         </label>
                         <input
+                          id="presign-expiry-time-seconds"
                           type="number"
                           min={1}
                           value={customSeconds}
@@ -221,10 +239,17 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
                   </>
                 ) : (
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 block">
+                    <span
+                      id="presign-generated-time-limited-url-label"
+                      className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 block"
+                    >
                       Generated Time-limited URL
-                    </label>
-                    <div className="flex gap-2">
+                    </span>
+                    <div
+                      role="group"
+                      aria-labelledby="presign-generated-time-limited-url-label"
+                      className="flex gap-2"
+                    >
                       <input
                         type="text"
                         readOnly

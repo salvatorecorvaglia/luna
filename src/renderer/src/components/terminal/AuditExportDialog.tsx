@@ -107,6 +107,9 @@ export function AuditExportDialog({
 
         <motion.div
           ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="audit-export-dialog-title"
           variants={dialogVariants}
           initial="initial"
           animate="animate"
@@ -120,7 +123,9 @@ export function AuditExportDialog({
                 <FileText className="size-5" />
               </div>
               <div>
-                <h2 className="text-base font-semibold">Session Audit Trail Exporter</h2>
+                <h2 id="audit-export-dialog-title" className="text-base font-semibold">
+                  Session Audit Trail Exporter
+                </h2>
                 <p className="text-xs text-muted-foreground">
                   Export session log transcript into structured format
                 </p>
@@ -143,9 +148,15 @@ export function AuditExportDialog({
             </div>
 
             <div className="space-y-2">
-              <label className="block text-muted-foreground">Select Export Format:</label>
+              <span id="audit-select-export-format-label" className="block text-muted-foreground">
+                Select Export Format:
+              </span>
 
-              <div className="grid grid-cols-3 gap-2">
+              <div
+                role="group"
+                aria-labelledby="audit-select-export-format-label"
+                className="grid grid-cols-3 gap-2"
+              >
                 <button
                   onClick={() => setFormat('html')}
                   className={`flex flex-col items-center justify-center p-3 rounded-lg border text-center transition-colors cursor-pointer ${

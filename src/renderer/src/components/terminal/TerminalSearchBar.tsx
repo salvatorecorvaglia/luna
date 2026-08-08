@@ -58,14 +58,21 @@ export function TerminalSearchBar({
         aria-label="Search terminal output"
         className="w-40 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground/50"
       />
+      {/*
+        role="status" rather than a bare span: `aria-label` is not supported on
+        an element with no role, so the spoken text ("Match 2 of 7") was being
+        dropped and screen readers announced the raw "2/7" glyph — or nothing.
+        `status` also implies aria-live="polite", which is why that attribute
+        is gone.
+      */}
       {showMatchCount && query && match && (
         <span
+          role="status"
           className={
             match.total === 0
               ? 'text-[10px] text-destructive-fg tabular-nums'
               : 'text-[10px] text-muted-foreground tabular-nums'
           }
-          aria-live="polite"
           aria-label={
             match.total === 0 ? 'No matches' : `Match ${match.index + 1} of ${match.total}`
           }

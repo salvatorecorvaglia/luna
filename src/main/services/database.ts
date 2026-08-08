@@ -57,7 +57,12 @@ export interface ConnectionRow {
   folder: string;
   color_tag: string | null;
   sort_order: number;
-  startup_command: string | null;
+  // NOTE: the `startup_command` column exists in migrations 001 and 008 but is
+  // deliberately absent from this interface and from CONNECTION_COLUMNS. No
+  // code ever read or wrote it, so declaring it here made every consumer of
+  // `rowToConnection` see a field typed `string | null` that was always
+  // `undefined` at runtime. The column stays in the schema (dropping it needs
+  // a table rebuild for no benefit); the phantom type does not.
   /** Whether this connection should be hidden from the main sidebar list. */
   is_hidden: number;
   last_connected_at: number | null;

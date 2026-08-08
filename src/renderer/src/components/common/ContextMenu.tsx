@@ -130,7 +130,20 @@ export function ContextMenu({ items, children }: ContextMenuProps) {
               // lists with unique labels in practice. Array index is the
               // fallback for the rare unlabeled separator-only entry.
               <div key={item.label ? `${item.label}-${i}` : `sep-${i}`}>
-                {item.separator && <div className="my-1 h-px bg-border/60" role="separator" />}
+                {item.separator && (
+                  // aria-valuenow is required only for a *focusable* separator
+                  // (a split-pane divider the user can drag). This is a static
+                  // group divider inside a role="menu", where ARIA explicitly
+                  // allows a non-focusable separator with no value. Adding a
+                  // meaningless aria-valuenow to satisfy the rule would be
+                  // worse than suppressing it.
+                  <div
+                    className="my-1 h-px bg-border/60"
+                    // biome-ignore lint/a11y/useAriaPropsForRole: non-focusable menu separator; aria-valuenow applies only to focusable separators
+                    role="separator"
+                    aria-orientation="horizontal"
+                  />
+                )}
 
                 <button
                   role="menuitem"

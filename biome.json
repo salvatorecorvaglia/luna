@@ -33,9 +33,9 @@
         "useFocusableInteractive": "off",
         "useKeyWithClickEvents": "off",
         "noAutofocus": "off",
-        "useAriaPropsSupportedByRole": "off",
-        "noLabelWithoutControl": "off",
-        "useAriaPropsForRole": "off"
+        "useAriaPropsSupportedByRole": "error",
+        "noLabelWithoutControl": "error",
+        "useAriaPropsForRole": "error"
       },
       "complexity": {
         "useLiteralKeys": "off",

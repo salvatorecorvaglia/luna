@@ -111,6 +111,84 @@ describe('local-terminal IPC — spawn', () => {
     }
   });
 
+  describe('final output is not lost on teardown', () => {
+    // Output is coalesced on a 16ms timer. Every teardown path used to
+    // clearTimeout + delete the buffer, discarding up to a full frame — in
+    // practice the tail of the last command, or an error printed right before
+    // the shell exited. The user saw the "Shell exited" banner with the
+    // interesting part missing above it.
+
+    it('flushes buffered output before emitting on-exit', async () => {
+      vi.useFakeTimers();
+      try {
+        await handlers.get(IPC.LOCAL_TERMINAL_SPAWN)!({}, { sessionId: 's1', cols: 80, rows: 24 });
+        // Produced inside the 16ms window, so it is still buffered.
+        ptyInstances[0].__dataCb?.('tail-output');
+        ptyInstances[0].__exitCb?.({ exitCode: 0 });
+
+        const channels = send.mock.calls.map((c) => c[0]);
+        const dataIdx = channels.indexOf(IPC.LOCAL_TERMINAL_ON_DATA);
+        const exitIdx = channels.indexOf(IPC.LOCAL_TERMINAL_ON_EXIT);
+
+        expect(send).toHaveBeenCalledWith(IPC.LOCAL_TERMINAL_ON_DATA, {
+          sessionId: 's1',
+          data: 'tail-output',
+        });
+        // Ordering matters: the output has to reach xterm before the banner.
+        expect(dataIdx).toBeGreaterThanOrEqual(0);
+        expect(dataIdx).toBeLessThan(exitIdx);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('does not leave a timer armed after the flush on exit', async () => {
+      vi.useFakeTimers();
+      try {
+        await handlers.get(IPC.LOCAL_TERMINAL_SPAWN)!({}, { sessionId: 's1', cols: 80, rows: 24 });
+        ptyInstances[0].__dataCb?.('tail-output');
+        ptyInstances[0].__exitCb?.({ exitCode: 0 });
+        send.mockClear();
+
+        // The pending 16ms timer must have been cancelled, not just outrun.
+        vi.advanceTimersByTime(100);
+        expect(send).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('flushes buffered output when the session is killed', async () => {
+      vi.useFakeTimers();
+      try {
+        await handlers.get(IPC.LOCAL_TERMINAL_SPAWN)!({}, { sessionId: 's1', cols: 80, rows: 24 });
+        ptyInstances[0].__dataCb?.('pending before kill');
+        await handlers.get(IPC.LOCAL_TERMINAL_KILL)!({}, 's1');
+
+        expect(send).toHaveBeenCalledWith(IPC.LOCAL_TERMINAL_ON_DATA, {
+          sessionId: 's1',
+          data: 'pending before kill',
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('drops the final frame rather than throwing when the window is gone', async () => {
+      vi.useFakeTimers();
+      try {
+        await handlers.get(IPC.LOCAL_TERMINAL_SPAWN)!({}, { sessionId: 's1', cols: 80, rows: 24 });
+        ptyInstances[0].__dataCb?.('never delivered');
+        destroyMockWindow();
+
+        expect(() => ptyInstances[0].__exitCb?.({ exitCode: 0 })).not.toThrow();
+        expect(send).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
   it('emits on-exit and clears the session when the PTY exits', async () => {
     await handlers.get(IPC.LOCAL_TERMINAL_SPAWN)!({}, { sessionId: 's1', cols: 80, rows: 24 });
     ptyInstances[0].__exitCb?.({ exitCode: 0 });

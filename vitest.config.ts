@@ -37,19 +37,31 @@ export default defineConfig({
       // failure, teardown of live connections, fragmented SOCKS handshakes),
       // and the shared abortable-stream skeleton's abort/completion races.
       //
+      // Added in the 2026-08 audit pass: the storage-provider re-registration
+      // that keeps SFTP alive across an automatic SSH reconnect, folder-sync
+      // mtime comparison (the tolerance is in seconds — see the service),
+      // local-terminal buffer draining on exit/kill, connection *import*
+      // validation parity with create, snippet/workspace malformed-column
+      // resilience and IPC input bounds, C1-control terminal sanitisation,
+      // the updater's awaited check, and a guard asserting every
+      // focus-trapping dialog declares its modal role.
+      //
       // A ratchet, not a target: raise these whenever a run reports higher so
-      // coverage can't silently regress. Actuals at the time of writing are
-      // ~46/38/40/45; the floors sit just under to absorb ordinary churn.
+      // coverage can't silently regress. Actuals at the time of writing move
+      // between ~48.6-48.7 lines, 40.0-40.5 branches, 41.3-41.8 functions and
+      // 47.4-47.6 statements — the spread is real run-to-run variance, so the
+      // floors sit ~1pt below the *lower* end rather than just under the best
+      // observed value. A floor pinned to the peak flakes in CI.
       //
       // Note these cover the vitest suite only. The Playwright suite under
       // e2e/ is excluded above and is not measured here — it exists to prove
       // main/preload/renderer agree at runtime, which is not a line-coverage
       // question.
       thresholds: {
-        lines: 45,
-        functions: 39,
-        branches: 38,
-        statements: 44
+        lines: 47,
+        functions: 40,
+        branches: 39,
+        statements: 46
       }
     }
   },

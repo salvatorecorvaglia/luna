@@ -90,11 +90,28 @@ export function initAutoUpdater(): void {
   }, 5000);
 }
 
-export function checkForUpdate(): { available: boolean; version?: string } {
-  checkOnce().catch((err: unknown) => {
+/**
+ * Run a check and report what it found.
+ *
+ * This used to fire `checkOnce()` and return the module-level state
+ * synchronously, without waiting — so "Check for updates" could only ever
+ * report the outcome of a check that had already finished. On the first click
+ * that state is always "no update available", regardless of what the feed
+ * says. Awaiting the check is the whole point of the button.
+ *
+ * A failed check still resolves (with the last known state) rather than
+ * rejecting: a transient network error should read as "no update right now",
+ * not as an error dialog. The `update-available` / `update-not-available`
+ * listeners in `initAutoUpdater` have already run by the time the promise
+ * settles, so the values read below are current.
+ */
+export async function checkForUpdate(): Promise<{ available: boolean; version?: string }> {
+  try {
+    await checkOnce();
+  } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     log.warn('[Updater] Manual check failed:', msg);
-  });
+  }
   return { available: updateAvailable, version: updateVersion || undefined };
 }
 

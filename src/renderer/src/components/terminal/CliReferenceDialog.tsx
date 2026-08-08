@@ -97,6 +97,9 @@ export function CliReferenceDialog({ open, onClose, onRunCommand }: CliReference
 
         <motion.div
           ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="cli-reference-dialog-title"
           variants={dialogVariants}
           initial="initial"
           animate="animate"
@@ -110,7 +113,9 @@ export function CliReferenceDialog({ open, onClose, onRunCommand }: CliReference
                 <BookOpen className="size-5" />
               </div>
               <div>
-                <h2 className="text-base font-semibold">Offline CLI Reference & Syntax Helper</h2>
+                <h2 id="cli-reference-dialog-title" className="text-base font-semibold">
+                  Offline CLI Reference & Syntax Helper
+                </h2>
                 <p className="text-xs text-muted-foreground">
                   Look up command syntax, flags, and common examples 100% offline
                 </p>

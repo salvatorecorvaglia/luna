@@ -149,6 +149,9 @@ export function WorkspacePresetsDialog({
 
         <motion.div
           ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="workspace-presets-dialog-title"
           variants={dialogVariants}
           initial="initial"
           animate="animate"
@@ -162,7 +165,9 @@ export function WorkspacePresetsDialog({
                 <LayoutGrid className="size-5" />
               </div>
               <div>
-                <h2 className="text-base font-semibold">Workspace Layout Presets</h2>
+                <h2 id="workspace-presets-dialog-title" className="text-base font-semibold">
+                  Workspace Layout Presets
+                </h2>
                 <p className="text-xs text-muted-foreground">
                   Save current tab matrices and connection groups to restore in one click
                 </p>
@@ -213,8 +218,14 @@ export function WorkspacePresetsDialog({
                 </div>
 
                 <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Preset Name</label>
+                  <label
+                    htmlFor="workspace-preset-name"
+                    className="block text-xs text-muted-foreground mb-1"
+                  >
+                    Preset Name
+                  </label>
                   <input
+                    id="workspace-preset-name"
                     type="text"
                     value={newPresetName}
                     onChange={(e) => setNewPresetName(e.target.value)}

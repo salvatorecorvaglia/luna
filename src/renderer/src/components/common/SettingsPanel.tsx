@@ -186,10 +186,17 @@ export function SettingsPanel() {
               {/* Terminal */}
               <Section title="Terminal" icon={<Terminal className="size-4" />}>
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-2.5 block">
+                  <span
+                    id="settings-color-theme-label"
+                    className="text-xs font-medium text-muted-foreground mb-2.5 block"
+                  >
                     Color Theme
-                  </label>
-                  <div className="grid grid-cols-3 gap-2.5">
+                  </span>
+                  <div
+                    role="group"
+                    aria-labelledby="settings-color-theme-label"
+                    className="grid grid-cols-3 gap-2.5"
+                  >
                     {TERMINAL_THEMES.map((t) => (
                       <button
                         key={t.value}

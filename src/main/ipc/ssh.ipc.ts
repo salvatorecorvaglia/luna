@@ -21,8 +21,20 @@ import type { AuthType, PortForwardingConfig } from '@shared/types/connection';
 import type { SshConnectParams, SshResizeParams, SshSendDataParams } from '@shared/types/terminal';
 
 export function registerSshHandlers(): void {
-  sshManager.onSessionConnect((_sessionId) => {
-    // Eagerly registered in SSH_CONNECT instead to avoid races
+  // Re-register the SFTP provider on every successful (re)connect.
+  //
+  // SSH_CONNECT below registers eagerly so a list() racing the handshake finds
+  // a provider. That covers the *first* connect only. An automatic reconnect
+  // never touches IPC: handleDisconnect fires onSessionDisconnect (which
+  // unregisters, just below), then attemptReconnect calls sshManager.connect()
+  // directly. Without this callback the session came back up with a working
+  // shell and no storage provider at all, so every SFTP operation failed with
+  // "No storage provider registered" until the user manually reconnected.
+  //
+  // register() is idempotent and clears the stale `closing` marker, so the
+  // eager registration and this one cannot conflict.
+  sshManager.onSessionConnect((sessionId) => {
+    storageRegistry.register(sessionId, sftpStorageProvider);
   });
 
   sshManager.onSessionDisconnect((sessionId) => {
