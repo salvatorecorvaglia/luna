@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-12
+
 ### Added
 
 - **IPC Service Input Validation**: Implemented comprehensive input validation and payload sanitization across all main-process IPC service handlers (`LocalTerminalIPC`, `SnippetWorkspaceIPC`, `SSHIPC`, `StorageIPC`, `ConnectionService`, `FolderSyncService`, `SnippetWorkspaceService`, `UpdaterService`).
@@ -15,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Improved
 
 - **Accessibility & ARIA Standards**: Standardized ARIA roles, labels (`aria-label`), modal titles, description attributes, and focus states across interactive dialog components (`TunnelManagerDialog`, `FolderSyncDialog`, `PresignedUrlDialog`, `AuditExportDialog`, `CliReferenceDialog`, `MacroRecorderDialog`, `SnippetVaultDialog`, `TerminalSearchBar`, `WorkspacePresetsDialog`, `SettingsPanel`, `ConnectionForm`, `SftpFields`, `ContextMenu`).
-- **Dependencies Update**: Upgraded `@aws-sdk/*` dependencies (`client-s3`, `lib-storage`, `s3-request-presigner`) to `^3.1104.0`, `better-sqlite3` to `^13.0.3`, and `lucide-react` to `^1.29.0`.
+- **Dependencies Update**: Upgraded `@aws-sdk/*` dependencies (`client-s3`, `lib-storage`, `s3-request-presigner`) to `^3.1107.0`, `better-sqlite3` to `^13.0.3`, `lucide-react` to `^1.31.0`, `sonner` to `^2.0.8`, `@types/node` to `^26.2.0`, `vite` to `^8.2.1`, and `@testing-library/jest-dom` to `^7.0.1`.
 - **Test Configuration**: Updated `vitest.config.ts` coverage thresholds and refined Biome linting configuration.
 
 ## [1.0.0] - 2026-08-06
