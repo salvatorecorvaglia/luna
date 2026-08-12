@@ -19,6 +19,10 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
+  ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.cache/electron-builder
+
 jobs:
   # ──────────────────────────────────────────────
   # Lint & Type-check
@@ -106,6 +110,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Cache Electron Binaries
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ github.workspace }}/.cache/electron
+            ${{ github.workspace }}/.cache/electron-builder
+          key: ${{ runner.os }}-electron-cache-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-electron-cache-
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
 
@@ -121,6 +135,14 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Ensure Electron binary is installed with retry
+        shell: bash
+        run: |
+          for i in 1 2 3 4 5; do
+            echo "Attempt $i: Installing Electron binary..."
+            node node_modules/electron/install.js && break || sleep 5
+          done
 
       - name: Build application
         run: pnpm run build
