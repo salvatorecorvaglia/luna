@@ -71,8 +71,9 @@ pnpm run typecheck
 
 Any new features, components, or service refactors must be accompanied by comprehensive tests. We use **Vitest** for unit and component verification.
 
-*   Tests for main process utilities are located in `src/test/` or next to their respective service files.
-*   Tests for frontend React components/hooks are located next to the component they test (e.g., `Foo.test.tsx`).
+*   Tests for main process IPC handlers, services, and utilities are located in `tests/main/`.
+*   Tests for renderer React components, hooks, stores, and themes are located in `tests/renderer/`.
+*   Unit, integration, design-token, and end-to-end test suites are located in `tests/unit/` and `tests/e2e/`.
 *   Ensure that tests clean up after themselves (e.g., mock cleaning, temporary file deletion).
 
 ### Test Commands

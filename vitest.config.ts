@@ -4,10 +4,10 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     globals: true,
-    include: ['src/**/*.test.{ts,tsx}'],
-    // Playwright owns e2e/; vitest has no Electron to launch and would fail
+    include: ['tests/**/*.test.{ts,tsx}'],
+    // Playwright owns tests/e2e/; vitest has no Electron to launch and would fail
     // on the first import of @playwright/test's electron helper.
-    exclude: ['e2e/**', 'node_modules/**'],
+    exclude: ['tests/e2e/**', 'node_modules/**'],
     // Default to node; renderer .tsx tests opt into jsdom via
     // `// @vitest-environment jsdom` at the top of the file.
     environment: 'node',

@@ -1,0 +1,49 @@
+import { describe, expect, it } from 'vitest';
+import { joinS3Path, parseS3Path } from '../../../../src/main/services/s3/s3-paths';
+
+describe('parseS3Path', () => {
+  it('returns null bucket and empty key for the virtual root', () => {
+    expect(parseS3Path('/')).toEqual({ bucket: null, key: '' });
+    expect(parseS3Path('')).toEqual({ bucket: null, key: '' });
+  });
+
+  it('parses bucket-only paths', () => {
+    expect(parseS3Path('/my-bucket')).toEqual({ bucket: 'my-bucket', key: '' });
+  });
+
+  it('parses bucket + key', () => {
+    expect(parseS3Path('/b/foo/bar.txt')).toEqual({ bucket: 'b', key: 'foo/bar.txt' });
+  });
+
+  it('preserves nested keys with multiple slashes', () => {
+    expect(parseS3Path('/b/a/b/c/')).toEqual({ bucket: 'b', key: 'a/b/c/' });
+  });
+});
+
+describe('parseS3Path defensive bucket validation', () => {
+  it('rejects ".." as a bucket segment', () => {
+    expect(() => parseS3Path('/../etc/passwd')).toThrow(/Invalid S3 bucket segment/);
+  });
+
+  it('rejects "." as a bucket segment', () => {
+    expect(() => parseS3Path('/./foo')).toThrow(/Invalid S3 bucket segment/);
+  });
+
+  it('rejects bucket segments containing control characters', () => {
+    expect(() => parseS3Path('/bad\x01name/key')).toThrow(/Invalid S3 bucket segment/);
+  });
+
+  it('accepts well-formed bucket names', () => {
+    expect(() => parseS3Path('/my.bucket-1/key')).not.toThrow();
+  });
+});
+
+describe('joinS3Path', () => {
+  it('returns just the bucket when key is empty', () => {
+    expect(joinS3Path('b', '')).toBe('/b');
+  });
+
+  it('joins bucket and key with a single slash', () => {
+    expect(joinS3Path('b', 'foo/bar')).toBe('/b/foo/bar');
+  });
+});

@@ -100,7 +100,7 @@ pnpm run format
 
 ### Running Tests
 
-We use **Vitest** for unit and component testing:
+We use **Vitest** for unit and component testing (organized under the top-level `tests/` directory: `tests/main/`, `tests/renderer/`, `tests/unit/`, and `tests/e2e/`):
 ```bash
 # Run tests once
 pnpm run test
