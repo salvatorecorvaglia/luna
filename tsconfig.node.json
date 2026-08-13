@@ -16,7 +16,6 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "declaration": true,
-    "baseUrl": ".",
     "paths": {
       "@shared/*": ["./src/shared/*"]
     }
