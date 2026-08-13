@@ -14,7 +14,7 @@ import { defineConfig } from '@playwright/test';
  * a place to re-test business logic that has cheaper coverage elsewhere.
  */
 export default defineConfig({
-  testDir: './e2e',
+  testDir: './tests/e2e',
   // Electron tests share one userData directory per run; running them in
   // parallel would have them fighting over the same SQLite file.
   workers: 1,

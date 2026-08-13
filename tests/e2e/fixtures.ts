@@ -31,7 +31,7 @@ export async function launchApp(): Promise<LaunchedApp> {
     // The auto-updater already no-ops when `app.isPackaged` is false, which it
     // is when launching from source like this — so no network access to
     // suppress and no extra env flag to invent.
-    env: { ...process.env },
+    env: process.env as Record<string, string>,
   });
 
   const page = await app.firstWindow();
