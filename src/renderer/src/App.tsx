@@ -358,6 +358,13 @@ export default function App() {
             color: 'var(--color-foreground)',
             border: '1px solid var(--color-border)',
           },
+          classNames: {
+            title: 'text-foreground font-medium',
+            description: 'text-muted-foreground',
+            actionButton: 'bg-primary text-primary-foreground font-medium rounded-md',
+            cancelButton: 'bg-secondary text-secondary-foreground rounded-md',
+            closeButton: 'bg-card text-muted-foreground hover:text-foreground border-border',
+          },
         }}
         richColors={false}
         closeButton

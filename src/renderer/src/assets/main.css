@@ -436,3 +436,49 @@ button:focus-visible,
   animation: shimmer 1.5s ease-in-out infinite;
   border-radius: var(--radius-sm);
 }
+
+/* ──────────────────────────────────────────────────
+   Sonner Toast Notification Styling
+   Ensures toast title, description, buttons, and icons
+   use high-contrast theme tokens instead of Sonner's
+   default light-theme colors.
+   ────────────────────────────────────────────────── */
+[data-sonner-toast] {
+  background-color: var(--color-card) !important;
+  color: var(--color-foreground) !important;
+  border: 1px solid var(--color-border) !important;
+  font-family: var(--font-sans);
+}
+
+[data-sonner-toast] [data-title] {
+  color: var(--color-foreground) !important;
+}
+
+[data-sonner-toast] [data-description] {
+  color: var(--color-muted-foreground) !important;
+}
+
+[data-sonner-toast] [data-button] {
+  background-color: var(--color-primary) !important;
+  color: var(--color-primary-foreground) !important;
+  border-radius: var(--radius-md) !important;
+  font-weight: 500 !important;
+}
+
+[data-sonner-toast] [data-cancel-button] {
+  background-color: var(--color-secondary) !important;
+  color: var(--color-secondary-foreground) !important;
+  border-radius: var(--radius-md) !important;
+}
+
+[data-sonner-toast] [data-close-button] {
+  background-color: var(--color-card) !important;
+  color: var(--color-muted-foreground) !important;
+  border: 1px solid var(--color-border) !important;
+}
+
+[data-sonner-toast] [data-close-button]:hover {
+  color: var(--color-foreground) !important;
+  background-color: var(--color-accent) !important;
+}
+

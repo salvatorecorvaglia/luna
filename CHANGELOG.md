@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Improved
+
+- **Toast Notifications Contrast & Styling**: Added custom CSS styling overrides and class specifications for Sonner toast notifications in `App.tsx` and `main.css`, ensuring proper text contrast and design token inheritance across toast titles, descriptions, buttons, and close controls.
+
+### Changed & Refactored
+
+- **Test Suite Directory Structure**: Reorganized and centralized all unit, main, renderer, and E2E test files into a structured `/tests` directory (`tests/e2e`, `tests/main`, `tests/renderer`, `tests/unit`), updated Playwright configuration (`playwright.config.ts`), and created a dedicated `tsconfig.test.json`.
+- **TypeScript Configuration**: Removed obsolete `baseUrl` settings across `tsconfig.node.json`, `tsconfig.test.json`, and `tsconfig.web.json`.
+- **CI/CD & Release Workflows**: Streamlined GitHub Actions CI (`ci.yml`) and Release (`release.yml`) workflow pipelines.
+
+### Removed
+
+- **Unused Build Assets**: Cleaned up redundant `resources/icon.png` image file.
+
 ## [1.1.0] - 2026-08-12
 
 ### Added
