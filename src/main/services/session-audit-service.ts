@@ -22,10 +22,10 @@ export class SessionAuditService {
       };
       outputContent = JSON.stringify(data, null, 2);
     } else if (format === 'html') {
-      const sanitizedLines = bufferText
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
+      const escapeHtml = (s: string): string =>
+        s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const safeTitle = escapeHtml(sessionTitle);
+      const sanitizedLines = escapeHtml(bufferText)
         .split('\n')
         .map((l) => `<div className="line">${l || '&nbsp;'}</div>`)
         .join('\n');
@@ -34,7 +34,7 @@ export class SessionAuditService {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Audit Log - ${sessionTitle}</title>
+  <title>Audit Log - ${safeTitle}</title>
   <style>
     body { background-color: #0f172a; color: #f8fafc; font-family: monospace; font-size: 12px; padding: 24px; }
     h1 { font-size: 16px; margin-bottom: 4px; border-b: 1px solid #334155; padding-bottom: 8px; }
@@ -44,7 +44,7 @@ export class SessionAuditService {
   </style>
 </head>
 <body>
-  <h1>Terminal Audit Trail: ${sessionTitle}</h1>
+  <h1>Terminal Audit Trail: ${safeTitle}</h1>
   <div className="meta">Exported At: ${nowStr}</div>
   <div className="log-box">
 ${sanitizedLines}

@@ -592,6 +592,12 @@ class S3StorageProvider implements StorageProvider {
       body.destroy();
     };
     signal.addEventListener('abort', onAbort, { once: true });
+    // The signal can have fired during the `fsStat` await above, before this
+    // listener existed to catch it — re-check now so a cancel during that
+    // window isn't lost, letting an already-cancelled upload finish anyway.
+    if (signal.aborted) {
+      onAbort();
+    }
 
     try {
       await upload.done();

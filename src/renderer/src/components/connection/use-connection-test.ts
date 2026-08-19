@@ -140,6 +140,13 @@ export function useConnectionTest(): UseConnectionTestApi {
               ? { status: 'success', message: 'Connection successful' }
               : { status: 'error', message: res.error || 'Connection failed' },
           );
+        } catch (err) {
+          if (isStillCurrent()) {
+            setResult({
+              status: 'error',
+              message: err instanceof Error ? err.message : 'Connection test failed',
+            });
+          }
         } finally {
           finish();
         }
@@ -178,6 +185,13 @@ export function useConnectionTest(): UseConnectionTestApi {
             ? { status: 'success', message: 'S3 connection successful' }
             : { status: 'error', message: res.error || 'S3 connection failed' },
         );
+      } catch (err) {
+        if (isStillCurrent()) {
+          setResult({
+            status: 'error',
+            message: err instanceof Error ? err.message : 'S3 connection test failed',
+          });
+        }
       } finally {
         finish();
       }

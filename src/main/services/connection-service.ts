@@ -15,6 +15,7 @@ import type Database from 'better-sqlite3';
 import { dialog } from 'electron';
 import { v4 as uuidv4 } from 'uuid';
 import { detectAndImport } from '../lib/importers';
+import { parseSshConfig } from '../lib/importers/ssh-config';
 import log from '../lib/logger';
 import {
   assertBoundedInt,
@@ -778,7 +779,7 @@ export class ConnectionService {
 
     const filePath = result.filePaths[0];
     const fileContent = await readFile(filePath, 'utf-8');
-    const connections = detectAndImport(filePath, fileContent);
+    const connections = detectAndImport(fileContent, filePath);
     return this.importConnections(connections);
   }
 
@@ -801,7 +802,7 @@ export class ConnectionService {
         ErrorCode.NOT_FOUND,
       );
     }
-    const connections = detectAndImport(sshConfigPath, fileContent);
+    const connections = parseSshConfig(fileContent);
     return this.importConnections(connections);
   }
 }
