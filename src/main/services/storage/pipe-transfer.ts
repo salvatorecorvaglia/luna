@@ -1,3 +1,5 @@
+import { createWriteStream } from 'node:fs';
+import { stat as fsStat, rename, unlink } from 'node:fs/promises';
 import type { Readable, Writable } from 'node:stream';
 import { AbortError } from '../../lib/errors';
 import log from '../../lib/logger';
@@ -139,4 +141,94 @@ export function runPipeTransfer(options: PipeTransferOptions): Promise<void> {
 
     source.pipe(sink);
   });
+}
+
+/**
+ * Suffix for the temp file a download writes to before being published at
+ * its real destination. Stable (no random component) is fine — SFTP and S3
+ * downloads to the same `localPath` are already serialized upstream by the
+ * transfer queue's dedup-key reservation, and `fs.createWriteStream`
+ * truncates on open, so a stale leftover from an earlier crash is just
+ * overwritten by the next attempt rather than corrupting anything.
+ */
+const PARTIAL_DOWNLOAD_SUFFIX = '.luna-partial';
+
+export interface PipeDownloadToFileOptions {
+  source: Readable;
+  /** Real destination path. The download writes to `${localPath}.luna-partial` until it succeeds. */
+  localPath: string;
+  signal: AbortSignal;
+  total: number;
+  onStep: StepCallback;
+  abortCleanupDelayMs: number;
+  /** Passed straight through to `fs.createWriteStream` for the temp file. */
+  highWaterMark?: number;
+  mapSourceError?: (err: Error) => Error;
+}
+
+/**
+ * SFTP and S3 downloads both wrote straight to `localPath`, so a hard crash
+ * (OOM kill, force-quit, power loss) mid-transfer left a partial file sitting
+ * at the real destination with nothing to distinguish it from a completed
+ * download — and if that download was overwriting an existing file, the
+ * original was already truncated away by the time the crash happened.
+ *
+ * This writes to a temp file next to the destination and only renames it
+ * into place after the transfer genuinely succeeds, so `localPath` — and
+ * whatever was already there — is untouched until the new content is fully
+ * on disk.
+ */
+export async function runPipeDownloadToFile(options: PipeDownloadToFileOptions): Promise<void> {
+  const {
+    source,
+    localPath,
+    signal,
+    total,
+    onStep,
+    abortCleanupDelayMs,
+    highWaterMark,
+    mapSourceError,
+  } = options;
+  const tempPath = `${localPath}${PARTIAL_DOWNLOAD_SUFFIX}`;
+  const writeStream = createWriteStream(tempPath, { highWaterMark });
+
+  await runPipeTransfer({
+    source,
+    sink: writeStream,
+    signal,
+    total,
+    onStep,
+    // An abort landing microseconds after the last byte hit disk must not
+    // discard a temp file that is already complete.
+    isComplete: () => writeStream.writableFinished,
+    discardPartial: async () => {
+      // Second race guard: if what's on disk already matches the expected
+      // size, the download did finish — keep it rather than unlink it.
+      if (total > 0) {
+        try {
+          const stats = await fsStat(tempPath);
+          if (stats.size >= total) return;
+        } catch {
+          // ENOENT or stat error — fall through to unlink (no-op if missing)
+        }
+      }
+      await unlink(tempPath).catch((err: NodeJS.ErrnoException) => {
+        if (err.code !== 'ENOENT') {
+          log.warn(`[transfer] Failed to remove partial download ${tempPath}:`, err.message);
+        }
+      });
+    },
+    abortCleanupDelayMs,
+    mapSourceError,
+  });
+
+  // Only reached once the transfer genuinely succeeded — publish it.
+  try {
+    await rename(tempPath, localPath);
+  } catch (err) {
+    await unlink(tempPath).catch(() => {
+      // best-effort — the rename error is the one that matters to the caller
+    });
+    throw err;
+  }
 }

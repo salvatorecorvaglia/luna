@@ -1,5 +1,5 @@
-import { createReadStream, createWriteStream } from 'node:fs';
-import { stat as fsStat, unlink } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { stat as fsStat } from 'node:fs/promises';
 import type { Readable } from 'node:stream';
 import {
   type CommonPrefix,
@@ -25,7 +25,7 @@ import { AbortError, S3StorageError } from '../../lib/errors';
 import log from '../../lib/logger';
 import { TimeoutError, withTimeout } from '../../lib/with-timeout';
 import { emitToRenderer } from '../emit';
-import { runPipeTransfer } from '../storage/pipe-transfer';
+import { runPipeDownloadToFile } from '../storage/pipe-transfer';
 import type { StepCallback, StorageProvider } from '../storage/types';
 import { buildS3ClientConfig, objectToEntry, prefixToEntry, wrapS3Error } from './s3-helpers';
 import { parseS3Path } from './s3-paths';
@@ -500,32 +500,12 @@ class S3StorageProvider implements StorageProvider {
       throw wrapS3Error('download-get', err);
     }
 
-    const writeStream = createWriteStream(localPath);
-
-    return runPipeTransfer({
+    return runPipeDownloadToFile({
       source: body,
-      sink: writeStream,
+      localPath,
       signal,
       total,
       onStep,
-      isComplete: () => writeStream.writableFinished,
-      discardPartial: async () => {
-        // An abort that lands microseconds after the last write must not
-        // unlink a file that is already complete on disk.
-        if (total > 0) {
-          try {
-            const stats = await fsStat(localPath);
-            if (stats.size >= total) return;
-          } catch {
-            // ENOENT or stat error — fall through to unlink
-          }
-        }
-        await unlink(localPath).catch((err: NodeJS.ErrnoException) => {
-          if (err.code !== 'ENOENT') {
-            log.warn(`[S3] Failed to remove partial download ${localPath}:`, err.message);
-          }
-        });
-      },
       abortCleanupDelayMs: getTransferTunables().abortCleanupDelayMs,
       // Keeps a mid-stream S3 failure classified as an S3 error rather than
       // surfacing a bare SDK error the transfer queue can't categorise.

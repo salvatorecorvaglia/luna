@@ -1,5 +1,5 @@
-import { createReadStream, createWriteStream } from 'node:fs';
-import { stat as fsStat, unlink } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { stat as fsStat } from 'node:fs/promises';
 import { BINARY_PREVIEW_EXTENSIONS, LIMITS } from '@shared/constants';
 import type { SftpEntry } from '@shared/types/sftp';
 import type { ReadStreamOptions, SFTPWrapper, WriteStreamOptions } from 'ssh2';
@@ -10,7 +10,7 @@ import { releaseStorageBucket } from '../lib/rate-limiter';
 import { withTimeout } from '../lib/with-timeout';
 import { formatPermissions, isSessionFatal } from './sftp/sftp-helpers';
 import { sshManager } from './ssh-manager';
-import { runPipeTransfer } from './storage/pipe-transfer';
+import { runPipeDownloadToFile, runPipeTransfer } from './storage/pipe-transfer';
 
 // Deliberately do NOT import transferQueue here — that created a cycle
 // (sftp-manager ↔ transfer-queue). Transfer enqueueing is the IPC layer's
@@ -24,6 +24,14 @@ const IDLE_TIMEOUT_MS = getRuntimeNumber('SFTP_IDLE_TIMEOUT_MS');
 const IDLE_CHECK_INTERVAL_MS = getRuntimeNumber('SFTP_IDLE_CHECK_INTERVAL_MS');
 // The abort-cleanup delay is read per transfer via getTransferTunables() so a
 // settings change takes effect without a restart.
+
+/**
+ * Suffix an upload streams to before being published at its real remote
+ * path. A crash or dropped connection mid-upload then leaves only this
+ * harmless temp file behind instead of a partial/corrupted file at the real
+ * destination.
+ */
+const PARTIAL_UPLOAD_SUFFIX = '.luna-partial';
 
 class SftpManager {
   private sftpSessions = new Map<string, SFTPWrapper>();
@@ -492,36 +500,15 @@ class SftpManager {
       concurrency,
       highWaterMark,
     } as unknown as ReadStreamOptions);
-    const writeStream = createWriteStream(localPath, { highWaterMark });
 
-    return runPipeTransfer({
+    return runPipeDownloadToFile({
       source: readStream,
-      sink: writeStream,
+      localPath,
       signal,
       total,
       onStep,
-      // An abort landing microseconds after the last byte hit disk must not
-      // discard a complete file.
-      isComplete: () => writeStream.writableFinished,
-      discardPartial: async () => {
-        // Second race guard, for the case where the abort arrived while the
-        // final write was still in flight: if what's on disk already matches
-        // the expected size, the download did finish — keep it.
-        if (total > 0) {
-          try {
-            const stats = await fsStat(localPath);
-            if (stats.size >= total) return;
-          } catch {
-            // ENOENT or stat error — fall through to unlink (no-op if missing)
-          }
-        }
-        await unlink(localPath).catch((err: NodeJS.ErrnoException) => {
-          if (err.code !== 'ENOENT') {
-            log.warn(`[SFTP] Failed to remove partial download ${localPath}:`, err.message);
-          }
-        });
-      },
       abortCleanupDelayMs,
+      highWaterMark,
     });
   }
 
@@ -561,10 +548,11 @@ class SftpManager {
     }
 
     const { chunkSize, concurrency, highWaterMark, abortCleanupDelayMs } = getTransferTunables();
+    const tempRemotePath = `${remotePath}${PARTIAL_UPLOAD_SUFFIX}`;
 
     let writeClosed = false;
     const readStream = createReadStream(localPath, { highWaterMark });
-    const writeStream = sftp.createWriteStream(remotePath, {
+    const writeStream = sftp.createWriteStream(tempRemotePath, {
       chunkSize,
       concurrency,
       highWaterMark,
@@ -575,22 +563,85 @@ class SftpManager {
       writeClosed = true;
     });
 
-    return runPipeTransfer({
+    await runPipeTransfer({
       source: readStream,
       sink: writeStream,
       signal,
       total,
       onStep,
-      // If 'close' already fired the upload landed on the remote; an abort
-      // arriving immediately after must not unlink a complete file.
+      // If 'close' already fired the upload landed in the temp remote file;
+      // an abort arriving immediately after must not unlink a complete one.
       isComplete: () => writeClosed,
       discardPartial: async () => {
         if (writeClosed) return;
         await new Promise<void>((resolve) => {
-          sftp.unlink(remotePath, () => resolve());
+          sftp.unlink(tempRemotePath, () => resolve());
         });
       },
       abortCleanupDelayMs,
+    });
+
+    // Only reached once the upload genuinely succeeded — publish it. A crash
+    // or dropped connection before this point leaves only the harmless temp
+    // file behind; `remotePath` (and any existing file there) is never
+    // touched until the new content is fully on the remote.
+    try {
+      await this.publishUploadedFile(sftp, tempRemotePath, remotePath);
+    } catch (err) {
+      await new Promise<void>((resolve) => {
+        sftp.unlink(tempRemotePath, () => resolve());
+      });
+      throw err;
+    }
+  }
+
+  /**
+   * Rename a fully-uploaded temp file into place, overwriting any existing
+   * file at `destPath` — the common case when re-uploading an updated file.
+   *
+   * Prefers the OpenSSH `posix-rename` extension, which (unlike plain SFTP
+   * rename) atomically replaces an existing destination. Plain SFTP v3
+   * rename fails outright if `destPath` already exists on servers without
+   * that extension, so the fallback moves the existing file aside first
+   * rather than deleting it outright — if the final rename then fails for
+   * any reason, the original is restored instead of being lost.
+   */
+  private publishUploadedFile(
+    sftp: SFTPWrapper,
+    tempPath: string,
+    destPath: string,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      sftp.ext_openssh_rename(tempPath, destPath, (extErr) => {
+        if (!extErr) {
+          resolve();
+          return;
+        }
+        sftp.rename(tempPath, destPath, (renameErr) => {
+          if (!renameErr) {
+            resolve();
+            return;
+          }
+          const backupPath = `${destPath}${PARTIAL_UPLOAD_SUFFIX}.bak`;
+          sftp.rename(destPath, backupPath, (backupErr) => {
+            if (backupErr) {
+              // Nothing to move aside, or it genuinely can't be renamed for
+              // another reason — surface the original error rather than
+              // attempt anything further.
+              reject(renameErr);
+              return;
+            }
+            sftp.rename(tempPath, destPath, (finalErr) => {
+              if (finalErr) {
+                // Restore the original rather than leave the user's file gone.
+                sftp.rename(backupPath, destPath, () => reject(finalErr));
+                return;
+              }
+              sftp.unlink(backupPath, () => resolve());
+            });
+          });
+        });
+      });
     });
   }
 
