@@ -15,6 +15,25 @@ import { storageRegistry } from '../services/storage/registry';
 
 const MAX_SECRET_LEN = 4096;
 
+/**
+ * Hard cap on concurrent S3 sessions, mirroring MAX_SSH_SESSIONS in
+ * ssh.ipc.ts. openSession() inserts into an unbounded map with nothing else
+ * limiting growth, so a buggy or compromised renderer could otherwise open
+ * unbounded S3Client sessions in a loop.
+ */
+const MAX_S3_SESSIONS = 64;
+
+/**
+ * Sliding-window limit on connect attempts, independent of the session cap
+ * above — mirrors sshConnectLimiter in ssh.ipc.ts.
+ */
+const s3ConnectLimiter = new SlidingWindowLimiter(20, 60_000, 'S3 connect');
+
+/** Test-only: reset the connect limiter between cases. */
+export function __resetS3ConnectLimiter(): void {
+  s3ConnectLimiter.reset();
+}
+
 /** AWS SigV4 refuses presigned URLs valid for more than 7 days. */
 const MAX_PRESIGN_EXPIRY_SEC = 7 * 24 * 60 * 60;
 /** Below a minute the URL is unusable by the time it reaches the clipboard. */
@@ -73,6 +92,21 @@ export function registerS3Handlers(): void {
   registerHandler(IPC.S3_CONNECT, (_event, params: S3ConnectParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
     assertNonEmptyString(params.connectionId, 'connectionId');
+
+    s3ConnectLimiter.check();
+    // Existing sessionId means this replaces an already-tracked session, not
+    // a new one — only a genuinely new session counts against the cap.
+    if (
+      !s3StorageProvider.hasSession(params.sessionId) &&
+      s3StorageProvider.sessionCount() >= MAX_S3_SESSIONS
+    ) {
+      throw new LunaError(
+        `Too many S3 sessions open (max ${MAX_S3_SESSIONS}). Disconnect one and try again.`,
+        ErrorCode.FORBIDDEN,
+        { reason: 'session-limit', limit: MAX_S3_SESSIONS },
+      );
+    }
+
     const opts = loadConfig(params.connectionId);
     s3StorageProvider.openSession(params.sessionId, opts);
     storageRegistry.register(params.sessionId, s3StorageProvider);

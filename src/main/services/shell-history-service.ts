@@ -1,10 +1,21 @@
-import { readFile } from 'node:fs/promises';
+import { open, readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { HistoryMatch } from '@shared/types/shell-history';
 import log from '../lib/logger';
 
 export type { HistoryMatch };
+
+/**
+ * Cap on how much of a single history file is read and parsed. Without it, a
+ * user with years of accumulated `.zsh_history`/`.bash_history` (tens of MB)
+ * triggering command-palette search reads the whole file into memory and
+ * runs a synchronous split+parse loop on the Electron main process, stalling
+ * every other IPC call for the duration. Recent history — which is what
+ * search actually wants — lives at the end of the file, so reading only the
+ * tail both bounds the cost and keeps the useful part.
+ */
+const MAX_HISTORY_BYTES_PER_FILE = 2 * 1024 * 1024;
 
 export class ShellHistoryService {
   private cachedHistory: string[] | null = null;
@@ -34,6 +45,26 @@ export class ShellHistoryService {
     return matches;
   }
 
+  /** Reads at most the last MAX_HISTORY_BYTES_PER_FILE bytes of `file`. */
+  private async readTail(file: string): Promise<string> {
+    const stats = await stat(file);
+    if (stats.size <= MAX_HISTORY_BYTES_PER_FILE) {
+      return readFile(file, 'utf-8');
+    }
+    const handle = await open(file, 'r');
+    try {
+      const start = stats.size - MAX_HISTORY_BYTES_PER_FILE;
+      const buffer = Buffer.alloc(MAX_HISTORY_BYTES_PER_FILE);
+      await handle.read(buffer, 0, MAX_HISTORY_BYTES_PER_FILE, start);
+      const text = buffer.toString('utf-8');
+      // The read starts mid-file, so the first line is almost certainly a
+      // partial fragment — drop it rather than surface a garbled entry.
+      return text.slice(text.indexOf('\n') + 1);
+    } finally {
+      await handle.close();
+    }
+  }
+
   private async loadLocalHistory(): Promise<string[]> {
     const results: string[] = [];
     const home = homedir();
@@ -42,7 +73,7 @@ export class ShellHistoryService {
 
     for (const file of files) {
       try {
-        const raw = await readFile(file, 'utf-8');
+        const raw = await this.readTail(file);
         const lines = raw.split('\n');
         for (let line of lines) {
           line = line.trim();

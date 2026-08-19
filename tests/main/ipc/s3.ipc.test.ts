@@ -38,6 +38,8 @@ vi.mock('../../../src/main/services/s3/s3-provider', () => ({
     closeSession: vi.fn(),
     listSessions: () => [],
     getPresignedUrl: vi.fn(),
+    hasSession: () => false,
+    sessionCount: () => 0,
   },
 }));
 

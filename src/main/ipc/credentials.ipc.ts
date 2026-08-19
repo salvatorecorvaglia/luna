@@ -30,10 +30,20 @@ const retrieveLimiter = new SlidingWindowLimiter(60, 60_000, 'Credential retriev
  */
 const externalLimiter = new SlidingWindowLimiter(10, 60_000, 'External secret resolution');
 
-/** Test-only: reset both limiters between cases. */
+/**
+ * Rate limit on credential writes, for consistency with retrieveLimiter and
+ * externalLimiter above — the only credential channel that had no limiter at
+ * all. Impact of an unbounded caller is bounded by the per-secret and IPC
+ * payload size caps, but a legitimate flow only stores on save (a handful
+ * per minute), same as retrieval.
+ */
+const storeLimiter = new SlidingWindowLimiter(60, 60_000, 'Credential store');
+
+/** Test-only: reset all limiters between cases. */
 export function __resetCredentialRateLimiters(): void {
   retrieveLimiter.reset();
   externalLimiter.reset();
+  storeLimiter.reset();
 }
 
 /** Cap on the size of a secret accepted from the renderer (bytes, UTF-8). */
@@ -52,6 +62,7 @@ export function registerCredentialHandlers(): void {
   registerHandler(
     IPC.CREDENTIAL_STORE,
     (_event, payload: { connectionId: string; secret: string }) => {
+      storeLimiter.check();
       assertNonEmptyString(payload?.connectionId, 'connectionId');
       assertNonEmptyString(payload?.secret, 'secret');
       if (Buffer.byteLength(payload.secret, 'utf-8') > MAX_CREDENTIAL_SECRET_BYTES) {

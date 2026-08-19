@@ -638,7 +638,11 @@ class SshManager {
 
     // Notify listeners (e.g. SFTP cache cleanup)
     for (const cb of this.onDisconnectCallbacks) {
-      cb(sessionId);
+      try {
+        cb(sessionId);
+      } catch (cbErr) {
+        log.warn(`[SSH] onDisconnect callback threw for ${sessionId}:`, cbErr);
+      }
     }
 
     // Auto-reconnect, if the user hasn't turned it off. The `ssh.autoReconnect`
@@ -990,6 +994,11 @@ class SshManager {
 
   getSession(sessionId: string): SshSession | undefined {
     return this.sessions.get(sessionId);
+  }
+
+  /** Number of tracked sessions (any status) — used to cap concurrent connects. */
+  sessionCount(): number {
+    return this.sessions.size;
   }
 
   disconnectAll(): void {

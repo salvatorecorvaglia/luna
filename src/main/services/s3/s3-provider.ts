@@ -98,6 +98,11 @@ class S3StorageProvider implements StorageProvider {
     return this.sessions.has(sessionId);
   }
 
+  /** Number of open sessions — used to cap concurrent connects. */
+  sessionCount(): number {
+    return this.sessions.size;
+  }
+
   async getPresignedUrl(sessionId: string, path: string, expiresSec: number): Promise<string> {
     const client = this.requireClient(sessionId);
     const { bucket, key } = parseS3Path(path);
@@ -267,15 +272,16 @@ class S3StorageProvider implements StorageProvider {
   }
 
   async statSize(sessionId: string, path: string): Promise<number> {
-    const { bucket, key } = parseS3Path(path);
-    if (!bucket || !key) return 0;
-    const client = this.requireClient(sessionId);
-    try {
-      const out = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
-      return out.ContentLength ?? 0;
-    } catch (err) {
-      throw wrapS3Error('stat-size', err);
-    }
+    return this.runOp(sessionId, 'stat-size', async (client) => {
+      const { bucket, key } = parseS3Path(path);
+      if (!bucket || !key) return 0;
+      try {
+        const out = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+        return out.ContentLength ?? 0;
+      } catch (err) {
+        throw wrapS3Error('stat-size', err);
+      }
+    });
   }
 
   async mkdir(sessionId: string, path: string): Promise<void> {
@@ -338,68 +344,69 @@ class S3StorageProvider implements StorageProvider {
   }
 
   async remove(sessionId: string, path: string, isDirectory: boolean): Promise<void> {
-    const client = this.requireClient(sessionId);
-    const { bucket, key } = parseS3Path(path);
-    if (!bucket) throw new S3StorageError('Cannot delete the root');
+    return this.runOp(sessionId, 'remove', async (client) => {
+      const { bucket, key } = parseS3Path(path);
+      if (!bucket) throw new S3StorageError('Cannot delete the root');
 
-    if (!key) {
-      // bucket-level delete: must be empty
-      try {
-        await client.send(new DeleteBucketCommand({ Bucket: bucket }));
-      } catch (err) {
-        throw wrapS3Error('delete-bucket', err);
-      }
-      return;
-    }
-
-    if (!isDirectory) {
-      try {
-        await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
-      } catch (err) {
-        throw wrapS3Error('delete-object', err);
-      }
-      return;
-    }
-
-    // Prefix delete: paginated ListObjectsV2 → DeleteObjects in batches of 1000.
-    const prefix = key.endsWith('/') ? key : `${key}/`;
-    let ContinuationToken: string | undefined;
-    try {
-      do {
-        const listed = await client.send(
-          new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, ContinuationToken }),
-        );
-        const objects = (listed.Contents ?? [])
-          .map((o) => o.Key)
-          .filter((k): k is string => Boolean(k));
-        if (objects.length > 0) {
-          // Quiet:false so the response always includes Errors[] when present;
-          // a partial success would otherwise be invisible and the caller
-          // would believe the prefix was fully wiped.
-          const result = await client.send(
-            new DeleteObjectsCommand({
-              Bucket: bucket,
-              Delete: { Objects: objects.map((Key) => ({ Key })), Quiet: false },
-            }),
-          );
-          const errors = result.Errors ?? [];
-          if (errors.length > 0) {
-            const sample = errors
-              .slice(0, 3)
-              .map((e) => `${e.Key ?? '<unknown>'}: ${e.Code ?? ''} ${e.Message ?? ''}`.trim())
-              .join('; ');
-            throw new S3StorageError(
-              `Bulk delete partially failed (${errors.length} of ${objects.length} objects): ${sample}${
-                errors.length > 3 ? ' …' : ''
-              }`,
-            );
-          }
+      if (!key) {
+        // bucket-level delete: must be empty
+        try {
+          await client.send(new DeleteBucketCommand({ Bucket: bucket }));
+        } catch (err) {
+          throw wrapS3Error('delete-bucket', err);
         }
-        ContinuationToken = listed.IsTruncated ? listed.NextContinuationToken : undefined;
-      } while (ContinuationToken);
-    } catch (err) {
-      throw wrapS3Error('delete-prefix', err);
-    }
+        return;
+      }
+
+      if (!isDirectory) {
+        try {
+          await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+        } catch (err) {
+          throw wrapS3Error('delete-object', err);
+        }
+        return;
+      }
+
+      // Prefix delete: paginated ListObjectsV2 → DeleteObjects in batches of 1000.
+      const prefix = key.endsWith('/') ? key : `${key}/`;
+      let ContinuationToken: string | undefined;
+      try {
+        do {
+          const listed = await client.send(
+            new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, ContinuationToken }),
+          );
+          const objects = (listed.Contents ?? [])
+            .map((o) => o.Key)
+            .filter((k): k is string => Boolean(k));
+          if (objects.length > 0) {
+            // Quiet:false so the response always includes Errors[] when present;
+            // a partial success would otherwise be invisible and the caller
+            // would believe the prefix was fully wiped.
+            const result = await client.send(
+              new DeleteObjectsCommand({
+                Bucket: bucket,
+                Delete: { Objects: objects.map((Key) => ({ Key })), Quiet: false },
+              }),
+            );
+            const errors = result.Errors ?? [];
+            if (errors.length > 0) {
+              const sample = errors
+                .slice(0, 3)
+                .map((e) => `${e.Key ?? '<unknown>'}: ${e.Code ?? ''} ${e.Message ?? ''}`.trim())
+                .join('; ');
+              throw new S3StorageError(
+                `Bulk delete partially failed (${errors.length} of ${objects.length} objects): ${sample}${
+                  errors.length > 3 ? ' …' : ''
+                }`,
+              );
+            }
+          }
+          ContinuationToken = listed.IsTruncated ? listed.NextContinuationToken : undefined;
+        } while (ContinuationToken);
+      } catch (err) {
+        throw wrapS3Error('delete-prefix', err);
+      }
+    });
   }
 
   async readFile(

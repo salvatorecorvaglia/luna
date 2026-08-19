@@ -28,6 +28,7 @@ vi.mock('../../../src/main/services/ssh-manager', () => ({
     onSessionDisconnect: vi.fn(() => () => {}),
     onSessionConnect: vi.fn(() => () => {}),
     getSession: vi.fn(),
+    sessionCount: vi.fn().mockReturnValue(0),
   },
 }));
 

@@ -1,6 +1,7 @@
 import { IPC } from '@shared/constants';
 import { ErrorCode, LunaError } from '@shared/errors';
 import { registerHandler } from '../lib/ipc-handler';
+import { SlidingWindowLimiter } from '../lib/sliding-window-limiter';
 import { assertBoundedInt, assertNonEmptyString } from '../lib/validate';
 import { sshManager } from '../services/ssh-manager';
 import { storageRegistry } from '../services/storage/registry';
@@ -16,6 +17,28 @@ const MAX_SECRET_LEN = 4096;
  * from streaming hundreds of MB into the shell write buffer.
  */
 const MAX_SSH_SEND_BYTES = 65536;
+
+/**
+ * Hard cap on concurrent SSH sessions, mirroring local-terminal:spawn's
+ * MAX_LOCAL_SESSIONS. Without it, a buggy or compromised renderer could open
+ * unbounded SSH sockets in a loop — each with its own connect timeout,
+ * keepalive timers, and (once connected) a shell — exhausting main-process
+ * file descriptors/memory. Well past any plausible tab count.
+ */
+const MAX_SSH_SESSIONS = 64;
+
+/**
+ * Sliding-window limit on connect *attempts*, independent of the session
+ * cap above. The cap alone doesn't stop a renderer from repeatedly
+ * connecting and disconnecting the same sessionId to hammer a host with
+ * handshake attempts without ever holding more than one session open.
+ */
+const sshConnectLimiter = new SlidingWindowLimiter(20, 60_000, 'SSH connect');
+
+/** Test-only: reset the connect limiter between cases. */
+export function __resetSshConnectLimiter(): void {
+  sshConnectLimiter.reset();
+}
 
 import type { AuthType, PortForwardingConfig } from '@shared/types/connection';
 import type { SshConnectParams, SshResizeParams, SshSendDataParams } from '@shared/types/terminal';
@@ -48,6 +71,18 @@ export function registerSshHandlers(): void {
   registerHandler(IPC.SSH_CONNECT, async (_event, params: SshConnectParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
     assertNonEmptyString(params.connectionId, 'connectionId');
+
+    sshConnectLimiter.check();
+    // Existing sessionId means this is a reconnect of an already-tracked
+    // session, not a new one — only a genuinely new session counts against
+    // the cap.
+    if (!sshManager.getSession(params.sessionId) && sshManager.sessionCount() >= MAX_SSH_SESSIONS) {
+      throw new LunaError(
+        `Too many SSH sessions open (max ${MAX_SSH_SESSIONS}). Disconnect one and try again.`,
+        ErrorCode.FORBIDDEN,
+        { reason: 'session-limit', limit: MAX_SSH_SESSIONS },
+      );
+    }
 
     // Register the storage provider as soon as we start connecting. This ensures
     // that if the renderer (e.g. the SFTP view) tries to list files while the
