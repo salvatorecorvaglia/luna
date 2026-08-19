@@ -120,6 +120,17 @@ export function SftpManager() {
   const [splitRatio, setSplitRatio] = useState(0.5);
   const [resizing, setResizing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  // Detaches the resize-drag `document` listeners on unmount even if no
+  // mouseup ever arrives (e.g. the view switches away from SFTP mid-drag) —
+  // without this, the listeners leaked and could leave the drag cursor/
+  // user-select styles stuck on `document.body`.
+  const resizeDragCleanupRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    return () => {
+      resizeDragCleanupRef.current?.();
+      resizeDragCleanupRef.current = null;
+    };
+  }, []);
 
   // Sync activeSessionId with the active connection if it changes. Resolution
   // logic lives in sftp-session-fallback.ts so it can be unit-tested in
@@ -453,7 +464,7 @@ export function SftpManager() {
       pending = Math.max(0.2, Math.min(0.8, ratio));
       if (rafId === null) rafId = requestAnimationFrame(flush);
     };
-    const onMouseUp = (): void => {
+    const detach = (): void => {
       setResizing(false);
       if (rafId !== null) {
         cancelAnimationFrame(rafId);
@@ -463,11 +474,14 @@ export function SftpManager() {
       document.removeEventListener('mouseup', onMouseUp);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
+      resizeDragCleanupRef.current = null;
     };
+    const onMouseUp = (): void => detach();
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
+    resizeDragCleanupRef.current = detach;
   }, []);
 
   if (

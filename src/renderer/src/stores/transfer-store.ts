@@ -171,6 +171,7 @@ export const useTransferStore = create<TransferState>((set, get) => ({
 
   removeTransfer: (transferId) =>
     set((s) => {
+      if (!s.transfers.has(transferId)) return s;
       const transfers = new Map(s.transfers);
       transfers.delete(transferId);
       return { transfers };

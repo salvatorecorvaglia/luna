@@ -172,6 +172,11 @@ export function FileList({
     estimateSize: () => ROW_HEIGHT_ESTIMATE,
     overscan: 5,
     measureElement: (el) => el.getBoundingClientRect().height,
+    // Without this, the measurement cache is keyed by array index — so
+    // re-sorting the list (e.g. clicking a column header) can briefly
+    // re-associate an index's cached measurement with a different entry
+    // than the one actually measured there.
+    getItemKey: (index) => sorted[index].path,
   });
 
   const buildContextItems = useCallback(

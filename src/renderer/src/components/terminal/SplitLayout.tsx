@@ -1,7 +1,7 @@
 import type { PaneNode } from '@shared/types/terminal';
 import { Columns, Rows, X } from 'lucide-react';
 import type React from 'react';
-import { useCallback, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { getFirstLeafSessionId, useTerminalStore } from '@/stores/terminal-store';
 import { LocalTerminalPane } from './LocalTerminalPane';
@@ -13,8 +13,15 @@ interface SplitLayoutProps {
   activeSessionId: string | null;
 }
 
-export function SplitLayout({ node, tabId, activeSessionId }: SplitLayoutProps) {
-  const sessions = useTerminalStore((s) => s.sessions);
+function SplitLayoutInner({ node, tabId, activeSessionId }: SplitLayoutProps) {
+  // Select only this node's own session (when it's a leaf), not the whole
+  // Map. `sessions.get(x)` returns the *same* object reference for any entry
+  // that wasn't the one just mutated, so a status/rename change to session A
+  // no longer re-renders the SplitLayout instance rendering unrelated
+  // session B.
+  const session = useTerminalStore((s) =>
+    node.type === 'terminal' ? s.sessions.get(node.sessionId) : undefined,
+  );
   const splitSession = useTerminalStore((s) => s.splitSession);
   const closeTab = useTerminalStore((s) => s.closeTab);
   const updateSplitRatio = useTerminalStore((s) => s.updateSplitRatio);
@@ -22,6 +29,21 @@ export function SplitLayout({ node, tabId, activeSessionId }: SplitLayoutProps) 
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [isResizing, setIsResizing] = useState(false);
+
+  // Drag-state refs instead of relying on the pointerup handler alone to
+  // detach `window` listeners: if this pane closes mid-drag (e.g. a
+  // keyboard shortcut fires while the user is still holding the splitter),
+  // no pointerup ever arrives and the listeners leaked, continuing to call
+  // updateSplitRatio for a tab that no longer exists. The effect's cleanup
+  // now runs on unmount regardless of whether the drag ended normally.
+  const dragCleanupRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    return () => {
+      dragCleanupRef.current?.();
+      dragCleanupRef.current = null;
+    };
+  }, []);
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -43,20 +65,23 @@ export function SplitLayout({ node, tabId, activeSessionId }: SplitLayoutProps) 
         updateSplitRatio(tabId, leftKey, ratio);
       };
 
-      const handlePointerUp = () => {
+      const detach = (): void => {
         setIsResizing(false);
         window.removeEventListener('pointermove', handlePointerMove);
         window.removeEventListener('pointerup', handlePointerUp);
+        dragCleanupRef.current = null;
       };
+
+      const handlePointerUp = (): void => detach();
 
       window.addEventListener('pointermove', handlePointerMove);
       window.addEventListener('pointerup', handlePointerUp);
+      dragCleanupRef.current = detach;
     },
     [node, tabId, updateSplitRatio],
   );
 
   if (node.type === 'terminal') {
-    const session = sessions.get(node.sessionId);
     if (!session) return null;
 
     const isActive = node.sessionId === activeSessionId;
@@ -144,3 +169,12 @@ export function SplitLayout({ node, tabId, activeSessionId }: SplitLayoutProps) 
     </div>
   );
 }
+
+// Wrapped in memo so that when a parent re-render produces referentially
+// equal `node`/`tabId`/`activeSessionId` props (e.g. another tab's session
+// status changed, not this tab's layout), React skips re-rendering this
+// entire subtree — including the terminal panes it hosts — instead of
+// reconciling it. Named `SplitLayoutInner` above (not `SplitLayout`) so the
+// recursive `<SplitLayout .../>` calls inside its own body resolve to this
+// memoized export rather than shadowing it with the raw inner function.
+export const SplitLayout = memo(SplitLayoutInner);

@@ -72,6 +72,15 @@ describe('transfer-store', () => {
     expect(useTransferStore.getState().transfers.size).toBe(0);
   });
 
+  it('removing a transfer that is already gone is a no-op — same Map reference, no re-render trigger', () => {
+    useTransferStore.getState().addTransfer(makeTransfer());
+    const before = useTransferStore.getState().transfers;
+
+    useTransferStore.getState().removeTransfer('does-not-exist');
+
+    expect(useTransferStore.getState().transfers).toBe(before);
+  });
+
   it('clears completed and errored transfers', () => {
     useTransferStore.getState().addTransfer(makeTransfer({ id: 'a', status: 'completed' }));
     useTransferStore.getState().addTransfer(makeTransfer({ id: 'b', status: 'error' }));

@@ -4,7 +4,13 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { connectToHost } from '@/lib/ssh';
 import { useConnectionStore } from '@/stores/connection-store';
-import { hasSessionInTree, useTerminalStore } from '@/stores/terminal-store';
+import {
+  hasSessionInTree,
+  useActiveSessionId,
+  useTerminalStore,
+  useTerminalTabOrder,
+  useTerminalTheme,
+} from '@/stores/terminal-store';
 import { terminalThemes } from '@/themes/terminal';
 import { LocalTerminalTabs } from './LocalTerminalTabs';
 import { SplitLayout } from './SplitLayout';
@@ -20,15 +26,17 @@ function getFirstLeafIdFromRoot(node: PaneNode): string {
 }
 
 export function TerminalViewContainer({ type }: TerminalViewContainerProps) {
-  const {
-    sessions,
-    tabOrder,
-    activeSessionId,
-    terminalTheme,
-    layouts,
-    addSession,
-    setActiveSession,
-  } = useTerminalStore();
+  // Individual selectors instead of a whole-store destructure: the previous
+  // no-selector `useTerminalStore()` re-rendered this component — and every
+  // mounted tab's SplitLayout tree beneath it — on every single store
+  // change, including fields this component never reads (fontSize, etc.).
+  const sessions = useTerminalStore((s) => s.sessions);
+  const tabOrder = useTerminalTabOrder();
+  const activeSessionId = useActiveSessionId();
+  const terminalTheme = useTerminalTheme();
+  const layouts = useTerminalStore((s) => s.layouts);
+  const addSession = useTerminalStore((s) => s.addSession);
+  const setActiveSession = useTerminalStore((s) => s.setActiveSession);
 
   const filteredTabs = useMemo(() => {
     return tabOrder.filter((id) => {

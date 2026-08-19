@@ -33,22 +33,26 @@ import {
   getAllSessionIdsFromTree,
   getFirstLeafSessionId,
   hasSessionInTree,
+  useActiveSessionId,
   useTerminalStore,
+  useTerminalTabOrder,
 } from '@/stores/terminal-store';
 
 export function TerminalTabs() {
-  const {
-    sessions,
-    tabOrder,
-    activeSessionId,
-    setActiveSession,
-    setTabOrder,
-    closeTab,
-    renameTab,
-    closeOtherTabs,
-    closeTabsToRight,
-    layouts,
-  } = useTerminalStore();
+  // Individual selectors instead of a whole-store destructure: the previous
+  // no-selector `useTerminalStore()` re-rendered this component (and the
+  // seven dialogs below it) on every store change, including ones like
+  // fontSize/scrollback that this component never reads.
+  const sessions = useTerminalStore((s) => s.sessions);
+  const tabOrder = useTerminalTabOrder();
+  const activeSessionId = useActiveSessionId();
+  const setActiveSession = useTerminalStore((s) => s.setActiveSession);
+  const setTabOrder = useTerminalStore((s) => s.setTabOrder);
+  const closeTab = useTerminalStore((s) => s.closeTab);
+  const renameTab = useTerminalStore((s) => s.renameTab);
+  const closeOtherTabs = useTerminalStore((s) => s.closeOtherTabs);
+  const closeTabsToRight = useTerminalStore((s) => s.closeTabsToRight);
+  const layouts = useTerminalStore((s) => s.layouts);
   const [closingTabId, setClosingTabId] = useState<string | null>(null);
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
 
@@ -237,83 +241,105 @@ export function TerminalTabs() {
         </button>
       </div>
 
-      <BroadcastInputBar open={showBroadcastBar} onClose={() => setShowBroadcastBar(false)} />
-      <TerminalFilterBar open={showFilterBar} onClose={() => setShowFilterBar(false)} />
+      {/* Gated behind their `show*` flag rather than always mounted: each of
+          these seven dialogs already self-gates on `open` internally (so
+          this changes nothing about when they're visible), but mounting them
+          unconditionally meant every one of their hooks ran on every render
+          of this tab bar even while closed. */}
+      {showBroadcastBar && (
+        <BroadcastInputBar open={showBroadcastBar} onClose={() => setShowBroadcastBar(false)} />
+      )}
+      {showFilterBar && (
+        <TerminalFilterBar open={showFilterBar} onClose={() => setShowFilterBar(false)} />
+      )}
 
-      <CliReferenceDialog
-        open={showCliRef}
-        onClose={() => setShowCliRef(false)}
-        onRunCommand={(cmd) => {
-          if (activeSessionId) {
-            const session = sessions.get(activeSessionId);
-            if (session?.type === 'local') {
-              getApi().localTerminal.sendData({ sessionId: activeSessionId, data: `${cmd}\n` });
-            } else {
-              getApi().ssh.sendData({ sessionId: activeSessionId, data: `${cmd}\n` });
-            }
-          }
-        }}
-      />
-
-      <AuditExportDialog
-        open={showAuditExport}
-        onClose={() => setShowAuditExport(false)}
-        sessionId={activeSessionId || ''}
-        sessionTitle={
-          activeSessionId
-            ? sessions.get(activeSessionId)?.title ||
-              sessions.get(activeSessionId)?.connectionName ||
-              'Terminal Session'
-            : 'Terminal Session'
-        }
-      />
-
-      <MacroRecorderDialog
-        open={showMacroRecorder}
-        onClose={() => setShowMacroRecorder(false)}
-        onRunMacro={(sequence) => {
-          if (activeSessionId) {
-            const session = sessions.get(activeSessionId);
-            for (const cmd of sequence) {
+      {showCliRef && (
+        <CliReferenceDialog
+          open={showCliRef}
+          onClose={() => setShowCliRef(false)}
+          onRunCommand={(cmd) => {
+            if (activeSessionId) {
+              const session = sessions.get(activeSessionId);
               if (session?.type === 'local') {
                 getApi().localTerminal.sendData({ sessionId: activeSessionId, data: `${cmd}\n` });
               } else {
                 getApi().ssh.sendData({ sessionId: activeSessionId, data: `${cmd}\n` });
               }
             }
-          }
-        }}
-      />
+          }}
+        />
+      )}
 
-      <SnippetVaultDialog
-        open={showSnippetVault}
-        onClose={() => setShowSnippetVault(false)}
-        onRunSnippet={(command) => {
-          if (activeSessionId) {
-            const session = sessions.get(activeSessionId);
-            if (session?.type === 'local') {
-              getApi().localTerminal.sendData({
-                sessionId: activeSessionId,
-                data: `${command}\n`,
-              });
-            } else {
-              getApi().ssh.sendData({ sessionId: activeSessionId, data: `${command}\n` });
-            }
+      {showAuditExport && (
+        <AuditExportDialog
+          open={showAuditExport}
+          onClose={() => setShowAuditExport(false)}
+          sessionId={activeSessionId || ''}
+          sessionTitle={
+            activeSessionId
+              ? sessions.get(activeSessionId)?.title ||
+                sessions.get(activeSessionId)?.connectionName ||
+                'Terminal Session'
+              : 'Terminal Session'
           }
-        }}
-      />
+        />
+      )}
 
-      <WorkspacePresetsDialog
-        open={showWorkspaces}
-        onClose={() => setShowWorkspaces(false)}
-        onRestoreWorkspace={(preset) => {
-          if (preset.layout.connectionIds && preset.layout.connectionIds.length > 0) {
-            for (const connId of preset.layout.connectionIds) {
-              connectToHost(connId);
+      {showMacroRecorder && (
+        <MacroRecorderDialog
+          open={showMacroRecorder}
+          onClose={() => setShowMacroRecorder(false)}
+          onRunMacro={(sequence) => {
+            if (activeSessionId) {
+              const session = sessions.get(activeSessionId);
+              for (const cmd of sequence) {
+                if (session?.type === 'local') {
+                  getApi().localTerminal.sendData({
+                    sessionId: activeSessionId,
+                    data: `${cmd}\n`,
+                  });
+                } else {
+                  getApi().ssh.sendData({ sessionId: activeSessionId, data: `${cmd}\n` });
+                }
+              }
             }
-          }
-        }}
-      />
+          }}
+        />
+      )}
+
+      {showSnippetVault && (
+        <SnippetVaultDialog
+          open={showSnippetVault}
+          onClose={() => setShowSnippetVault(false)}
+          onRunSnippet={(command) => {
+            if (activeSessionId) {
+              const session = sessions.get(activeSessionId);
+              if (session?.type === 'local') {
+                getApi().localTerminal.sendData({
+                  sessionId: activeSessionId,
+                  data: `${command}\n`,
+                });
+              } else {
+                getApi().ssh.sendData({ sessionId: activeSessionId, data: `${command}\n` });
+              }
+            }
+          }}
+        />
+      )}
+
+      {showWorkspaces && (
+        <WorkspacePresetsDialog
+          open={showWorkspaces}
+          onClose={() => setShowWorkspaces(false)}
+          onRestoreWorkspace={(preset) => {
+            if (preset.layout.connectionIds && preset.layout.connectionIds.length > 0) {
+              for (const connId of preset.layout.connectionIds) {
+                connectToHost(connId);
+              }
+            }
+          }}
+        />
+      )}
 
       <ConfirmDialog
         open={!!closingTabId}

@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { memo, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 import { getApi } from '@/services/api';
 import { useTerminalStore } from '@/stores/terminal-store';
@@ -10,7 +10,10 @@ interface LocalTerminalPaneProps {
   isActive?: boolean;
 }
 
-export function LocalTerminalPane({ sessionId, isActive }: LocalTerminalPaneProps) {
+export const LocalTerminalPane = memo(function LocalTerminalPane({
+  sessionId,
+  isActive,
+}: LocalTerminalPaneProps) {
   const spawnedRef = useRef(false);
 
   const transport = useMemo<TerminalTransport>(
@@ -87,4 +90,4 @@ export function LocalTerminalPane({ sessionId, isActive }: LocalTerminalPaneProp
       />
     </div>
   );
-}
+});

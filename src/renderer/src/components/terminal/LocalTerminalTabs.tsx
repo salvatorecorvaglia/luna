@@ -9,21 +9,23 @@ import {
   getAllSessionIdsFromTree,
   getFirstLeafSessionId,
   hasSessionInTree,
+  useActiveSessionId,
   useTerminalStore,
+  useTerminalTabOrder,
 } from '@/stores/terminal-store';
 
 export function LocalTerminalTabs() {
-  const {
-    sessions,
-    tabOrder,
-    activeSessionId,
-    setActiveSession,
-    setTabOrder,
-    closeTab,
-    renameTab,
-    addSession,
-    layouts,
-  } = useTerminalStore();
+  // Individual selectors instead of a whole-store destructure — see the same
+  // change in TerminalTabs.tsx for why.
+  const sessions = useTerminalStore((s) => s.sessions);
+  const tabOrder = useTerminalTabOrder();
+  const activeSessionId = useActiveSessionId();
+  const setActiveSession = useTerminalStore((s) => s.setActiveSession);
+  const setTabOrder = useTerminalStore((s) => s.setTabOrder);
+  const closeTab = useTerminalStore((s) => s.closeTab);
+  const renameTab = useTerminalStore((s) => s.renameTab);
+  const addSession = useTerminalStore((s) => s.addSession);
+  const layouts = useTerminalStore((s) => s.layouts);
 
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
 

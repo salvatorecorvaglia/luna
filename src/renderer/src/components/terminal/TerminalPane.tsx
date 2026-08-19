@@ -1,6 +1,6 @@
 import type { SessionStatus } from '@shared/types/terminal';
 import { RefreshCcw } from 'lucide-react';
-import { useEffect, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { sanitizeTerminalText } from '@/lib/terminal-output';
 import { getApi } from '@/services/api';
@@ -13,7 +13,7 @@ interface TerminalPaneProps {
   isActive?: boolean;
 }
 
-export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
+export const TerminalPane = memo(function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
   const session = useTerminalStore((s) => s.sessions.get(sessionId));
   const status = session?.status;
 
@@ -155,4 +155,4 @@ export function TerminalPane({ sessionId, isActive }: TerminalPaneProps) {
       />
     </div>
   );
-}
+});
