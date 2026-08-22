@@ -1,4 +1,5 @@
 import { LIMITS } from '@shared/constants';
+import type { AppSettings } from '@shared/types/settings';
 import type {
   PaneNode,
   SessionStatus,
@@ -10,22 +11,71 @@ import { v4 as uuidv4 } from 'uuid';
 import { create } from 'zustand';
 import { getApi } from '@/services/api';
 
+/**
+ * Read a persisted terminal setting from localStorage, falling back to
+ * `fallback` when the key is missing, unreadable (localStorage disabled), or
+ * fails `parse`'s validation (returns `undefined`).
+ */
+function readPersisted<T>(
+  storageKey: string,
+  parse: (raw: string) => T | undefined,
+  fallback: T,
+): T {
+  try {
+    const saved = localStorage.getItem(storageKey);
+    if (saved != null) {
+      const parsed = parse(saved);
+      if (parsed !== undefined) return parsed;
+    }
+  } catch {
+    // localStorage may be unavailable
+  }
+  return fallback;
+}
+
+/** Write a persisted terminal setting, silently no-op'ing if localStorage is unavailable. */
+function writePersisted(storageKey: string, rawValue: string): void {
+  try {
+    localStorage.setItem(storageKey, rawValue);
+  } catch {
+    // localStorage may be unavailable
+  }
+}
+
+/**
+ * Mirror a terminal setting to both localStorage (for instant restore on the
+ * next launch, before the main process round-trip completes) and the main
+ * process's settings table (source of truth). Shared by all three terminal
+ * settings — theme, font size, and scrollback previously hand-rolled this
+ * exact pairing three times over.
+ */
+function persistTerminalSetting(
+  storageKey: string,
+  rawValue: string,
+  settingsKey: keyof AppSettings,
+  jsonValue: unknown,
+  failureMessage: string,
+): void {
+  writePersisted(storageKey, rawValue);
+  getApi()
+    .settings.set(settingsKey, JSON.stringify(jsonValue))
+    .catch(() => toast.error(failureMessage));
+}
+
 function clampFontSize(size: number): number {
   if (!Number.isFinite(size)) return LIMITS.DEFAULT_FONT_SIZE;
   return Math.min(LIMITS.MAX_FONT_SIZE, Math.max(LIMITS.MIN_FONT_SIZE, Math.round(size)));
 }
 
 function getInitialFontSize(): number {
-  try {
-    const saved = localStorage.getItem('luna-terminal-font-size');
-    if (saved) {
-      const parsed = Number(saved);
-      if (Number.isFinite(parsed)) return clampFontSize(parsed);
-    }
-  } catch {
-    // localStorage may be unavailable
-  }
-  return LIMITS.DEFAULT_FONT_SIZE;
+  return readPersisted(
+    'luna-terminal-font-size',
+    (raw) => {
+      const parsed = Number(raw);
+      return Number.isFinite(parsed) ? clampFontSize(parsed) : undefined;
+    },
+    LIMITS.DEFAULT_FONT_SIZE,
+  );
 }
 
 const VALID_THEMES: TerminalThemeName[] = [
@@ -45,26 +95,22 @@ function clampScrollback(lines: number): number {
 const DEFAULT_SCROLLBACK = 10000;
 
 function getInitialScrollback(): number {
-  try {
-    const saved = localStorage.getItem('luna-terminal-scrollback');
-    if (saved) {
-      const parsed = Number(saved);
-      if (Number.isFinite(parsed)) return clampScrollback(parsed);
-    }
-  } catch {
-    // localStorage may be unavailable
-  }
-  return DEFAULT_SCROLLBACK;
+  return readPersisted(
+    'luna-terminal-scrollback',
+    (raw) => {
+      const parsed = Number(raw);
+      return Number.isFinite(parsed) ? clampScrollback(parsed) : undefined;
+    },
+    DEFAULT_SCROLLBACK,
+  );
 }
 
 function getInitialTerminalTheme(): TerminalThemeName {
-  try {
-    const saved = localStorage.getItem('luna-terminal-theme');
-    if (saved && (VALID_THEMES as string[]).includes(saved)) return saved as TerminalThemeName;
-  } catch {
-    // localStorage may be unavailable
-  }
-  return 'dracula';
+  return readPersisted(
+    'luna-terminal-theme',
+    (raw) => ((VALID_THEMES as string[]).includes(raw) ? (raw as TerminalThemeName) : undefined),
+    'dracula',
+  );
 }
 
 export interface TerminalSession {
@@ -203,10 +249,9 @@ type DetachResult = Pick<TerminalState, 'sessions' | 'tabOrder' | 'activeSession
  * IPC teardown call at the end; both now route through here so they cannot
  * disagree about which pane gets focus after a close.
  *
- * `closeOtherTabs` and `closeTabsToRight` still open-code their own variant of
- * the same rule — they drop whole tabs at once rather than one leaf, so they
- * don't fit this signature. Unifying them means reworking this to take a set
- * of session ids; worth doing, not done here.
+ * `closeOtherTabs` and `closeTabsToRight` drop whole tabs at once rather than
+ * one leaf, so they don't fit this signature — see `detachTabs` below for
+ * their shared logic.
  */
 function detachSession(state: TerminalState, sessionId: string): DetachResult {
   const sessions = new Map(state.sessions);
@@ -250,6 +295,32 @@ function detachSession(state: TerminalState, sessionId: string): DetachResult {
   }
 
   return { sessions, tabOrder, activeSessionId, layouts };
+}
+
+/**
+ * Compute the sessions/layouts/tabOrder that result from dropping a set of
+ * whole tabs at once. Shared by `closeOtherTabs`/`closeTabsToRight`, which
+ * agree on "drop these tabs" but disagree on how to pick the next active
+ * session afterward — that part stays with each caller.
+ */
+function detachTabs(
+  state: Pick<TerminalState, 'sessions' | 'layouts' | 'tabOrder'>,
+  tabIdsToClose: string[],
+): Pick<TerminalState, 'sessions' | 'layouts' | 'tabOrder'> & { closedSessionIds: string[] } {
+  const closeSet = new Set(tabIdsToClose);
+  const closedSessionIds: string[] = [];
+  for (const tId of tabIdsToClose) {
+    const root = state.layouts.get(tId);
+    if (root) closedSessionIds.push(...getAllSessionIdsFromTree(root));
+  }
+
+  const sessions = new Map(state.sessions);
+  for (const id of closedSessionIds) sessions.delete(id);
+  const layouts = new Map(state.layouts);
+  for (const tId of tabIdsToClose) layouts.delete(tId);
+  const tabOrder = state.tabOrder.filter((id) => !closeSet.has(id));
+
+  return { sessions, layouts, tabOrder, closedSessionIds };
 }
 
 /** Tear down the backing transport for a session, picking the right channel. */
@@ -334,42 +405,35 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   setTabOrder: (order) => set({ tabOrder: order }),
 
   setTerminalTheme: (theme) => {
-    try {
-      localStorage.setItem('luna-terminal-theme', theme);
-    } catch {
-      // localStorage may be unavailable
-    }
-    getApi()
-      .settings.set('terminal.theme', JSON.stringify(theme))
-      .catch(() => toast.error('Failed to save terminal theme'));
+    persistTerminalSetting(
+      'luna-terminal-theme',
+      theme,
+      'terminal.theme',
+      theme,
+      'Failed to save terminal theme',
+    );
     set({ terminalTheme: theme });
   },
   setFontSize: (size) => {
     const clamped = clampFontSize(size);
-    try {
-      localStorage.setItem('luna-terminal-font-size', String(clamped));
-    } catch {
-      // localStorage may be unavailable
-    }
-    getApi()
-      .settings.set('terminal.fontSize', JSON.stringify(clamped))
-      .catch(() => toast.error('Failed to save terminal font size'));
+    persistTerminalSetting(
+      'luna-terminal-font-size',
+      String(clamped),
+      'terminal.fontSize',
+      clamped,
+      'Failed to save terminal font size',
+    );
     set({ fontSize: clamped });
   },
   setScrollback: (lines) => {
-    // Persist like fontSize and theme do. This was the odd one out: the
-    // Settings panel wrote it to the DB itself, but any other caller (and the
-    // localStorage mirror the other two keep for instant restore on next
-    // launch) silently lost the value on reload.
     const clamped = clampScrollback(lines);
-    try {
-      localStorage.setItem('luna-terminal-scrollback', String(clamped));
-    } catch {
-      // localStorage may be unavailable
-    }
-    getApi()
-      .settings.set('terminal.scrollback', JSON.stringify(clamped))
-      .catch(() => toast.error('Failed to save terminal scrollback setting'));
+    persistTerminalSetting(
+      'luna-terminal-scrollback',
+      String(clamped),
+      'terminal.scrollback',
+      clamped,
+      'Failed to save terminal scrollback setting',
+    );
     set({ scrollback: clamped });
   },
   initializeSettings: (settings) => {
@@ -377,29 +441,17 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       const updates: Partial<TerminalState> = {};
       if (settings.theme) {
         updates.terminalTheme = settings.theme;
-        try {
-          localStorage.setItem('luna-terminal-theme', settings.theme);
-        } catch {
-          // ignore
-        }
+        writePersisted('luna-terminal-theme', settings.theme);
       }
       if (settings.fontSize) {
         const clamped = clampFontSize(settings.fontSize);
         updates.fontSize = clamped;
-        try {
-          localStorage.setItem('luna-terminal-font-size', String(clamped));
-        } catch {
-          // ignore
-        }
+        writePersisted('luna-terminal-font-size', String(clamped));
       }
       if (settings.scrollback) {
         const clamped = clampScrollback(settings.scrollback);
         updates.scrollback = clamped;
-        try {
-          localStorage.setItem('luna-terminal-scrollback', String(clamped));
-        } catch {
-          // ignore
-        }
+        writePersisted('luna-terminal-scrollback', String(clamped));
       }
       return updates;
     });
@@ -429,72 +481,44 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     if (!tabId) return;
 
     const toCloseTabIds = tabOrder.filter((id) => id !== tabId);
-    const toCloseSessionIds: string[] = [];
-    for (const tId of toCloseTabIds) {
-      const root = layouts.get(tId);
-      if (root) {
-        toCloseSessionIds.push(...getAllSessionIdsFromTree(root));
-      }
-    }
+    const next = detachTabs({ sessions, layouts, tabOrder }, toCloseTabIds);
 
-    for (const id of toCloseSessionIds) {
+    for (const id of next.closedSessionIds) {
       disposeTransport(sessions.get(id), id);
     }
 
-    set((s) => {
-      const newSessions = new Map(s.sessions);
-      for (const id of toCloseSessionIds) newSessions.delete(id);
-      const newLayouts = new Map(s.layouts);
-      for (const tId of toCloseTabIds) newLayouts.delete(tId);
-      const newTabOrder = s.tabOrder.filter((id) => id === tabId);
-
-      return {
-        sessions: newSessions,
-        layouts: newLayouts,
-        tabOrder: newTabOrder,
-        activeSessionId: sessionId,
-      };
+    set({
+      sessions: next.sessions,
+      layouts: next.layouts,
+      tabOrder: next.tabOrder,
+      activeSessionId: sessionId,
     });
   },
 
   closeTabsToRight: (sessionId) => {
-    const { tabOrder, sessions, layouts } = get();
+    const { tabOrder, sessions, layouts, activeSessionId: currentActive } = get();
     const tabId = findTabIdForSession(layouts, sessionId);
     if (!tabId) return;
 
     const idx = tabOrder.indexOf(tabId);
     if (idx === -1) return;
     const toCloseTabIds = tabOrder.slice(idx + 1);
-    const toCloseSessionIds: string[] = [];
-    for (const tId of toCloseTabIds) {
-      const root = layouts.get(tId);
-      if (root) {
-        toCloseSessionIds.push(...getAllSessionIdsFromTree(root));
-      }
-    }
+    const next = detachTabs({ sessions, layouts, tabOrder }, toCloseTabIds);
 
-    for (const id of toCloseSessionIds) {
+    for (const id of next.closedSessionIds) {
       disposeTransport(sessions.get(id), id);
     }
 
-    set((s) => {
-      const newSessions = new Map(s.sessions);
-      for (const id of toCloseSessionIds) newSessions.delete(id);
-      const newLayouts = new Map(s.layouts);
-      for (const tId of toCloseTabIds) newLayouts.delete(tId);
-      const newTabOrder = s.tabOrder.slice(0, idx + 1);
+    const isStillActive = currentActive && !next.closedSessionIds.includes(currentActive);
+    const activeSessionId = isStillActive
+      ? currentActive
+      : getFirstLeafSessionId(next.layouts.get(tabId)!);
 
-      const isStillActive = s.activeSessionId && !toCloseSessionIds.includes(s.activeSessionId);
-      const activeSessionId = isStillActive
-        ? s.activeSessionId
-        : getFirstLeafSessionId(newLayouts.get(tabId)!);
-
-      return {
-        sessions: newSessions,
-        layouts: newLayouts,
-        tabOrder: newTabOrder,
-        activeSessionId,
-      };
+    set({
+      sessions: next.sessions,
+      layouts: next.layouts,
+      tabOrder: next.tabOrder,
+      activeSessionId,
     });
   },
 

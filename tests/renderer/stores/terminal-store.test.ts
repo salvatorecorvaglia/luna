@@ -236,6 +236,153 @@ describe('terminal-store-splits', () => {
     expect(state.tabOrder).toEqual(['session-99']);
     expect(state.sessions.get('session-99')?.connectionName).toBe('Server 99');
   });
+
+  describe('closeOtherTabs', () => {
+    it('keeps only the target tab, disposing every session in the closed tabs', () => {
+      const store = useTerminalStore.getState();
+      store.addSession({
+        id: 'session-a',
+        connectionId: 'conn-a',
+        connectionName: 'A',
+        status: 'connected',
+        title: 'A',
+        type: 'ssh',
+      });
+      store.addSession({
+        id: 'session-b',
+        connectionId: 'conn-b',
+        connectionName: 'B',
+        status: 'connected',
+        title: 'B',
+        type: 'ssh',
+      });
+      store.addSession({
+        id: 'session-c',
+        connectionId: 'conn-c',
+        connectionName: 'C',
+        status: 'connected',
+        title: 'C',
+        type: 'ssh',
+      });
+      // Give tab B a second, split-off leaf so closing "other tabs" has to
+      // walk a multi-leaf pane tree, not just single-session tabs.
+      useTerminalStore.getState().splitSession('session-b', 'vertical');
+      const splitSiblingId = Array.from(useTerminalStore.getState().sessions.keys()).find(
+        (id) => !['session-a', 'session-b', 'session-c'].includes(id),
+      )!;
+
+      useTerminalStore.getState().closeOtherTabs('session-b');
+
+      const state = useTerminalStore.getState();
+      expect(state.tabOrder).toEqual(['session-b']);
+      expect(Array.from(state.sessions.keys()).sort()).toEqual(
+        ['session-b', splitSiblingId].sort(),
+      );
+      expect(state.activeSessionId).toBe('session-b');
+      expect(sshDisconnect).toHaveBeenCalledWith('session-a');
+      expect(sshDisconnect).toHaveBeenCalledWith('session-c');
+      expect(sshDisconnect).not.toHaveBeenCalledWith('session-b');
+      expect(sshDisconnect).not.toHaveBeenCalledWith(splitSiblingId);
+    });
+
+    it('is a no-op when the session is not part of any tracked tab', () => {
+      useTerminalStore.getState().closeOtherTabs('does-not-exist');
+
+      const state = useTerminalStore.getState();
+      expect(state.sessions.size).toBe(0);
+      expect(state.tabOrder).toEqual([]);
+    });
+  });
+
+  describe('closeTabsToRight', () => {
+    function addThreeTabs(): void {
+      const store = useTerminalStore.getState();
+      store.addSession({
+        id: 'session-a',
+        connectionId: 'conn-a',
+        connectionName: 'A',
+        status: 'connected',
+        title: 'A',
+        type: 'ssh',
+      });
+      store.addSession({
+        id: 'session-b',
+        connectionId: 'conn-b',
+        connectionName: 'B',
+        status: 'connected',
+        title: 'B',
+        type: 'ssh',
+      });
+      store.addSession({
+        id: 'session-c',
+        connectionId: 'conn-c',
+        connectionName: 'C',
+        status: 'connected',
+        title: 'C',
+        type: 'ssh',
+      });
+    }
+
+    it('closes every tab after the target and disposes their sessions', () => {
+      addThreeTabs();
+
+      useTerminalStore.getState().closeTabsToRight('session-a');
+
+      const state = useTerminalStore.getState();
+      expect(state.tabOrder).toEqual(['session-a']);
+      expect(Array.from(state.sessions.keys())).toEqual(['session-a']);
+      expect(sshDisconnect).toHaveBeenCalledWith('session-b');
+      expect(sshDisconnect).toHaveBeenCalledWith('session-c');
+    });
+
+    it('keeps the current active session when it is not in a closed tab', () => {
+      addThreeTabs();
+      useTerminalStore.getState().setActiveSession('session-a');
+
+      useTerminalStore.getState().closeTabsToRight('session-a');
+
+      expect(useTerminalStore.getState().activeSessionId).toBe('session-a');
+    });
+
+    it('falls back to the target tab when the active session was closed', () => {
+      addThreeTabs();
+      // addSession left activeSessionId on 'session-c', which is about to close.
+
+      useTerminalStore.getState().closeTabsToRight('session-a');
+
+      expect(useTerminalStore.getState().activeSessionId).toBe('session-a');
+    });
+
+    it('is a no-op when the session is not part of any tracked tab', () => {
+      addThreeTabs();
+      const before = useTerminalStore.getState().tabOrder;
+
+      useTerminalStore.getState().closeTabsToRight('does-not-exist');
+
+      expect(useTerminalStore.getState().tabOrder).toEqual(before);
+    });
+  });
+
+  describe('initializeSettings', () => {
+    it('applies only the fields that are present and mirrors them to localStorage', () => {
+      useTerminalStore.getState().initializeSettings({ theme: 'nord', scrollback: 5000 });
+
+      const state = useTerminalStore.getState();
+      expect(state.terminalTheme).toBe('nord');
+      expect(state.scrollback).toBe(5000);
+      expect(localStorage.getItem('luna-terminal-theme')).toBe('nord');
+      expect(localStorage.getItem('luna-terminal-scrollback')).toBe('5000');
+      // fontSize wasn't in the payload — untouched.
+      expect(localStorage.getItem('luna-terminal-font-size')).toBeNull();
+    });
+
+    it('clamps out-of-range values the same way the individual setters do', () => {
+      useTerminalStore.getState().initializeSettings({ fontSize: 999 });
+
+      // LIMITS.MAX_FONT_SIZE
+      expect(useTerminalStore.getState().fontSize).toBe(32);
+    });
+  });
 });
 
 describe('terminal-store — settings persistence failure', () => {
