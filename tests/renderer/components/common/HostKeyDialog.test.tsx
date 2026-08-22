@@ -122,4 +122,17 @@ describe('HostKeyDialog', () => {
     await waitFor(() => expect(trustHostKey).toHaveBeenCalled());
     expect(connectToHost).not.toHaveBeenCalled();
   });
+
+  // Regression for UX-6: rejecting on outside-click mirrors the existing
+  // Escape behavior — reject is always the safe, non-destructive default.
+  it('rejects (without trusting) on backdrop click', async () => {
+    await showDialog(CHANGED_KEY_EVENT);
+
+    const panel = document.querySelector('.fixed.inset-0.flex') as HTMLElement;
+    expect(panel).toBeTruthy();
+    fireEvent.click(panel);
+
+    expect(trustHostKey).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+  });
 });

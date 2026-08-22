@@ -2,9 +2,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { installFakeApi } from '../../../../src/test/fake-api';
-import { useConnectionStore } from '../../../../src/renderer/src/stores/connection-store';
 import { ConnectionForm } from '../../../../src/renderer/src/components/connection/ConnectionForm';
+import { useConnectionStore } from '../../../../src/renderer/src/stores/connection-store';
+import { installFakeApi } from '../../../../src/test/fake-api';
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
@@ -93,6 +93,42 @@ describe('ConnectionForm — save', () => {
     await waitFor(() => expect(api.connections.create).toHaveBeenCalledTimes(1));
     const [input] = (api.connections.create as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(input).toMatchObject({ name: 'prod', host: 'example.com', username: 'deploy' });
+  });
+});
+
+describe('ConnectionForm — backdrop click', () => {
+  // Regression for UX-6: the backdrop previously had no dismiss handler at
+  // all, unlike every other non-destructive dialog in the app.
+  it('closes the form on backdrop click when untouched', async () => {
+    renderForm();
+    await screen.findByRole('dialog');
+
+    const panel = document.querySelector('.fixed.inset-0.flex') as HTMLElement;
+    expect(panel).toBeTruthy();
+    fireEvent.click(panel);
+
+    expect(useConnectionStore.getState().connectionFormOpen).toBe(false);
+  });
+
+  it('asks for confirmation instead of silently discarding a dirty form', async () => {
+    renderForm();
+    await screen.findByRole('dialog');
+    fireEvent.change(screen.getByLabelText(/host/i), { target: { value: 'example.com' } });
+
+    const panel = document.querySelector('.fixed.inset-0.flex') as HTMLElement;
+    fireEvent.click(panel);
+
+    expect(useConnectionStore.getState().connectionFormOpen).toBe(true);
+    expect(await screen.findByRole('heading', { name: /discard changes/i })).toBeTruthy();
+  });
+
+  it('does not close when clicking inside the dialog card', async () => {
+    renderForm();
+    await screen.findByRole('dialog');
+
+    fireEvent.click(screen.getByRole('dialog'));
+
+    expect(useConnectionStore.getState().connectionFormOpen).toBe(true);
   });
 });
 
