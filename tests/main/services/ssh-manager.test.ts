@@ -1,5 +1,7 @@
+import { IPC } from '@shared/constants';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getDatabase } from '../../../src/main/services/database';
+import { getDatabase, getSetting } from '../../../src/main/services/database';
+import { emitToRenderer } from '../../../src/main/services/emit';
 import { sshManager } from '../../../src/main/services/ssh-manager';
 
 // Faithful-enough stand-in for a net.Server: the production code subscribes
@@ -207,5 +209,93 @@ describe('sshManager', () => {
 
     // Should close both servers
     expect(serverInstance.close).toHaveBeenCalledTimes(2);
+  });
+
+  describe('auto-reconnect', () => {
+    function buildSession(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 'reconnect-session',
+        connectionId: 'conn-id-1',
+        client: { removeAllListeners: vi.fn(), destroy: vi.fn(), end: vi.fn() },
+        shell: undefined,
+        status: 'connected',
+        reconnectAttempts: 0,
+        reconnectTimer: null,
+        reconnecting: false,
+        reconnectGen: 0,
+        ...overrides,
+      };
+    }
+
+    it('retires the session immediately when ssh.autoReconnect is disabled', () => {
+      vi.mocked(getSetting).mockImplementation(
+        (key: string, def: unknown) => (key === 'ssh.autoReconnect' ? false : def) as never,
+      );
+      const m = sshManager as unknown as {
+        sessions: Map<string, unknown>;
+        handleDisconnect: (id: string) => void;
+      };
+      const session = buildSession();
+      m.sessions.set('reconnect-session', session);
+
+      m.handleDisconnect('reconnect-session');
+
+      expect(m.sessions.has('reconnect-session')).toBe(false);
+      expect(
+        (session as { client: { destroy: ReturnType<typeof vi.fn> } }).client.destroy,
+      ).toHaveBeenCalled();
+    });
+
+    it('gives up and retires the session after maxReconnectAttempts is reached', () => {
+      vi.mocked(getSetting).mockImplementation((key: string, def: unknown) => {
+        if (key === 'ssh.maxReconnectAttempts') return 3 as never;
+        if (key === 'ssh.autoReconnect') return true as never;
+        return def as never;
+      });
+      const m = sshManager as unknown as {
+        sessions: Map<string, unknown>;
+        attemptReconnect: (id: string) => void;
+      };
+      const session = buildSession({ status: 'disconnected', reconnectAttempts: 3 });
+      m.sessions.set('reconnect-session', session);
+
+      m.attemptReconnect('reconnect-session');
+
+      expect(m.sessions.has('reconnect-session')).toBe(false);
+      expect(emitToRenderer).toHaveBeenCalledWith(
+        IPC.SSH_ON_ERROR,
+        expect.objectContaining({
+          sessionId: 'reconnect-session',
+          error: expect.stringContaining('Reconnection failed after 3 attempts'),
+        }),
+      );
+    });
+
+    it('schedules exactly one reconnect timer per disconnect, honoring backoff', () => {
+      vi.useFakeTimers();
+      try {
+        vi.mocked(getSetting).mockImplementation((key: string, def: unknown) => {
+          if (key === 'ssh.maxReconnectAttempts') return 5 as never;
+          if (key === 'ssh.autoReconnect') return true as never;
+          return def as never;
+        });
+        const m = sshManager as unknown as {
+          sessions: Map<string, unknown>;
+          attemptReconnect: (id: string) => void;
+        };
+        const session = buildSession({ status: 'disconnected' });
+        m.sessions.set('reconnect-session', session);
+
+        m.attemptReconnect('reconnect-session');
+        // A second call while a timer is already pending must not stack a
+        // second one — attemptReconnect() checks reconnectTimer for this.
+        m.attemptReconnect('reconnect-session');
+
+        expect((session as { reconnectAttempts: number }).reconnectAttempts).toBe(1);
+        expect((session as { reconnecting: boolean }).reconnecting).toBe(true);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });

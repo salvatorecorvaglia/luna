@@ -15,8 +15,8 @@ vi.mock('../../../src/main/lib/logger', () => ({
   default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-import log from '../../../src/main/lib/logger';
 import { registerLogHandlers } from '../../../src/main/ipc/log.ipc';
+import log from '../../../src/main/lib/logger';
 
 const info = log.info as ReturnType<typeof vi.fn>;
 const warn = log.warn as ReturnType<typeof vi.fn>;

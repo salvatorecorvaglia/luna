@@ -1,6 +1,7 @@
 import type { SessionStatus } from '@shared/types/terminal';
 import { RefreshCcw } from 'lucide-react';
 import { memo, useEffect, useMemo, useRef } from 'react';
+import { toast } from 'sonner';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { sanitizeTerminalText } from '@/lib/terminal-output';
 import { getApi } from '@/services/api';
@@ -120,8 +121,18 @@ export const TerminalPane = memo(function TerminalPane({ sessionId, isActive }: 
               ref={reconnectBtnRef}
               onClick={() => {
                 if (session?.connectionId) {
+                  // Revert to the pre-attempt status on failure — same fix as
+                  // the SFTP pane's reconnect button: a bare `void` call here
+                  // previously left the overlay stuck showing "Connecting…"
+                  // with no feedback if the reconnect attempt was rejected.
+                  const previousStatus = session.status;
                   useTerminalStore.getState().updateSessionStatus(sessionId, 'connecting');
-                  void getApi().ssh.connect({ connectionId: session.connectionId, sessionId });
+                  getApi()
+                    .ssh.connect({ connectionId: session.connectionId, sessionId })
+                    .catch(() => {
+                      useTerminalStore.getState().updateSessionStatus(sessionId, previousStatus);
+                      toast.error('Failed to reconnect');
+                    });
                 }
               }}
               className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"

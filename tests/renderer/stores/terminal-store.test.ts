@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { toast } from 'sonner';
-import { installFakeApi } from '../../../src/test/fake-api';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useTerminalStore } from '../../../src/renderer/src/stores/terminal-store';
+import { installFakeApi } from '../../../src/test/fake-api';
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
@@ -254,7 +255,9 @@ describe('terminal-store — settings persistence failure', () => {
     useTerminalStore.getState().setTerminalTheme('nord');
 
     expect(useTerminalStore.getState().terminalTheme).toBe('nord');
-    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to save terminal theme'));
+    await vi.waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Failed to save terminal theme'),
+    );
   });
 
   it('surfaces a toast when persisting font size fails, but still applies it locally', async () => {

@@ -2,7 +2,10 @@
 import { act, renderHook } from '@testing-library/react';
 import { toast } from 'sonner';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { cancelTransfer, useTransferEventListener } from '../../../src/renderer/src/hooks/use-transfers';
+import {
+  cancelTransfer,
+  useTransferEventListener,
+} from '../../../src/renderer/src/hooks/use-transfers';
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },

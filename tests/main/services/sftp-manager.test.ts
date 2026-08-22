@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../../src/main/services/ssh-manager', () => ({
   sshManager: {
@@ -12,6 +12,28 @@ vi.mock('../../../src/main/lib/logger', () => ({
 }));
 
 import { sftpManager } from '../../../src/main/services/sftp-manager';
+import { sshManager } from '../../../src/main/services/ssh-manager';
+
+/** Reach into the private lease/idle/opening state machine for direct testing. */
+function reachIn() {
+  return sftpManager as unknown as {
+    sftpSessions: Map<string, { on: ReturnType<typeof vi.fn>; end?: ReturnType<typeof vi.fn> }>;
+    opening: Map<string, Promise<unknown>>;
+    lastAccess: Map<string, number>;
+    leases: Map<string, number>;
+    closing: Set<string>;
+    cleanupIdle(): void;
+    acquireLease(id: string): void;
+    getSftp(id: string): Promise<{ on: ReturnType<typeof vi.fn> }>;
+    runOp<T>(
+      id: string,
+      op: string,
+      fn: (sftp: unknown) => Promise<T>,
+      timeoutMs?: number,
+    ): Promise<T>;
+    closeSftp(id: string): void;
+  };
+}
 
 /** Minimal fake shaped like the SFTPWrapper surface publishUploadedFile uses. */
 interface FakeSftp {
@@ -154,5 +176,118 @@ describe('SftpManager.publishUploadedFile', () => {
     ]);
     // The original file must never be permanently lost on this path.
     expect(unlink).not.toHaveBeenCalled();
+  });
+});
+
+describe('SftpManager — getSftp() open coalescing', () => {
+  beforeEach(() => {
+    reachIn().sftpSessions.clear();
+    reachIn().opening.clear();
+    reachIn().lastAccess.clear();
+    reachIn().leases.clear();
+    reachIn().closing.clear();
+    vi.mocked(sshManager.getSession).mockReset();
+  });
+
+  it('shares one client.sftp() call between concurrent getSftp() callers for the same session', async () => {
+    let capturedCb: ((err: Error | null, sftp?: unknown) => void) | undefined;
+    const sftpOpen = vi.fn((cb: (err: Error | null, sftp?: unknown) => void) => {
+      capturedCb = cb;
+    });
+    vi.mocked(sshManager.getSession).mockReturnValue({
+      client: { sftp: sftpOpen },
+    } as unknown as ReturnType<typeof sshManager.getSession>);
+
+    const reach = reachIn();
+    const first = reach.getSftp('s1');
+    const second = reach.getSftp('s1');
+
+    // Both callers are in flight; only one real subsystem open should have
+    // been issued — the second sees the shared in-flight promise instead of
+    // triggering its own client.sftp() call (which would leak the loser).
+    expect(sftpOpen).toHaveBeenCalledTimes(1);
+
+    const fakeWrapper = { on: vi.fn() };
+    capturedCb?.(null, fakeWrapper);
+
+    const [a, b] = await Promise.all([first, second]);
+    expect(a).toBe(fakeWrapper);
+    expect(b).toBe(fakeWrapper);
+  });
+});
+
+describe('SftpManager — idle sweep', () => {
+  beforeEach(() => {
+    reachIn().sftpSessions.clear();
+    reachIn().opening.clear();
+    reachIn().lastAccess.clear();
+    reachIn().leases.clear();
+    reachIn().closing.clear();
+  });
+
+  it('closes an idle, unleased session and leaves a leased one alone', () => {
+    const reach = reachIn();
+    const idleSftp = { on: vi.fn(), end: vi.fn() };
+    const busySftp = { on: vi.fn(), end: vi.fn() };
+    reach.sftpSessions.set('idle-session', idleSftp);
+    reach.sftpSessions.set('busy-session', busySftp);
+    // Epoch is far enough in the past for any real IDLE_TIMEOUT_MS.
+    reach.lastAccess.set('idle-session', 0);
+    reach.lastAccess.set('busy-session', 0);
+    reach.leases.set('busy-session', 1);
+
+    reach.cleanupIdle();
+
+    expect(reach.sftpSessions.has('idle-session')).toBe(false);
+    expect(idleSftp.end).toHaveBeenCalled();
+    expect(reach.sftpSessions.has('busy-session')).toBe(true);
+    expect(busySftp.end).not.toHaveBeenCalled();
+  });
+
+  it('acquireLease refuses a session that is mid-close', () => {
+    const reach = reachIn();
+    reach.closing.add('closing-session');
+
+    expect(() => reach.acquireLease('closing-session')).toThrow(/closing/);
+  });
+});
+
+describe('SftpManager — runOp fatal-error invalidation', () => {
+  beforeEach(() => {
+    reachIn().sftpSessions.clear();
+    reachIn().opening.clear();
+    reachIn().lastAccess.clear();
+    reachIn().leases.clear();
+    reachIn().closing.clear();
+  });
+
+  it('invalidates the session on a fatal error and does not double-release the lease', async () => {
+    const reach = reachIn();
+    const fakeSftp = { on: vi.fn(), end: vi.fn() };
+    reach.sftpSessions.set('s1', fakeSftp);
+    reach.lastAccess.set('s1', Date.now());
+
+    await expect(
+      reach.runOp('s1', 'test-op', async () => {
+        throw new Error('channel closed unexpectedly');
+      }),
+    ).rejects.toThrow('channel closed unexpectedly');
+
+    expect(fakeSftp.end).toHaveBeenCalled();
+    expect(reach.sftpSessions.has('s1')).toBe(false);
+    expect(reach.leases.has('s1')).toBe(false);
+  });
+
+  it('releases the lease normally when the operation succeeds', async () => {
+    const reach = reachIn();
+    const fakeSftp = { on: vi.fn(), end: vi.fn() };
+    reach.sftpSessions.set('s1', fakeSftp);
+    reach.lastAccess.set('s1', Date.now());
+
+    const result = await reach.runOp('s1', 'test-op', async () => 'ok');
+
+    expect(result).toBe('ok');
+    expect(reach.leases.has('s1')).toBe(false);
+    expect(reach.sftpSessions.has('s1')).toBe(true);
   });
 });
