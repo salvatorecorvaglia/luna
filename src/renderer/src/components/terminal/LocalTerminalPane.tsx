@@ -85,8 +85,7 @@ export const LocalTerminalPane = memo(function LocalTerminalPane({
         ref={containerRef}
         role="application"
         aria-label="Local terminal session"
-        className="h-full w-full"
-        style={{ padding: '4px' }}
+        className="h-full w-full p-1"
       />
     </div>
   );

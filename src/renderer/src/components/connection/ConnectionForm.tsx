@@ -381,6 +381,12 @@ export function ConnectionForm() {
             initial="initial"
             animate="animate"
             exit="exit"
+            // The backdrop above is fully covered by this inset-0 panel, so
+            // the dismiss handler has to live here (where clicks actually
+            // land) — routed through requestClose so an accidental outside
+            // click on a dirty form gets the same discard confirmation as
+            // Escape and the header's close button, not a silent data loss.
+            onClick={requestClose}
             className={`no-drag fixed inset-0 ${Z.modal} flex items-center justify-center p-4`}
           >
             <div
@@ -574,8 +580,7 @@ export function ConnectionForm() {
                             setTimeout(() => setShowGroupsDropdown(false), 200);
                           }}
                           placeholder="default"
-                          className="form-input"
-                          style={{ paddingLeft: '2.5rem' }}
+                          className="form-input !pl-10"
                         />
                         <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/40 group-focus-within/input:text-primary transition-colors pointer-events-none">
                           <FolderClosed className="size-4" />

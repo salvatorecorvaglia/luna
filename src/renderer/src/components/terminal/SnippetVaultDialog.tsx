@@ -4,6 +4,7 @@ import { Code, Edit3, Play, Plus, Search, Tag, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
+import { EmptyState, Spinner } from '@/components/ui';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
@@ -364,7 +365,7 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
                 </div>
 
                 <div className="space-y-2.5">
-                  {Object.keys(variableValues).map((varKey) => (
+                  {Object.keys(variableValues).map((varKey, i) => (
                     <div key={varKey}>
                       {/* Per-key id — this block renders once per variable, so
                           a static id would collide across iterations and every
@@ -383,7 +384,10 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
                           setVariableValues({ ...variableValues, [varKey]: e.target.value })
                         }
                         placeholder={`Enter value for ${varKey}...`}
-                        autoFocus
+                        // Only the first field should grab focus — with this
+                        // unconditional before, every input in the loop fired
+                        // autoFocus on mount and the last one silently won.
+                        autoFocus={i === 0}
                         className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
                       />
                     </div>
@@ -405,18 +409,16 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
             {!editingSnippet &&
               !promptSnippet &&
               (loading && snippets.length === 0 ? (
-                <div className="py-8 text-center text-xs text-muted-foreground">
-                  Loading command snippets...
+                <div className="flex justify-center py-8">
+                  <Spinner size="md" label="Loading command snippets…" />
                 </div>
               ) : filteredSnippets.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-border rounded-xl bg-accent/10 p-6">
-                  <Code className="size-8 text-muted-foreground/50 mb-2" />
-                  <p className="text-sm font-medium">No snippets found</p>
-                  <p className="text-xs text-muted-foreground mt-1 max-w-sm">
-                    Save frequently executed shell scripts, log tailing commands, or maintenance
-                    procedures here for quick access.
-                  </p>
-                </div>
+                <EmptyState
+                  icon={<Code />}
+                  title="No snippets found"
+                  description="Save frequently executed shell scripts, log tailing commands, or maintenance procedures here for quick access."
+                  className="rounded-xl border border-dashed border-border bg-accent/10 py-10"
+                />
               ) : (
                 <div className="space-y-2.5">
                   {filteredSnippets.map((s) => (

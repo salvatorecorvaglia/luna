@@ -4,6 +4,7 @@ import { ArrowRightLeft, Download, FolderSync, RefreshCw, Upload, X } from 'luci
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
+import { EmptyState, Spinner } from '@/components/ui';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
@@ -315,13 +316,11 @@ export function FolderSyncDialog({
 
             {/* Diff Items Table */}
             {loading ? (
-              <div className="py-12 text-center text-xs text-muted-foreground">
-                Comparing folder checksums and timestamps...
+              <div className="flex justify-center py-12">
+                <Spinner size="md" label="Comparing folder checksums and timestamps…" />
               </div>
             ) : !diffResult || diffResult.items.length === 0 ? (
-              <div className="py-10 text-center text-xs text-muted-foreground">
-                No files found in specified directories.
-              </div>
+              <EmptyState title="No files found in specified directories." className="py-10" />
             ) : (
               <div className="rounded-lg border border-border overflow-hidden">
                 <div className="max-h-60 overflow-y-auto font-mono text-xs">

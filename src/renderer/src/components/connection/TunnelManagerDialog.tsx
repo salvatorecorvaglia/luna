@@ -14,6 +14,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
+import { EmptyState, Spinner } from '@/components/ui';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
@@ -367,18 +368,16 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
 
             {/* List */}
             {loading && tunnels.length === 0 ? (
-              <div className="py-8 text-center text-xs text-muted-foreground">
-                Loading active port forwards...
+              <div className="flex justify-center py-8">
+                <Spinner size="md" label="Loading active port forwards…" />
               </div>
             ) : tunnels.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-border rounded-xl bg-accent/10 p-6">
-                <ArrowRightLeft className="size-8 text-muted-foreground/50 mb-2" />
-                <p className="text-sm font-medium">No active port forwards</p>
-                <p className="text-xs text-muted-foreground mt-1 max-w-sm">
-                  Active SSH tunnels will automatically appear here when connected to servers
-                  configured with port forwarding rules.
-                </p>
-              </div>
+              <EmptyState
+                icon={<ArrowRightLeft />}
+                title="No active port forwards"
+                description="Active SSH tunnels will automatically appear here when connected to servers configured with port forwarding rules."
+                className="rounded-xl border border-dashed border-border bg-accent/10 py-10"
+              />
             ) : (
               <div className="space-y-2.5">
                 {tunnels.map((t) => (

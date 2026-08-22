@@ -112,6 +112,11 @@ export function HostKeyDialog() {
             initial="initial"
             animate="animate"
             exit="exit"
+            // The backdrop above is fully covered by this inset-0 panel, so
+            // the dismiss handler has to live here. Rejecting on outside-click
+            // is safe: it mirrors the existing Escape behavior (reject is
+            // always the non-destructive option — the user just retries).
+            onClick={handleReject}
             className={`fixed inset-0 ${Z.hostKeyDialog} flex items-center justify-center p-4`}
           >
             <div

@@ -92,6 +92,14 @@ function SplitLayoutInner({ node, tabId, activeSessionId }: SplitLayoutProps) {
         onClick={() => {
           if (!isActive) setActiveSession(node.sessionId);
         }}
+        // xterm's own input element is independently focusable, so a
+        // keyboard user tabbing into a pane (rather than clicking it) could
+        // type into a terminal that never became the app's "active" one —
+        // this focus handler (bubbling up from that descendant) keeps the
+        // two in sync regardless of how the pane was reached.
+        onFocus={() => {
+          if (!isActive) setActiveSession(node.sessionId);
+        }}
         className={cn(
           'group relative h-full w-full border transition-all duration-150 overflow-hidden',
           isActive

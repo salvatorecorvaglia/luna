@@ -4,6 +4,7 @@ import { LayoutGrid, Play, Save, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
+import { EmptyState, Spinner } from '@/components/ui';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
@@ -249,18 +250,16 @@ export function WorkspacePresetsDialog({
 
             {/* List */}
             {loading && workspaces.length === 0 ? (
-              <div className="py-8 text-center text-xs text-muted-foreground">
-                Loading saved workspace presets...
+              <div className="flex justify-center py-8">
+                <Spinner size="md" label="Loading saved workspace presets…" />
               </div>
             ) : workspaces.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-border rounded-xl bg-accent/10 p-6">
-                <LayoutGrid className="size-8 text-muted-foreground/50 mb-2" />
-                <p className="text-sm font-medium">No workspace presets saved</p>
-                <p className="text-xs text-muted-foreground mt-1 max-w-sm">
-                  Save your active multi-session window layouts to instantly reconnect and restore
-                  tab setups later.
-                </p>
-              </div>
+              <EmptyState
+                icon={<LayoutGrid />}
+                title="No workspace presets saved"
+                description="Save your active multi-session window layouts to instantly reconnect and restore tab setups later."
+                className="rounded-xl border border-dashed border-border bg-accent/10 py-10"
+              />
             ) : (
               <div className="space-y-2.5">
                 {workspaces.map((w) => (

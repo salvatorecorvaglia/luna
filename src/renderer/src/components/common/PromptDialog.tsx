@@ -94,6 +94,11 @@ export function PromptDialog({
             initial="initial"
             animate="animate"
             exit="exit"
+            // The overlay above is fully covered by this inset-0 panel, so a
+            // click-to-dismiss handler has to live here (where clicks actually
+            // land) rather than on the now-unreachable overlay div — the
+            // inner card's stopPropagation only makes sense paired with this.
+            onClick={onCancel}
             className={`fixed inset-0 ${Z.modal} flex items-center justify-center p-4`}
           >
             <div

@@ -4,6 +4,7 @@ import { BookOpen, Copy, Play, Search, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
+import { EmptyState, Spinner } from '@/components/ui';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
@@ -148,13 +149,11 @@ export function CliReferenceDialog({ open, onClose, onRunCommand }: CliReference
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
             {loading && docs.length === 0 ? (
-              <div className="py-8 text-center text-xs text-muted-foreground">
-                Loading CLI reference database...
+              <div className="flex justify-center py-8">
+                <Spinner size="md" label="Loading CLI reference database…" />
               </div>
             ) : docs.length === 0 ? (
-              <div className="py-8 text-center text-xs text-muted-foreground">
-                No matching CLI documentation found for "{query}".
-              </div>
+              <EmptyState title={`No matching CLI documentation found for "${query}".`} />
             ) : (
               <div className="space-y-4">
                 {docs.map((doc) => (

@@ -150,8 +150,7 @@ export const TerminalPane = memo(function TerminalPane({ sessionId, isActive }: 
         ref={containerRef}
         role="application"
         aria-label={`Terminal session ${session?.title ?? sessionId}`}
-        className="h-full w-full"
-        style={{ padding: '4px' }}
+        className="h-full w-full p-1"
       />
     </div>
   );

@@ -1,8 +1,9 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, Copy, Link2, Loader2, X } from 'lucide-react';
+import { Check, Copy, Link2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
+import { Spinner } from '@/components/ui';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
@@ -121,6 +122,11 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
             initial="initial"
             animate="animate"
             exit="exit"
+            // The overlay above is fully covered by this inset-0 panel, so the
+            // click-to-dismiss handler has to live here (where clicks actually
+            // land) rather than on the now-unreachable overlay div — the
+            // inner card's stopPropagation only makes sense paired with this.
+            onClick={onClose}
             className={`fixed inset-0 ${Z.confirm} flex items-center justify-center p-4`}
           >
             <div
@@ -296,7 +302,7 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
                   >
                     {generating ? (
                       <>
-                        <Loader2 className="size-3.5 animate-spin" />
+                        <Spinner size="sm" />
                         Generating...
                       </>
                     ) : (

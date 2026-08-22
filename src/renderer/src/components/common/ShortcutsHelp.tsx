@@ -1,5 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { Keyboard, X } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import { attachFocusTrap } from '@/lib/focus-trap';
 import { Z } from '@/lib/z-layers';
 import { useUIStore } from '@/stores/ui-store';
 
@@ -68,6 +70,16 @@ const CATEGORIES = [
 export function ShortcutsHelp() {
   const isOpen = useUIStore((s) => s.shortcutsHelpOpen);
   const setOpen = useUIStore((s) => s.setShortcutsHelpOpen);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Unlike most dialogs here, this one had no focus trap or Escape handler at
+  // all — Tab could leak out to the page behind it and Esc did nothing.
+  useEffect(() => {
+    if (!isOpen) return;
+    const panel = panelRef.current;
+    if (!panel) return;
+    return attachFocusTrap(panel, { onEscape: () => setOpen(false) });
+  }, [isOpen, setOpen]);
 
   return (
     <AnimatePresence>
@@ -88,7 +100,13 @@ export function ShortcutsHelp() {
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             className={`fixed left-1/2 top-1/2 ${Z.modal} w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 p-4`}
           >
-            <div className="overflow-hidden rounded-2xl border border-border/80 bg-card/95 shadow-2xl backdrop-blur-xl">
+            <div
+              ref={panelRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="shortcuts-help-title"
+              className="overflow-hidden rounded-2xl border border-border/80 bg-card/95 shadow-2xl backdrop-blur-xl"
+            >
               {/* Header */}
               <div className="flex items-center justify-between border-b border-border/40 px-6 py-4 bg-muted/20">
                 <div className="flex items-center gap-3">
@@ -96,7 +114,9 @@ export function ShortcutsHelp() {
                     <Keyboard className="size-4" />
                   </div>
                   <div>
-                    <h2 className="text-sm font-bold text-foreground">Keyboard Shortcuts</h2>
+                    <h2 id="shortcuts-help-title" className="text-sm font-bold text-foreground">
+                      Keyboard Shortcuts
+                    </h2>
                     <p className="text-[11px] text-muted-foreground">Speed up your workflow</p>
                   </div>
                 </div>
@@ -104,6 +124,7 @@ export function ShortcutsHelp() {
                 <button
                   onClick={() => setOpen(false)}
                   className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+                  aria-label="Close"
                 >
                   <X className="size-4" />
                 </button>
