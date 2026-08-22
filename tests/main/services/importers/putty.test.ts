@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { importFromPuTTY } from '../../../../src/main/lib/importers/putty';
+import { importFromPuTTY } from '../../../../src/main/services/importers/putty';
 
 describe('PuTTY Importer', () => {
   it('should parse standard PuTTY sessions correctly', () => {

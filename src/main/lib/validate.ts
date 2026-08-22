@@ -40,6 +40,39 @@ export function assertValidPath(value: unknown, name: string): asserts value is 
 }
 
 /**
+ * Enforce that testConnection-style handlers receive exactly one of a saved
+ * `connectionId` or a transient `config` — never both, never neither. Both
+ * accepting both would let a compromised renderer smuggle transient secrets
+ * alongside a saved connection into a code path meant to use only stored
+ * credentials.
+ */
+export function assertEitherConnectionOrConfig(connectionId: unknown, config: unknown): void {
+  if (connectionId && config) {
+    throw validationError('testConnection accepts either connectionId or config, not both');
+  }
+  if (!connectionId && !config) {
+    throw validationError('testConnection requires connectionId or config');
+  }
+}
+
+/** Shared cap on transient secret fields (passwords, keys, tokens) accepted over IPC. */
+export const MAX_SECRET_LEN = 4096;
+
+/**
+ * Validate that each named optional secret field, when present, is a string
+ * within MAX_SECRET_LEN characters. Skips fields that are `undefined` so
+ * callers can pass a mix of required/optional secrets in one call.
+ */
+export function assertBoundedSecretFields(fields: Record<string, string | undefined>): void {
+  for (const [name, value] of Object.entries(fields)) {
+    if (value === undefined) continue;
+    if (typeof value !== 'string' || value.length > MAX_SECRET_LEN) {
+      throw validationError(`${name} must be a string up to ${MAX_SECRET_LEN} characters`);
+    }
+  }
+}
+
+/**
  * True if `child` is `parent` or a descendant of it. Uses path.relative so the
  * check is correct on both POSIX (`/`) and Windows (`\`, plus drive letters)
  * — naive `startsWith(parent + '/')` checks miss Windows separators and let
@@ -221,12 +254,4 @@ export async function expandAndValidatePrivateKeyPath(
   name: string,
 ): Promise<string> {
   return realpath(expandTilde(rawPath, name));
-}
-
-/**
- * Synchronous expansion + validation (no symlink follow or existence check).
- * Used inside connection import to canonicalize key paths without blocking disk I/O.
- */
-export function expandAndValidatePrivateKeyPathSync(rawPath: string, name: string): string {
-  return expandTilde(rawPath, name);
 }

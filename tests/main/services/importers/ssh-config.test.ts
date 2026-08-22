@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseSshConfig } from '../../../../src/main/lib/importers/ssh-config';
+import { parseSshConfig } from '../../../../src/main/services/importers/ssh-config';
 
 describe('SSH Config Importer', () => {
   it('should parse standard SSH configuration files correctly', () => {

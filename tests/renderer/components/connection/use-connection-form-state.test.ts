@@ -9,7 +9,7 @@ describe('useConnectionFormState', () => {
   const initialColor = '#ff0000';
 
   it('should initialize with default states', () => {
-    const { result } = renderHook(() => useConnectionFormState(initialColor));
+    const { result } = renderHook(() => useConnectionFormState(initialColor, { isEditing: false }));
 
     expect(result.current.common.name).toBe('');
     expect(result.current.common.provider).toBe('sftp');
@@ -26,7 +26,7 @@ describe('useConnectionFormState', () => {
   });
 
   it('should apply partial state updates via patch functions', () => {
-    const { result } = renderHook(() => useConnectionFormState(initialColor));
+    const { result } = renderHook(() => useConnectionFormState(initialColor, { isEditing: false }));
 
     act(() => {
       result.current.patchCommon({ name: 'My Connection', folder: 'custom' });
@@ -48,7 +48,7 @@ describe('useConnectionFormState', () => {
   });
 
   it('should support resetting the form to defaults', () => {
-    const { result } = renderHook(() => useConnectionFormState(initialColor));
+    const { result } = renderHook(() => useConnectionFormState(initialColor, { isEditing: false }));
 
     act(() => {
       result.current.patchCommon({ name: 'Changed' });
@@ -61,7 +61,7 @@ describe('useConnectionFormState', () => {
   });
 
   it('should clear secret credentials with clearSecrets', () => {
-    const { result } = renderHook(() => useConnectionFormState(initialColor));
+    const { result } = renderHook(() => useConnectionFormState(initialColor, { isEditing: false }));
 
     act(() => {
       result.current.patchSftp({ password: 'pwd', passphrase: 'pass' });
@@ -79,9 +79,74 @@ describe('useConnectionFormState', () => {
     expect(result.current.s3.sessionToken).toBe('');
   });
 
+  describe('fieldErrors', () => {
+    it('flags required SFTP fields when creating', () => {
+      const { result } = renderHook(() =>
+        useConnectionFormState(initialColor, { isEditing: false }),
+      );
+
+      act(() => {
+        result.current.patchSftp({ host: '', port: '', username: '', password: '' });
+      });
+
+      expect(result.current.fieldErrors.host).toBe('Host is required');
+      expect(result.current.fieldErrors.port).toBeDefined();
+      expect(result.current.fieldErrors.username).toBe('Username is required');
+      expect(result.current.fieldErrors.password).toBe('Password is required');
+    });
+
+    it('does not require a password when editing', () => {
+      const { result } = renderHook(() =>
+        useConnectionFormState(initialColor, { isEditing: true }),
+      );
+
+      act(() => {
+        result.current.patchSftp({
+          host: 'localhost',
+          port: '22',
+          username: 'ubuntu',
+          password: '',
+        });
+      });
+
+      expect(result.current.fieldErrors.password).toBeUndefined();
+    });
+
+    it('surfaces the private-key probe error passed in via options', () => {
+      const { result } = renderHook(() =>
+        useConnectionFormState(initialColor, {
+          isEditing: false,
+          privateKeyProbeError: 'Private key file not found',
+        }),
+      );
+
+      act(() => {
+        result.current.patchCommon({ provider: 'sftp' });
+        result.current.patchSftp({ authType: 'key', privateKeyPath: '~/.ssh/id_rsa' });
+      });
+
+      expect(result.current.fieldErrors.privateKeyPath).toBe('Private key file not found');
+    });
+
+    it('flags required S3 credentials when creating', () => {
+      const { result } = renderHook(() =>
+        useConnectionFormState(initialColor, { isEditing: false }),
+      );
+
+      act(() => {
+        result.current.patchCommon({ provider: 's3' });
+      });
+
+      expect(result.current.fieldErrors.accessKeyId).toBe('Access Key ID is required');
+      expect(result.current.fieldErrors.secretAccessKey).toBe('Secret Access Key is required');
+    });
+  });
+
   describe('reseedFromConnection', () => {
     it('should reseed standard SFTP connection', () => {
-      const { result } = renderHook(() => useConnectionFormState(initialColor));
+      const { result } = renderHook(() =>
+        useConnectionFormState(initialColor, { isEditing: false }),
+      );
       const sourceConn: Connection = {
         id: 'conn-1',
         name: 'Server 1',
@@ -116,7 +181,9 @@ describe('useConnectionFormState', () => {
     });
 
     it('should append (copy) to name when duplicating', () => {
-      const { result } = renderHook(() => useConnectionFormState(initialColor));
+      const { result } = renderHook(() =>
+        useConnectionFormState(initialColor, { isEditing: false }),
+      );
       const sourceConn: Connection = {
         id: 'conn-1',
         name: 'Server 1',
@@ -140,7 +207,9 @@ describe('useConnectionFormState', () => {
     });
 
     it('should parse S3 endpoints with protocol, host, and port correctly during reseed', () => {
-      const { result } = renderHook(() => useConnectionFormState(initialColor));
+      const { result } = renderHook(() =>
+        useConnectionFormState(initialColor, { isEditing: false }),
+      );
       const sourceConn: Connection = {
         id: 's3-1',
         name: 'MinIO',

@@ -14,8 +14,6 @@ import type { StorageProviderKind } from '@shared/types/storage-provider';
 import type Database from 'better-sqlite3';
 import { dialog } from 'electron';
 import { v4 as uuidv4 } from 'uuid';
-import { detectAndImport } from '../lib/importers';
-import { parseSshConfig } from '../lib/importers/ssh-config';
 import log from '../lib/logger';
 import {
   assertBoundedInt,
@@ -25,6 +23,8 @@ import {
 } from '../lib/validate';
 import { deleteCredential, retrieveS3Credential, storeCredential } from './credential-store';
 import { CONNECTION_COLUMNS, type ConnectionRow, getDatabase } from './database';
+import { detectAndImport } from './importers';
+import { parseSshConfig } from './importers/ssh-config';
 import { validatePortForwardConfig } from './ssh/port-forward-config';
 
 const VALID_AUTH_TYPES = ['password', 'key', 'key+passphrase'] as const;

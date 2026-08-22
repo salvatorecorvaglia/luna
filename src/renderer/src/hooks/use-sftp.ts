@@ -25,8 +25,6 @@ export function useSftpDirectory(
   });
 }
 
-export const useStorageDirectory = useSftpDirectory;
-
 export function useLocalDirectory(path: string) {
   return useQuery<LocalFileEntry[]>({
     queryKey: ['local-dir', path],
@@ -47,8 +45,6 @@ export function useInvalidateSftp() {
     }
   };
 }
-
-export const useInvalidateStorage = useInvalidateSftp;
 
 export function useInvalidateLocalDir() {
   const queryClient = useQueryClient();

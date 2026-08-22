@@ -6,14 +6,17 @@ import { registerHandler } from '../lib/ipc-handler';
 import log from '../lib/logger';
 import { releaseStorageBucket } from '../lib/rate-limiter';
 import { SlidingWindowLimiter } from '../lib/sliding-window-limiter';
-import { assertBoundedInt, assertNonEmptyString } from '../lib/validate';
+import {
+  assertBoundedInt,
+  assertBoundedSecretFields,
+  assertEitherConnectionOrConfig,
+  assertNonEmptyString,
+} from '../lib/validate';
 import { retrieveS3Credential } from '../services/credential-store';
 import { type ConnectionRow, getDatabase } from '../services/database';
 import { buildS3ClientConfig } from '../services/s3/s3-helpers';
 import { type S3SessionOptions, s3StorageProvider } from '../services/s3/s3-provider';
 import { storageRegistry } from '../services/storage/registry';
-
-const MAX_SECRET_LEN = 4096;
 
 /**
  * Hard cap on concurrent S3 sessions, mirroring MAX_SSH_SESSIONS in
@@ -132,30 +135,17 @@ export function registerS3Handlers(): void {
     ): Promise<{ ok: boolean; error?: string }> => {
       // Match the SSH semantics: don't accept transient secrets alongside a
       // saved connectionId — the renderer must pick one path explicitly.
-      if (params.connectionId && params.config) {
-        throw new LunaError(
-          'testConnection accepts either connectionId or config, not both',
-          ErrorCode.VALIDATION_ERROR,
-        );
-      }
+      assertEitherConnectionOrConfig(params.connectionId, params.config);
       let opts: S3SessionOptions;
       if (params.config) {
         const c = params.config;
         assertNonEmptyString(c.accessKeyId, 'accessKeyId');
         assertNonEmptyString(c.secretAccessKey, 'secretAccessKey');
-        for (const [k, v] of Object.entries({
+        assertBoundedSecretFields({
           accessKeyId: c.accessKeyId,
           secretAccessKey: c.secretAccessKey,
           sessionToken: c.sessionToken,
-        })) {
-          if (v === undefined) continue;
-          if (typeof v !== 'string' || v.length > MAX_SECRET_LEN) {
-            throw new LunaError(
-              `${k} must be a string up to ${MAX_SECRET_LEN} characters`,
-              ErrorCode.VALIDATION_ERROR,
-            );
-          }
-        }
+        });
         opts = {
           connectionId: 'test-connection',
           connectionName: 'Test Connection',
@@ -166,14 +156,9 @@ export function registerS3Handlers(): void {
           secretAccessKey: c.secretAccessKey,
           sessionToken: c.sessionToken,
         };
-      } else if (params.connectionId) {
+      } else {
         assertNonEmptyString(params.connectionId, 'connectionId');
         opts = loadConfig(params.connectionId);
-      } else {
-        throw new LunaError(
-          'testConnection requires connectionId or config',
-          ErrorCode.VALIDATION_ERROR,
-        );
       }
 
       // fastFail=true caps timeouts to 10s/5s and disables retries so an

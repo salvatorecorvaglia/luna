@@ -2,14 +2,17 @@ import { IPC } from '@shared/constants';
 import { ErrorCode, LunaError } from '@shared/errors';
 import { registerHandler } from '../lib/ipc-handler';
 import { SlidingWindowLimiter } from '../lib/sliding-window-limiter';
-import { assertBoundedInt, assertNonEmptyString } from '../lib/validate';
+import {
+  assertBoundedInt,
+  assertBoundedSecretFields,
+  assertEitherConnectionOrConfig,
+  assertNonEmptyString,
+} from '../lib/validate';
 import { sshManager } from '../services/ssh-manager';
 import { storageRegistry } from '../services/storage/registry';
 import { sftpStorageProvider } from '../services/storage/sftp-storage-provider';
 
 const VALID_AUTH_TYPES = new Set(['password', 'key', 'key+passphrase']);
-/** Cap on the size of a single transient secret accepted from the renderer. */
-const MAX_SECRET_LEN = 4096;
 /**
  * Cap on a single SSH_SEND_DATA payload. xterm typically emits a few bytes
  * per keystroke and chunks pasted blobs; 64 KiB is comfortably above any
@@ -158,12 +161,7 @@ export function registerSshHandlers(): void {
       // Never accept transient secrets alongside a saved connectionId —
       // forces the renderer to choose one path explicitly so password material
       // can't be silently injected into a flow that should use stored creds.
-      if (params.connectionId && params.config) {
-        throw new LunaError(
-          'testConnection accepts either connectionId or config, not both',
-          ErrorCode.VALIDATION_ERROR,
-        );
-      }
+      assertEitherConnectionOrConfig(params.connectionId, params.config);
       if (params.config) {
         const c = params.config;
         assertNonEmptyString(c.host, 'host');
@@ -172,22 +170,9 @@ export function registerSshHandlers(): void {
         if (!VALID_AUTH_TYPES.has(c.authType)) {
           throw new LunaError(`Unsupported authType "${c.authType}"`, ErrorCode.VALIDATION_ERROR);
         }
-        for (const [k, v] of Object.entries({ password: c.password, passphrase: c.passphrase })) {
-          if (v === undefined) continue;
-          if (typeof v !== 'string' || v.length > MAX_SECRET_LEN) {
-            throw new LunaError(
-              `${k} must be a string up to ${MAX_SECRET_LEN} characters`,
-              ErrorCode.VALIDATION_ERROR,
-            );
-          }
-        }
-      } else if (params.connectionId) {
-        assertNonEmptyString(params.connectionId, 'connectionId');
+        assertBoundedSecretFields({ password: c.password, passphrase: c.passphrase });
       } else {
-        throw new LunaError(
-          'testConnection requires connectionId or config',
-          ErrorCode.VALIDATION_ERROR,
-        );
+        assertNonEmptyString(params.connectionId, 'connectionId');
       }
       return sshManager.testConnection(params);
     },

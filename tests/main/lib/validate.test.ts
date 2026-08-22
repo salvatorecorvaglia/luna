@@ -11,7 +11,6 @@ import {
   expandAndConfineToHome,
   expandAndConfineToHomeSync,
   expandAndValidatePrivateKeyPath,
-  expandAndValidatePrivateKeyPathSync,
 } from '../../../src/main/lib/validate';
 
 const HOME = homedir();
@@ -252,18 +251,6 @@ describe('assertSafeRealAbsolutePath (symlink-following)', () => {
     await expect(assertSafeRealAbsolutePath(newFile, 'p')).rejects.toThrow(
       /resolves outside the home directory/,
     );
-  });
-});
-
-describe('expandAndValidatePrivateKeyPathSync', () => {
-  it('expands ~/x to <home>/x', () => {
-    const out = expandAndValidatePrivateKeyPathSync('~/keys/id_rsa', 'p');
-    expect(out).toBe(join(HOME, 'keys/id_rsa'));
-  });
-
-  it('allows absolute paths outside home', () => {
-    const out = expandAndValidatePrivateKeyPathSync('/etc/passwd', 'p');
-    expect(out).toBe(join('/', 'etc/passwd'));
   });
 });
 

@@ -43,6 +43,14 @@ export function ConnectionForm() {
   const createMutation = useCreateConnection();
   const updateMutation = useUpdateConnection();
 
+  const isEditing = !!editingConnectionId;
+  /**
+   * Inline result of the private-key file probe. Validated when the path
+   * field blurs (and the path is non-empty) so the user sees "file not found"
+   * inline instead of only learning at submit-time via a toast.
+   */
+  const [privateKeyProbeError, setPrivateKeyProbeError] = useState<string | undefined>(undefined);
+
   const {
     common,
     sftp,
@@ -59,15 +67,10 @@ export function ConnectionForm() {
     resetForm,
     reseedFromConnection,
     clearSecrets,
-  } = useConnectionFormState(COLOR_OPTIONS[0].hex);
+    fieldErrors,
+  } = useConnectionFormState(COLOR_OPTIONS[0].hex, { isEditing, privateKeyProbeError });
 
   const [showGroupsDropdown, setShowGroupsDropdown] = useState(false);
-  /**
-   * Inline result of the private-key file probe. Validated when the path
-   * field blurs (and the path is non-empty) so the user sees "file not found"
-   * inline instead of only learning at submit-time via a toast.
-   */
-  const [privateKeyProbeError, setPrivateKeyProbeError] = useState<string | undefined>(undefined);
   // Test-connection lifecycle (run id, abort, watchdog) lives in its own hook —
   // it is separate machinery from the form's field state.
   const {
@@ -79,7 +82,6 @@ export function ConnectionForm() {
 
   const dialogRef = useRef<HTMLDivElement>(null);
   const fieldId = useId();
-  const isEditing = !!editingConnectionId;
   const isSaving = createMutation.isPending || updateMutation.isPending;
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
 
@@ -189,44 +191,6 @@ export function ConnectionForm() {
       ? 'A connection with this name already exists'
       : undefined;
   }, [common.name, existingNamesLower]);
-
-  // Per-field validation (no list walks) — recomputed on the cheap inputs.
-  const fieldErrors = useMemo<Record<string, string>>(() => {
-    const out: Record<string, string> = {};
-    if (common.provider === 'sftp') {
-      if (!sftp.host.trim()) out.host = 'Host is required';
-      const portNum = parseInt(sftp.port, 10);
-      if (sftp.port.trim() === '' || Number.isNaN(portNum) || portNum < 1 || portNum > 65535) {
-        out.port = 'Port must be between 1 and 65535';
-      }
-      if (!sftp.username.trim()) out.username = 'Username is required';
-      if (sftp.authType === 'password' && !isEditing && !sftp.password.trim()) {
-        out.password = 'Password is required';
-      }
-      if (
-        (sftp.authType === 'key' || sftp.authType === 'key+passphrase') &&
-        !sftp.privateKeyPath.trim()
-      ) {
-        out.privateKeyPath = 'Private key path is required';
-      } else if (privateKeyProbeError) {
-        out.privateKeyPath = privateKeyProbeError;
-      }
-    } else {
-      // S3 — credentials only required on create. On edit, leaving them
-      // blank means "keep existing" (mirrors the SSH password UX).
-      if (s3.port.trim() !== '') {
-        const portNum = parseInt(s3.port, 10);
-        if (Number.isNaN(portNum) || portNum < 1 || portNum > 65535) {
-          out.port = 'Port must be between 1 and 65535';
-        }
-      }
-      if (!isEditing && !s3.accessKeyId.trim()) out.accessKeyId = 'Access Key ID is required';
-      if (!isEditing && !s3.secretAccessKey.trim()) {
-        out.secretAccessKey = 'Secret Access Key is required';
-      }
-    }
-    return out;
-  }, [common.provider, sftp, s3, isEditing, privateKeyProbeError]);
 
   // Debounced inline probe of the private-key file. All setState calls happen
   // inside the deferred timeout callback (asynchronous), so the effect itself

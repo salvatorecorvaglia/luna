@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseIni } from '../../../../src/main/lib/importers/ini-parser';
+import { parseIni } from '../../../../src/main/services/importers/ini-parser';
 
 describe('INI Parser', () => {
   it('should parse standard INI content correctly', () => {

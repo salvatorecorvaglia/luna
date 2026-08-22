@@ -1,3 +1,4 @@
+import { BINARY_PREVIEW_EXTENSIONS } from '@shared/constants';
 import { isCancellation, toastArgs } from '@shared/error-messages';
 import { Plus, RefreshCcw, Unplug, WifiOff } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -27,7 +28,9 @@ import { TransferQueue } from './TransferQueue';
 // Pulled to module scope so they're allocated once at module load instead of
 // rebuilt on every preview-open render. Both lists are immutable and shared
 // between the remote and local file-preview handlers.
-const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp'] as const;
+// Derived from the shared binary-preview list (minus 'pdf', handled separately
+// via `isPdf`) so the two lists can't drift apart.
+const IMAGE_EXTS = [...BINARY_PREVIEW_EXTENSIONS].filter((ext) => ext !== 'pdf');
 const TEXT_EXTS = [
   'txt',
   'md',
@@ -68,7 +71,7 @@ const TEXT_EXTS = [
 ] as const;
 
 function mimeForExt(ext: string, isPdf: boolean): string {
-  if ((IMAGE_EXTS as readonly string[]).includes(ext)) {
+  if (IMAGE_EXTS.includes(ext)) {
     return `image/${ext === 'jpg' ? 'jpeg' : ext === 'svg' ? 'svg+xml' : ext}`;
   }
   if (isPdf) return 'application/pdf';
@@ -303,7 +306,7 @@ export function SftpManager() {
 
         if (
           !(TEXT_EXTS as readonly string[]).includes(ext) &&
-          !(IMAGE_EXTS as readonly string[]).includes(ext) &&
+          !IMAGE_EXTS.includes(ext) &&
           !isPdf
         ) {
           toast.info(`Cannot preview .${ext} files. Use download to open.`);
@@ -339,7 +342,7 @@ export function SftpManager() {
 
         if (
           !(TEXT_EXTS as readonly string[]).includes(ext) &&
-          !(IMAGE_EXTS as readonly string[]).includes(ext) &&
+          !IMAGE_EXTS.includes(ext) &&
           !isPdf
         ) {
           toast.info(`Cannot preview .${ext} files. Use your system file manager to open.`);

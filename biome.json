@@ -43,7 +43,7 @@
         "noImportantStyles": "off"
       },
       "correctness": {
-        "noUnusedVariables": "warn",
+        "noUnusedVariables": "error",
         "useExhaustiveDependencies": "off",
         "useParseIntRadix": "off"
       },

@@ -1,6 +1,6 @@
 import type { AuthType, Connection, PortForwardingConfig } from '@shared/types/connection';
 import type { StorageProviderKind } from '@shared/types/storage-provider';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 /**
  * State shapes for the connection form, grouped by panel.
@@ -102,9 +102,21 @@ export interface UseConnectionFormStateApi {
   reseedFromConnection(source: Connection, opts: { isDuplicate: boolean }): void;
   /** Wipe transient cleartext secrets from React state. */
   clearSecrets(): void;
+  /** Per-field validation messages, keyed by field name (excludes name-uniqueness). */
+  fieldErrors: Record<string, string>;
 }
 
-export function useConnectionFormState(initialColor: string): UseConnectionFormStateApi {
+export interface UseConnectionFormStateOptions {
+  /** Credentials are only required on create; blank means "keep existing" on edit. */
+  isEditing: boolean;
+  /** Result of the async private-key file probe, surfaced as a field error when set. */
+  privateKeyProbeError?: string;
+}
+
+export function useConnectionFormState(
+  initialColor: string,
+  { isEditing, privateKeyProbeError }: UseConnectionFormStateOptions,
+): UseConnectionFormStateApi {
   const [common, setCommon] = useState<CommonState>(() => defaultCommon(initialColor));
   const [sftp, setSftp] = useState<SftpState>(DEFAULT_SFTP);
   const [s3, setS3] = useState<S3State>(DEFAULT_S3);
@@ -219,6 +231,46 @@ export function useConnectionFormState(initialColor: string): UseConnectionFormS
     setS3((prev) => ({ ...prev, accessKeyId: '', secretAccessKey: '', sessionToken: '' }));
   }, []);
 
+  // Per-field validation (no list walks) — recomputed on the cheap inputs.
+  // Name uniqueness is excluded: it needs the full connections list, which
+  // this hook doesn't have, so callers merge that in separately.
+  const fieldErrors = useMemo<Record<string, string>>(() => {
+    const out: Record<string, string> = {};
+    if (common.provider === 'sftp') {
+      if (!sftp.host.trim()) out.host = 'Host is required';
+      const portNum = parseInt(sftp.port, 10);
+      if (sftp.port.trim() === '' || Number.isNaN(portNum) || portNum < 1 || portNum > 65535) {
+        out.port = 'Port must be between 1 and 65535';
+      }
+      if (!sftp.username.trim()) out.username = 'Username is required';
+      if (sftp.authType === 'password' && !isEditing && !sftp.password.trim()) {
+        out.password = 'Password is required';
+      }
+      if (
+        (sftp.authType === 'key' || sftp.authType === 'key+passphrase') &&
+        !sftp.privateKeyPath.trim()
+      ) {
+        out.privateKeyPath = 'Private key path is required';
+      } else if (privateKeyProbeError) {
+        out.privateKeyPath = privateKeyProbeError;
+      }
+    } else {
+      // S3 — credentials only required on create. On edit, leaving them
+      // blank means "keep existing" (mirrors the SSH password UX).
+      if (s3.port.trim() !== '') {
+        const portNum = parseInt(s3.port, 10);
+        if (Number.isNaN(portNum) || portNum < 1 || portNum > 65535) {
+          out.port = 'Port must be between 1 and 65535';
+        }
+      }
+      if (!isEditing && !s3.accessKeyId.trim()) out.accessKeyId = 'Access Key ID is required';
+      if (!isEditing && !s3.secretAccessKey.trim()) {
+        out.secretAccessKey = 'Secret Access Key is required';
+      }
+    }
+    return out;
+  }, [common.provider, sftp, s3, isEditing, privateKeyProbeError]);
+
   return {
     common,
     sftp,
@@ -235,5 +287,6 @@ export function useConnectionFormState(initialColor: string): UseConnectionFormS
     resetForm,
     reseedFromConnection,
     clearSecrets,
+    fieldErrors,
   };
 }

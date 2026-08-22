@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectAndImport } from '../../../../src/main/lib/importers';
+import { detectAndImport } from '../../../../src/main/services/importers';
 
 describe('detectAndImport', () => {
   it('detects a WinSCP INI by content when called with (content, fileName)', () => {

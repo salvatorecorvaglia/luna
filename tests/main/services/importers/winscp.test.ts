@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { importFromWinSCP } from '../../../../src/main/lib/importers/winscp';
+import { importFromWinSCP } from '../../../../src/main/services/importers/winscp';
 
 describe('WinSCP Importer', () => {
   it('should parse standard WinSCP INI sessions correctly', () => {
