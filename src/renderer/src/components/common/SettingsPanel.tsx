@@ -21,6 +21,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Toggle } from '@/components/ui';
 import { attachFocusTrap } from '@/lib/focus-trap';
+import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
@@ -80,7 +81,10 @@ export function SettingsPanel() {
   // Load settings from DB on open
   useEffect(() => {
     if (!settingsOpen) return;
-    void getApi().app.getVersion().then(setAppVersion);
+    void getApi()
+      .app.getVersion()
+      .then(setAppVersion)
+      .catch((err: unknown) => logger.error('Failed to load app version', { err }));
     void getApi()
       .settings.getAll()
       .then((settings: Record<string, unknown>) => {
@@ -105,7 +109,9 @@ export function SettingsPanel() {
 
   const persistSetting = useCallback(
     <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
-      void getApi().settings.set(key, JSON.stringify(value));
+      getApi()
+        .settings.set(key, JSON.stringify(value))
+        .catch(() => toast.error('Failed to save setting'));
     },
     [],
   );

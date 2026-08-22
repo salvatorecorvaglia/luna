@@ -549,13 +549,25 @@ export function SftpManager() {
                   type="button"
                   onClick={() => {
                     if (activeSession.connectionId) {
+                      // Revert to the pre-attempt status on failure — otherwise a
+                      // rejected connect (e.g. host unreachable) left the UI
+                      // optimistically stuck showing "Connecting…" forever, with
+                      // no toast and no way to tell the attempt had failed.
+                      const previousStatus = activeSession.status;
                       useTerminalStore
                         .getState()
                         .updateSessionStatus(activeSessionId, 'connecting');
-                      void getApi().ssh.connect({
-                        connectionId: activeSession.connectionId,
-                        sessionId: activeSessionId,
-                      });
+                      getApi()
+                        .ssh.connect({
+                          connectionId: activeSession.connectionId,
+                          sessionId: activeSessionId,
+                        })
+                        .catch(() => {
+                          useTerminalStore
+                            .getState()
+                            .updateSessionStatus(activeSessionId, previousStatus);
+                          toast.error('Failed to reconnect');
+                        });
                     }
                   }}
                   className="mt-4 flex items-center gap-2 mx-auto rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 cursor-pointer"

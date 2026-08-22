@@ -9,6 +9,7 @@ import type { LocalFileEntry } from '@shared/types/sftp';
 import { dialog } from 'electron';
 import { registerHandler } from '../lib/ipc-handler';
 import {
+  assertNonEmptyString,
   assertSafeAbsolutePath,
   assertSafeRealAbsolutePath,
   assertValidPath,
@@ -284,7 +285,35 @@ export function registerShellHandlers(): void {
     },
   );
 
-  registerHandler(IPC.SHELL_EXPORT_AUDIT_LOG, (_event, options: AuditExportOptions) => {
-    return sessionAuditService.exportAuditLog(options);
+  registerHandler(IPC.SHELL_EXPORT_AUDIT_LOG, async (_event, options: AuditExportOptions) => {
+    assertNonEmptyString(options?.sessionTitle, 'sessionTitle');
+    const MAX_TITLE_LEN = 512;
+    if (options.sessionTitle.length > MAX_TITLE_LEN) {
+      throw new LunaError(
+        `sessionTitle exceeds maximum length of ${MAX_TITLE_LEN} characters`,
+        ErrorCode.VALIDATION_ERROR,
+      );
+    }
+    if (typeof options.bufferText !== 'string') {
+      throw new LunaError('bufferText must be a string', ErrorCode.VALIDATION_ERROR);
+    }
+    // Same 50MB ceiling as SHELL_WRITE_FILE — keeps every local-write handler
+    // bounded the same way.
+    const MAX_BUFFER_BYTES = 50 * 1024 * 1024;
+    if (Buffer.byteLength(options.bufferText, 'utf-8') > MAX_BUFFER_BYTES) {
+      throw new LunaError('bufferText exceeds maximum size of 50MB', ErrorCode.VALIDATION_ERROR);
+    }
+    if (options.format !== 'json' && options.format !== 'html' && options.format !== 'txt') {
+      throw new LunaError('format must be one of json, html, txt', ErrorCode.VALIDATION_ERROR);
+    }
+    // destinationPath is renderer-supplied; every other local-write handler in
+    // this file confines its target to the home directory with symlink-safe
+    // resolution — this one previously didn't, which let any caller of this
+    // channel write to an arbitrary absolute path.
+    const destinationPath = await assertSafeRealAbsolutePath(
+      options.destinationPath,
+      'destinationPath',
+    );
+    return sessionAuditService.exportAuditLog({ ...options, destinationPath });
   });
 }

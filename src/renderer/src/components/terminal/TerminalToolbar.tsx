@@ -1,5 +1,6 @@
 import { BookOpen, Circle, Code, FileText, Filter, LayoutGrid, Radio } from 'lucide-react';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { AuditExportDialog } from '@/components/terminal/AuditExportDialog';
 import { BroadcastInputBar } from '@/components/terminal/BroadcastInputBar';
 import { CliReferenceDialog } from '@/components/terminal/CliReferenceDialog';
@@ -36,11 +37,11 @@ export function TerminalToolbar() {
   const sendData = (data: string) => {
     if (!activeSessionId) return;
     const session = sessions.get(activeSessionId);
-    if (session?.type === 'local') {
-      getApi().localTerminal.sendData({ sessionId: activeSessionId, data });
-    } else {
-      getApi().ssh.sendData({ sessionId: activeSessionId, data });
-    }
+    const result =
+      session?.type === 'local'
+        ? getApi().localTerminal.sendData({ sessionId: activeSessionId, data })
+        : getApi().ssh.sendData({ sessionId: activeSessionId, data });
+    result.catch(() => toast.error('Failed to send to terminal'));
   };
 
   return (

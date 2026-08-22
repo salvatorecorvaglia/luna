@@ -2,7 +2,7 @@ import { CheckSquare, Radio, Send, Square, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { getApi } from '@/services/api';
-import { useTerminalStore } from '@/stores/terminal-store';
+import { type TerminalSession, useTerminalStore } from '@/stores/terminal-store';
 
 interface BroadcastInputBarProps {
   open: boolean;
@@ -52,17 +52,28 @@ export function BroadcastInputBar({ open, onClose }: BroadcastInputBarProps) {
     }
 
     const dataToSend = `${broadcastText}\n`;
-    for (const sessionId of effectiveSelectedIds) {
-      const session = sessions.get(sessionId);
-      if (!session) continue;
-      if (session.type === 'local') {
-        getApi().localTerminal.sendData({ sessionId, data: dataToSend });
-      } else {
-        getApi().ssh.sendData({ sessionId, data: dataToSend });
-      }
-    }
+    const targets = effectiveSelectedIds
+      .map((sessionId) => sessions.get(sessionId))
+      .filter((session): session is TerminalSession => session != null);
+    const sends = targets.map((session) =>
+      session.type === 'local'
+        ? getApi().localTerminal.sendData({ sessionId: session.id, data: dataToSend })
+        : getApi().ssh.sendData({ sessionId: session.id, data: dataToSend }),
+    );
 
-    toast.success(`Broadcasted command to ${effectiveSelectedIds.length} terminals`);
+    // Report which sessions actually received the broadcast rather than
+    // assuming success — a per-target send can fail independently of the
+    // others (e.g. one session dropped mid-broadcast).
+    void Promise.allSettled(sends).then((results) => {
+      const failed = results.filter((r) => r.status === 'rejected').length;
+      if (failed === 0) {
+        toast.success(`Broadcasted command to ${results.length} terminals`);
+      } else if (failed === results.length) {
+        toast.error('Failed to broadcast command to any terminal');
+      } else {
+        toast.warning(`Broadcasted to ${results.length - failed} of ${results.length} terminals`);
+      }
+    });
     setBroadcastText('');
   };
 

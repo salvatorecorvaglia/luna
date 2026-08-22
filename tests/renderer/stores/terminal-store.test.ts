@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { toast } from 'sonner';
+import { installFakeApi } from '../../../src/test/fake-api';
 import { useTerminalStore } from '../../../src/renderer/src/stores/terminal-store';
+
+vi.mock('sonner', () => ({
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
+}));
 
 describe('terminal-store-splits', () => {
   const sshConnect = vi.fn();
@@ -26,7 +32,7 @@ describe('terminal-store-splits', () => {
           kill: localKill,
         },
         settings: {
-          set: vi.fn(),
+          set: vi.fn().mockResolvedValue(undefined),
         },
       },
     });
@@ -228,5 +234,44 @@ describe('terminal-store-splits', () => {
     expect(state.terminalTheme).toBe('tokyo-night');
     expect(state.tabOrder).toEqual(['session-99']);
     expect(state.sessions.get('session-99')?.connectionName).toBe('Server 99');
+  });
+});
+
+describe('terminal-store — settings persistence failure', () => {
+  // installFakeApi sets services/api.ts's `override` seam, which getApi()
+  // checks before its own memoised `wrapped` cache — required here because
+  // that cache is built once from the very first getApi() call in this file
+  // and never rebuilds from a later `window.api` reassignment.
+  const settingsSet = vi.fn().mockRejectedValue(new Error('IPC unavailable'));
+
+  beforeEach(() => {
+    settingsSet.mockClear();
+    (toast.error as ReturnType<typeof vi.fn>).mockClear();
+    installFakeApi({ settings: { get: vi.fn(), set: settingsSet, getAll: vi.fn() } });
+  });
+
+  it('surfaces a toast when persisting the terminal theme fails, but still applies it locally', async () => {
+    useTerminalStore.getState().setTerminalTheme('nord');
+
+    expect(useTerminalStore.getState().terminalTheme).toBe('nord');
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to save terminal theme'));
+  });
+
+  it('surfaces a toast when persisting font size fails, but still applies it locally', async () => {
+    useTerminalStore.getState().setFontSize(18);
+
+    expect(useTerminalStore.getState().fontSize).toBe(18);
+    await vi.waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Failed to save terminal font size'),
+    );
+  });
+
+  it('surfaces a toast when persisting scrollback fails, but still applies it locally', async () => {
+    useTerminalStore.getState().setScrollback(5000);
+
+    expect(useTerminalStore.getState().scrollback).toBe(5000);
+    await vi.waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Failed to save terminal scrollback setting'),
+    );
   });
 });

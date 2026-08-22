@@ -16,7 +16,12 @@ export function useUpdaterEventListener(): void {
         action: {
           label: 'Download',
           onClick: () => {
-            void getApi().app.installUpdate();
+            getApi()
+              .app.installUpdate()
+              .catch(() => {
+                toast.dismiss('update-progress');
+                toast.error('Failed to start update download');
+              });
             toast.loading('Downloading update…', {
               id: 'update-progress',
               duration: Infinity,
@@ -42,7 +47,9 @@ export function useUpdaterEventListener(): void {
         action: {
           label: 'Restart now',
           onClick: () => {
-            void getApi().app.installUpdate();
+            getApi()
+              .app.installUpdate()
+              .catch(() => toast.error('Failed to restart for update'));
           },
         },
       });

@@ -27,7 +27,7 @@ export class SessionAuditService {
       const safeTitle = escapeHtml(sessionTitle);
       const sanitizedLines = escapeHtml(bufferText)
         .split('\n')
-        .map((l) => `<div className="line">${l || '&nbsp;'}</div>`)
+        .map((l) => `<div class="line">${l || '&nbsp;'}</div>`)
         .join('\n');
 
       outputContent = `<!DOCTYPE html>
@@ -45,8 +45,8 @@ export class SessionAuditService {
 </head>
 <body>
   <h1>Terminal Audit Trail: ${safeTitle}</h1>
-  <div className="meta">Exported At: ${nowStr}</div>
-  <div className="log-box">
+  <div class="meta">Exported At: ${nowStr}</div>
+  <div class="log-box">
 ${sanitizedLines}
   </div>
 </body>

@@ -5,6 +5,7 @@ import type {
   SplitDirection,
   TerminalThemeName,
 } from '@shared/types/terminal';
+import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { create } from 'zustand';
 import { getApi } from '@/services/api';
@@ -338,7 +339,9 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     } catch {
       // localStorage may be unavailable
     }
-    void getApi().settings.set('terminal.theme', JSON.stringify(theme));
+    getApi()
+      .settings.set('terminal.theme', JSON.stringify(theme))
+      .catch(() => toast.error('Failed to save terminal theme'));
     set({ terminalTheme: theme });
   },
   setFontSize: (size) => {
@@ -348,7 +351,9 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     } catch {
       // localStorage may be unavailable
     }
-    void getApi().settings.set('terminal.fontSize', JSON.stringify(clamped));
+    getApi()
+      .settings.set('terminal.fontSize', JSON.stringify(clamped))
+      .catch(() => toast.error('Failed to save terminal font size'));
     set({ fontSize: clamped });
   },
   setScrollback: (lines) => {
@@ -362,7 +367,9 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     } catch {
       // localStorage may be unavailable
     }
-    void getApi().settings.set('terminal.scrollback', JSON.stringify(clamped));
+    getApi()
+      .settings.set('terminal.scrollback', JSON.stringify(clamped))
+      .catch(() => toast.error('Failed to save terminal scrollback setting'));
     set({ scrollback: clamped });
   },
   initializeSettings: (settings) => {

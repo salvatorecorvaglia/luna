@@ -128,4 +128,31 @@ describe('useUpdaterEventListener', () => {
     expect(cleanupDownloaded).toHaveBeenCalled();
     expect(cleanupError).toHaveBeenCalled();
   });
+
+  it('surfaces a toast when installUpdate fails from the "Download" action', async () => {
+    installUpdate.mockRejectedValueOnce(new Error('disk full'));
+    renderHook(() => useUpdaterEventListener());
+    availableHandler?.({ version: '2.0.0' });
+
+    const onClick = toastInfo.mock.calls[0][1].action.onClick;
+    onClick();
+
+    await vi.waitFor(() => {
+      expect(toastDismiss).toHaveBeenCalledWith('update-progress');
+      expect(toastError).toHaveBeenCalledWith('Failed to start update download');
+    });
+  });
+
+  it('surfaces a toast when installUpdate fails from the "Restart now" action', async () => {
+    installUpdate.mockRejectedValueOnce(new Error('disk full'));
+    renderHook(() => useUpdaterEventListener());
+    downloadedHandler?.({});
+
+    const onClick = toastSuccess.mock.calls[0][1].action.onClick;
+    onClick();
+
+    await vi.waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith('Failed to restart for update');
+    });
+  });
 });

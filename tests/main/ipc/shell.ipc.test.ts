@@ -230,3 +230,71 @@ describe('shell IPC — writeFile', () => {
     ).rejects.toThrow(/home directory/);
   });
 });
+
+describe('shell IPC — exportAuditLog', () => {
+  let workdir: string;
+  const baseOptions = {
+    sessionId: 'session-1',
+    sessionTitle: 'my session',
+    bufferText: 'hello world',
+    format: 'txt' as const,
+  };
+
+  beforeEach(async () => {
+    workdir = await mkdtemp(join(homedir(), '.luna-test-audit-'));
+  });
+
+  afterEach(async () => {
+    await rm(workdir, { recursive: true, force: true });
+  });
+
+  it('writes the export to a destination inside the home directory', async () => {
+    const destinationPath = join(workdir, 'audit.txt');
+    const result = (await handlers.get(IPC.SHELL_EXPORT_AUDIT_LOG)!(
+      {},
+      { ...baseOptions, destinationPath },
+    )) as { success: boolean; path: string };
+    expect(result.success).toBe(true);
+    const written = (await handlers.get(IPC.SHELL_READ_FILE)!({}, destinationPath)) as {
+      content: string;
+    };
+    expect(written.content).toContain('hello world');
+  });
+
+  it('rejects a destinationPath outside the home directory', async () => {
+    await expect(
+      handlers.get(IPC.SHELL_EXPORT_AUDIT_LOG)!(
+        {},
+        { ...baseOptions, destinationPath: '/tmp/luna-audit-escape.txt' },
+      ),
+    ).rejects.toThrow(/home directory/);
+  });
+
+  it('rejects a symlinked destinationPath that resolves outside the home directory', async () => {
+    const link = join(workdir, 'escape-audit.txt');
+    await symlink('/tmp/luna-audit-escape-target.txt', link);
+    await expect(
+      handlers.get(IPC.SHELL_EXPORT_AUDIT_LOG)!({}, { ...baseOptions, destinationPath: link }),
+    ).rejects.toThrow(/home directory/);
+  });
+
+  it('rejects a sessionTitle over the length cap', async () => {
+    const destinationPath = join(workdir, 'audit-title.txt');
+    await expect(
+      handlers.get(IPC.SHELL_EXPORT_AUDIT_LOG)!(
+        {},
+        { ...baseOptions, sessionTitle: 'x'.repeat(513), destinationPath },
+      ),
+    ).rejects.toThrow(/sessionTitle/);
+  });
+
+  it('rejects an unrecognized format', async () => {
+    const destinationPath = join(workdir, 'audit-format.txt');
+    await expect(
+      handlers.get(IPC.SHELL_EXPORT_AUDIT_LOG)!(
+        {},
+        { ...baseOptions, format: 'evil', destinationPath },
+      ),
+    ).rejects.toThrow(/format/);
+  });
+});

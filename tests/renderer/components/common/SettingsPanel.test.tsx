@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { toast } from 'sonner';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { installFakeApi } from '../../../../src/test/fake-api';
 import { useUIStore } from '../../../../src/renderer/src/stores/ui-store';
@@ -66,6 +67,16 @@ describe('SettingsPanel — persistence', () => {
       expect(write).toBeDefined();
       expect(JSON.parse(write![1])).toBeTypeOf('number');
     });
+  });
+
+  it('surfaces a toast when a setting fails to persist', async () => {
+    (api.settings.set as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('IPC unavailable'));
+    renderPanel();
+    const autoReconnect = await screen.findByRole('switch', { name: /auto-reconnect/i });
+
+    fireEvent.click(autoReconnect);
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to save setting'));
   });
 });
 

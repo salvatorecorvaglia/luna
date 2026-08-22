@@ -14,7 +14,7 @@ import {
   Terminal,
   Trash2,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
@@ -72,29 +72,33 @@ export function ConnectionItem({
   const { activeConnectionId, setActiveConnectionId, openEditForm, openDuplicateForm } =
     useConnectionStore();
   const { setActiveView } = useUIStore();
-  const { sessions } = useTerminalStore();
+  // Narrow selector (only re-renders when the `sessions` Map reference itself
+  // changes, not on unrelated store fields) rather than subscribing to the
+  // whole store.
+  const sessions = useTerminalStore((s) => s.sessions);
   const storageSessions = useStorageStore((s) => s.storageSessions);
   const setActiveSessionId = useStorageStore((s) => s.setActiveSessionId);
   const deleteMutation = useDeleteConnection();
   const updateMutation = useUpdateConnection();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const isS3 = connection.provider === 's3';
-  const isConnected = isS3
-    ? Array.from(storageSessions.values()).some(
-        (s) => s.connectionId === connection.id && s.status === 'connected',
-      )
-    : Array.from(sessions.values()).some(
-        (s) => s.connectionId === connection.id && s.status === 'connected',
-      );
-  const isConnecting = isS3
-    ? Array.from(storageSessions.values()).some(
-        (s) => s.connectionId === connection.id && s.status === 'connecting',
-      )
-    : Array.from(sessions.values()).some(
-        (s) =>
-          s.connectionId === connection.id &&
-          (s.status === 'connecting' || s.status === 'reconnecting'),
-      );
+  // Single pass over the relevant session map instead of two separate
+  // `Array.from(...).some(...)` scans (one per flag) — this ran on every
+  // sidebar-row render, unmemoized, so cost grew with rows x sessions.
+  const { isConnected, isConnecting } = useMemo(() => {
+    let connected = false;
+    let connecting = false;
+    const relevant = isS3 ? storageSessions : sessions;
+    for (const s of relevant.values()) {
+      if (s.connectionId !== connection.id) continue;
+      if (s.status === 'connected') connected = true;
+      else if (s.status === 'connecting' || (!isS3 && s.status === 'reconnecting')) {
+        connecting = true;
+      }
+      if (connected && connecting) break;
+    }
+    return { isConnected: connected, isConnecting: connecting };
+  }, [isS3, storageSessions, sessions, connection.id]);
   const isActive = activeConnectionId === connection.id && (isConnected || isConnecting);
 
   const handleConnect = () => {
@@ -192,7 +196,13 @@ export function ConnectionItem({
           await getApi().s3.disconnect(sessionId);
           useStorageStore.getState().removeStorageSession(sessionId);
         } else {
-          void getApi().ssh.disconnect(sessionId);
+          // Best-effort teardown — removeSession() below proceeds regardless,
+          // and this was previously a bare `void` call that could surface as
+          // an unhandled rejection instead of being caught by the try/catch
+          // around this function.
+          getApi()
+            .ssh.disconnect(sessionId)
+            .catch(() => {});
           useTerminalStore.getState().removeSession(sessionId);
         }
       }

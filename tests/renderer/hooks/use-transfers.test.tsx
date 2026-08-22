@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react';
+import { toast } from 'sonner';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { cancelTransfer, useTransferEventListener } from '../../../src/renderer/src/hooks/use-transfers';
+
+vi.mock('sonner', () => ({
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
+}));
 
 const applyProgressBatch = vi.fn();
 const completeTransfer = vi.fn();
@@ -165,5 +170,11 @@ describe('cancelTransfer (free function)', () => {
   it('delegates to window.api.transfers.cancel', () => {
     cancelTransfer('t9');
     expect(cancel).toHaveBeenCalledWith('t9');
+  });
+
+  it('surfaces a toast when the cancel request fails', async () => {
+    cancel.mockRejectedValueOnce(new Error('IPC unavailable'));
+    cancelTransfer('t10');
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to cancel transfer'));
   });
 });

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 import { useInvalidateLocalDir, useInvalidateSftp } from '@/hooks/use-sftp';
 import { getApi } from '@/services/api';
 import { type ProgressSample, useTransferStore } from '@/stores/transfer-store';
@@ -126,5 +127,7 @@ export function useTransferEventListener(): void {
  * Cancel a transfer by ID. Delegates to main process.
  */
 export function cancelTransfer(transferId: string): void {
-  void getApi().transfers.cancel(transferId);
+  getApi()
+    .transfers.cancel(transferId)
+    .catch(() => toast.error('Failed to cancel transfer'));
 }

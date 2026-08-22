@@ -62,4 +62,25 @@ describe('log IPC', () => {
     await call('verbose' as unknown as 'info', 'fallback');
     expect(info).toHaveBeenCalledWith('[Renderer] fallback');
   });
+
+  describe('rate limiter', () => {
+    it('allows 300 messages per 10s window and rejects the 301st', async () => {
+      // Module-level ring buffer survives across tests; jump real time forward
+      // by more than the 10s window so prior entries are evicted before we
+      // measure the cap fresh.
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date('2030-01-01T00:00:00Z'));
+        for (let i = 0; i < 300; i++) {
+          await call('info', `msg-${i}`);
+        }
+        await expect(call('info', 'over the cap')).rejects.toThrow(/rate limit/i);
+        // After the window slides past, logging becomes available again.
+        vi.setSystemTime(new Date('2030-01-01T00:00:11Z'));
+        await expect(call('info', 'after window')).resolves.toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
 });
