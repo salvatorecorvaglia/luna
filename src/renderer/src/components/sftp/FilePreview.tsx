@@ -278,6 +278,7 @@ export function FilePreview() {
                 {!isImageType(previewFile.type) && previewFile.type !== 'application/pdf' && (
                   <>
                     <button
+                      type="button"
                       onClick={() => setShowSearch((v) => !v)}
                       className={`flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium border border-border/60 transition-colors cursor-pointer ${
                         showSearch
@@ -290,6 +291,7 @@ export function FilePreview() {
                     </button>
 
                     <button
+                      type="button"
                       onClick={() => setWordWrap((v) => !v)}
                       className={`flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium border border-border/60 transition-colors cursor-pointer ${
                         wordWrap
@@ -302,6 +304,7 @@ export function FilePreview() {
                     </button>
 
                     <button
+                      type="button"
                       onClick={() => setAutoTail((v) => !v)}
                       className={`flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium border border-border/60 transition-colors cursor-pointer ${
                         autoTail
@@ -315,6 +318,7 @@ export function FilePreview() {
                     </button>
 
                     <button
+                      type="button"
                       onClick={handleCopyAll}
                       className="flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium border border-border/60 hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                       title="Copy All Content"
@@ -332,6 +336,7 @@ export function FilePreview() {
                   previewFile.type !== 'application/pdf' &&
                   isDirty && (
                     <button
+                      type="button"
                       onClick={handleSave}
                       disabled={isSaving}
                       className="flex h-7 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 cursor-pointer"
@@ -346,6 +351,7 @@ export function FilePreview() {
                   )}
 
                 <button
+                  type="button"
                   onClick={handleClose}
                   className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
                   aria-label="Close preview"
@@ -373,6 +379,7 @@ export function FilePreview() {
                   </span>
                 )}
                 <button
+                  type="button"
                   onClick={() => setShowSearch(false)}
                   className="text-muted-foreground hover:text-foreground cursor-pointer"
                 >

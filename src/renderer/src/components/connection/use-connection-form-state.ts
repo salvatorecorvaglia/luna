@@ -188,8 +188,10 @@ export function useConnectionFormState(
         } catch {
           const match = source.endpoint.match(/^(https?):\/\/(.+)$/i);
           if (match) {
-            protocol = match[1].toLowerCase() === 'http' ? 'http' : 'https';
-            const rest = match[2];
+            // Non-null: both capture groups are required (`https?` and `.+`),
+            // so a match guarantees both exist.
+            protocol = match[1]!.toLowerCase() === 'http' ? 'http' : 'https';
+            const rest = match[2]!;
             const colon = rest.indexOf(':');
             if (colon !== -1) {
               host = rest.slice(0, colon);

@@ -55,7 +55,7 @@ beforeEach(() => {
 describe('listSnippets resilience', () => {
   it('maps a well-formed row', () => {
     snippetRows = [snippetRow()];
-    expect(service.listSnippets()[0]).toMatchObject({
+    expect(service.listSnippets()[0]!).toMatchObject({
       id: 's1',
       title: 'Tail logs',
       tags: ['ops'],
@@ -66,19 +66,19 @@ describe('listSnippets resilience', () => {
   it('degrades to empty arrays when tags JSON is malformed', () => {
     snippetRows = [snippetRow({ tags: '{not json' })];
     expect(() => service.listSnippets()).not.toThrow();
-    expect(service.listSnippets()[0].tags).toEqual([]);
+    expect(service.listSnippets()[0]!.tags).toEqual([]);
   });
 
   it('degrades when variables JSON is malformed', () => {
     snippetRows = [snippetRow({ variables_json: '[[[' })];
-    expect(service.listSnippets()[0].variables).toEqual([]);
+    expect(service.listSnippets()[0]!.variables).toEqual([]);
   });
 
   it('coerces valid JSON of the wrong shape to an empty array', () => {
     // Parseable but not an array — this would reach the renderer and break
     // `.map` at the call site.
     snippetRows = [snippetRow({ tags: '{"ops":true}' })];
-    expect(service.listSnippets()[0].tags).toEqual([]);
+    expect(service.listSnippets()[0]!.tags).toEqual([]);
   });
 
   it('does not let one bad row hide the good ones', () => {
@@ -95,7 +95,7 @@ describe('listSnippets resilience', () => {
 
   it('treats a null tags column as no tags', () => {
     snippetRows = [snippetRow({ tags: null, variables_json: null })];
-    expect(service.listSnippets()[0]).toMatchObject({ tags: [], variables: [] });
+    expect(service.listSnippets()[0]!).toMatchObject({ tags: [], variables: [] });
   });
 });
 
@@ -110,7 +110,7 @@ describe('listWorkspaces resilience', () => {
         updated_at: 1,
       },
     ];
-    expect(service.listWorkspaces()[0].layout).toEqual({ connectionIds: ['a'] });
+    expect(service.listWorkspaces()[0]!.layout).toEqual({ connectionIds: ['a'] });
   });
 
   it('degrades to an empty layout when layout JSON is malformed', () => {
@@ -118,7 +118,7 @@ describe('listWorkspaces resilience', () => {
       { id: 'w1', name: 'Prod', layout_json: 'not json', created_at: 1, updated_at: 1 },
     ];
     expect(() => service.listWorkspaces()).not.toThrow();
-    expect(service.listWorkspaces()[0].layout).toEqual({ connectionIds: [] });
+    expect(service.listWorkspaces()[0]!.layout).toEqual({ connectionIds: [] });
   });
 });
 

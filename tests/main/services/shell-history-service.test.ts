@@ -28,7 +28,7 @@ describe('ShellHistoryService', () => {
 
     const matches = await service.searchHistory('git');
     expect(matches).toHaveLength(1);
-    expect(matches[0].command).toBe('git status');
+    expect(matches[0]!.command).toBe('git status');
   });
 
   it('caps reads on a huge history file instead of loading it all into memory', async () => {
@@ -57,6 +57,6 @@ describe('ShellHistoryService', () => {
     // exactly what search is meant to surface, and must still be found.
     const recentMatch = await service.searchHistory('findme-recent-marker', 5);
     expect(recentMatch).toHaveLength(1);
-    expect(recentMatch[0].command).toBe('echo findme-recent-marker');
+    expect(recentMatch[0]!.command).toBe('echo findme-recent-marker');
   });
 });

@@ -91,7 +91,7 @@ describe('ConnectionForm — save', () => {
     fireEvent.click(await submitButton());
 
     await waitFor(() => expect(api.connections.create).toHaveBeenCalledTimes(1));
-    const [input] = (api.connections.create as ReturnType<typeof vi.fn>).mock.calls[0];
+    const [input] = (api.connections.create as ReturnType<typeof vi.fn>).mock.calls[0]!;
     expect(input).toMatchObject({ name: 'prod', host: 'example.com', username: 'deploy' });
   });
 });
@@ -181,7 +181,7 @@ describe('ConnectionForm — test connection', () => {
     fireEvent.click(screen.getByRole('button', { name: /test/i }));
 
     await waitFor(() => expect(api.ssh.testConnection).toHaveBeenCalled());
-    const [params] = (api.ssh.testConnection as ReturnType<typeof vi.fn>).mock.calls[0];
+    const [params] = (api.ssh.testConnection as ReturnType<typeof vi.fn>).mock.calls[0]!;
     expect(params.config).toBeDefined();
     expect(params.connectionId).toBeUndefined();
   });

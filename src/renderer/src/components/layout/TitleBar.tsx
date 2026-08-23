@@ -60,6 +60,7 @@ export function TitleBar() {
         {/* Sidebar toggle */}
 
         <button
+          type="button"
           onClick={toggleSidebar}
           className={cn('btn-icon', !sidebarOpen && 'text-muted-foreground/50')}
           title="Toggle sidebar"
@@ -100,11 +101,17 @@ export function TitleBar() {
           <>
             <div className="mx-1.5 h-3.5 w-px bg-border/60" />
 
-            <button onClick={handleMinimize} className="btn-icon" aria-label="Minimize">
+            <button
+              type="button"
+              onClick={handleMinimize}
+              className="btn-icon"
+              aria-label="Minimize"
+            >
               <Minus className="size-3.5" />
             </button>
 
             <button
+              type="button"
               onClick={handleMaximize}
               className="btn-icon"
               aria-label={isMaximized ? 'Restore' : 'Maximize'}
@@ -117,6 +124,7 @@ export function TitleBar() {
             </button>
 
             <button
+              type="button"
               onClick={handleClose}
               className="btn-icon hover:!bg-red-500/90 hover:!text-white"
               aria-label="Close"
@@ -143,6 +151,7 @@ function ViewTab({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       className={cn(
         'relative flex items-center gap-1.5 rounded-md px-3 py-[5px] text-xs font-medium cursor-pointer',

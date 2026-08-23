@@ -13,7 +13,8 @@ export function parseIni(content: string): Record<string, Record<string, string>
 
     const sectionMatch = line.match(/^\[(.*)\]$/);
     if (sectionMatch) {
-      const sec = sectionMatch[1].trim();
+      // Non-null: the single capture group always matches (`.*` allows empty).
+      const sec = sectionMatch[1]!.trim();
       if (sec === '__proto__' || sec === 'constructor' || sec === 'prototype') {
         continue;
       }
@@ -41,7 +42,8 @@ export function parseIni(content: string): Record<string, Record<string, string>
       if (!result[currentSection]) {
         result[currentSection] = Object.create(null);
       }
-      result[currentSection][key] = value;
+      // Non-null: just ensured above.
+      result[currentSection]![key] = value;
     }
   }
 

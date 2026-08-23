@@ -128,6 +128,7 @@ export function LocalTerminalTabs() {
       </Reorder.Group>
 
       <button
+        type="button"
         onClick={handleNewLocalTab}
         className="flex size-9 items-center justify-center border-l border-border/40 text-muted-foreground hover:bg-background/50 hover:text-foreground transition-colors cursor-pointer"
         title="New Local Terminal"
@@ -208,6 +209,7 @@ const Tab = memo(function Tab({ tabId, isActive, onActivate, onClose, onRename }
           <span className="truncate font-medium">{session.title || 'Local'}</span>
 
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               onClose(tabId);

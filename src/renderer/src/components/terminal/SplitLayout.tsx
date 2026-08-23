@@ -87,7 +87,12 @@ function SplitLayoutInner({ node, tabId, activeSessionId }: SplitLayoutProps) {
     const isActive = node.sessionId === activeSessionId;
     const isLocal = session.type === 'local';
 
+    // This container isn't itself focusable (no tabIndex) — the real
+    // interactive element is the xterm input inside it, and keyboard
+    // activation is covered by the onFocus handler below (bubbling from that
+    // descendant), not a keydown on this div.
     return (
+      // biome-ignore lint/a11y/useKeyWithClickEvents: activation via onFocus bubbling, see comment above
       <div
         onClick={() => {
           if (!isActive) setActiveSession(node.sessionId);
@@ -110,6 +115,7 @@ function SplitLayoutInner({ node, tabId, activeSessionId }: SplitLayoutProps) {
         {/* Floating action bar */}
         <div className="absolute right-2 top-2 z-30 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-card/90 backdrop-blur border border-border/80 rounded-md p-1 shadow-md">
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               splitSession(node.sessionId, 'vertical');
@@ -120,6 +126,7 @@ function SplitLayoutInner({ node, tabId, activeSessionId }: SplitLayoutProps) {
             <Columns className="size-3.5" />
           </button>
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               splitSession(node.sessionId, 'horizontal');
@@ -130,6 +137,7 @@ function SplitLayoutInner({ node, tabId, activeSessionId }: SplitLayoutProps) {
             <Rows className="size-3.5" />
           </button>
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               closeTab(node.sessionId);

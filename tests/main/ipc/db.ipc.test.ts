@@ -83,7 +83,7 @@ describe('db.ipc CONNECTION_IMPORT (privateKeyPath sanitization)', () => {
     expect(result.imported).toBe(1);
     expect(result.skipped).toHaveLength(0);
     // Args to INSERT: id, name, provider, host, port, username, auth_type, private_key_path, ...
-    expect(inserts[0][7]).toBe(`${HOME}/.ssh/id_ed25519`);
+    expect(inserts[0]![7]).toBe(`${HOME}/.ssh/id_ed25519`);
   });
 
   it('allows imports whose privateKeyPath escapes via .. (lenient import policy)', async () => {
@@ -95,7 +95,7 @@ describe('db.ipc CONNECTION_IMPORT (privateKeyPath sanitization)', () => {
     };
     expect(result.imported).toBe(1);
     expect(result.skipped).toHaveLength(0);
-    expect(inserts[0][7]).toBe('~/../etc/passwd');
+    expect(inserts[0]![7]).toBe('~/../etc/passwd');
   });
 
   it('allows imports whose privateKeyPath is an absolute system path (lenient import policy)', async () => {
@@ -105,7 +105,7 @@ describe('db.ipc CONNECTION_IMPORT (privateKeyPath sanitization)', () => {
     };
     expect(result.imported).toBe(1);
     expect(result.skipped).toHaveLength(0);
-    expect(inserts[0][7]).toBe('/etc/shadow');
+    expect(inserts[0]![7]).toBe('/etc/shadow');
   });
 
   it('skips imports whose privateKeyPath contains null bytes', async () => {
@@ -114,7 +114,7 @@ describe('db.ipc CONNECTION_IMPORT (privateKeyPath sanitization)', () => {
       skipped: { reason: string }[];
     };
     expect(result.imported).toBe(0);
-    expect(result.skipped[0].reason).toMatch(/null bytes/);
+    expect(result.skipped[0]!.reason).toMatch(/null bytes/);
   });
 
   it('accepts a missing privateKeyPath (password auth)', async () => {
@@ -123,7 +123,7 @@ describe('db.ipc CONNECTION_IMPORT (privateKeyPath sanitization)', () => {
       skipped: { reason: string }[];
     };
     expect(result.imported).toBe(1);
-    expect(inserts[0][7]).toBeNull();
+    expect(inserts[0]![7]).toBeNull();
   });
 
   it('skips records with missing required fields rather than throwing', async () => {
@@ -131,7 +131,7 @@ describe('db.ipc CONNECTION_IMPORT (privateKeyPath sanitization)', () => {
       { name: '', host: 'h', port: 22, username: 'u', authType: 'password' } as ExportedConnection,
     ])) as { imported: number; skipped: { reason: string }[] };
     expect(result.imported).toBe(0);
-    expect(result.skipped[0].reason).toMatch(/name|host|username/);
+    expect(result.skipped[0]!.reason).toMatch(/name|host|username/);
   });
 
   it('rejects invalid input shapes early', async () => {

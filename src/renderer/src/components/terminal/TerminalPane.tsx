@@ -118,6 +118,7 @@ export const TerminalPane = memo(function TerminalPane({ sessionId, isActive }: 
             </div>
 
             <button
+              type="button"
               ref={reconnectBtnRef}
               onClick={() => {
                 if (session?.connectionId) {

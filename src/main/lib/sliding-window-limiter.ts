@@ -30,7 +30,10 @@ export class SlidingWindowLimiter {
   check(): void {
     const now = Date.now();
     const cutoff = now - this.windowMs;
-    while (this.head < this.tail && this.timestamps[this.head % this.maxPerWindow] < cutoff) {
+    // Non-null: for any head < tail, slot (head % maxPerWindow) was written
+    // the last time tail was at that same modular position, since tail only
+    // ever advances by one and every index is written before head can reach it.
+    while (this.head < this.tail && this.timestamps[this.head % this.maxPerWindow]! < cutoff) {
       this.head++;
     }
     if (this.tail - this.head >= this.maxPerWindow) {

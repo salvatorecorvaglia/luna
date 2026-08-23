@@ -37,7 +37,7 @@ describe('FolderSyncService.compareDirectories', () => {
       );
       expect(res.identicalCount).toBe(1);
       expect(res.modifiedCount).toBe(0);
-      expect(res.items[0].recommendedAction).toBe('skip');
+      expect(res.items[0]!.recommendedAction).toBe('skip');
     });
 
     it('treats an exactly-2-second drift as identical (inclusive bound)', () => {
@@ -55,7 +55,7 @@ describe('FolderSyncService.compareDirectories', () => {
       );
       expect(res.modifiedCount).toBe(1);
       expect(res.identicalCount).toBe(0);
-      expect(res.items[0].status).toBe('modified');
+      expect(res.items[0]!.status).toBe('modified');
     });
 
     it('treats a 10-minute-old edit as modified, not identical', () => {
@@ -67,7 +67,7 @@ describe('FolderSyncService.compareDirectories', () => {
         [remote('a.txt', 100, T)],
       );
       expect(res.modifiedCount).toBe(1);
-      expect(res.items[0].recommendedAction).toBe('upload');
+      expect(res.items[0]!.recommendedAction).toBe('upload');
     });
 
     it('is symmetric — a remote newer than local is still modified', () => {
@@ -120,14 +120,14 @@ describe('FolderSyncService.compareDirectories', () => {
         [remote('a.txt', 100, T)],
         'bi-directional',
       );
-      expect(newerLocal.items[0].recommendedAction).toBe('upload');
+      expect(newerLocal.items[0]!.recommendedAction).toBe('upload');
 
       const newerRemote = folderSyncService.compareDirectories(
         [local('a.txt', 100, T)],
         [remote('a.txt', 100, T + 60)],
         'bi-directional',
       );
-      expect(newerRemote.items[0].recommendedAction).toBe('download');
+      expect(newerRemote.items[0]!.recommendedAction).toBe('download');
     });
 
     it('bi-directional flags a conflict when sizes differ at the same mtime', () => {
@@ -139,7 +139,7 @@ describe('FolderSyncService.compareDirectories', () => {
         [remote('a.txt', 200, T)],
         'bi-directional',
       );
-      expect(res.items[0].recommendedAction).toBe('conflict');
+      expect(res.items[0]!.recommendedAction).toBe('conflict');
     });
   });
 
@@ -154,7 +154,7 @@ describe('FolderSyncService.compareDirectories', () => {
     };
     const res = folderSyncService.compareDirectories([], [dir, remote('a.txt', 1, T)]);
     expect(res.items).toHaveLength(1);
-    expect(res.items[0].relativePath).toBe('a.txt');
+    expect(res.items[0]!.relativePath).toBe('a.txt');
   });
 
   it('returns zeroed counts for two empty sides', () => {

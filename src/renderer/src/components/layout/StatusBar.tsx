@@ -93,6 +93,7 @@ export function StatusBar() {
 
           <div className="h-3 w-px bg-border/60" />
           <button
+            type="button"
             onClick={() => setTunnelDialogOpen(true)}
             className="flex items-center gap-1 hover:text-foreground transition-colors cursor-pointer"
             title="Manage Port Forwards & SOCKS5 Tunnels"
@@ -108,6 +109,7 @@ export function StatusBar() {
         <div className="flex items-center gap-3">
           {activeTransfers.length > 0 ? (
             <button
+              type="button"
               onClick={toggleQueueExpanded}
               className="flex items-center gap-1.5 rounded px-1.5 py-0.5 hover:bg-accent hover:text-foreground cursor-pointer"
             >

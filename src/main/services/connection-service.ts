@@ -777,7 +777,8 @@ export class ConnectionService {
       return { imported: 0, skipped: [] };
     }
 
-    const filePath = result.filePaths[0];
+    // Non-null: length check above guarantees index 0 exists.
+    const filePath = result.filePaths[0]!;
     const fileContent = await readFile(filePath, 'utf-8');
     const connections = detectAndImport(fileContent, filePath);
     return this.importConnections(connections);

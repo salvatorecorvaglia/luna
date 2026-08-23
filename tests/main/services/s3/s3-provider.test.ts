@@ -316,7 +316,7 @@ describe('S3StorageProvider — getPresignedUrl', () => {
     const url = await s3StorageProvider.getPresignedUrl('sess', '/bucket-a/file.txt', 300);
     expect(url).toBe('https://signed.example.com/object');
 
-    const [, command, opts] = getSignedUrl.mock.calls[0];
+    const [, command, opts] = getSignedUrl.mock.calls[0]!;
     expect(commandName(command)).toBe(GetObjectCommand.name);
     expect((command as GetObjectCommand).input).toEqual({ Bucket: 'bucket-a', Key: 'file.txt' });
     expect(opts).toEqual({ expiresIn: 300 });

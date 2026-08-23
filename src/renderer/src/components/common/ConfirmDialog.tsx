@@ -58,11 +58,15 @@ export function ConfirmDialog({
           {/* Outline cancel — not ghost — so the "safe" choice has
               visible weight when paired with a destructive action. */}
 
-          <button data-cancel onClick={onCancel} className="btn-outline">
+          <button type="button" data-cancel onClick={onCancel} className="btn-outline">
             {cancelLabel}
           </button>
 
-          <button onClick={onConfirm} className={destructive ? 'btn-destructive' : 'btn-primary'}>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className={destructive ? 'btn-destructive' : 'btn-primary'}
+          >
             {confirmLabel}
           </button>
         </div>

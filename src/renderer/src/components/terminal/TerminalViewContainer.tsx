@@ -128,7 +128,9 @@ export function TerminalViewContainer({ type }: TerminalViewContainerProps) {
       if (digit >= 1 && digit <= 9) {
         e.preventDefault();
         const index = Math.min(digit - 1, modeTabs.length - 1);
-        const tabId = modeTabs[index];
+        // Non-null: the `modeTabs.length === 0` guard above ensures index is
+        // always within [0, modeTabs.length - 1].
+        const tabId = modeTabs[index]!;
         const root = layouts.get(tabId);
         if (root) {
           const firstLeafId = getFirstLeafIdFromRoot(root);
@@ -179,7 +181,7 @@ export function TerminalViewContainer({ type }: TerminalViewContainerProps) {
               </p>
             </div>
 
-            <button onClick={handleNewTab} className="btn-outline mt-1">
+            <button type="button" onClick={handleNewTab} className="btn-outline mt-1">
               <Plus className="size-3.5" />
               {type === 'ssh' ? 'New Session' : 'New Local Terminal'}
             </button>

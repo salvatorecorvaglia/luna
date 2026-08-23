@@ -32,10 +32,10 @@ vi.mock('../../../src/main/services/ssh-manager', () => ({
   },
 }));
 
+import { registerSshHandlers } from '../../../src/main/ipc/ssh.ipc';
 import { sshManager } from '../../../src/main/services/ssh-manager';
 import { storageRegistry } from '../../../src/main/services/storage/registry';
 import { sftpStorageProvider } from '../../../src/main/services/storage/sftp-storage-provider';
-import { registerSshHandlers } from '../../../src/main/ipc/ssh.ipc';
 
 const sshManagerMock = sshManager as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
@@ -58,13 +58,13 @@ beforeEach(() => {
 describe('ssh.ipc storage-provider lifecycle', () => {
   /** Invoke the last callback handed to `sshManager.onSessionConnect`. */
   const fireConnect = (sessionId: string): void => {
-    const calls = sshManagerMock.onSessionConnect.mock.calls;
-    (calls[calls.length - 1][0] as (id: string) => void)(sessionId);
+    const calls = sshManagerMock.onSessionConnect!.mock.calls;
+    (calls[calls.length - 1]![0] as (id: string) => void)(sessionId);
   };
   /** Invoke the last callback handed to `sshManager.onSessionDisconnect`. */
   const fireDisconnect = (sessionId: string): void => {
-    const calls = sshManagerMock.onSessionDisconnect.mock.calls;
-    (calls[calls.length - 1][0] as (id: string) => void)(sessionId);
+    const calls = sshManagerMock.onSessionDisconnect!.mock.calls;
+    (calls[calls.length - 1]![0] as (id: string) => void)(sessionId);
   };
 
   it('registers the SFTP provider when a session connects', () => {

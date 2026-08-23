@@ -57,13 +57,13 @@ beforeEach(() => {
  */
 describe('connection IPC — channel wiring', () => {
   it('CONNECTION_LIST calls listConnections', async () => {
-    connectionServiceMock.listConnections.mockReturnValue(['a']);
+    connectionServiceMock.listConnections!.mockReturnValue(['a']);
     await expect(handlers.get(IPC.CONNECTION_LIST)!({})).resolves.toEqual(['a']);
     expect(connectionServiceMock.listConnections).toHaveBeenCalledTimes(1);
   });
 
   it('CONNECTION_GET calls getConnection with the id', async () => {
-    connectionServiceMock.getConnection.mockReturnValue({ id: 'c1' });
+    connectionServiceMock.getConnection!.mockReturnValue({ id: 'c1' });
     await expect(handlers.get(IPC.CONNECTION_GET)!({}, 'c1')).resolves.toEqual({ id: 'c1' });
     expect(connectionServiceMock.getConnection).toHaveBeenCalledWith('c1');
   });
@@ -104,7 +104,7 @@ describe('connection IPC — channel wiring', () => {
   });
 
   it('CONNECTION_EXPORT calls exportConnections, not importConnections', async () => {
-    connectionServiceMock.exportConnections.mockReturnValue([{ name: 'x' }]);
+    connectionServiceMock.exportConnections!.mockReturnValue([{ name: 'x' }]);
     await expect(handlers.get(IPC.CONNECTION_EXPORT)!({})).resolves.toEqual([{ name: 'x' }]);
     expect(connectionServiceMock.exportConnections).toHaveBeenCalledTimes(1);
     expect(connectionServiceMock.importConnections).not.toHaveBeenCalled();
@@ -121,7 +121,7 @@ describe('connection IPC — channel wiring', () => {
   // reach their own distinct service method, and pass no arguments through
   // (both service methods own their own dialog/file-path resolution).
   it('CONNECTION_IMPORT_FROM_FILE calls importFromFile only', async () => {
-    connectionServiceMock.importFromFile.mockResolvedValue({ imported: 2, skipped: [] });
+    connectionServiceMock.importFromFile!.mockResolvedValue({ imported: 2, skipped: [] });
     await expect(handlers.get(IPC.CONNECTION_IMPORT_FROM_FILE)!({})).resolves.toEqual({
       imported: 2,
       skipped: [],
@@ -132,7 +132,7 @@ describe('connection IPC — channel wiring', () => {
   });
 
   it('CONNECTION_IMPORT_SSH_CONFIG calls importFromSshConfig only', async () => {
-    connectionServiceMock.importFromSshConfig.mockResolvedValue({ imported: 1, skipped: [] });
+    connectionServiceMock.importFromSshConfig!.mockResolvedValue({ imported: 1, skipped: [] });
     await expect(handlers.get(IPC.CONNECTION_IMPORT_SSH_CONFIG)!({})).resolves.toEqual({
       imported: 1,
       skipped: [],

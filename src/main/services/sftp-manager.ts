@@ -338,8 +338,9 @@ class SftpManager {
     }
 
     if (errors.length > 0) {
+      // Non-null: length check above guarantees index 0 exists.
       throw new SftpTransferError(
-        `Failed to remove directory ${dirPath}: ${errors.length} entry/entries failed (${errors[0].message})`,
+        `Failed to remove directory ${dirPath}: ${errors.length} entry/entries failed (${errors[0]!.message})`,
       );
     }
 

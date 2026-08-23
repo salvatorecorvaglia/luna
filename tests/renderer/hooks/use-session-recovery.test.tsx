@@ -58,7 +58,9 @@ beforeEach(() => {
 });
 
 async function mountAndWait() {
-  const { useSessionRecovery } = await import('../../../src/renderer/src/hooks/use-session-recovery');
+  const { useSessionRecovery } = await import(
+    '../../../src/renderer/src/hooks/use-session-recovery'
+  );
   renderHook(() => useSessionRecovery());
   // Recovery runs an async IIFE inside useEffect; let microtasks settle.
   await waitFor(() => expect(getActiveSessions).toHaveBeenCalled());

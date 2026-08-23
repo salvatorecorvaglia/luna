@@ -233,6 +233,7 @@ export function FilePane({
         <div className="flex items-center gap-0.5">
           {onMkdir && (
             <button
+              type="button"
               onClick={onMkdir}
               className="btn-icon !p-1"
               title="New folder"
@@ -243,6 +244,7 @@ export function FilePane({
           )}
           {onFolderSync && (
             <button
+              type="button"
               onClick={onFolderSync}
               className="btn-icon !p-1 text-primary"
               title="Sync Folders"
@@ -253,6 +255,7 @@ export function FilePane({
           )}
           {onToggleHidden && (
             <button
+              type="button"
               onClick={onToggleHidden}
               className="btn-icon !p-1"
               title={showHidden ? 'Hide dotfiles' : 'Show dotfiles'}
@@ -267,6 +270,7 @@ export function FilePane({
           )}
 
           <button
+            type="button"
             onClick={toggleFilter}
             className={cn('btn-icon !p-1', filterOpen && 'text-foreground bg-accent')}
             title={`Filter (${MOD}F)`}
@@ -276,11 +280,18 @@ export function FilePane({
             <Search className="size-3.5" aria-hidden="true" />
           </button>
 
-          <button onClick={navigateUp} className="btn-icon !p-1" title="Go up" aria-label="Go up">
+          <button
+            type="button"
+            onClick={navigateUp}
+            className="btn-icon !p-1"
+            title="Go up"
+            aria-label="Go up"
+          >
             <ArrowUp className="size-3.5" aria-hidden="true" />
           </button>
 
           <button
+            type="button"
             onClick={onRefresh}
             className="btn-icon !p-1"
             title="Refresh"
@@ -306,6 +317,7 @@ export function FilePane({
           }}
         >
           <button
+            type="button"
             onClick={() => onPathChange('/')}
             className="flex-shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer"
             title="Root"
@@ -323,6 +335,7 @@ export function FilePane({
                 />
 
                 <button
+                  type="button"
                   onClick={() => onPathChange(crumb.path)}
                   className="truncate text-muted-foreground hover:text-foreground max-w-[120px] cursor-pointer"
                   title={crumb.path}
@@ -373,6 +386,7 @@ export function FilePane({
             />
             {filterQuery && (
               <button
+                type="button"
                 onClick={() => setFilterQuery('')}
                 className="input-clear-btn"
                 aria-label="Clear filter"
@@ -401,6 +415,7 @@ export function FilePane({
             </span>
 
             <button
+              type="button"
               onClick={onRefresh}
               className="mt-2 rounded-full bg-accent px-4 py-1.5 text-[11px] font-semibold text-accent-foreground hover:bg-accent/80 transition-colors"
             >

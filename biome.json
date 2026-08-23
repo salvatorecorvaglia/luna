@@ -27,11 +27,11 @@
     "rules": {
       "preset": "recommended",
       "a11y": {
-        "useButtonType": "off",
+        "useButtonType": "error",
         "noStaticElementInteractions": "off",
         "useSemanticElements": "off",
         "useFocusableInteractive": "off",
-        "useKeyWithClickEvents": "off",
+        "useKeyWithClickEvents": "error",
         "noAutofocus": "off",
         "useAriaPropsSupportedByRole": "error",
         "noLabelWithoutControl": "error",

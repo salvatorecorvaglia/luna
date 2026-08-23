@@ -68,7 +68,10 @@ vi.mock('node-pty', () => ({
   spawn: (...args: unknown[]) => spawn(...(args as Parameters<typeof spawn>)),
 }));
 
-import { disposeLocalTerminals, registerLocalTerminalHandlers } from '../../../src/main/ipc/local-terminal.ipc';
+import {
+  disposeLocalTerminals,
+  registerLocalTerminalHandlers,
+} from '../../../src/main/ipc/local-terminal.ipc';
 
 beforeEach(() => {
   handlers.clear();
@@ -87,7 +90,7 @@ describe('local-terminal IPC — spawn', () => {
   it('spawns a PTY with the requested cols/rows', async () => {
     await handlers.get(IPC.LOCAL_TERMINAL_SPAWN)!({}, { sessionId: 's1', cols: 100, rows: 30 });
     expect(spawn).toHaveBeenCalledTimes(1);
-    expect(spawn.mock.calls[0][2]).toMatchObject({ cols: 100, rows: 30 });
+    expect(spawn.mock.calls[0]![2]).toMatchObject({ cols: 100, rows: 30 });
   });
 
   it('is idempotent — a second spawn for the same id is ignored', async () => {
@@ -100,7 +103,7 @@ describe('local-terminal IPC — spawn', () => {
     vi.useFakeTimers();
     try {
       await handlers.get(IPC.LOCAL_TERMINAL_SPAWN)!({}, { sessionId: 's1', cols: 80, rows: 24 });
-      ptyInstances[0].__dataCb?.('hello');
+      ptyInstances[0]!.__dataCb?.('hello');
       vi.advanceTimersByTime(16);
       expect(send).toHaveBeenCalledWith(IPC.LOCAL_TERMINAL_ON_DATA, {
         sessionId: 's1',
@@ -123,8 +126,8 @@ describe('local-terminal IPC — spawn', () => {
       try {
         await handlers.get(IPC.LOCAL_TERMINAL_SPAWN)!({}, { sessionId: 's1', cols: 80, rows: 24 });
         // Produced inside the 16ms window, so it is still buffered.
-        ptyInstances[0].__dataCb?.('tail-output');
-        ptyInstances[0].__exitCb?.({ exitCode: 0 });
+        ptyInstances[0]!.__dataCb?.('tail-output');
+        ptyInstances[0]!.__exitCb?.({ exitCode: 0 });
 
         const channels = send.mock.calls.map((c) => c[0]);
         const dataIdx = channels.indexOf(IPC.LOCAL_TERMINAL_ON_DATA);
@@ -146,8 +149,8 @@ describe('local-terminal IPC — spawn', () => {
       vi.useFakeTimers();
       try {
         await handlers.get(IPC.LOCAL_TERMINAL_SPAWN)!({}, { sessionId: 's1', cols: 80, rows: 24 });
-        ptyInstances[0].__dataCb?.('tail-output');
-        ptyInstances[0].__exitCb?.({ exitCode: 0 });
+        ptyInstances[0]!.__dataCb?.('tail-output');
+        ptyInstances[0]!.__exitCb?.({ exitCode: 0 });
         send.mockClear();
 
         // The pending 16ms timer must have been cancelled, not just outrun.
@@ -162,7 +165,7 @@ describe('local-terminal IPC — spawn', () => {
       vi.useFakeTimers();
       try {
         await handlers.get(IPC.LOCAL_TERMINAL_SPAWN)!({}, { sessionId: 's1', cols: 80, rows: 24 });
-        ptyInstances[0].__dataCb?.('pending before kill');
+        ptyInstances[0]!.__dataCb?.('pending before kill');
         await handlers.get(IPC.LOCAL_TERMINAL_KILL)!({}, 's1');
 
         expect(send).toHaveBeenCalledWith(IPC.LOCAL_TERMINAL_ON_DATA, {
@@ -178,10 +181,10 @@ describe('local-terminal IPC — spawn', () => {
       vi.useFakeTimers();
       try {
         await handlers.get(IPC.LOCAL_TERMINAL_SPAWN)!({}, { sessionId: 's1', cols: 80, rows: 24 });
-        ptyInstances[0].__dataCb?.('never delivered');
+        ptyInstances[0]!.__dataCb?.('never delivered');
         destroyMockWindow();
 
-        expect(() => ptyInstances[0].__exitCb?.({ exitCode: 0 })).not.toThrow();
+        expect(() => ptyInstances[0]!.__exitCb?.({ exitCode: 0 })).not.toThrow();
         expect(send).not.toHaveBeenCalled();
       } finally {
         vi.useRealTimers();
@@ -191,14 +194,14 @@ describe('local-terminal IPC — spawn', () => {
 
   it('emits on-exit and clears the session when the PTY exits', async () => {
     await handlers.get(IPC.LOCAL_TERMINAL_SPAWN)!({}, { sessionId: 's1', cols: 80, rows: 24 });
-    ptyInstances[0].__exitCb?.({ exitCode: 0 });
+    ptyInstances[0]!.__exitCb?.({ exitCode: 0 });
     expect(send).toHaveBeenCalledWith(IPC.LOCAL_TERMINAL_ON_EXIT, {
       sessionId: 's1',
       exitCode: 0,
     });
     // After exit the session is gone — send-data on the same id is a no-op.
     await handlers.get(IPC.LOCAL_TERMINAL_SEND_DATA)!({}, { sessionId: 's1', data: 'x' });
-    expect(ptyInstances[0].write).not.toHaveBeenCalled();
+    expect(ptyInstances[0]!.write).not.toHaveBeenCalled();
   });
 
   it('does not send to a window destroyed between output and the flush timer', async () => {
@@ -209,7 +212,7 @@ describe('local-terminal IPC — spawn', () => {
     vi.useFakeTimers();
     try {
       await handlers.get(IPC.LOCAL_TERMINAL_SPAWN)!({}, { sessionId: 's1', cols: 80, rows: 24 });
-      ptyInstances[0].__dataCb?.('output produced while the window was alive');
+      ptyInstances[0]!.__dataCb?.('output produced while the window was alive');
       destroyMockWindow();
 
       expect(() => vi.advanceTimersByTime(16)).not.toThrow();
@@ -241,20 +244,20 @@ describe('local-terminal IPC — send/resize/kill', () => {
 
   it('writes to the PTY on send-data', async () => {
     await handlers.get(IPC.LOCAL_TERMINAL_SEND_DATA)!({}, { sessionId: 's1', data: 'abc' });
-    expect(ptyInstances[0].write).toHaveBeenCalledWith('abc');
+    expect(ptyInstances[0]!.write).toHaveBeenCalledWith('abc');
   });
 
   it('resizes the PTY', async () => {
     await handlers.get(IPC.LOCAL_TERMINAL_RESIZE)!({}, { sessionId: 's1', cols: 120, rows: 40 });
-    expect(ptyInstances[0].resize).toHaveBeenCalledWith(120, 40);
+    expect(ptyInstances[0]!.resize).toHaveBeenCalledWith(120, 40);
   });
 
   it('kills the PTY and removes the session', async () => {
     await handlers.get(IPC.LOCAL_TERMINAL_KILL)!({}, 's1');
-    expect(ptyInstances[0].kill).toHaveBeenCalled();
+    expect(ptyInstances[0]!.kill).toHaveBeenCalled();
     // Subsequent send-data is a no-op (no entry in the session map).
     await handlers.get(IPC.LOCAL_TERMINAL_SEND_DATA)!({}, { sessionId: 's1', data: 'x' });
-    expect(ptyInstances[0].write).not.toHaveBeenCalled();
+    expect(ptyInstances[0]!.write).not.toHaveBeenCalled();
   });
 
   it('send-data on unknown session is a no-op (does not throw)', () => {

@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { __resetStorageRateLimiter, releaseStorageBucket, takeStorageToken } from '../../../src/main/lib/rate-limiter';
+import {
+  __resetStorageRateLimiter,
+  releaseStorageBucket,
+  takeStorageToken,
+} from '../../../src/main/lib/rate-limiter';
 
 beforeEach(() => {
   __resetStorageRateLimiter();

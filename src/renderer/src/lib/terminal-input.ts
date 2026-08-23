@@ -161,7 +161,9 @@ export function buildTerminalKeyHandler(
               const nextIdx = isNextPane
                 ? (idx + 1) % allIds.length
                 : (idx - 1 + allIds.length) % allIds.length;
-              setActiveSession(allIds[nextIdx]);
+              // Non-null: idx !== -1 means allIds contains activeSessionId,
+              // so allIds.length > 0 and the modulo above stays in range.
+              setActiveSession(allIds[nextIdx]!);
             }
           }
         }

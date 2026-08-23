@@ -218,9 +218,9 @@ describe('importConnections validation parity', () => {
     const result = service.importConnections([entry]);
     expect(result.imported).toBe(0);
     expect(result.skipped).toHaveLength(1);
-    expect(result.skipped[0].name).toBe(entry.name);
+    expect(result.skipped[0]!.name).toBe(entry.name);
     // The user needs to know *why*, not just that something was dropped.
-    expect(result.skipped[0].reason).toBeTruthy();
+    expect(result.skipped[0]!.reason).toBeTruthy();
   });
 
   it('skips only the bad entry and imports the rest', () => {
@@ -278,7 +278,7 @@ describe('importConnections validation parity', () => {
   it('skips duplicates by name', () => {
     const result = service.importConnections([validExport, validExport]);
     expect(result.imported).toBe(1);
-    expect(result.skipped[0].reason).toMatch(/already exists/);
+    expect(result.skipped[0]!.reason).toMatch(/already exists/);
   });
 });
 

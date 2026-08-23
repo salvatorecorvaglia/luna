@@ -1,6 +1,11 @@
 import { createHash } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fingerprintKey, formatHostKey, updateHostKey, verifyHostKey } from '../../../src/main/services/host-key-store';
+import {
+  fingerprintKey,
+  formatHostKey,
+  updateHostKey,
+  verifyHostKey,
+} from '../../../src/main/services/host-key-store';
 
 // In-memory shim of the subset of better-sqlite3 used by host-key-store.
 // We avoid loading the native module here because its ABI is compiled for

@@ -45,8 +45,9 @@ export function parseSshConfig(content: string): ExportedConnection[] {
     const match = line.match(/^([a-zA-Z0-9_-]+)\s*=?\s*(.+)$/);
     if (!match) continue;
 
-    const command = match[1].toLowerCase();
-    const value = match[2].trim().replace(/^["']|["']$/g, '');
+    // Non-null: both capture groups use `+`, so a match guarantees both exist.
+    const command = match[1]!.toLowerCase();
+    const value = match[2]!.trim().replace(/^["']|["']$/g, '');
 
     if (command === 'host') {
       finishCurrentHost();

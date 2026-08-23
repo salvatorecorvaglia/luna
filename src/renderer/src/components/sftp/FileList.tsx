@@ -176,7 +176,8 @@ export function FileList({
     // re-sorting the list (e.g. clicking a column header) can briefly
     // re-associate an index's cached measurement with a different entry
     // than the one actually measured there.
-    getItemKey: (index) => sorted[index].path,
+    // Non-null: the virtualizer only calls this for indices within `count`.
+    getItemKey: (index) => sorted[index]!.path,
   });
 
   const buildContextItems = useCallback(
@@ -243,7 +244,8 @@ export function FileList({
   const handleSelect = useCallback(
     (index: number, ctrlKey: boolean, shiftKey: boolean) => {
       if (index < 0 || index >= sorted.length) return;
-      const entry = sorted[index];
+      // Non-null: bounds checked above.
+      const entry = sorted[index]!;
       const name = entry.name;
       let newSelection: Set<string>;
 
@@ -329,14 +331,16 @@ export function FileList({
         }
         case 'Enter': {
           if (focusedIndex >= 0 && focusedIndex < sorted.length) {
-            onOpen(sorted[focusedIndex]);
+            // Non-null: bounds checked above.
+            onOpen(sorted[focusedIndex]!);
           }
           break;
         }
         case 'Delete':
         case 'Backspace': {
           if (focusedIndex >= 0 && focusedIndex < sorted.length && onDelete) {
-            onDelete(sorted[focusedIndex]);
+            // Non-null: bounds checked above.
+            onDelete(sorted[focusedIndex]!);
           }
           break;
         }
@@ -386,6 +390,7 @@ export function FileList({
         className="flex items-center border-b border-border/60 bg-muted/20 text-[11px] font-medium text-muted-foreground no-select"
       >
         <button
+          type="button"
           role="columnheader"
           aria-sort={
             sortField === 'name' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'
@@ -397,6 +402,7 @@ export function FileList({
         </button>
 
         <button
+          type="button"
           role="columnheader"
           aria-sort={
             sortField === 'size' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'
@@ -413,6 +419,7 @@ export function FileList({
         )}
 
         <button
+          type="button"
           role="columnheader"
           aria-sort={
             sortField === 'modifiedAt' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'
@@ -434,9 +441,15 @@ export function FileList({
           }}
         >
           {virtualizer.getVirtualItems().map((virtualRow) => {
-            const entry = sorted[virtualRow.index];
+            // Non-null: the virtualizer was constructed with count: sorted.length,
+            // so every virtual item's index is guaranteed in range.
+            const entry = sorted[virtualRow.index]!;
             const contextItems = buildContextItems(entry);
+            // This is a roving-tabindex ARIA listbox option (tabIndex=-1) —
+            // keyboard navigation and selection are handled by the listbox
+            // container's onKeyDown (handleListKeyDown), not per-row.
             const row = (
+              // biome-ignore lint/a11y/useKeyWithClickEvents: roving-tabindex option, see comment above
               <div
                 key={entry.path}
                 role="option"

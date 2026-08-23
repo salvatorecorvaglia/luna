@@ -12,8 +12,8 @@ FSProtocol=0
     `;
     const result = detectAndImport(iniContent, '/Users/alice/Downloads/sessions.ini');
     expect(result).toHaveLength(1);
-    expect(result[0].name).toBe('test_session');
-    expect(result[0].host).toBe('192.168.1.100');
+    expect(result[0]!.name).toBe('test_session');
+    expect(result[0]!.host).toBe('192.168.1.100');
   });
 
   it('detects a MobaXterm export by file extension when content has no distinguishing marker', () => {

@@ -4,7 +4,9 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "target": "ESNext",
-    "lib": ["ESNext"],
+    "lib": [
+      "ESNext"
+    ],
     "outDir": "./out",
     "rootDir": ".",
     "strict": true,
@@ -17,8 +19,11 @@
     "resolveJsonModule": true,
     "declaration": true,
     "paths": {
-      "@shared/*": ["./src/shared/*"]
-    }
+      "@shared/*": [
+        "./src/shared/*"
+      ]
+    },
+    "noUncheckedIndexedAccess": true
   },
   "include": [
     "src/main/**/*.ts",

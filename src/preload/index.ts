@@ -72,7 +72,9 @@ function toIpcErrorPayload(err: unknown): IpcErrorPayload {
   if (!(err instanceof Error)) return fallback(String(err));
 
   const match = err.message.match(/^Error invoking remote method '[^']+': (?:Error: )?(.*)$/s);
-  const message = match ? match[1] : err.message;
+  // Non-null: the single capture group is `(.*)`, which always matches
+  // (possibly empty) whenever the overall regex matches.
+  const message = match ? match[1]! : err.message;
 
   if (message.startsWith('{') && message.endsWith('}')) {
     try {

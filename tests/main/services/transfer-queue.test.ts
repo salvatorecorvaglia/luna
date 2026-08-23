@@ -140,7 +140,8 @@ describe('transferQueue', () => {
     expect(reserved.size).toBe(1);
     const [reservedId] = reserved.keys();
 
-    transferQueue.cancel(reservedId);
+    // Non-null: reserved.size === 1 was just asserted above.
+    transferQueue.cancel(reservedId!);
     releaseStat!({ size: 0 });
 
     // enqueue() rejects rather than resolving with the id. The caller does not
@@ -302,7 +303,7 @@ describe('transferQueue', () => {
       await new Promise((r) => setTimeout(r, 0));
       const errs = emitsOf(IPC.TRANSFER_ERROR) as { errorClass: string }[];
       expect(errs).toHaveLength(1);
-      expect(errs[0].errorClass).toBe('permission');
+      expect(errs[0]!.errorClass).toBe('permission');
     });
 
     it('emits TRANSFER_ERROR with errorClass=disk-full on ENOSPC', async () => {
@@ -311,7 +312,7 @@ describe('transferQueue', () => {
       await new Promise((r) => setTimeout(r, 0));
       const errs = emitsOf(IPC.TRANSFER_ERROR) as { errorClass: string }[];
       expect(errs).toHaveLength(1);
-      expect(errs[0].errorClass).toBe('disk-full');
+      expect(errs[0]!.errorClass).toBe('disk-full');
     });
 
     it('emits TRANSFER_ERROR with errorClass=connection on ECONNRESET', async () => {
@@ -320,7 +321,7 @@ describe('transferQueue', () => {
       await new Promise((r) => setTimeout(r, 0));
       const errs = emitsOf(IPC.TRANSFER_ERROR) as { errorClass: string }[];
       expect(errs).toHaveLength(1);
-      expect(errs[0].errorClass).toBe('connection');
+      expect(errs[0]!.errorClass).toBe('connection');
     });
 
     it('cancel during active transfer emits TRANSFER_CANCELLED (not TRANSFER_ERROR)', async () => {
@@ -357,7 +358,8 @@ describe('transferQueue', () => {
       await transferQueue.enqueue('download', 'sess', '/l', '/r');
       await new Promise((r) => setTimeout(r, 0));
       const progress = emitsOf(IPC.TRANSFER_PROGRESS) as { transferred: number; total: number }[];
-      const last = progress[progress.length - 1];
+      // Non-null: onStep(500, 500, 1000) above guarantees at least one emit.
+      const last = progress[progress.length - 1]!;
       expect(last.transferred).toBe(1000);
       expect(last.total).toBe(1000);
       expect(emitsOf(IPC.TRANSFER_COMPLETE)).toHaveLength(1);

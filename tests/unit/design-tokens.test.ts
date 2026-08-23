@@ -87,7 +87,8 @@ function scan(file: string): Violation[] {
   const lines = source.split('\n');
   const out: Violation[] = [];
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    // Non-null: i < lines.length is the loop invariant.
+    const line = lines[i]!;
     // Skip comment-only lines so historical notes / commit references
     // mentioning a hex value don't trigger the guard.
     if (/^\s*(?:\/\/|\*|\/\*)/.test(line)) continue;

@@ -35,7 +35,7 @@ describe('emitToRenderer (redaction at the IPC boundary)', () => {
   it('redacts password fields in structured payloads', () => {
     emitToRenderer('ssh:on-error', { sessionId: 'a', error: 'auth failed', password: 'hunter2' });
     expect(sent).toHaveLength(1);
-    const payload = sent[0].payload as { password: string; error: string; sessionId: string };
+    const payload = sent[0]!.payload as { password: string; error: string; sessionId: string };
     expect(payload.password).toBe('[REDACTED]');
     expect(payload.error).toBe('auth failed');
     expect(payload.sessionId).toBe('a');
@@ -46,7 +46,7 @@ describe('emitToRenderer (redaction at the IPC boundary)', () => {
       sessionId: 'x',
       error: 'failed: password=hunter2 retry',
     });
-    const payload = sent[0].payload as { error: string };
+    const payload = sent[0]!.payload as { error: string };
     expect(payload.error).toContain('[REDACTED]');
     expect(payload.error).not.toContain('hunter2');
   });
@@ -55,7 +55,7 @@ describe('emitToRenderer (redaction at the IPC boundary)', () => {
     // A user typing `password=hunter2` into a remote shell prompt would have
     // those literal bytes echoed back. Redaction would corrupt the terminal.
     emitToRenderer('ssh:on-data', { sessionId: 'a', data: 'password=hunter2\n' });
-    const payload = sent[0].payload as { data: string };
+    const payload = sent[0]!.payload as { data: string };
     expect(payload.data).toBe('password=hunter2\n');
   });
 
@@ -82,7 +82,7 @@ describe('RAW_CHANNELS allowlist', () => {
   it('passes the terminal bytestream through untouched', () => {
     const raw = 'password=hunter2\r\n\x1b[32mok\x1b[0m';
     emitToRenderer('ssh:on-data', { sessionId: 's1', data: raw });
-    expect((sent[0].payload as { data: string }).data).toBe(raw);
+    expect((sent[0]!.payload as { data: string }).data).toBe(raw);
   });
 
   it.each([
@@ -98,7 +98,7 @@ describe('RAW_CHANNELS allowlist', () => {
   ])('redacts secrets on %s', (channel) => {
     expect(KNOWN_RAW_CHANNELS).not.toContain(channel);
     emitToRenderer(channel, { sessionId: 's1', password: 'hunter2', secret: 'sk-abc' });
-    const payload = sent[0].payload as Record<string, string>;
+    const payload = sent[0]!.payload as Record<string, string>;
     expect(payload.password).toBe('[REDACTED]');
     expect(payload.secret).toBe('[REDACTED]');
   });
@@ -111,7 +111,7 @@ describe('RAW_CHANNELS allowlist', () => {
           'failed with -----BEGIN OPENSSH PRIVATE KEY-----\nabc123\n-----END OPENSSH PRIVATE KEY-----',
       },
     });
-    const payload = sent[0].payload as { detail: { message: string } };
+    const payload = sent[0]!.payload as { detail: { message: string } };
     expect(payload.detail.message).not.toContain('abc123');
     expect(payload.detail.message).toContain('[REDACTED]');
   });

@@ -55,7 +55,7 @@ function ipv6Request(groups: number[], port: number): Buffer {
   buf[1] = 0x01;
   buf[2] = 0x00;
   buf[3] = 0x04; // ATYP IPv6
-  for (let i = 0; i < 8; i++) buf.writeUInt16BE(groups[i], 4 + i * 2);
+  for (let i = 0; i < 8; i++) buf.writeUInt16BE(groups[i]!, 4 + i * 2);
   buf.writeUInt16BE(port, 20);
   return buf;
 }

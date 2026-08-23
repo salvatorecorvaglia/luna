@@ -73,11 +73,11 @@ vi.mock('@aws-sdk/client-s3', () => {
 });
 
 import * as awsMock from '@aws-sdk/client-s3';
+import { registerS3Handlers } from '../../../src/main/ipc/s3.ipc';
 import * as credentialMock from '../../../src/main/services/credential-store';
 import * as databaseMock from '../../../src/main/services/database';
 import { s3StorageProvider } from '../../../src/main/services/s3/s3-provider';
 import { storageRegistry } from '../../../src/main/services/storage/registry';
-import { registerS3Handlers } from '../../../src/main/ipc/s3.ipc';
 
 const dbRows = (databaseMock as unknown as { __dbRows: Map<string, Record<string, unknown>> })
   .__dbRows;

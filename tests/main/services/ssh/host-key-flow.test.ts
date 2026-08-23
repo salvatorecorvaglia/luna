@@ -11,7 +11,10 @@ vi.mock('../../../../src/main/services/host-key-store', () => ({
   },
 }));
 
-import { PendingHostKeyRegistry, parseHostKeyAlgorithm } from '../../../../src/main/services/ssh/host-key-flow';
+import {
+  PendingHostKeyRegistry,
+  parseHostKeyAlgorithm,
+} from '../../../../src/main/services/ssh/host-key-flow';
 
 beforeEach(() => {
   updates.length = 0;
@@ -79,7 +82,7 @@ describe('PendingHostKeyRegistry', () => {
     reg.remember('host', 22, key, 'ssh-ed25519');
     key[0] = 0xff;
     reg.trust('host', 22);
-    expect(updates[0].key.toString('hex')).toBe('aabb');
+    expect(updates[0]!.key.toString('hex')).toBe('aabb');
   });
 
   it('refreshes LRU order so re-remembered entries survive eviction', () => {

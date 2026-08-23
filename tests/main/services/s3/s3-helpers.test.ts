@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { AbortError, S3StorageError } from '../../../../src/main/lib/errors';
-import { objectToEntry, prefixToEntry, wrapS3Error } from '../../../../src/main/services/s3/s3-helpers';
+import {
+  objectToEntry,
+  prefixToEntry,
+  wrapS3Error,
+} from '../../../../src/main/services/s3/s3-helpers';
 
 describe('prefixToEntry', () => {
   it('strips the trailing slash from the prefix in the path', () => {

@@ -134,7 +134,7 @@ describe('useUpdaterEventListener', () => {
     renderHook(() => useUpdaterEventListener());
     availableHandler?.({ version: '2.0.0' });
 
-    const onClick = toastInfo.mock.calls[0][1].action.onClick;
+    const onClick = toastInfo.mock.calls[0]![1].action.onClick;
     onClick();
 
     await vi.waitFor(() => {
@@ -148,7 +148,7 @@ describe('useUpdaterEventListener', () => {
     renderHook(() => useUpdaterEventListener());
     downloadedHandler?.({});
 
-    const onClick = toastSuccess.mock.calls[0][1].action.onClick;
+    const onClick = toastSuccess.mock.calls[0]![1].action.onClick;
     onClick();
 
     await vi.waitFor(() => {

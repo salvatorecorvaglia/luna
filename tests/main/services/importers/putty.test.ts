@@ -18,19 +18,19 @@ PortNumber=2222
     const result = importFromPuTTY(registryContent);
     expect(result).toHaveLength(2);
 
-    expect(result[0].name).toBe('test_session');
-    expect(result[0].host).toBe('192.168.1.100');
-    expect(result[0].username).toBe('admin');
-    expect(result[0].port).toBe(22);
-    expect(result[0].privateKeyPath).toBe('~/keys/id_rsa');
-    expect(result[0].authType).toBe('key');
+    expect(result[0]!.name).toBe('test_session');
+    expect(result[0]!.host).toBe('192.168.1.100');
+    expect(result[0]!.username).toBe('admin');
+    expect(result[0]!.port).toBe(22);
+    expect(result[0]!.privateKeyPath).toBe('~/keys/id_rsa');
+    expect(result[0]!.authType).toBe('key');
 
-    expect(result[1].name).toBe('second_session');
-    expect(result[1].host).toBe('example.com');
-    expect(result[1].username).toBe('root');
-    expect(result[1].port).toBe(2222);
-    expect(result[1].privateKeyPath).toBeUndefined();
-    expect(result[1].authType).toBe('password');
+    expect(result[1]!.name).toBe('second_session');
+    expect(result[1]!.host).toBe('example.com');
+    expect(result[1]!.username).toBe('root');
+    expect(result[1]!.port).toBe(2222);
+    expect(result[1]!.privateKeyPath).toBeUndefined();
+    expect(result[1]!.authType).toBe('password');
   });
 
   it('should decode URL-encoded session names', () => {
@@ -40,7 +40,7 @@ HostName="localhost"
     `;
     const result = importFromPuTTY(registryContent);
     expect(result).toHaveLength(1);
-    expect(result[0].name).toBe('my ssh session');
+    expect(result[0]!.name).toBe('my ssh session');
   });
 
   it('should not crash and keep original name on malformed percent sequence', () => {
@@ -53,7 +53,7 @@ HostName="127.0.0.1"
     `;
     const result = importFromPuTTY(registryContent);
     expect(result).toHaveLength(2);
-    expect(result[0].name).toBe('malformed%2Gsession');
-    expect(result[1].name).toBe('good_session');
+    expect(result[0]!.name).toBe('malformed%2Gsession');
+    expect(result[1]!.name).toBe('good_session');
   });
 });

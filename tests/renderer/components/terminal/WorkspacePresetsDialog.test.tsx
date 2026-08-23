@@ -2,8 +2,8 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkspacePresetsDialog } from '../../../../src/renderer/src/components/terminal/WorkspacePresetsDialog';
-import { installFakeApi } from '../../../../src/test/fake-api';
 import { useTerminalStore } from '../../../../src/renderer/src/stores/terminal-store';
+import { installFakeApi } from '../../../../src/test/fake-api';
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },

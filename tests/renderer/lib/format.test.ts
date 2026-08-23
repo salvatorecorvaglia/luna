@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { formatDate, formatEta, formatSize, formatSpeed } from '../../../src/renderer/src/lib/format';
+import {
+  formatDate,
+  formatEta,
+  formatSize,
+  formatSpeed,
+} from '../../../src/renderer/src/lib/format';
 
 describe('formatSize', () => {
   it('returns em-dash for non-positive byte counts', () => {

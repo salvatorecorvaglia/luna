@@ -65,10 +65,12 @@ export type RequestResult =
  */
 export function parseGreeting(buf: Buffer): GreetingResult {
   if (buf.length < 2) return { status: 'need-more' };
-  if (buf[0] !== SOCKS_VERSION) {
-    return { status: 'error', reason: `unsupported SOCKS version 0x${buf[0].toString(16)}` };
+  // Non-null throughout: the length check above guarantees indices 0-1 exist.
+  const version = buf[0]!;
+  if (version !== SOCKS_VERSION) {
+    return { status: 'error', reason: `unsupported SOCKS version 0x${version.toString(16)}` };
   }
-  const nMethods = buf[1];
+  const nMethods = buf[1]!;
   if (nMethods === 0) {
     return { status: 'error', reason: 'greeting advertised zero auth methods' };
   }
@@ -87,33 +89,37 @@ export function parseGreeting(buf: Buffer): GreetingResult {
 export function parseRequest(buf: Buffer): RequestResult {
   // VER + CMD + RSV + ATYP
   if (buf.length < 4) return { status: 'need-more' };
-  if (buf[0] !== SOCKS_VERSION) {
+  // Non-null: the length check above guarantees indices 0-3 exist.
+  const version = buf[0]!;
+  if (version !== SOCKS_VERSION) {
     return {
       status: 'error',
-      reason: `unsupported SOCKS version 0x${buf[0].toString(16)}`,
+      reason: `unsupported SOCKS version 0x${version.toString(16)}`,
       reply: SOCKS_REPLY.GENERAL_FAILURE,
     };
   }
-  if (buf[1] !== CMD_CONNECT) {
+  const cmd = buf[1]!;
+  if (cmd !== CMD_CONNECT) {
     return {
       status: 'error',
-      reason: `unsupported SOCKS command 0x${buf[1].toString(16)} (only CONNECT is proxied)`,
+      reason: `unsupported SOCKS command 0x${cmd.toString(16)} (only CONNECT is proxied)`,
       reply: SOCKS_REPLY.COMMAND_NOT_SUPPORTED,
     };
   }
 
-  const atyp = buf[3];
+  const atyp = buf[3]!;
   let host: string;
   let addrEnd: number;
 
   if (atyp === ATYP_IPV4) {
     addrEnd = 4 + 4;
     if (buf.length < addrEnd + 2) return { status: 'need-more' };
-    host = `${buf[4]}.${buf[5]}.${buf[6]}.${buf[7]}`;
+    // Non-null: the length check above guarantees indices 4-7 exist.
+    host = `${buf[4]!}.${buf[5]!}.${buf[6]!}.${buf[7]!}`;
   } else if (atyp === ATYP_DOMAIN) {
     // Length byte itself may not have arrived yet.
     if (buf.length < 5) return { status: 'need-more' };
-    const len = buf[4];
+    const len = buf[4]!;
     if (len === 0) {
       return {
         status: 'error',

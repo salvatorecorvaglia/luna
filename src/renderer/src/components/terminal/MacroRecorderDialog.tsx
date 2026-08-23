@@ -122,6 +122,7 @@ export function MacroRecorderDialog({ open, onClose, onRunMacro }: MacroRecorder
         </div>
 
         <button
+          type="button"
           onClick={onClose}
           className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
         >
@@ -138,6 +139,7 @@ export function MacroRecorderDialog({ open, onClose, onRunMacro }: MacroRecorder
             </span>
 
             <button
+              type="button"
               onClick={handleStartRecording}
               className="flex items-center gap-1.5 rounded-lg bg-destructive/10 text-destructive-fg border border-destructive/20 px-3 py-1.5 text-xs font-medium hover:bg-destructive/20 transition-colors cursor-pointer"
             >
@@ -154,6 +156,7 @@ export function MacroRecorderDialog({ open, onClose, onRunMacro }: MacroRecorder
               </div>
 
               <button
+                type="button"
                 onClick={() => setIsRecording(false)}
                 className="text-xs text-muted-foreground hover:text-foreground cursor-pointer"
               >
@@ -198,6 +201,7 @@ export function MacroRecorderDialog({ open, onClose, onRunMacro }: MacroRecorder
                 className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
               />
               <button
+                type="button"
                 onClick={handleStopAndSave}
                 className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 cursor-pointer"
               >
@@ -234,6 +238,7 @@ export function MacroRecorderDialog({ open, onClose, onRunMacro }: MacroRecorder
 
                   <div className="flex items-center gap-1.5">
                     <button
+                      type="button"
                       onClick={() => handlePlayMacro(m)}
                       title="Replay Macro"
                       className="flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 transition-colors cursor-pointer"
@@ -243,6 +248,7 @@ export function MacroRecorderDialog({ open, onClose, onRunMacro }: MacroRecorder
                     </button>
 
                     <button
+                      type="button"
                       onClick={() => handleDeleteMacro(m.id)}
                       title="Delete Macro"
                       className="rounded-md border border-destructive/20 bg-destructive/10 p-1.5 text-destructive-fg hover:bg-destructive/20 transition-colors cursor-pointer"

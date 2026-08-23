@@ -36,6 +36,7 @@ export function TerminalFilterBar({ open, onClose, onApplyFilter }: TerminalFilt
         {/* Severity Toggles */}
         <div className="flex items-center gap-1 bg-background/60 p-0.5 rounded border border-border/60 flex-shrink-0">
           <button
+            type="button"
             onClick={() => handleLevelSelect('all')}
             className={`px-2 py-0.5 text-[10px] font-medium rounded cursor-pointer transition-colors ${
               activeLevel === 'all'
@@ -46,6 +47,7 @@ export function TerminalFilterBar({ open, onClose, onApplyFilter }: TerminalFilt
             ALL
           </button>
           <button
+            type="button"
             onClick={() => handleLevelSelect('error')}
             className={`px-2 py-0.5 text-[10px] font-medium rounded cursor-pointer transition-colors ${
               activeLevel === 'error'
@@ -56,6 +58,7 @@ export function TerminalFilterBar({ open, onClose, onApplyFilter }: TerminalFilt
             ERROR
           </button>
           <button
+            type="button"
             onClick={() => handleLevelSelect('warn')}
             className={`px-2 py-0.5 text-[10px] font-medium rounded cursor-pointer transition-colors ${
               activeLevel === 'warn'
@@ -66,6 +69,7 @@ export function TerminalFilterBar({ open, onClose, onApplyFilter }: TerminalFilt
             WARN
           </button>
           <button
+            type="button"
             onClick={() => handleLevelSelect('info')}
             className={`px-2 py-0.5 text-[10px] font-medium rounded cursor-pointer transition-colors ${
               activeLevel === 'info'
@@ -91,6 +95,7 @@ export function TerminalFilterBar({ open, onClose, onApplyFilter }: TerminalFilt
       </div>
 
       <button
+        type="button"
         onClick={onClose}
         className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
         title="Close Filter Bar"

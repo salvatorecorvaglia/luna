@@ -122,6 +122,7 @@ export function ShortcutsHelp() {
                 </div>
 
                 <button
+                  type="button"
                   onClick={() => setOpen(false)}
                   className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
                   aria-label="Close"

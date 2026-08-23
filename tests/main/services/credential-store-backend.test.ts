@@ -35,7 +35,10 @@ vi.mock('../../../src/main/lib/logger', () => ({
   default: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
 }));
 
-import { getCredentialBackendStatus, initializeCredentialStore } from '../../../src/main/services/credential-store';
+import {
+  getCredentialBackendStatus,
+  initializeCredentialStore,
+} from '../../../src/main/services/credential-store';
 
 describe('credential-store backend status', () => {
   it('flips to "plaintext" when migrating a plaintext key into safeStorage fails', () => {

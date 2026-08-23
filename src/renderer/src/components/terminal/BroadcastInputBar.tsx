@@ -89,6 +89,7 @@ export function BroadcastInputBar({ open, onClose }: BroadcastInputBarProps) {
       {/* Target Sessions Selection */}
       <div className="flex items-center gap-2 overflow-x-auto min-w-0 flex-1 py-0.5">
         <button
+          type="button"
           onClick={toggleSelectAll}
           className="flex items-center gap-1 rounded bg-muted/80 px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted cursor-pointer flex-shrink-0"
         >
@@ -104,6 +105,7 @@ export function BroadcastInputBar({ open, onClose }: BroadcastInputBarProps) {
           const isSelected = effectiveSelectedIds.includes(s.id);
           return (
             <button
+              type="button"
               key={s.id}
               onClick={() => toggleSelectId(s.id)}
               className={`flex items-center gap-1.5 rounded border px-2 py-0.5 text-[11px] flex-shrink-0 cursor-pointer transition-colors ${
@@ -138,6 +140,7 @@ export function BroadcastInputBar({ open, onClose }: BroadcastInputBarProps) {
       </form>
 
       <button
+        type="button"
         onClick={onClose}
         className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
         title="Close Broadcast Mode"

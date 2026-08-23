@@ -504,6 +504,7 @@ export function SftpManager() {
         </div>
 
         <button
+          type="button"
           onClick={() => useConnectionStore.getState().openCreateForm()}
           className="btn-outline mt-1"
         >

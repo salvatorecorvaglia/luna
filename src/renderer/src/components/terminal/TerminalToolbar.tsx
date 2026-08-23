@@ -48,6 +48,7 @@ export function TerminalToolbar() {
     <>
       <div className="flex items-center gap-1 px-2 border-l border-border/40">
         <button
+          type="button"
           onClick={() => setShowSnippetVault(true)}
           className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
           title="Snippet Vault & Scripts"
@@ -56,6 +57,7 @@ export function TerminalToolbar() {
         </button>
 
         <button
+          type="button"
           onClick={() => setShowBroadcastBar((v) => !v)}
           className={cn(
             'rounded p-1 transition-colors cursor-pointer',
@@ -69,6 +71,7 @@ export function TerminalToolbar() {
         </button>
 
         <button
+          type="button"
           onClick={() => setShowFilterBar((v) => !v)}
           className={cn(
             'rounded p-1 transition-colors cursor-pointer',
@@ -82,6 +85,7 @@ export function TerminalToolbar() {
         </button>
 
         <button
+          type="button"
           onClick={() => setShowMacroRecorder(true)}
           className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
           title="Terminal Macro Recorder"
@@ -90,6 +94,7 @@ export function TerminalToolbar() {
         </button>
 
         <button
+          type="button"
           onClick={() => setShowCliRef(true)}
           className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
           title="Offline CLI Syntax & Flag Reference"
@@ -98,6 +103,7 @@ export function TerminalToolbar() {
         </button>
 
         <button
+          type="button"
           onClick={() => setShowAuditExport(true)}
           className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
           title="Export Session Audit Log (HTML/JSON/TXT)"
@@ -106,6 +112,7 @@ export function TerminalToolbar() {
         </button>
 
         <button
+          type="button"
           onClick={() => setShowWorkspaces(true)}
           className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
           title="Workspace Layout Presets"

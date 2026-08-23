@@ -122,7 +122,8 @@ export function registerShellHandlers(): void {
         return null;
       }
 
-      return realpath(result.filePaths[0]);
+      // Non-null: length check above guarantees index 0 exists.
+      return realpath(result.filePaths[0]!);
     },
   );
 

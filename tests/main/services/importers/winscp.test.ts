@@ -18,17 +18,17 @@ FSProtocol=5
     const result = importFromWinSCP(iniContent);
     expect(result).toHaveLength(2);
 
-    expect(result[0].name).toBe('test_session');
-    expect(result[0].host).toBe('192.168.1.100');
-    expect(result[0].username).toBe('admin');
-    expect(result[0].port).toBe(22);
-    expect(result[0].privateKeyPath).toBe('~/keys/id_rsa');
-    expect(result[0].authType).toBe('key');
-    expect(result[0].provider).toBe('sftp');
+    expect(result[0]!.name).toBe('test_session');
+    expect(result[0]!.host).toBe('192.168.1.100');
+    expect(result[0]!.username).toBe('admin');
+    expect(result[0]!.port).toBe(22);
+    expect(result[0]!.privateKeyPath).toBe('~/keys/id_rsa');
+    expect(result[0]!.authType).toBe('key');
+    expect(result[0]!.provider).toBe('sftp');
 
-    expect(result[1].name).toBe('s3_session');
-    expect(result[1].endpoint).toBe('s3.example.com');
-    expect(result[1].provider).toBe('s3');
+    expect(result[1]!.name).toBe('s3_session');
+    expect(result[1]!.endpoint).toBe('s3.example.com');
+    expect(result[1]!.provider).toBe('s3');
   });
 
   it('should parse WinSCP registry export (REG) sessions with dword: format correctly', () => {
@@ -47,14 +47,14 @@ FSProtocol=dword:00000005
     expect(result).toHaveLength(2);
 
     // dword:000008ae -> 2222
-    expect(result[0].name).toBe('reg_sftp');
-    expect(result[0].host).toBe('localhost');
-    expect(result[0].username).toBe('user');
-    expect(result[0].port).toBe(2222);
-    expect(result[0].provider).toBe('sftp');
+    expect(result[0]!.name).toBe('reg_sftp');
+    expect(result[0]!.host).toBe('localhost');
+    expect(result[0]!.username).toBe('user');
+    expect(result[0]!.port).toBe(2222);
+    expect(result[0]!.provider).toBe('sftp');
 
-    expect(result[1].name).toBe('reg_s3');
-    expect(result[1].endpoint).toBe('play.min.io');
-    expect(result[1].provider).toBe('s3');
+    expect(result[1]!.name).toBe('reg_s3');
+    expect(result[1]!.endpoint).toBe('play.min.io');
+    expect(result[1]!.provider).toBe('s3');
   });
 });

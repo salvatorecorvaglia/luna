@@ -13,9 +13,9 @@ describe('INI Parser', () => {
     `;
     const result = parseIni(content);
     expect(result.section1).toBeDefined();
-    expect(result.section1.key1).toBe('value1');
-    expect(result.section1.key2).toBe('value2');
-    expect(result.section2.key3).toBe('value3');
+    expect(result.section1!.key1).toBe('value1');
+    expect(result.section1!.key2).toBe('value2');
+    expect(result.section2!.key3).toBe('value3');
   });
 
   it('should ignore comments and empty lines', () => {
@@ -27,7 +27,7 @@ describe('INI Parser', () => {
       key = value
     `;
     const result = parseIni(content);
-    expect(result.section.key).toBe('value');
+    expect(result.section!.key).toBe('value');
   });
 
   it('should block prototype pollution via section headers', () => {
@@ -51,7 +51,7 @@ describe('INI Parser', () => {
     const resultObj = result as Record<string, unknown>;
     expect(resultObj.constructor).toBeUndefined();
     expect(resultObj.prototype).toBeUndefined();
-    expect(result.valid_section.key).toBe('value');
+    expect(result.valid_section!.key).toBe('value');
   });
 
   it('should block prototype pollution via property keys', () => {
@@ -68,7 +68,7 @@ describe('INI Parser', () => {
     const sectionObj = result.section as Record<string, unknown>;
     expect(sectionObj.constructor).toBeUndefined();
     expect(sectionObj.prototype).toBeUndefined();
-    expect(result.section.key).toBe('value');
+    expect(result.section!.key).toBe('value');
   });
 
   it('should handle values with multiple equal signs correctly', () => {
@@ -78,8 +78,8 @@ describe('INI Parser', () => {
       formula = a = b = c
     `;
     const result = parseIni(content);
-    expect(result.section.url).toBe('http://example.com/query?param=1&other=2');
-    expect(result.section.formula).toBe('a = b = c');
+    expect(result.section!.url).toBe('http://example.com/query?param=1&other=2');
+    expect(result.section!.formula).toBe('a = b = c');
   });
 
   it('should handle keys and values with leading/trailing spaces correctly', () => {
@@ -89,7 +89,7 @@ describe('INI Parser', () => {
     `;
     const result = parseIni(content);
     expect(result['my section']).toBeDefined();
-    expect(result['my section']['my key']).toBe('my value');
+    expect(result['my section']!['my key']).toBe('my value');
   });
 
   it('should ignore invalid or malformed lines', () => {
@@ -100,7 +100,7 @@ describe('INI Parser', () => {
       key = value
     `;
     const result = parseIni(content);
-    expect(result.section.key).toBe('value');
-    expect(Object.keys(result.section).length).toBe(1);
+    expect(result.section!.key).toBe('value');
+    expect(Object.keys(result.section!).length).toBe(1);
   });
 });

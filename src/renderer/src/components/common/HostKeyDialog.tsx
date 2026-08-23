@@ -129,6 +129,7 @@ export function HostKeyDialog() {
                   </code>
 
                   <button
+                    type="button"
                     onClick={handleCopyFingerprint}
                     className="btn-icon flex-shrink-0 !p-1"
                     title="Copy fingerprint"
@@ -166,11 +167,12 @@ export function HostKeyDialog() {
 
           {/* Actions */}
           <div className="mt-4 flex justify-end gap-2">
-            <button data-reject onClick={handleReject} className="btn-ghost">
+            <button type="button" data-reject onClick={handleReject} className="btn-ghost">
               Reject
             </button>
 
             <button
+              type="button"
               onClick={handleTrust}
               disabled={loading}
               aria-busy={loading}

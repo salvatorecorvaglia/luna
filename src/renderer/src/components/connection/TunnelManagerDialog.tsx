@@ -51,7 +51,8 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
       const active = await getApi().app.getActiveSessions();
       setActiveSessions(active.ssh);
       if (active.ssh.length > 0 && !selectedSessionId) {
-        setSelectedSessionId(active.ssh[0].id);
+        // Non-null: length check above guarantees index 0 exists.
+        setSelectedSessionId(active.ssh[0]!.id);
       }
 
       const activeTunnels = await getApi().ssh.listActivePortForwards();
@@ -152,6 +153,7 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
         </div>
 
         <button
+          type="button"
           onClick={onClose}
           className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
         >
@@ -169,6 +171,7 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
 
           {activeSessions.length > 0 && !showAddForm && (
             <button
+              type="button"
               onClick={() => setShowAddForm(true)}
               className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
             >
@@ -377,6 +380,7 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
 
                 <div className="flex items-center gap-2">
                   <button
+                    type="button"
                     onClick={() => copyProxyString(t)}
                     title="Copy local proxy address"
                     className="rounded-md border border-border/60 p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
@@ -390,6 +394,7 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
 
                   {t.sessionId && (
                     <button
+                      type="button"
                       onClick={() => handleStopTunnel(t.sessionId!, t.id)}
                       title="Stop tunnel"
                       className="rounded-md border border-destructive/20 bg-destructive/10 p-1.5 text-destructive-fg hover:bg-destructive/20 transition-colors cursor-pointer"
@@ -412,6 +417,7 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
         </div>
 
         <button
+          type="button"
           onClick={onClose}
           className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
         >

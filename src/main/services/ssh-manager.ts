@@ -577,7 +577,8 @@ class SshManager {
     if (!session || !session.portForwards) return;
     const index = session.portForwards.findIndex((pf) => pf.id === forwardId);
     if (index !== -1) {
-      const [pf] = session.portForwards.splice(index, 1);
+      // Non-null: a valid index guarantees splice(index, 1) removes one element.
+      const pf = session.portForwards.splice(index, 1)[0]!;
       pf.status = 'stopped';
       await pf.close().catch((err) => {
         log.warn(`[SSH] Failed to close port forward ${forwardId}:`, err);

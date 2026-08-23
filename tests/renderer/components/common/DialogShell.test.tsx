@@ -87,7 +87,7 @@ describe('DialogShell', () => {
       </DialogShell>,
     );
     await vi.waitFor(() => expect(onOpenFocus).toHaveBeenCalledTimes(1));
-    expect(onOpenFocus.mock.calls[0][0]).toBe(screen.getByRole('dialog'));
+    expect(onOpenFocus.mock.calls[0]![0]).toBe(screen.getByRole('dialog'));
   });
 
   it('renders inline (not portaled) when portal is false', () => {
@@ -98,9 +98,9 @@ describe('DialogShell', () => {
         </DialogShell>
       </div>,
     );
-    expect(container.querySelector('[data-testid="wrapper"]')?.contains(screen.getByText('content'))).toBe(
-      true,
-    );
+    expect(
+      container.querySelector('[data-testid="wrapper"]')?.contains(screen.getByText('content')),
+    ).toBe(true);
   });
 
   it('portals to document.body by default', () => {

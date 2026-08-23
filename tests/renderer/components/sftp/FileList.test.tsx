@@ -103,7 +103,7 @@ describe('FileList component', () => {
 
     expect(defaultProps.onSelect).toHaveBeenCalledTimes(1);
     // Should call onSelect with a Set containing 'package.json'
-    const selectionArg = defaultProps.onSelect.mock.calls[0][0] as Set<string>;
+    const selectionArg = defaultProps.onSelect.mock.calls[0]![0] as Set<string>;
     expect(selectionArg.has('package.json')).toBe(true);
   });
 
@@ -168,7 +168,7 @@ describe('FileList component', () => {
     }
 
     // Click focuses the container
-    const firstOption = options[0];
+    const firstOption = options[0]!;
     fireEvent.click(firstOption);
     expect(listbox).toHaveFocus();
 

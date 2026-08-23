@@ -179,6 +179,7 @@ export function SettingsPanel() {
               </h2>
 
               <button
+                type="button"
                 onClick={() => setSettingsOpen(false)}
                 className="btn-icon no-drag relative z-[120] -mr-2 cursor-pointer p-2 hover:bg-accent/80"
                 style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
@@ -205,6 +206,7 @@ export function SettingsPanel() {
                   >
                     {TERMINAL_THEMES.map((t) => (
                       <button
+                        type="button"
                         key={t.value}
                         onClick={() => setTerminalTheme(t.value)}
                         className={cn(
@@ -328,6 +330,7 @@ export function SettingsPanel() {
               <Section title="Connection Profiles" icon={<FolderClosed className="size-4" />}>
                 <div className="grid grid-cols-2 gap-2">
                   <button
+                    type="button"
                     onClick={async () => {
                       try {
                         const connections = await getApi().connections.export();
@@ -358,6 +361,7 @@ export function SettingsPanel() {
                   </button>
 
                   <button
+                    type="button"
                     onClick={async () => {
                       try {
                         const { imported, skipped } = await getApi().connections.importFromFile();
@@ -391,6 +395,7 @@ export function SettingsPanel() {
                   </button>
 
                   <button
+                    type="button"
                     onClick={async () => {
                       try {
                         const { imported, skipped } =
@@ -426,7 +431,11 @@ export function SettingsPanel() {
 
               {/* Logs */}
               <Section title="Diagnostics" icon={<FileText className="size-4" />}>
-                <button onClick={() => getApi().app.openLogFile()} className="btn-outline w-full">
+                <button
+                  type="button"
+                  onClick={() => getApi().app.openLogFile()}
+                  className="btn-outline w-full"
+                >
                   <FileText className="size-3.5" />
                   Open log file
                 </button>
@@ -453,6 +462,7 @@ export function SettingsPanel() {
                     </div>
 
                     <button
+                      type="button"
                       onClick={() => setConfirmDeleteAll(true)}
                       className="btn-destructive flex-shrink-0"
                     >

@@ -181,6 +181,7 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
         </div>
 
         <button
+          type="button"
           onClick={onClose}
           className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
         >
@@ -205,6 +206,7 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
             </div>
 
             <button
+              type="button"
               onClick={() => handleOpenForm()}
               className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
             >
@@ -399,6 +401,7 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
 
                   <div className="flex items-center gap-1.5">
                     <button
+                      type="button"
                       onClick={() => handleSelectToRun(s)}
                       title="Execute snippet"
                       className="flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 transition-colors cursor-pointer"
@@ -408,6 +411,7 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
                     </button>
 
                     <button
+                      type="button"
                       onClick={() => handleOpenForm(s)}
                       title="Edit snippet"
                       className="rounded-md border border-border/60 p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
@@ -416,6 +420,7 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
                     </button>
 
                     <button
+                      type="button"
                       onClick={() => handleDeleteSnippet(s.id)}
                       title="Delete snippet"
                       className="rounded-md border border-destructive/20 bg-destructive/10 p-1.5 text-destructive-fg hover:bg-destructive/20 transition-colors cursor-pointer"

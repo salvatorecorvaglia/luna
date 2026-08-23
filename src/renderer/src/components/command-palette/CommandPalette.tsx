@@ -246,8 +246,10 @@ export function CommandPalette() {
 
     if (activeSessionId && tabOrder.length > 0) {
       const idx = tabOrder.indexOf(activeSessionId);
-      const next = tabOrder[(idx + 1) % tabOrder.length];
-      const prev = tabOrder[(idx - 1 + tabOrder.length) % tabOrder.length];
+      // Non-null: `% tabOrder.length` always yields a valid index since
+      // tabOrder.length > 0 is guaranteed by the outer condition.
+      const next = tabOrder[(idx + 1) % tabOrder.length]!;
+      const prev = tabOrder[(idx - 1 + tabOrder.length) % tabOrder.length]!;
       cmds.push(
         {
           id: 'terminal-close-tab',
@@ -367,6 +369,9 @@ export function CommandPalette() {
     }
   }, [selectedIndex]);
 
+  const activeOption = filtered[selectedIndex];
+  const activeOptionId = activeOption ? `command-option-${activeOption.id}` : undefined;
+
   const executeCommand = (cmd: Command) => {
     cmd.action();
     setCommandPaletteOpen(false);
@@ -430,9 +435,15 @@ export function CommandPalette() {
                     onKeyDown={handleKeyDown}
                     className="flex-1 border-none bg-transparent py-3 pl-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 !outline-none !ring-0 focus:!outline-none focus:!ring-0 focus:!shadow-none focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!shadow-none rounded-lg transition-all duration-200"
                     autoFocus
+                    role="combobox"
+                    aria-expanded={commandPaletteOpen}
+                    aria-controls="command-palette-listbox"
+                    aria-autocomplete="list"
+                    aria-activedescendant={activeOptionId}
                   />
 
                   <button
+                    type="button"
                     onClick={() => setCommandPaletteOpen(false)}
                     className="btn-icon !p-1.5 ml-1"
                     aria-label="Close command palette"
@@ -442,14 +453,20 @@ export function CommandPalette() {
                 </div>
 
                 {/* Results */}
-                <div ref={listRef} className="max-h-[300px] overflow-y-auto p-1.5">
+                <div
+                  ref={listRef}
+                  id="command-palette-listbox"
+                  role="listbox"
+                  aria-label="Commands"
+                  className="max-h-[300px] overflow-y-auto p-1.5"
+                >
                   {filtered.length === 0 ? (
                     <div className="py-8 text-center text-xs text-muted-foreground/60">
                       No commands found
                     </div>
                   ) : (
                     Array.from(grouped.entries()).map(([category, cmds]) => (
-                      <div key={category}>
+                      <div key={category} role="group" aria-label={category}>
                         <div className="px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
                           {category}
                         </div>
@@ -457,8 +474,12 @@ export function CommandPalette() {
                           const index = flatIndexMap.get(cmd.id) ?? 0;
                           const isSelected = index === selectedIndex;
                           return (
-                            <button
+                            // biome-ignore lint/a11y/useKeyWithClickEvents: combobox option — keyboard handled by the input's onKeyDown, not per-row
+                            <div
                               key={cmd.id}
+                              id={`command-option-${cmd.id}`}
+                              role="option"
+                              aria-selected={isSelected}
                               data-selected={isSelected}
                               onClick={() => executeCommand(cmd)}
                               onMouseEnter={() => setSelectedIndex(index)}
@@ -468,6 +489,7 @@ export function CommandPalette() {
                               )}
                             >
                               <div
+                                aria-hidden="true"
                                 className={cn(
                                   'flex-shrink-0',
                                   isSelected ? 'text-foreground' : 'text-muted-foreground/60',
@@ -495,7 +517,7 @@ export function CommandPalette() {
                                   ))}
                                 </div>
                               )}
-                            </button>
+                            </div>
                           );
                         })}
                       </div>

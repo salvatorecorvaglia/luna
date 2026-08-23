@@ -2,11 +2,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { installFakeApi } from '../../../../src/test/fake-api';
+import { CommandPalette } from '../../../../src/renderer/src/components/command-palette/CommandPalette';
 import { useConnectionStore } from '../../../../src/renderer/src/stores/connection-store';
 import { useTerminalStore } from '../../../../src/renderer/src/stores/terminal-store';
 import { useUIStore } from '../../../../src/renderer/src/stores/ui-store';
-import { CommandPalette } from '../../../../src/renderer/src/components/command-palette/CommandPalette';
+import { installFakeApi } from '../../../../src/test/fake-api';
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
@@ -53,6 +53,36 @@ describe('CommandPalette — visibility', () => {
     const input = await screen.findByPlaceholderText('Type a command...');
     fireEvent.keyDown(input, { key: 'Escape' });
     await waitFor(() => expect(useUIStore.getState().commandPaletteOpen).toBe(false));
+  });
+});
+
+describe('CommandPalette — ARIA combobox', () => {
+  it('exposes combobox/listbox roles wired together, with aria-activedescendant tracking the selected option', async () => {
+    renderPalette();
+    const input = await screen.findByPlaceholderText('Type a command...');
+    fireEvent.change(input, { target: { value: 'settings' } });
+    const option = await screen.findByRole('option', { name: /open settings/i });
+
+    expect(input).toHaveAttribute('role', 'combobox');
+    expect(input).toHaveAttribute('aria-expanded', 'true');
+    expect(input).toHaveAttribute('aria-controls', 'command-palette-listbox');
+    expect(screen.getByRole('listbox')).toHaveAttribute('id', 'command-palette-listbox');
+    expect(option).toHaveAttribute('aria-selected', 'true');
+    expect(input).toHaveAttribute('aria-activedescendant', option.id);
+  });
+
+  it('moves aria-activedescendant as ArrowDown changes the selection', async () => {
+    renderPalette();
+    const input = await screen.findByPlaceholderText('Type a command...');
+    fireEvent.change(input, { target: { value: 'view' } });
+    const options = await screen.findAllByRole('option');
+    expect(options.length).toBeGreaterThan(1);
+
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+
+    expect(input).toHaveAttribute('aria-activedescendant', options[1]!.id);
+    expect(options[1]).toHaveAttribute('aria-selected', 'true');
+    expect(options[0]).toHaveAttribute('aria-selected', 'false');
   });
 });
 

@@ -85,6 +85,7 @@ export function AuditExportDialog({
         </div>
 
         <button
+          type="button"
           onClick={onClose}
           className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
         >
@@ -110,6 +111,7 @@ export function AuditExportDialog({
             className="grid grid-cols-3 gap-2"
           >
             <button
+              type="button"
               onClick={() => setFormat('html')}
               className={`flex flex-col items-center justify-center p-3 rounded-lg border text-center transition-colors cursor-pointer ${
                 format === 'html'
@@ -122,6 +124,7 @@ export function AuditExportDialog({
             </button>
 
             <button
+              type="button"
               onClick={() => setFormat('json')}
               className={`flex flex-col items-center justify-center p-3 rounded-lg border text-center transition-colors cursor-pointer ${
                 format === 'json'
@@ -134,6 +137,7 @@ export function AuditExportDialog({
             </button>
 
             <button
+              type="button"
               onClick={() => setFormat('txt')}
               className={`flex flex-col items-center justify-center p-3 rounded-lg border text-center transition-colors cursor-pointer ${
                 format === 'txt'
@@ -151,6 +155,7 @@ export function AuditExportDialog({
       {/* Footer */}
       <div className="flex items-center justify-end gap-2 border-t border-border/60 px-5 py-3 bg-muted/20 text-xs">
         <button
+          type="button"
           onClick={onClose}
           className="rounded-md border border-border px-3 py-1.5 font-medium hover:bg-accent transition-colors cursor-pointer"
         >
@@ -158,6 +163,7 @@ export function AuditExportDialog({
         </button>
 
         <button
+          type="button"
           onClick={handleExport}
           disabled={exporting}
           className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors cursor-pointer"

@@ -117,7 +117,11 @@ export function DialogShell({
                 `role={role}`) so both Biome's a11y linter and the design-token
                 guard (tests/unit/design-tokens.test.ts) can verify statically
                 that every focus-trapping dialog declares its modal role. */}
+            {/* onClick on the card below only stops propagation to the overlay's
+                dismiss handler — it isn't a user-facing control, so it needs no
+                keyboard equivalent. */}
             {role === 'alertdialog' ? (
+              // biome-ignore lint/a11y/useKeyWithClickEvents: stopPropagation only, see comment above
               <div
                 ref={dialogRef}
                 role="alertdialog"
@@ -130,6 +134,7 @@ export function DialogShell({
                 {children}
               </div>
             ) : (
+              // biome-ignore lint/a11y/useKeyWithClickEvents: stopPropagation only, see comment above
               <div
                 ref={dialogRef}
                 role="dialog"

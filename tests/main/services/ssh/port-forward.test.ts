@@ -9,7 +9,10 @@ vi.mock('../../../../src/main/lib/logger', () => ({
   default: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
-import { type PortForwardHandle, startPortForward } from '../../../../src/main/services/ssh/port-forward';
+import {
+  type PortForwardHandle,
+  startPortForward,
+} from '../../../../src/main/services/ssh/port-forward';
 
 /**
  * These tests drive the *runtime* — real listening sockets on ephemeral ports,
@@ -95,7 +98,7 @@ function attachReader(socket: Socket): Reader {
   }[] = [];
 
   const pump = (): void => {
-    while (waiters.length > 0 && buf.length >= waiters[0].n) {
+    while (waiters.length > 0 && buf.length >= waiters[0]!.n) {
       const waiter = waiters.shift()!;
       waiter.resolve(buf.subarray(0, waiter.n));
       buf = buf.subarray(waiter.n);

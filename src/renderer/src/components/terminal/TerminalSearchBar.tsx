@@ -82,6 +82,7 @@ export function TerminalSearchBar({
       )}
 
       <button
+        type="button"
         onClick={onFindPrevious}
         className="btn-icon !p-0.5"
         title="Previous"
@@ -90,11 +91,23 @@ export function TerminalSearchBar({
         <ChevronUp className="size-3.5" />
       </button>
 
-      <button onClick={onFindNext} className="btn-icon !p-0.5" title="Next" aria-label="Next match">
+      <button
+        type="button"
+        onClick={onFindNext}
+        className="btn-icon !p-0.5"
+        title="Next"
+        aria-label="Next match"
+      >
         <ChevronDown className="size-3.5" />
       </button>
 
-      <button onClick={onClose} className="btn-icon !p-0.5" title="Close" aria-label="Close search">
+      <button
+        type="button"
+        onClick={onClose}
+        className="btn-icon !p-0.5"
+        title="Close"
+        aria-label="Close search"
+      >
         <X className="size-3.5" />
       </button>
     </div>

@@ -27,19 +27,19 @@ Host another-server
     const result = parseSshConfig(configContent);
     expect(result).toHaveLength(2);
 
-    expect(result[0].name).toBe('my-server');
-    expect(result[0].host).toBe('192.168.1.50');
-    expect(result[0].username).toBe('ubuntu');
-    expect(result[0].port).toBe(2222);
-    expect(result[0].authType).toBe('key');
-    expect(result[0].privateKeyPath).toContain('.ssh/id_rsa'); // Tilde expansion resolves home path
+    expect(result[0]!.name).toBe('my-server');
+    expect(result[0]!.host).toBe('192.168.1.50');
+    expect(result[0]!.username).toBe('ubuntu');
+    expect(result[0]!.port).toBe(2222);
+    expect(result[0]!.authType).toBe('key');
+    expect(result[0]!.privateKeyPath).toContain('.ssh/id_rsa'); // Tilde expansion resolves home path
 
-    expect(result[1].name).toBe('another-server');
-    expect(result[1].host).toBe('example.com');
-    expect(result[1].username).toBe('admin');
-    expect(result[1].port).toBe(22); // Default fallback
-    expect(result[1].authType).toBe('password');
-    expect(result[1].privateKeyPath).toBeUndefined();
+    expect(result[1]!.name).toBe('another-server');
+    expect(result[1]!.host).toBe('example.com');
+    expect(result[1]!.username).toBe('admin');
+    expect(result[1]!.port).toBe(22); // Default fallback
+    expect(result[1]!.authType).toBe('password');
+    expect(result[1]!.privateKeyPath).toBeUndefined();
   });
 
   it('should skip wildcard hosts', () => {
@@ -56,7 +56,7 @@ Host valid-host
     `;
     const result = parseSshConfig(configContent);
     expect(result).toHaveLength(1);
-    expect(result[0].name).toBe('valid-host');
+    expect(result[0]!.name).toBe('valid-host');
   });
 
   it('should support equals sign parameter separators', () => {
@@ -69,11 +69,11 @@ Host server-eq
     `;
     const result = parseSshConfig(configContent);
     expect(result).toHaveLength(1);
-    expect(result[0].name).toBe('server-eq');
-    expect(result[0].host).toBe('192.168.0.25');
-    expect(result[0].username).toBe('root');
-    expect(result[0].port).toBe(222);
-    expect(result[0].authType).toBe('key');
-    expect(result[0].privateKeyPath).toContain('keys/key.pem');
+    expect(result[0]!.name).toBe('server-eq');
+    expect(result[0]!.host).toBe('192.168.0.25');
+    expect(result[0]!.username).toBe('root');
+    expect(result[0]!.port).toBe(222);
+    expect(result[0]!.authType).toBe('key');
+    expect(result[0]!.privateKeyPath).toContain('keys/key.pem');
   });
 });

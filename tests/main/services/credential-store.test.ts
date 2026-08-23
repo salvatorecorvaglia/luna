@@ -79,7 +79,7 @@ describe('credential-store encryption', () => {
     const sealed = __test__.encrypt('truth');
     const tampered = Buffer.from(sealed);
     // Flip a byte in the ciphertext region (after IV [12] + tag [16]).
-    tampered[28] ^= 0xff;
+    tampered[28]! ^= 0xff;
     expect(() => __test__.decrypt(tampered)).toThrow();
   });
 
@@ -115,15 +115,15 @@ describe('credential-store tamper detection', () => {
       // Flip a byte in the ciphertext to invalidate the GCM auth tag.
       const sealed = credentialRows.get('conn-1')!;
       const tampered = Buffer.from(sealed);
-      tampered[tampered.length - 1] ^= 0xff;
+      tampered[tampered.length - 1]! ^= 0xff;
       credentialRows.set('conn-1', tampered);
 
       const result = retrieveCredential('conn-1');
       expect(result).toBeNull();
       expect(events).toHaveLength(1);
-      expect(events[0].connectionId).toBe('conn-1');
-      expect(events[0].reason).toMatch(/auth|unable|tag/i);
-      expect(typeof events[0].at).toBe('number');
+      expect(events[0]!.connectionId).toBe('conn-1');
+      expect(events[0]!.reason).toMatch(/auth|unable|tag/i);
+      expect(typeof events[0]!.at).toBe('number');
     } finally {
       unsubscribe();
     }
@@ -135,7 +135,7 @@ describe('credential-store tamper detection', () => {
       storeCredential('conn-2', 'secret');
       const sealed = credentialRows.get('conn-2')!;
       const tampered = Buffer.from(sealed);
-      tampered[tampered.length - 1] ^= 0xff;
+      tampered[tampered.length - 1]! ^= 0xff;
       credentialRows.set('conn-2', tampered);
 
       retrieveCredential('conn-2');
@@ -153,7 +153,7 @@ describe('credential-store tamper detection', () => {
     storeCredential('conn-3', 'secret');
     const sealed = credentialRows.get('conn-3')!;
     const tampered = Buffer.from(sealed);
-    tampered[tampered.length - 1] ^= 0xff;
+    tampered[tampered.length - 1]! ^= 0xff;
     credentialRows.set('conn-3', tampered);
 
     retrieveCredential('conn-3');

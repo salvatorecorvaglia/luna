@@ -39,8 +39,9 @@ export function attachFocusTrap(
     if (e.key !== 'Tab') return;
     const focusable = getFocusable(container);
     if (focusable.length === 0) return;
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
+    // Non-null: the length check above guarantees both ends exist.
+    const first = focusable[0]!;
+    const last = focusable[focusable.length - 1]!;
     const active = document.activeElement as HTMLElement | null;
     // If focus has escaped the container entirely (e.g. moved to body), pull it back.
     if (!active || !container.contains(active)) {

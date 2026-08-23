@@ -146,6 +146,7 @@ export function ContextMenu({ items, children }: ContextMenuProps) {
                 )}
 
                 <button
+                  type="button"
                   role="menuitem"
                   tabIndex={-1}
                   onClick={() => {

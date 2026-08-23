@@ -17,7 +17,7 @@ describe('CliReferenceService.searchDocs', () => {
   it('matches by command name, case-insensitively', () => {
     const results = cliReferenceService.searchDocs('DOCKER');
     expect(results).toHaveLength(1);
-    expect(results[0].name).toBe('docker');
+    expect(results[0]!.name).toBe('docker');
   });
 
   it('matches by summary text', () => {

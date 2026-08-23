@@ -108,6 +108,7 @@ export function TransferQueue() {
       {/* Toggle bar */}
       <div className="flex w-full items-center justify-between px-3 py-1.5 text-xs text-muted-foreground no-select">
         <button
+          type="button"
           onClick={toggleQueueExpanded}
           aria-expanded={queueExpanded}
           aria-controls="transfer-queue-list"
@@ -121,6 +122,7 @@ export function TransferQueue() {
         <div className="flex items-center gap-2">
           {activeCount > 0 && (
             <button
+              type="button"
               onClick={() => setConfirmCancelOpen(true)}
               className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-destructive-fg cursor-pointer"
               aria-label="Cancel all active transfers"
@@ -131,6 +133,7 @@ export function TransferQueue() {
           )}
 
           <button
+            type="button"
             onClick={toggleQueueExpanded}
             aria-label={queueExpanded ? 'Collapse transfer queue' : 'Expand transfer queue'}
             className="rounded p-0.5 hover:text-foreground cursor-pointer"
@@ -166,6 +169,7 @@ export function TransferQueue() {
             {completedCount > 0 && (
               <div className="flex justify-end border-t border-border/60 px-3 py-1">
                 <button
+                  type="button"
                   onClick={clearCompleted}
                   className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
                 >
@@ -293,6 +297,7 @@ const TransferRow = memo(function TransferRow({
       {/* Retry (error only) */}
       {item.status === 'error' && (
         <button
+          type="button"
           onClick={onRetry}
           title="Retry transfer"
           className="flex-shrink-0 rounded p-0.5 text-muted-foreground/50 hover:text-foreground cursor-pointer"
@@ -305,6 +310,7 @@ const TransferRow = memo(function TransferRow({
       {/* Cancel / Remove */}
 
       <button
+        type="button"
         onClick={handleRemove}
         title={isInProgress ? 'Cancel transfer' : 'Remove'}
         className="flex-shrink-0 rounded p-0.5 text-muted-foreground/50 hover:text-foreground cursor-pointer"

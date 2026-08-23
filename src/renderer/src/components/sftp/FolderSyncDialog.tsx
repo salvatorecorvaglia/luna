@@ -117,8 +117,9 @@ export function FolderSyncDialog({
         onClose();
       } else if (enqueued === 0) {
         // Nothing got through — keep the dialog open so the user can retry
-        // without re-running the comparison.
-        toast.error(`Sync failed: no transfers could be queued. ${failures[0].message}`);
+        // without re-running the comparison. Non-null: this branch only runs
+        // when failures.length > 0 (the `=== 0` case above already returned).
+        toast.error(`Sync failed: no transfers could be queued. ${failures[0]!.message}`);
       } else {
         toast.warning(`Enqueued ${enqueued} transfer(s); ${failures.length} could not be queued`, {
           description: failures
@@ -168,6 +169,7 @@ export function FolderSyncDialog({
         </div>
 
         <button
+          type="button"
           onClick={onClose}
           className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
         >
@@ -218,6 +220,7 @@ export function FolderSyncDialog({
             </div>
 
             <button
+              type="button"
               onClick={runFolderComparison}
               disabled={loading}
               className="flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1 text-xs font-medium hover:bg-accent cursor-pointer"
@@ -340,6 +343,7 @@ export function FolderSyncDialog({
 
         <div className="flex items-center gap-2">
           <button
+            type="button"
             onClick={onClose}
             className="rounded-md border border-border px-3 py-1.5 font-medium hover:bg-accent transition-colors cursor-pointer"
           >
@@ -347,6 +351,7 @@ export function FolderSyncDialog({
           </button>
 
           <button
+            type="button"
             onClick={handleExecuteSync}
             disabled={
               syncing ||

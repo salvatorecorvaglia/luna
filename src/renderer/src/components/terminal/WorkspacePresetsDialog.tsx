@@ -128,6 +128,7 @@ export function WorkspacePresetsDialog({
         </div>
 
         <button
+          type="button"
           onClick={onClose}
           className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
         >
@@ -144,6 +145,7 @@ export function WorkspacePresetsDialog({
 
           {!showSaveForm && (
             <button
+              type="button"
               onClick={() => setShowSaveForm(true)}
               className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
             >
@@ -228,6 +230,7 @@ export function WorkspacePresetsDialog({
 
                 <div className="flex items-center gap-1.5">
                   <button
+                    type="button"
                     onClick={() => handleRestore(w)}
                     title="Restore workspace layout"
                     className="flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 transition-colors cursor-pointer"
@@ -237,6 +240,7 @@ export function WorkspacePresetsDialog({
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => handleDeleteWorkspace(w.id)}
                     title="Delete preset"
                     className="rounded-md border border-destructive/20 bg-destructive/10 p-1.5 text-destructive-fg hover:bg-destructive/20 transition-colors cursor-pointer"

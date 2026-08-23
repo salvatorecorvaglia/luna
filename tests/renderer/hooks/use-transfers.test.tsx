@@ -116,7 +116,7 @@ describe('useTransferEventListener', () => {
       onProgressCb?.({ transferId: 't1', transferred: 100, bytesPerSec: 50 });
     });
     expect(applyProgressBatch).toHaveBeenCalledTimes(1);
-    const samples = Array.from(applyProgressBatch.mock.calls[0][0]);
+    const samples = Array.from(applyProgressBatch.mock.calls[0]![0]);
     expect(samples).toEqual([{ transferId: 't1', transferred: 100, bytesPerSec: 50 }]);
   });
 

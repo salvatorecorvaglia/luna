@@ -90,7 +90,7 @@ describe('resolveSecretReference — argument injection', () => {
 
   it('always passes -- before the user-controlled argument', async () => {
     await service.resolveSecretReference('bw://legit-item');
-    const [, args] = execFileMock.mock.calls[0];
+    const [, args] = execFileMock.mock.calls[0]!;
     expect(args[args.length - 2]).toBe('--');
   });
 });
@@ -134,7 +134,7 @@ describe('resolveSecretReference — other rejections', () => {
 
   it('bounds CLI output so a wedged binary cannot stream unbounded data', async () => {
     await service.resolveSecretReference('bw://item');
-    const [, , options] = execFileMock.mock.calls[0];
+    const [, , options] = execFileMock.mock.calls[0]!;
     expect(options.maxBuffer).toBeGreaterThan(0);
     expect(options.timeout).toBeGreaterThan(0);
   });

@@ -68,7 +68,10 @@ export function ConnectionForm() {
     reseedFromConnection,
     clearSecrets,
     fieldErrors,
-  } = useConnectionFormState(COLOR_OPTIONS[0].hex, { isEditing, privateKeyProbeError });
+  } = useConnectionFormState(
+    COLOR_OPTIONS[0]!.hex, // Non-null: hardcoded non-empty literal array
+    { isEditing, privateKeyProbeError },
+  );
 
   const [showGroupsDropdown, setShowGroupsDropdown] = useState(false);
   // Test-connection lifecycle (run id, abort, watchdog) lives in its own hook —
@@ -389,6 +392,9 @@ export function ConnectionForm() {
             onClick={requestClose}
             className={`no-drag fixed inset-0 ${Z.modal} flex items-center justify-center p-4`}
           >
+            {/* biome-ignore lint/a11y/useKeyWithClickEvents: onClick here only
+                stops propagation to the overlay's dismiss handler — it isn't a
+                user-facing control, so it needs no keyboard equivalent. */}
             <div
               ref={dialogRef}
               role="dialog"
@@ -415,7 +421,12 @@ export function ConnectionForm() {
                   </h2>
                 </div>
 
-                <button onClick={requestClose} className="btn-icon" aria-label="Close">
+                <button
+                  type="button"
+                  onClick={requestClose}
+                  className="btn-icon"
+                  aria-label="Close"
+                >
                   <X className="size-4" />
                 </button>
               </div>

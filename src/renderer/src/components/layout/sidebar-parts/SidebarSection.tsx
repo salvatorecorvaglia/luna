@@ -65,12 +65,15 @@ export function SidebarSection({
     const updatedConnections = [...connections];
     const indices: number[] = [];
     for (let i = 0; i < updatedConnections.length; i++) {
-      if ((updatedConnections[i].folder || 'default') === folderName) {
+      // Non-null: loop bound guarantees index i exists.
+      if ((updatedConnections[i]!.folder || 'default') === folderName) {
         indices.push(i);
       }
     }
     for (let i = 0; i < indices.length; i++) {
-      updatedConnections[indices[i]] = newOrder[i];
+      // Non-null: indices[i] is bounded by the loop above; newOrder is the
+      // same folder's connections just reordered, so it has the same length.
+      updatedConnections[indices[i]!] = newOrder[i]!;
     }
     setConnections(updatedConnections);
   };
@@ -101,7 +104,8 @@ export function SidebarSection({
             key={folderName}
             name={folderName}
             provider={isSsh ? 'sftp' : 's3'}
-            connections={folders[folderName]}
+            // Non-null: folderName comes from Object.keys(folders).
+            connections={folders[folderName]!}
             onReorder={(newOrder) => handleReorderFolder(folderName, newOrder)}
             setIsDraggingConnection={setIsDraggingConnection}
             draggingSection={draggingSection}

@@ -183,6 +183,7 @@ export function Sidebar() {
               read as another connection group. */}
           <div className="border-t border-border bg-sidebar-accent/40 p-1.5">
             <button
+              type="button"
               onClick={() => setSettingsOpen(true)}
               className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
             >

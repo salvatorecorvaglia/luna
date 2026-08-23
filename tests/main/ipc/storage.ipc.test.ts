@@ -47,7 +47,10 @@ afterAll(() => {
   }
 });
 
-import { __resetStorageRateLimiter, registerStorageHandlers } from '../../../src/main/ipc/storage.ipc';
+import {
+  __resetStorageRateLimiter,
+  registerStorageHandlers,
+} from '../../../src/main/ipc/storage.ipc';
 
 beforeEach(() => {
   handlers.clear();

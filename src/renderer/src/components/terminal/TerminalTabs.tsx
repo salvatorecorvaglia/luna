@@ -292,6 +292,7 @@ const Tab = memo(function Tab({
           </span>
 
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               onClose(tabId);

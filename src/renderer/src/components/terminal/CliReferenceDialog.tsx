@@ -76,6 +76,7 @@ export function CliReferenceDialog({ open, onClose, onRunCommand }: CliReference
         </div>
 
         <button
+          type="button"
           onClick={onClose}
           className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
         >
@@ -146,6 +147,7 @@ export function CliReferenceDialog({ open, onClose, onRunCommand }: CliReference
 
                       <div className="flex items-center gap-1">
                         <button
+                          type="button"
                           onClick={() => handleCopy(ex.command)}
                           className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
                           title="Copy command"
@@ -153,6 +155,7 @@ export function CliReferenceDialog({ open, onClose, onRunCommand }: CliReference
                           <Copy className="size-3.5" />
                         </button>
                         <button
+                          type="button"
                           onClick={() => handleRun(ex.command)}
                           className="flex items-center gap-1 rounded bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/20 cursor-pointer"
                           title="Send to active terminal"
