@@ -122,14 +122,89 @@ function hslToCss({ h, s, l }: HSL): string {
   return `hsl(${h.toFixed(1)} ${s.toFixed(1)}% ${l.toFixed(1)}%)`;
 }
 
-function shiftLightness(hex: string, deltaPct: number): string {
+function shiftLightnessHsl(hex: string, deltaPct: number): HSL {
   const hsl = hexToHsl(hex);
   hsl.l = Math.max(0, Math.min(100, hsl.l + deltaPct));
-  return hslToCss(hsl);
+  return hsl;
+}
+
+function shiftLightness(hex: string, deltaPct: number): string {
+  return hslToCss(shiftLightnessHsl(hex, deltaPct));
 }
 
 function isDark(hex: string): boolean {
   return hexToHsl(hex).l < 50;
+}
+
+function hslToRgb({ h, s, l }: HSL): [number, number, number] {
+  const sFrac = s / 100;
+  const lFrac = l / 100;
+  const c = (1 - Math.abs(2 * lFrac - 1)) * sFrac;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = lFrac - c / 2;
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  if (h < 60) {
+    [r, g, b] = [c, x, 0];
+  } else if (h < 120) {
+    [r, g, b] = [x, c, 0];
+  } else if (h < 180) {
+    [r, g, b] = [0, c, x];
+  } else if (h < 240) {
+    [r, g, b] = [0, x, c];
+  } else if (h < 300) {
+    [r, g, b] = [x, 0, c];
+  } else {
+    [r, g, b] = [c, 0, x];
+  }
+  return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
+}
+
+function srgbToLinear(channel: number): number {
+  const cs = channel / 255;
+  return cs <= 0.03928 ? cs / 12.92 : ((cs + 0.055) / 1.055) ** 2.4;
+}
+
+function relativeLuminance(hsl: HSL): number {
+  const [r, g, b] = hslToRgb(hsl);
+  return 0.2126 * srgbToLinear(r) + 0.7152 * srgbToLinear(g) + 0.0722 * srgbToLinear(b);
+}
+
+function contrastRatio(a: HSL, b: HSL): number {
+  const la = relativeLuminance(a);
+  const lb = relativeLuminance(b);
+  const lighter = Math.max(la, lb);
+  const darker = Math.min(la, lb);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+/**
+ * Nudges `fg`'s lightness toward `extremeL` (0 or 100) until it reaches
+ * `minRatio` contrast against `bg`, without overshooting further than needed.
+ * Falls back to the extreme value if even that can't satisfy the ratio.
+ */
+function ensureContrast(fg: HSL, bg: HSL, minRatio: number, extremeL: number): HSL {
+  const candidate: HSL = { ...fg };
+  if (contrastRatio(candidate, bg) >= minRatio) return candidate;
+
+  let lo = fg.l;
+  let hi = extremeL;
+  candidate.l = hi;
+  if (contrastRatio(candidate, bg) < minRatio) {
+    return candidate;
+  }
+  for (let i = 0; i < 20; i++) {
+    const mid = (lo + hi) / 2;
+    candidate.l = mid;
+    if (contrastRatio(candidate, bg) >= minRatio) {
+      hi = mid;
+    } else {
+      lo = mid;
+    }
+  }
+  candidate.l = hi;
+  return candidate;
 }
 
 function pickAccent(term: ITheme): string {
@@ -142,7 +217,8 @@ export function deriveUITokens(term: ITheme): UIThemeTokens {
   const dark = isDark(bg);
   const sign = dark ? 1 : -1;
 
-  const card = shiftLightness(bg, sign * 3);
+  const cardHsl = shiftLightnessHsl(bg, sign * 3);
+  const card = hslToCss(cardHsl);
   const popover = card;
   const sidebar = shiftLightness(bg, sign * -2);
   const muted = shiftLightness(bg, sign * 6);
@@ -151,7 +227,16 @@ export function deriveUITokens(term: ITheme): UIThemeTokens {
   const secondary = shiftLightness(bg, sign * 5);
 
   const accentColor = pickAccent(term);
-  const fgMuted = shiftLightness(fg, sign * -25);
+  // Muted text (e.g. toast descriptions) sits on `card`. A flat lightness
+  // offset from `fg` can land too close to it on some themes, so clamp to a
+  // minimum contrast instead of trusting the offset alone.
+  const fgMutedHsl = ensureContrast(
+    shiftLightnessHsl(fg, sign * -25),
+    cardHsl,
+    4.5,
+    dark ? 100 : 0,
+  );
+  const fgMuted = hslToCss(fgMutedHsl);
 
   return {
     background: bg,
