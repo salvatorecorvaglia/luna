@@ -60,12 +60,6 @@ export function useUpdaterEventListener(): void {
       toast.error('Update failed', {
         description: error,
         id: 'update-error',
-        action: {
-          label: 'Download manually',
-          onClick: () => {
-            window.open('https://salvatorecorvaglia.github.io/luna/#download', '_blank');
-          },
-        },
       });
     });
 

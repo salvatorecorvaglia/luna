@@ -123,6 +123,12 @@ function createWindow(): void {
 }
 
 void app.whenReady().then(() => {
+  // macOS ignores BrowserWindow's `icon` option for the Dock — without this
+  // the Dock shows Electron's default icon during development (`npm run dev`).
+  if (process.platform === 'darwin' && !app.isPackaged) {
+    app.dock?.setIcon(icon);
+  }
+
   // Deny all renderer permission requests by default. Luna is a desktop tool
   // for SSH/SFTP/S3 and never needs camera, microphone, geolocation, MIDI,
   // notifications, etc. — silently denying these closes a class of

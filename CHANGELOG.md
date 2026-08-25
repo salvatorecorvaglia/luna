@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Packaged App Icon**: Explicitly set the `icon` path in `electron-builder.yml` so packaged builds use the Luna app icon.
+- **macOS Dev Dock Icon**: The Dock now shows the Luna app icon instead of Electron's default icon when running `npm run dev` on macOS.
+
+### Removed
+
+- **Update Failure Toast Action**: Removed the "Download manually" link from the update-failed toast.
+
 ## [1.2.1] - 2026-08-25
 
 ### Improved
