@@ -1,6 +1,6 @@
 {
   "name": "luna",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Cross-platform remote & local workflow workstation",
   "main": "./out/main/index.js",
   "author": "Salvatore Corvaglia",

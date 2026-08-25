@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-08-25
+
+### Improved
+
+- **Terminal-Derived UI Contrast**: Hardened `deriveUITokens` in `ui-from-terminal.ts` to enforce a minimum 4.5:1 WCAG contrast ratio (via relative luminance and binary-search lightness adjustment) for muted foreground text against its background, instead of relying solely on a flat lightness offset that could land too close to the background on some terminal themes.
+
+### Changed
+
+- **Dependencies Update**: Bumped `@aws-sdk/*` packages to `^3.1117.0`, `@tanstack/react-query` to `^5.102.3`, `lucide-react` to `^1.34.0`, `@biomejs/biome` to `2.5.10`, and `@types/node` to `^26.3.0`.
+
 ## [1.2.0] - 2026-08-25
 
 ### Added
