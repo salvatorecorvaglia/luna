@@ -16,6 +16,7 @@
 *   **Session Audit & Shell History:** Index command history for fast search and export detailed session audit logs in JSON, HTML, or plain text formats.
 *   **Built-in CLI Reference:** Access interactive, searchable CLI command reference documentation directly inside the terminal workstation.
 *   **Session Recovery:** Long-lived session management in the main process preserves scrollback buffers, cursor states, and tab setups through renderer reloads or window refreshes (e.g., `Cmd+R`).
+*   **Reliable Reconnection:** Automatically re-establishes dropped SSH sessions according to your `ssh.autoReconnect` preference, with clear status feedback if a manual reconnect attempt fails.
 *   **Custom Themes:** Dynamically maps terminal color palettes directly onto the React application UI for unified styling.
 
 ### 🔌 SSH Port Forwarding & Tunnel Manager
@@ -28,6 +29,7 @@
 *   **Enhanced Inline File Editor:** Open, view, search, word-wrap, live-tail, and edit local or remote files (code, config scripts, logs) directly inside `FilePreview`.
 *   **Enhanced Accessibility:** Fully optimized keyboard navigation (e.g., Space to toggle multi-row selection) and standard-compliant ARIA attributes.
 *   **Safety Guards:** Protective recursion depth limits and warning thresholds to prevent accidental bulk deletions.
+*   **Corruption-Safe Downloads:** Downloads write to a temporary file and are atomically renamed into place, preventing partial or corrupted files if a transfer is interrupted.
 
 ### 🪣 S3 Object Storage Browser
 *   **Multi-Provider Support:** Seamlessly connect to AWS S3 and any S3-compatible APIs (MinIO, Cloudflare R2, Backblaze B2, etc.).
@@ -36,6 +38,7 @@
 
 ### 🔒 Enterprise-Grade Security & Credential Tools
 *   **IPC Payload Validation:** Enforces strict payload validation and input sanitization across all main-process IPC service handlers to protect internal services.
+*   **IPC Resource Limits:** Rate limiters and session caps on S3, SSH, and credential IPC channels bound resource usage from a chatty or compromised renderer, and a single-instance lock prevents concurrent processes from racing database or credential writes.
 *   **Built-in Password Manager:** Generate strong passwords with configurable complexity and securely manage stored credentials.
 *   **OS-Protected Credentials:** Integrates with system keychains (Keychain Services on macOS, Credential Manager on Windows, Gnome Keyring/libsecret on Linux) to prevent credential leakage.
 *   **Tamper Protection:** Actively audits and alerts the operator of corrupted or unauthorized credential modifications on disk.

@@ -5,7 +5,7 @@
   "main": "./out/main/index.js",
   "author": "Salvatore Corvaglia",
   "license": "MIT",
-  "packageManager": "pnpm@11.17.0",
+  "packageManager": "pnpm@11.23.0",
   "scripts": {
     "dev": "electron-vite dev --noSandbox",
     "build": "electron-vite build",

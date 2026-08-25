@@ -7,8 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Single-Instance Lock**: Luna now focuses the existing window instead of launching a second process, preventing two instances from racing a database migration or credential master-key rewrap against the same `userData` directory.
+- **SSH Auto-Reconnect**: Enforced `ssh.autoReconnect` behavior end-to-end, with manual terminal/SFTP reconnect actions now reverting to the prior session status and surfacing a toast on failure instead of leaving the "Connecting…" overlay stuck.
+- **Reusable `DialogShell` Component**: Introduced a shared `DialogShell` providing standardized focus-trapping, animation, and portal behavior, and migrated `ConfirmDialog`, `HostKeyDialog`, `PromptDialog`, `TunnelManagerDialog`, `FolderSyncDialog`, `PresignedUrlDialog`, `AuditExportDialog`, `CliReferenceDialog`, `MacroRecorderDialog`, `SnippetVaultDialog`, and `WorkspacePresetsDialog` onto it.
+- **IPC Resource Limits**: Added rate limiters and session caps to S3, SSH, and credential IPC channels, plus a dedicated rate limiter for renderer log messages, to bound resource usage from a chatty or compromised renderer.
+- **Atomic Download-to-File Utility**: Added a shared `pipe-transfer` helper so S3 and SFTP downloads write to a temporary file and rename into place atomically, preventing partial/corrupted files on interrupted transfers.
+- **Testing**: Added substantial unit and integration test coverage across dialogs (`DialogShell`, `ConfirmDialog`, `TunnelManagerDialog`, `FolderSyncDialog`, `AuditExportDialog`, `CliReferenceDialog`, `MacroRecorderDialog`, `SnippetVaultDialog`, `SplitLayout`), terminal panes and hooks (`TerminalPane`, `LocalTerminalPane`, `use-terminal-session`), stores (`connection-store`, `ui-store`, `terminal-store`), IPC handlers (`connection.ipc`, `settings.ipc`, `log.ipc`, `shell.ipc`), and services (`sftp-manager`, `cli-reference-service`, `shell-history-service`, `session-audit-service`, expanded `s3-provider` and `ssh-manager` coverage).
+
 ### Improved
 
+- **Accessibility**: Enabled stricter accessibility linting and resolved the resulting issues across dialogs, forms, and interactive components; refined focus handling and dialog UX in `HelpTooltip`, `ShortcutsHelp`, `ConnectionForm`, `TunnelManagerDialog`, `FolderSyncDialog`, `PresignedUrlDialog`, `CliReferenceDialog`, and `SnippetVaultDialog`.
+- **Type Safety**: Removed unnecessary TypeScript non-null assertions across the main and renderer processes.
+- **Rendering Performance**: Reduced unnecessary re-renders in terminal and SFTP components via granular store selectors and memoization, and fixed event listener leaks in drag operations.
+- **Shell History Reads**: Optimized shell history reads in `ShellHistoryService`.
 - **Toast Notifications Contrast & Styling**: Added custom CSS styling overrides and class specifications for Sonner toast notifications in `App.tsx` and `main.css`, ensuring proper text contrast and design token inheritance across toast titles, descriptions, buttons, and close controls.
 
 ### Changed & Refactored
@@ -16,6 +29,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Test Suite Directory Structure**: Reorganized and centralized all unit, main, renderer, and E2E test files into a structured `/tests` directory (`tests/e2e`, `tests/main`, `tests/renderer`, `tests/unit`), updated Playwright configuration (`playwright.config.ts`), and created a dedicated `tsconfig.test.json`.
 - **TypeScript Configuration**: Removed obsolete `baseUrl` settings across `tsconfig.node.json`, `tsconfig.test.json`, and `tsconfig.web.json`.
 - **CI/CD & Release Workflows**: Streamlined GitHub Actions CI (`ci.yml`) and Release (`release.yml`) workflow pipelines.
+- **Importers Module Location**: Moved connection importers (`ini-parser`, `mobaxterm`, `putty`, `ssh-config`, `winscp`) from `src/main/lib/importers` to `src/main/services/importers`.
+- **Terminal Toolbar**: Extracted a dedicated `TerminalToolbar` component from `TerminalTabs`, and added validation helpers alongside a dependency upgrade pass.
+- **Dependencies Update**: Bumped core application dependencies (`package.json`/`pnpm-lock.yaml`).
+
+### Fixed
+
+- **IPC Audit Log Export Path Restriction**: Constrained the `SHELL_EXPORT_AUDIT_LOG` handler's `destinationPath` to a symlink-safe, home-directory-confined path, added session title/buffer/format validation, and enforced the same 50MB write ceiling used by other local-write handlers.
+- **Connection Import Argument Order**: Fixed an argument-order bug in connection import handling.
+- **S3 Upload Cancellation**: Improved cancellation handling for in-progress S3 uploads.
+- **Audit Log Title Sanitization**: Sanitized session titles used when exporting audit logs.
 
 ### Removed
 
