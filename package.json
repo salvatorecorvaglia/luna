@@ -1,6 +1,6 @@
 {
   "name": "luna",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Cross-platform remote & local workflow workstation",
   "main": "./out/main/index.js",
   "author": "Salvatore Corvaglia",
@@ -23,10 +23,10 @@
     "test:e2e": "pnpm run build && playwright test"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1113.0",
-    "@aws-sdk/lib-storage": "^3.1113.0",
-    "@aws-sdk/s3-request-presigner": "^3.1113.0",
-    "@tanstack/react-query": "^5.101.4",
+    "@aws-sdk/client-s3": "^3.1116.0",
+    "@aws-sdk/lib-storage": "^3.1116.0",
+    "@aws-sdk/s3-request-presigner": "^3.1116.0",
+    "@tanstack/react-query": "^5.102.2",
     "@tanstack/react-virtual": "^3.14.10",
     "@xterm/addon-canvas": "^0.7.0",
     "@xterm/addon-fit": "^0.11.0",
@@ -39,8 +39,8 @@
     "clsx": "^2.1.1",
     "electron-log": "^5.4.4",
     "electron-updater": "^6.8.9",
-    "framer-motion": "^13.1.0",
-    "lucide-react": "^1.32.0",
+    "framer-motion": "^13.1.1",
+    "lucide-react": "^1.33.0",
     "node-pty": "^1.1.0",
     "sonner": "^2.0.8",
     "ssh2": "^1.17.0",
@@ -58,9 +58,9 @@
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.4",
+    "@types/react-dom": "^19.2.5",
     "@types/ssh2": "^1.15.5",
-    "@vitejs/plugin-react": "^6.0.5",
+    "@vitejs/plugin-react": "^6.1.0",
     "@vitest/coverage-v8": "^4.1.11",
     "electron": "^43.4.1",
     "electron-builder": "^26.15.3",
@@ -70,7 +70,7 @@
     "react-dom": "^19.2.8",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
-    "vite": "^8.2.1",
+    "vite": "^8.2.2",
     "vitest": "^4.1.11"
   }
 }
