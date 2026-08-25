@@ -10,7 +10,7 @@ export function useUpdaterEventListener(): void {
   useEffect(() => {
     const cleanupAvailable = getApi().app.onUpdateAvailable(({ version }) => {
       toast.info(`Update v${version} available`, {
-        description: 'A new version is ready to download.',
+        description: 'A new version of Luna is ready to download.',
         duration: Infinity,
         id: 'update-available',
         action: {
