@@ -23,10 +23,10 @@
     "test:e2e": "pnpm run build && playwright test"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1118.0",
-    "@aws-sdk/lib-storage": "^3.1118.0",
-    "@aws-sdk/s3-request-presigner": "^3.1118.0",
-    "@tanstack/react-query": "^5.102.5",
+    "@aws-sdk/client-s3": "^3.1119.0",
+    "@aws-sdk/lib-storage": "^3.1119.0",
+    "@aws-sdk/s3-request-presigner": "^3.1119.0",
+    "@tanstack/react-query": "^5.102.6",
     "@tanstack/react-virtual": "^3.14.10",
     "@xterm/addon-canvas": "^0.7.0",
     "@xterm/addon-fit": "^0.11.0",
@@ -56,7 +56,7 @@
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.2",
     "@types/better-sqlite3": "^9.6.0",
-    "@types/node": "^26.3.0",
+    "@types/node": "^26.4.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
     "@types/ssh2": "^1.15.5",
