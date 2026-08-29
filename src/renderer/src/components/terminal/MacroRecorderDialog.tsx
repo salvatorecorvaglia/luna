@@ -182,7 +182,7 @@ export function MacroRecorderDialog({ open, onClose, onRunMacro }: MacroRecorder
             </form>
 
             {recordedSteps.length > 0 && (
-              <div className="space-y-1 bg-background/60 p-2.5 rounded border border-border/40 font-mono text-[11px] max-h-32 overflow-y-auto">
+              <div className="space-y-1 bg-background/60 p-2.5 rounded border border-border/40 font-mono text-2xs max-h-32 overflow-y-auto">
                 {recordedSteps.map((step, idx) => (
                   <div key={idx} className="truncate">
                     <span className="text-muted-foreground mr-2">{idx + 1}.</span>
@@ -231,7 +231,7 @@ export function MacroRecorderDialog({ open, onClose, onRunMacro }: MacroRecorder
                 >
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="text-xs font-semibold text-foreground">{m.name}</div>
-                    <div className="font-mono text-[11px] text-muted-foreground truncate">
+                    <div className="font-mono text-2xs text-muted-foreground truncate">
                       {m.sequence.join(' → ')}
                     </div>
                   </div>

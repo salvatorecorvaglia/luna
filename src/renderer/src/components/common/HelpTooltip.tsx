@@ -56,7 +56,7 @@ export function HelpTooltip({ content, className, iconClassName }: HelpTooltipPr
             {/* Arrow */}
             <div className="absolute -bottom-[5px] left-1/2 size-2.5 -translate-x-1/2 rotate-45 border-b border-r border-border/60 bg-popover" />
 
-            <p className="relative z-10 text-[10px] leading-relaxed text-popover-foreground font-medium">
+            <p className="relative z-10 text-3xs leading-relaxed text-popover-foreground font-medium">
               {content}
             </p>
           </motion.div>

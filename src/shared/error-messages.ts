@@ -59,7 +59,10 @@ export function formatError(err: unknown, prefix?: string): FormattedError {
   }
 
   if (err instanceof Error) {
-    const message = stripPrefixes(err.message);
+    // Fall back when the message is empty (or was entirely a stripped class
+    // prefix). Without this, `new Error('')` produced a toast with a blank
+    // title — the non-Error branch below already guarded against exactly this.
+    const message = stripPrefixes(err.message) || 'Something went wrong';
     return {
       title: prefix ?? message,
       description: prefix ? message : undefined,

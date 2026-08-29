@@ -32,13 +32,25 @@ export function ContextMenu({ items, children }: ContextMenuProps) {
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
-      // Adjust position to stay within viewport
+      // Adjust position to stay within viewport.
+      //
+      // Height was estimated as `items.length * 32`, which counts a separator
+      // as a full 32px row when it renders at ~9px — so a menu with separators
+      // was estimated taller than it is and pushed further up than needed,
+      // while a menu with many items could still overflow. Weight the two kinds
+      // separately.
+      const ROW_H = 32;
+      const SEPARATOR_H = 9;
+      const estimatedHeight = items.reduce(
+        (total, item) => total + (item.separator ? SEPARATOR_H : ROW_H),
+        0,
+      );
       const x = Math.min(e.clientX, window.innerWidth - 180);
-      const y = Math.min(e.clientY, window.innerHeight - items.length * 32 - 8);
+      const y = Math.min(e.clientY, window.innerHeight - estimatedHeight - 8);
       focusIndexRef.current = 0;
-      setPosition({ x, y });
+      setPosition({ x, y: Math.max(0, y) });
     },
-    [items.length],
+    [items],
   );
 
   const close = useCallback(() => setPosition(null), []);

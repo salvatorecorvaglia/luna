@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AuthType } from '@shared/types/connection';
 import type { StorageProviderKind } from '@shared/types/storage-provider';
@@ -101,8 +101,22 @@ export function getDatabase(): Database.Database {
     const userDataPath = app.getPath('userData');
     const dbDir = join(userDataPath, 'data');
 
+    // 0o700: luna.db holds hosts, usernames, private-key paths, known_hosts and
+    // the encrypted credential blobs. The default umask leaves the directory
+    // world-readable, which on a shared host hands all of that to every local
+    // user. Directory mode is the durable guard — better-sqlite3 creates
+    // luna.db / -wal / -shm itself and we cannot pass a mode to it.
     if (!existsSync(dbDir)) {
-      mkdirSync(dbDir, { recursive: true });
+      mkdirSync(dbDir, { recursive: true, mode: 0o700 });
+    } else {
+      // Existing installs were created world-readable; tighten them in place.
+      // Best-effort: a non-owner (or a filesystem without POSIX modes, i.e.
+      // Windows) will throw here and that must not block startup.
+      try {
+        chmodSync(dbDir, 0o700);
+      } catch {
+        // Not fatal — the DB is still usable, just not locked down.
+      }
     }
 
     const dbPath = join(dbDir, 'luna.db');

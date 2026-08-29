@@ -35,7 +35,13 @@ export function isLoopbackAddress(address: string): boolean {
     .trim()
     .toLowerCase()
     .replace(/^\[|\]$/g, '');
-  if (normalized === 'localhost') return true;
+  // Deliberately NOT accepting the name "localhost".
+  //
+  // `server.listen('localhost', …)` resolves the name through the OS resolver,
+  // i.e. /etc/hosts. An entry mapping localhost to a routable address turns
+  // what this function certified as a loopback bind into a public one, with no
+  // warning and no opt-in. Only literal loopback addresses can be checked
+  // without a resolver, so only those are accepted.
   if (normalized === '::1') return true;
   // 127.0.0.0/8 — anything in the loopback block, not just 127.0.0.1.
   return /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(normalized);

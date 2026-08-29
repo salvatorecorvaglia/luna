@@ -17,7 +17,7 @@ import {
   Pencil,
   Trash2,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
 import { EmptyState } from '@/components/ui';
 import { formatDate, formatSize } from '@/lib/format';
@@ -40,7 +40,12 @@ interface FileListProps {
   onGeneratePresignedUrl?: (entry: FileEntry) => void;
   downloadLabel?: string;
   showPermissions?: boolean;
-  onSelectAll?: () => void;
+  /**
+   * Select-all. Receives the names of the rows currently rendered — `entries`
+   * here is already the dotfile- and filter-filtered list from FilePane, so
+   * passing them up is what keeps selection in step with what the user sees.
+   */
+  onSelectAll?: (names: string[]) => void;
   emptyMessage?: string;
   remoteKind?: 'sftp' | 's3';
 }
@@ -96,6 +101,26 @@ function getFileIcon(entry: FileEntry) {
 }
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
+/**
+ * Declared at module scope on purpose.
+ *
+ * It used to live inside FileList's body, which makes it a *new component type*
+ * on every render — React then unmounts and remounts the icon rather than
+ * updating it, on every keystroke-driven re-render of the pane.
+ */
+function SortIcon({
+  field,
+  sortField,
+  sortDir,
+}: {
+  field: SortField;
+  sortField: SortField;
+  sortDir: 'asc' | 'desc';
+}) {
+  if (sortField !== field) return null;
+  return sortDir === 'asc' ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />;
+}
 
 export function FileList({
   entries,
@@ -153,15 +178,6 @@ export function FileList({
     }
   };
 
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return null;
-    return sortDir === 'asc' ? (
-      <ChevronUp className="size-3" />
-    ) : (
-      <ChevronDown className="size-3" />
-    );
-  };
-
   const ROW_HEIGHT_ESTIMATE = 32;
   const parentRef = useRef<HTMLDivElement>(null);
   const listboxRef = useRef<HTMLDivElement>(null);
@@ -171,7 +187,13 @@ export function FileList({
     getScrollElement: () => parentRef.current,
     estimateSize: () => ROW_HEIGHT_ESTIMATE,
     overscan: 5,
-    measureElement: (el) => el.getBoundingClientRect().height,
+    // No measureElement. Rows are fixed-height by construction (py-[7px] +
+    // text-xs, every cell `truncate`d so nothing wraps), so dynamic measurement
+    // bought nothing while forcing a getBoundingClientRect() per visible row on
+    // every render — a layout read on the scroll path.
+    //
+    // If a row ever becomes variable-height, restore measureElement *and* the
+    // `ref={virtualizer.measureElement}` on the row element together.
     // Without this, the measurement cache is keyed by array index — so
     // re-sorting the list (e.g. clicking a column header) can briefly
     // re-associate an index's cached measurement with a different entry
@@ -347,7 +369,11 @@ export function FileList({
         case 'a': {
           if (e.metaKey || e.ctrlKey) {
             e.preventDefault();
-            onSelectAll?.();
+            // `sorted` is exactly what is on screen. Callers used to build the
+            // selection from the *raw* entry list, so with a filter active (or
+            // dotfiles hidden) Cmd+A selected rows the user could not see — and
+            // the next Delete acted on them.
+            onSelectAll?.(sorted.map((entry) => entry.name));
           }
           break;
         }
@@ -362,6 +388,15 @@ export function FileList({
     },
     [sorted, focusedIndex, handleSelect, onOpen, onDelete, onSelectAll, virtualizer],
   );
+
+  /**
+   * Row ids must be unique document-wide.
+   *
+   * Both file panes render `file-row-0`, `file-row-1`, … so the id an
+   * `aria-activedescendant` pointed at was ambiguous and assistive tech
+   * resolved it to whichever pane came first in the document.
+   */
+  const rowIdPrefix = useId();
 
   if (entries.length === 0) {
     return (
@@ -380,14 +415,23 @@ export function FileList({
       role="listbox"
       aria-label="File list"
       aria-multiselectable="true"
-      aria-activedescendant={focusedIndex >= 0 ? `file-row-${focusedIndex}` : undefined}
+      // Only point at a row that is actually mounted. Rows are virtualised, so
+      // a focused index scrolled outside the window has no element and the
+      // reference dangled. handleListKeyDown calls scrollToIndex before moving
+      // focus, so in practice the row is present — this is the guard for the
+      // frame where it is not.
+      aria-activedescendant={
+        focusedIndex >= 0 && virtualizer.getVirtualItems().some((v) => v.index === focusedIndex)
+          ? `${rowIdPrefix}-row-${focusedIndex}`
+          : undefined
+      }
     >
       {/* Header — semantic columnheaders so the file table is announced
           correctly by assistive tech. */}
 
       <div
         role="row"
-        className="flex items-center border-b border-border/60 bg-muted/20 text-[11px] font-medium text-muted-foreground no-select"
+        className="flex items-center border-b border-border/60 bg-muted/20 text-2xs font-medium text-muted-foreground no-select"
       >
         <button
           type="button"
@@ -398,7 +442,7 @@ export function FileList({
           onClick={() => handleSort('name')}
           className="flex flex-1 items-center gap-1 px-3 py-1.5 hover:text-foreground cursor-pointer"
         >
-          Name <SortIcon field="name" />
+          Name <SortIcon field="name" sortField={sortField} sortDir={sortDir} />
         </button>
 
         <button
@@ -410,7 +454,7 @@ export function FileList({
           onClick={() => handleSort('size')}
           className="flex w-20 items-center justify-end gap-1 px-2 py-1.5 hover:text-foreground cursor-pointer"
         >
-          Size <SortIcon field="size" />
+          Size <SortIcon field="size" sortField={sortField} sortDir={sortDir} />
         </button>
         {showPermissions && (
           <div role="columnheader" className="w-[84px] px-2 py-1.5 text-right">
@@ -427,7 +471,7 @@ export function FileList({
           onClick={() => handleSort('modifiedAt')}
           className="flex w-36 items-center justify-end gap-1 px-3 py-1.5 hover:text-foreground cursor-pointer"
         >
-          Modified <SortIcon field="modifiedAt" />
+          Modified <SortIcon field="modifiedAt" sortField={sortField} sortDir={sortDir} />
         </button>
       </div>
 
@@ -453,10 +497,9 @@ export function FileList({
               <div
                 key={entry.path}
                 role="option"
-                id={`file-row-${virtualRow.index}`}
+                id={`${rowIdPrefix}-row-${virtualRow.index}`}
                 tabIndex={-1}
                 data-index={virtualRow.index}
-                ref={virtualizer.measureElement}
                 style={{
                   position: 'absolute',
                   top: 0,
@@ -497,7 +540,7 @@ export function FileList({
                 </div>
                 {showPermissions && (
                   <div
-                    className="w-[84px] px-2 py-[7px] text-right font-mono text-[10px] text-muted-foreground"
+                    className="w-[84px] px-2 py-[7px] text-right font-mono text-3xs text-muted-foreground"
                     title={entry.permissions || undefined}
                   >
                     {entry.permissions || '\u2014'}

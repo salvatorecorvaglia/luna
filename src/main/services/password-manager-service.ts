@@ -1,4 +1,7 @@
 import { execFile } from 'node:child_process';
+import { constants as fsConstants } from 'node:fs';
+import { access } from 'node:fs/promises';
+import { delimiter, join } from 'node:path';
 import { promisify } from 'node:util';
 import { ErrorCode, LunaError } from '@shared/errors';
 import log from '../lib/logger';
@@ -15,6 +18,49 @@ const CLI_TIMEOUT_MS = 5000;
  * than any credential needs.
  */
 const MAX_CLI_OUTPUT_BYTES = 64 * 1024;
+
+/**
+ * Resolve `bin` to something `execFile` can actually launch.
+ *
+ * On POSIX this is a no-op: `execFile` already resolves a bare name through
+ * PATH with execvp semantics.
+ *
+ * Windows is the problem. `execFile` is used deliberately with no `shell`, so
+ * nothing the user or a vault puts in an argument is ever seen by a command
+ * processor — that is what makes the reference grammar and the `--` separator
+ * sufficient. But without a shell Windows does not append `.exe` either, so
+ * `execFile('op', …)` failed with ENOENT on every Windows install and the
+ * integration reported "CLI not found" even with the CLI installed and on PATH.
+ *
+ * Returns null when nothing suitable is found, so the caller raises its own
+ * "not installed" error.
+ */
+async function resolveExecutable(bin: string): Promise<string | null> {
+  if (process.platform !== 'win32') return bin;
+
+  const pathVar = process.env['PATH'] ?? process.env['Path'] ?? '';
+  const dirs = pathVar.split(delimiter).filter(Boolean);
+
+  // `.cmd`/`.bat` are deliberately absent. They are not executable by
+  // CreateProcess, so running one requires routing through cmd.exe — which
+  // would reintroduce exactly the command-processor parsing this module exists
+  // to avoid, in the one code path that handles live credentials. Users who
+  // installed an npm shim get the clear error below instead.
+  const suffixes = ['.exe', '.com'];
+
+  for (const dir of dirs) {
+    for (const suffix of suffixes) {
+      const candidate = join(dir, bin + suffix);
+      try {
+        await access(candidate, fsConstants.X_OK);
+        return candidate;
+      } catch {
+        // Not here (or not executable) — keep looking.
+      }
+    }
+  }
+  return null;
+}
 
 /**
  * One path segment: starts with a word character, then word characters,
@@ -100,8 +146,19 @@ export class PasswordManagerService {
    * keep credentials out of Luna's own storage and logs.
    */
   private async run(bin: string, args: string[], label: string): Promise<string | null> {
+    const resolved = await resolveExecutable(bin);
+    if (!resolved) {
+      throw new LunaError(
+        `The ${label} CLI ("${bin}") was not found on PATH. Install it and sign in, then try again.` +
+          (process.platform === 'win32'
+            ? ` On Windows, install the native ${label} CLI executable — the npm wrapper installs a .cmd shim, which Luna will not run because doing so would require passing your credentials through a command processor.`
+            : ''),
+        ErrorCode.NOT_FOUND,
+        { reason: 'cli-missing', bin },
+      );
+    }
     try {
-      const { stdout } = await execFileAsync(bin, args, {
+      const { stdout } = await execFileAsync(resolved, args, {
         timeout: CLI_TIMEOUT_MS,
         maxBuffer: MAX_CLI_OUTPUT_BYTES,
         // Don't let a CLI inherit a shell that might prompt interactively.

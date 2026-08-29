@@ -43,6 +43,17 @@ const HEX_CLASS_RE =
 const ARBITRARY_Z_RE = /\bz-\[[0-9]+\]/;
 
 /**
+ * Arbitrary pixel font sizes, e.g. `text-[11px]`.
+ *
+ * Tailwind's scale stops at text-xs (12px), so dense chrome reached for
+ * arbitrary values instead — 101 of them across the renderer before this rule,
+ * none checkable and none adjustable in one place. `--text-2xs` (11px),
+ * `--text-3xs` (10px) and `--text-sm-plus` (13px) now cover those in
+ * assets/main.css; anything else needs a new token rather than a literal.
+ */
+const ARBITRARY_TEXT_SIZE_RE = /\btext-\[\d+(?:\.\d+)?(?:px|rem|em)\]/;
+
+/**
  * `--color-destructive` is a *fill* (30.6% lightness). Using it as a text
  * color scores ~1.8:1 against --color-background — well under WCAG AA — and
  * that is exactly what ~30 call sites did, including the host-key dialog's
@@ -105,6 +116,10 @@ function scan(file: string): Violation[] {
       if (z) out.push({ file: relPath, line: i + 1, rule: 'arbitrary-z-index', match: z[0] });
     }
 
+    const textSize = ARBITRARY_TEXT_SIZE_RE.exec(line);
+    if (textSize)
+      out.push({ file: relPath, line: i + 1, rule: 'arbitrary-text-size', match: textSize[0] });
+
     const ink = DESTRUCTIVE_INK_RE.exec(line);
     if (ink)
       out.push({ file: relPath, line: i + 1, rule: 'destructive-fill-as-ink', match: ink[0] });
@@ -144,6 +159,17 @@ describe('design-token coverage', () => {
       const report = offenders.map((v) => `  ${v.file}:${v.line}  ${v.match}`).join('\n');
       throw new Error(
         `Hex-literal arbitrary classes leaked into components. Add a token in assets/main.css and reference it instead.\n${report}`,
+      );
+    }
+    expect(offenders).toHaveLength(0);
+  });
+
+  it('renderer components use type tokens instead of arbitrary pixel font sizes', () => {
+    const offenders = allViolations.filter((v) => v.rule === 'arbitrary-text-size');
+    if (offenders.length > 0) {
+      const report = offenders.map((v) => `  ${v.file}:${v.line}  ${v.match}`).join('\n');
+      throw new Error(
+        `Arbitrary font sizes leaked into components. Use text-3xs (10px), text-2xs (11px), text-xs, text-sm-plus (13px) or the standard Tailwind scale — or add a new token in assets/main.css.\n${report}`,
       );
     }
     expect(offenders).toHaveLength(0);

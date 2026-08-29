@@ -129,7 +129,14 @@ describe('credential-store tamper detection', () => {
     }
   });
 
-  it('drops the tampered row so the user is prompted to re-enter', () => {
+  // Regression: this used to assert the opposite — that the row was DELETED.
+  // Deleting turned a possibly-recoverable state into permanent data loss. A
+  // decrypt failure does not prove tampering; the far more common cause is that
+  // the master key could not be unwrapped (locked keyring), in which case every
+  // credential decodes as "tampered" and the old behaviour wiped all of them.
+  // Retention costs nothing: retrieve still returns null so the caller prompts
+  // for re-entry, and storeCredential is INSERT OR REPLACE.
+  it('keeps the tampered row instead of destroying it, and still reports null', () => {
     const unsubscribe = onCredentialTamper(() => {});
     try {
       storeCredential('conn-2', 'secret');
@@ -138,8 +145,9 @@ describe('credential-store tamper detection', () => {
       tampered[tampered.length - 1]! ^= 0xff;
       credentialRows.set('conn-2', tampered);
 
-      retrieveCredential('conn-2');
-      expect(credentialRows.has('conn-2')).toBe(false);
+      expect(retrieveCredential('conn-2')).toBeNull();
+      expect(credentialRows.has('conn-2')).toBe(true);
+      expect(credentialRows.get('conn-2')).toEqual(tampered);
     } finally {
       unsubscribe();
     }

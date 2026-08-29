@@ -10,14 +10,12 @@
 import { LIMITS } from '@shared/constants';
 import type { Terminal } from '@xterm/xterm';
 import { toast } from 'sonner';
+import { isLinux, isMac } from '@/lib/platform';
 import {
   findTabIdForSession,
   getAllSessionIdsFromTree,
   useTerminalStore,
 } from '@/stores/terminal-store';
-
-const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
-const isLinux = typeof navigator !== 'undefined' && /Linux/.test(navigator.platform);
 
 /**
  * Paste text into the terminal. Warns before pasting multi-line content into a

@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { ErrorCode, LunaError } from '@shared/errors';
@@ -779,6 +779,16 @@ export class ConnectionService {
 
     // Non-null: length check above guarantees index 0 exists.
     const filePath = result.filePaths[0]!;
+    // Cap the read like every other file path in the app does (shell.ipc uses
+    // the same 50 MB ceiling). A connections export is kilobytes; without a cap
+    // a mis-selected multi-GB file is read wholly into the main process.
+    const MAX_IMPORT_BYTES = 50 * 1024 * 1024;
+    const { size } = await stat(filePath);
+    if (size > MAX_IMPORT_BYTES) {
+      throw validationError(
+        `Import file is too large (${Math.round(size / 1024 / 1024)}MB). Max 50MB.`,
+      );
+    }
     const fileContent = await readFile(filePath, 'utf-8');
     const connections = detectAndImport(fileContent, filePath);
     return this.importConnections(connections);

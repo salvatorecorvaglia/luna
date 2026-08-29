@@ -51,8 +51,11 @@ export function ConfirmDialog({
         </div>
       </div>
       <div className="mt-4 flex items-center justify-between gap-2">
-        <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
-          Esc to cancel · click to confirm
+        {/* "click to confirm" said nothing next to two buttons, and Enter does
+            not confirm here — there is no key handler for it, unlike
+            PromptDialog which is a real <form>. Describe only what is true. */}
+        <span className="text-3xs uppercase tracking-wider text-muted-foreground/70">
+          Esc to cancel
         </span>
         <div className="flex gap-2">
           {/* Outline cancel — not ghost — so the "safe" choice has

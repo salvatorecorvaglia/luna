@@ -10,8 +10,11 @@ import { useUIStore } from '@/stores/ui-store';
 const inFlight = new Set<string>();
 
 /**
- * Connect to a host by connectionId — creates a new terminal session,
- * adds it to the store, and initiates the SSH connection via IPC.
+ * Focus an existing session for this connection, or open a new one.
+ *
+ * This is the "click the connection in the sidebar" behaviour. It is
+ * deliberately *not* what Duplicate Session / New Session want — see
+ * `openNewSession`.
  */
 export async function connectToHost(connectionId: string): Promise<void> {
   if (inFlight.has(connectionId)) return;
@@ -23,9 +26,25 @@ export async function connectToHost(connectionId: string): Promise<void> {
   }
 }
 
+/**
+ * Always open an additional session for this connection, even when one is
+ * already connected.
+ *
+ * "Duplicate Session" and the empty-state "New Session" button used to call
+ * `connectToHost`, which focuses an existing connected session instead of
+ * creating one — so in practice (the tab is always connected when you right-
+ * click it) both commands just re-selected the tab you started from and
+ * appeared to do nothing.
+ *
+ * There is no `inFlight` guard here: opening two sessions is the entire point,
+ * so de-duplicating by connectionId would be wrong.
+ */
+export async function openNewSession(connectionId: string): Promise<void> {
+  await spawnSession(connectionId);
+}
+
 async function connectToHostImpl(connectionId: string): Promise<void> {
-  const { sessions, addSession, updateSessionStatus, setActiveSession } =
-    useTerminalStore.getState();
+  const { sessions, addSession, setActiveSession } = useTerminalStore.getState();
 
   // 1. Check local store
   const existing = Array.from(sessions.values()).find(
@@ -64,6 +83,12 @@ async function connectToHostImpl(connectionId: string): Promise<void> {
     return;
   }
 
+  await spawnSession(connectionId);
+}
+
+/** Create a brand-new session for `connectionId` and start connecting it. */
+async function spawnSession(connectionId: string): Promise<void> {
+  const { addSession, updateSessionStatus } = useTerminalStore.getState();
   const sessionId = uuidv4();
 
   let connectionName = 'Unknown';

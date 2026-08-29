@@ -202,7 +202,7 @@ export function S3Fields({
             />
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="truncate text-[11px] font-medium text-muted-foreground transition-colors group-hover:text-foreground">
+            <span className="truncate text-2xs font-medium text-muted-foreground transition-colors group-hover:text-foreground">
               Path-style URLs (MinIO, R2)
             </span>
             <HelpTooltip

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useConnections, useReorderConnections } from '@/hooks/use-connections';
 import { cn } from '@/lib/utils';
 import { useConnectionStore } from '@/stores/connection-store';
-import { useUIStore } from '@/stores/ui-store';
+import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, useUIStore } from '@/stores/ui-store';
 import {
   SidebarEmptyState,
   SidebarHeader,
@@ -25,7 +25,7 @@ export function Sidebar() {
 
   const [draggingSection, setDraggingSection] = useState<string | null>(null);
 
-  const { openCreateForm } = useConnectionStore();
+  const openCreateForm = useConnectionStore((s) => s.openCreateForm);
   const { data: connections, isLoading } = useConnections();
   const connectionList = useMemo(() => connections ?? [], [connections]);
   const [searchInputValue, setSearchInputValue] = useState('');
@@ -87,6 +87,23 @@ export function Sidebar() {
   // Guard against double mousedown without an intervening mouseup (e.g. dev-tools
   // stealing focus mid-drag) attaching duplicate listeners.
   const resizingRef = useRef(false);
+  /**
+   * Teardown for an in-flight drag, so unmounting mid-drag cannot strand it.
+   *
+   * `Sidebar` unmounts on Cmd+B (it lives inside an `AnimatePresence`). If that
+   * happened while the divider was held, no `mouseup` ever arrived: the
+   * document listeners survived the unmount and `<body>` kept
+   * `cursor: col-resize` and `user-select: none` for the rest of the session.
+   * `SftpManager` and `SplitLayout` already carry this exact pattern.
+   */
+  const dragCleanupRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    return () => {
+      dragCleanupRef.current?.();
+      dragCleanupRef.current = null;
+    };
+  }, []);
 
   const handleResizeMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -101,7 +118,10 @@ export function Sidebar() {
       const SNAP_TARGETS = [220, 260, 320];
       const SNAP_PX = 8;
       const onMouseMove = (e: MouseEvent) => {
-        let width = Math.max(200, Math.min(400, e.clientX));
+        // Clamp to the same range the store enforces (ui-store: setSidebarWidth).
+        // These used to disagree — [200,400] here vs [180,600] there — so the
+        // drag could never reach widths the store considered valid.
+        let width = Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, e.clientX));
         for (const t of SNAP_TARGETS) {
           if (Math.abs(width - t) <= SNAP_PX) {
             width = t;
@@ -110,14 +130,19 @@ export function Sidebar() {
         }
         setSidebarWidth(width);
       };
-      const onMouseUp = () => {
+      const cleanup = () => {
         resizingRef.current = false;
+        dragCleanupRef.current = null;
         setResizing(false);
         document.removeEventListener('mousemove', onMouseMove);
         document.removeEventListener('mouseup', onMouseUp);
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
       };
+      function onMouseUp(): void {
+        cleanup();
+      }
+      dragCleanupRef.current = cleanup;
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
       document.addEventListener('mousemove', onMouseMove);
@@ -202,9 +227,26 @@ export function Sidebar() {
               style={{ transition: 'background-color 150ms' }}
             />
 
+            {/* Was mouse-only: no role, no tabIndex, no keys. SftpManager's
+                splitter already carried this treatment; this matches it so all
+                three resize affordances in the app behave the same way. */}
             <div
               onMouseDown={handleResizeMouseDown}
-              className="absolute -left-1 -right-1 inset-y-0 cursor-col-resize"
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize sidebar"
+              aria-valuenow={sidebarWidth}
+              aria-valuemin={SIDEBAR_MIN_WIDTH}
+              aria-valuemax={SIDEBAR_MAX_WIDTH}
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+                e.preventDefault();
+                // Shift for a coarse jump, matching common resize conventions.
+                const step = e.shiftKey ? 32 : 8;
+                setSidebarWidth(sidebarWidth + (e.key === 'ArrowRight' ? step : -step));
+              }}
+              className="absolute -left-1 -right-1 inset-y-0 cursor-col-resize focus-visible:outline-none focus-visible:bg-primary/60"
             />
           </div>
         </motion.aside>

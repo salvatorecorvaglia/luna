@@ -223,7 +223,7 @@ export function WorkspacePresetsDialog({
               >
                 <div className="min-w-0 flex-1">
                   <div className="text-xs font-semibold text-foreground">{w.name}</div>
-                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                  <div className="text-2xs text-muted-foreground mt-0.5">
                     {w.layout.connectionIds.length} target connection(s) saved
                   </div>
                 </div>

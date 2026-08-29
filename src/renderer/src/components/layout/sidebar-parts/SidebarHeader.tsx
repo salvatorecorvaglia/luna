@@ -18,7 +18,7 @@ export function SidebarHeader({
 
   return (
     <div className="flex items-center justify-between px-3 py-2">
-      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
+      <span className="text-3xs font-bold uppercase tracking-widest text-muted-foreground/70">
         Connections
       </span>
       <div className="flex items-center gap-1">

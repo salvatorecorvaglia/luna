@@ -96,7 +96,7 @@ export function AuditExportDialog({
       {/* Content */}
       <div className="flex-1 p-5 space-y-4 text-xs">
         <div className="rounded-lg border border-border bg-accent/20 p-3 space-y-1">
-          <span className="text-muted-foreground text-[11px]">Active Session:</span>
+          <span className="text-muted-foreground text-2xs">Active Session:</span>
           <div className="font-semibold text-foreground truncate">{sessionTitle}</div>
         </div>
 
@@ -120,7 +120,7 @@ export function AuditExportDialog({
               }`}
             >
               <span className="text-sm">HTML</span>
-              <span className="text-[10px] text-muted-foreground mt-0.5">Formatted Log</span>
+              <span className="text-3xs text-muted-foreground mt-0.5">Formatted Log</span>
             </button>
 
             <button
@@ -133,7 +133,7 @@ export function AuditExportDialog({
               }`}
             >
               <span className="text-sm">JSON</span>
-              <span className="text-[10px] text-muted-foreground mt-0.5">Structured</span>
+              <span className="text-3xs text-muted-foreground mt-0.5">Structured</span>
             </button>
 
             <button
@@ -146,7 +146,7 @@ export function AuditExportDialog({
               }`}
             >
               <span className="text-sm font-mono">TXT</span>
-              <span className="text-[10px] text-muted-foreground mt-0.5">Plain Transcript</span>
+              <span className="text-3xs text-muted-foreground mt-0.5">Plain Transcript</span>
             </button>
           </div>
         </div>

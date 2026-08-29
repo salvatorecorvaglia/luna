@@ -117,7 +117,7 @@ export function CliReferenceDialog({ open, onClose, onRunCommand }: CliReference
                 <div className="flex items-center justify-between border-b border-border/40 pb-2">
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-sm font-bold text-primary">{doc.name}</span>
-                    <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] uppercase font-medium text-muted-foreground">
+                    <span className="rounded-md bg-muted px-2 py-0.5 text-3xs uppercase font-medium text-muted-foreground">
                       {doc.category}
                     </span>
                   </div>
@@ -125,7 +125,7 @@ export function CliReferenceDialog({ open, onClose, onRunCommand }: CliReference
                 </div>
 
                 <div className="text-xs font-mono bg-muted/40 p-2 rounded border border-border/40">
-                  <span className="text-muted-foreground text-[11px] block mb-0.5">Syntax:</span>
+                  <span className="text-muted-foreground text-2xs block mb-0.5">Syntax:</span>
                   <code>{doc.syntax}</code>
                 </div>
 
@@ -139,7 +139,7 @@ export function CliReferenceDialog({ open, onClose, onRunCommand }: CliReference
                       className="flex items-center justify-between gap-3 rounded border border-border/60 bg-accent/20 p-2.5 text-xs font-mono"
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="text-[11px] text-muted-foreground font-sans mb-0.5">
+                        <div className="text-2xs text-muted-foreground font-sans mb-0.5">
                           {ex.description}
                         </div>
                         <div className="text-foreground truncate">{ex.command}</div>
@@ -157,7 +157,7 @@ export function CliReferenceDialog({ open, onClose, onRunCommand }: CliReference
                         <button
                           type="button"
                           onClick={() => handleRun(ex.command)}
-                          className="flex items-center gap-1 rounded bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/20 cursor-pointer"
+                          className="flex items-center gap-1 rounded bg-primary/10 px-2 py-1 text-2xs font-medium text-primary hover:bg-primary/20 cursor-pointer"
                           title="Send to active terminal"
                         >
                           <Play className="size-3" />

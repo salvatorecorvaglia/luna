@@ -33,6 +33,26 @@ let usingPlaintextKey = false;
  * key because OS-level secret storage was unavailable (fresh Linux install).
  */
 let usingInMemoryKey = false;
+/**
+ * Set when a wrapped key file exists on disk but could not be unwrapped.
+ *
+ * This is the difference between "there is no key yet" and "there is a key and
+ * we cannot read it right now", and conflating the two used to be catastrophic:
+ * `safeStorage.decryptString` fails *transiently* in entirely ordinary
+ * situations — a locked macOS Keychain, the user clicking "Deny" on the ACL
+ * prompt, Windows DPAPI after a profile move, a Linux keyring not yet unlocked
+ * at login. The old code caught that, set the key to null, fell through to the
+ * "no key file" branch, and overwrote the still-perfectly-good `.storage_key.enc`
+ * with a fresh random key. Every stored SSH password, passphrase and S3 access
+ * key became undecryptable, and `retrieveCredential` then deleted them.
+ *
+ * A key we cannot read is recoverable — unlock the keyring and restart. A key
+ * we have overwritten is not. So we fail loudly and leave the file alone.
+ */
+let keyUnwrapError: LunaError | null = null;
+
+/** Owner-only file/directory modes: the key file and the DB hold secrets. */
+const SECRET_FILE_MODE = 0o600;
 
 /**
  * Load the per-user encryption key. When Electron's safeStorage is available
@@ -42,12 +62,26 @@ let usingInMemoryKey = false;
  */
 function getEncryptionKey(): Buffer {
   if (encryptionKey) return encryptionKey;
+  // A previous call already found an unreadable key file. Re-throw rather than
+  // re-running the load, which would reach the regeneration branch.
+  if (keyUnwrapError) throw keyUnwrapError;
 
   const keyPath = join(app.getPath('userData'), '.storage_key');
   const wrappedPath = `${keyPath}.enc`;
   const canWrap = (() => {
     try {
-      return safeStorage.isEncryptionAvailable();
+      if (!safeStorage.isEncryptionAvailable()) return false;
+      // On Linux `isEncryptionAvailable()` returns true even when the selected
+      // backend is `basic_text`, which "encrypts" with the hardcoded key
+      // "peanuts" — trivially reversible by anyone who can read the file. That
+      // is not OS protection, and reporting it as safeStorage told the user
+      // their credentials were protected when they were not. Treat it as
+      // unavailable so the plaintext/in-memory paths (and their banners) apply.
+      if (process.platform === 'linux') {
+        const backend = safeStorage.getSelectedStorageBackend?.();
+        if (backend === 'basic_text' || backend === 'unknown') return false;
+      }
+      return true;
     } catch {
       return false;
     }
@@ -62,10 +96,36 @@ function getEncryptionKey(): Buffer {
       // legacy file would not start with valid base64 chars; fall back to
       // latin1 in that case so existing installs keep working.
       const fromBase64 = Buffer.from(decoded, 'base64');
-      encryptionKey = fromBase64.length === 32 ? fromBase64 : Buffer.from(decoded, 'latin1');
+      const candidate = fromBase64.length === 32 ? fromBase64 : Buffer.from(decoded, 'latin1');
+      // Both decodings are guesses about how an older build wrote this file, and
+      // a wrong guess yields a buffer of the wrong length that would blow up
+      // later inside createCipheriv with an opaque "Invalid key length". Worse,
+      // a latin1 blob that happens to be 32 bytes would silently become the
+      // wrong key and mis-decrypt every credential. Validate here instead.
+      if (candidate.length !== 32) {
+        throw new Error(`unwrapped key has ${candidate.length} bytes, expected 32`);
+      }
+      encryptionKey = candidate;
     } catch (err) {
-      log.error('[Credentials] Failed to unwrap stored key — regenerating', err);
-      encryptionKey = null;
+      // Deliberately fatal, and deliberately non-destructive — see the comment
+      // on `keyUnwrapError`. Do NOT null the key and fall through: the branch
+      // below would regenerate and overwrite the file we just failed to read.
+      keyUnwrapError = new LunaError(
+        'Could not unlock the stored credential key. This usually means the OS keyring ' +
+          'is locked or access was denied — unlock it and restart Luna. Your saved ' +
+          'credentials have been left untouched.',
+        ErrorCode.FORBIDDEN,
+        {
+          reason: 'key-unwrap-failed',
+          cause: err instanceof Error ? err.message : String(err),
+        },
+      );
+      log.error(
+        '[Credentials] Failed to unwrap stored key. Refusing to regenerate — the existing ' +
+          'key file is left intact so credentials stay recoverable.',
+        err,
+      );
+      throw keyUnwrapError;
     }
   }
 
@@ -89,7 +149,9 @@ function getEncryptionKey(): Buffer {
       encryptionKey = readFileSync(keyPath);
       if (canWrap) {
         try {
-          writeFileSync(wrappedPath, safeStorage.encryptString(encryptionKey.toString('base64')));
+          writeFileSync(wrappedPath, safeStorage.encryptString(encryptionKey.toString('base64')), {
+            mode: SECRET_FILE_MODE,
+          });
           // Remove the plaintext key file now that the wrapped version is
           // persisted. Leaving it on disk would let anyone with read access
           // to the data directory recover the master encryption key.
@@ -116,7 +178,9 @@ function getEncryptionKey(): Buffer {
     } else if (canWrap) {
       encryptionKey = randomBytes(32);
       try {
-        writeFileSync(wrappedPath, safeStorage.encryptString(encryptionKey.toString('base64')));
+        writeFileSync(wrappedPath, safeStorage.encryptString(encryptionKey.toString('base64')), {
+          mode: SECRET_FILE_MODE,
+        });
       } catch (err) {
         // safeStorage said it was available but encryption still failed. Don't
         // silently fall back to plaintext on disk: credentials would be
@@ -207,7 +271,7 @@ function appendTamperLog(message: string): void {
   }
   try {
     const path = join(app.getPath('userData'), 'credential-tamper.log');
-    appendFileSync(path, `${new Date().toISOString()} ${message}\n`);
+    appendFileSync(path, `${new Date().toISOString()} ${message}\n`, { mode: SECRET_FILE_MODE });
   } catch {
     // Best-effort: if we can't even write the audit log, don't crash the caller.
   }
@@ -285,25 +349,30 @@ export function retrieveCredential(connectionId: string): string | null {
 
   if (!row) return null;
 
+  // Resolve the key *outside* the try below. A locked keyring makes
+  // getEncryptionKey() throw, and inside the catch that failure would be
+  // indistinguishable from a GCM tag mismatch — i.e. every credential would be
+  // reported as tampered the moment the OS keyring happened to be locked.
+  // Let a key error propagate to the caller instead; it is transient and the
+  // user can fix it by unlocking the keyring.
+  getEncryptionKey();
+
   try {
     return decrypt(Buffer.from(row.encrypted_data));
   } catch (err) {
     // Decryption can fail if the data is corrupt, tampered with (GCM tag mismatch),
     // or if it was encrypted with a different key/algorithm (e.g. previous CBC).
     // Log loudly to a dedicated audit file so the operator can detect tampering.
-    // We still drop the row so the user is prompted to re-enter the
-    // credential rather than seeing a permanently broken connection.
+    //
+    // The row is deliberately *kept*. Deleting it turned a possibly-recoverable
+    // situation into permanent data loss, and it bought nothing: the caller is
+    // already prompted to re-enter the credential by the null return, and
+    // `storeCredential` uses INSERT OR REPLACE, so re-entering overwrites the
+    // bad row anyway. Keeping it also preserves the evidence of the tamper.
     const message = err instanceof Error ? err.message : String(err);
-    log.error(
-      `[Credentials] Failed to decrypt credential for ${connectionId}; dropping entry: ${message}`,
-    );
+    log.error(`[Credentials] Failed to decrypt credential for ${connectionId}: ${message}`);
     appendTamperLog(`decrypt-failure connectionId=${connectionId} reason="${message}"`);
     emitTamper({ connectionId, reason: message, at: Date.now() });
-    try {
-      db.prepare('DELETE FROM credentials WHERE connection_id = ?').run(connectionId);
-    } catch (deleteErr) {
-      log.warn('[Credentials] Failed to delete stale credential row:', deleteErr);
-    }
     return null;
   }
 }
@@ -358,8 +427,12 @@ export function retrieveS3Credential(connectionId: string): S3CredentialBlob | n
  * stored credentials are not OS-protected.
  */
 export function getCredentialBackendStatus(): {
-  backend: 'safeStorage' | 'plaintext' | 'inMemory' | 'uninitialized';
+  backend: 'safeStorage' | 'plaintext' | 'inMemory' | 'uninitialized' | 'locked';
 } {
+  // 'locked' is distinct from 'uninitialized': the key exists on disk and the
+  // credentials are intact, we just cannot read them this session. The renderer
+  // needs to say "unlock your keyring", not "credentials unavailable".
+  if (keyUnwrapError) return { backend: 'locked' };
   if (!encryptionKey) return { backend: 'uninitialized' };
   if (usingInMemoryKey) return { backend: 'inMemory' };
   return { backend: usingPlaintextKey ? 'plaintext' : 'safeStorage' };

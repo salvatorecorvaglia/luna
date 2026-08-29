@@ -69,9 +69,19 @@ export function ConnectionItem({
   disabled?: boolean;
   dragControls: DragControls;
 }) {
-  const { activeConnectionId, setActiveConnectionId, openEditForm, openDuplicateForm } =
-    useConnectionStore();
-  const { setActiveView } = useUIStore();
+  // Individual selectors, not whole-store subscriptions.
+  //
+  // This component is rendered once per connection row, and it used to
+  // subscribe to all of `useConnectionStore()` and all of `useUIStore()`. In
+  // zustand v5 that re-renders on *any* field change — so dragging the sidebar
+  // divider, which fires `setSidebarWidth` on every mousemove, re-rendered
+  // every row in the list, each inside a framer-motion `Reorder.Item`. The
+  // `sessions` selectors below already had this right.
+  const activeConnectionId = useConnectionStore((s) => s.activeConnectionId);
+  const setActiveConnectionId = useConnectionStore((s) => s.setActiveConnectionId);
+  const openEditForm = useConnectionStore((s) => s.openEditForm);
+  const openDuplicateForm = useConnectionStore((s) => s.openDuplicateForm);
+  const setActiveView = useUIStore((s) => s.setActiveView);
   // Narrow selector (only re-renders when the `sessions` Map reference itself
   // changes, not on unrelated store fields) rather than subscribing to the
   // whole store.
@@ -321,14 +331,14 @@ export function ConnectionItem({
 
           <div className="min-w-0 flex-1">
             <div
-              className="truncate text-[13px] font-medium text-sidebar-foreground"
+              className="truncate text-sm-plus font-medium text-sidebar-foreground"
               title={connection.name}
             >
               {connection.name}
             </div>
             {!compact && (
               <div
-                className="truncate text-[11px] text-muted-foreground"
+                className="truncate text-2xs text-muted-foreground"
                 title={
                   isS3
                     ? `${connection.endpoint || connection.region || 'S3 Storage'}${

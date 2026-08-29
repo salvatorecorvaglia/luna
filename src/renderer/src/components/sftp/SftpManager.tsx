@@ -163,14 +163,22 @@ export function SftpManager() {
 
   // Set local path to home directory on mount
   useEffect(() => {
-    if (!localPath) {
-      getApi()
-        .shell.homeDir()
-        .then(setLocalPath)
-        .catch(() => {
-          setLocalPath('/');
-        });
-    }
+    if (localPath) return;
+    // Guard the resolution: without it, unmounting (view switch) before the
+    // IPC round-trip settles sets state on a dead component. Every sibling
+    // effect in this codebase already uses this pattern.
+    let cancelled = false;
+    getApi()
+      .shell.homeDir()
+      .then((home) => {
+        if (!cancelled) setLocalPath(home);
+      })
+      .catch(() => {
+        if (!cancelled) setLocalPath('/');
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [localPath, setLocalPath]);
 
   const currentSession = activeSessionId
@@ -197,21 +205,14 @@ export function SftpManager() {
     error: localError,
   } = useLocalDirectory(localPath);
 
-  useEffect(() => {
-    if (remoteError) {
-      toast.error(
-        `Remote listing failed: ${remoteError instanceof Error ? remoteError.message : String(remoteError)}`,
-      );
-    }
-  }, [remoteError]);
-
-  useEffect(() => {
-    if (localError) {
-      toast.error(
-        `Local listing failed: ${localError instanceof Error ? localError.message : String(localError)}`,
-      );
-    }
-  }, [localError]);
+  // No toast for a failed listing.
+  //
+  // FilePane already renders an inline role="alert" panel carrying the same
+  // message plus a "Try again" button, so every failed `ls` produced two
+  // reports of one problem — a toast that cannot be acted on and vanishes, and
+  // a scoped, actionable panel. The inline state is the better one, and it is
+  // the one the user is already looking at. The errors are still passed down
+  // to the panes below.
 
   const addTransfer = useTransferStore((s) => s.addTransfer);
 
@@ -601,7 +602,7 @@ export function SftpManager() {
             downloadLabel="Upload"
             showHidden={showHiddenFiles}
             onToggleHidden={toggleHiddenFiles}
-            onSelectAll={() => setLocalSelection(new Set(localEntries.map((e) => e.name)))}
+            onSelectAll={(names) => setLocalSelection(new Set(names))}
             side="local"
           />
         </div>
@@ -665,7 +666,7 @@ export function SftpManager() {
             onToggleHidden={toggleHiddenFiles}
             onMkdir={handleRemoteMkdir}
             onFolderSync={() => setFolderSyncOpen(true)}
-            onSelectAll={() => setRemoteSelection(new Set(remoteEntries.map((e) => e.name)))}
+            onSelectAll={(names) => setRemoteSelection(new Set(names))}
             side="remote"
             remoteKind={remoteKind}
           />

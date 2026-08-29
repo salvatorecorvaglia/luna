@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/* Self-hosted Inter + JetBrains Mono. Replaces the Google Fonts <link> that
+   used to sit in index.html — see fonts.css for the rationale. */
+@import "./fonts.css";
 
 /* ──────────────────────────────────────────────────
    Design Tokens
@@ -6,6 +9,21 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /*
+   * Small-end type scale.
+   *
+   * Tailwind's scale bottoms out at text-xs (0.75rem/12px), so the dense chrome
+   * in this app — status bar, table headers, keyboard hint badges, file
+   * metadata — reached for arbitrary values instead: 49 uses of text-2xs,
+   * 48 of text-3xs and 4 of text-sm-plus across the renderer, none of them
+   * checkable and none of them adjustable in one place. These three tokens make
+   * those first-class, and design-tokens.test.ts now fails the build on new
+   * arbitrary px font sizes.
+   */
+  --text-2xs: 0.6875rem; /* 11px */
+  --text-3xs: 0.625rem; /* 10px */
+  --text-sm-plus: 0.8125rem; /* 13px */
 
   --radius-lg: 0.5rem;
   --radius-md: calc(var(--radius-lg) - 2px);

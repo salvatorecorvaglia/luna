@@ -35,8 +35,12 @@ import { useConnectionFormState } from './use-connection-form-state';
 import { useConnectionTest } from './use-connection-test';
 
 export function ConnectionForm() {
-  const { connectionFormOpen, editingConnectionId, duplicatingConnectionId, closeForm } =
-    useConnectionStore();
+  // Individual selectors: a whole-store subscription re-rendered this 790-line
+  // form on unrelated connection-store changes.
+  const connectionFormOpen = useConnectionStore((s) => s.connectionFormOpen);
+  const editingConnectionId = useConnectionStore((s) => s.editingConnectionId);
+  const duplicatingConnectionId = useConnectionStore((s) => s.duplicatingConnectionId);
+  const closeForm = useConnectionStore((s) => s.closeForm);
   const { data: editingConnection } = useConnection(editingConnectionId);
   const { data: duplicatingConnection } = useConnection(duplicatingConnectionId);
   const { data: existingConnections, isLoading: connectionsLoading } = useConnections();
@@ -646,7 +650,7 @@ export function ConnectionForm() {
                       {uniqueFolders.length > 0 && (
                         <div className="space-y-2">
                           <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-semibold text-muted-foreground/40 uppercase tracking-widest">
+                            <span className="text-3xs font-semibold text-muted-foreground/40 uppercase tracking-widest">
                               Existing Groups
                             </span>
                             <div className="h-px flex-1 bg-border/30" />
@@ -660,7 +664,7 @@ export function ConnectionForm() {
                                 type="button"
                                 onClick={() => setFolder(common.folder === f ? 'default' : f)}
                                 className={cn(
-                                  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all cursor-pointer border shadow-xs',
+                                  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-2xs font-medium transition-all cursor-pointer border shadow-xs',
                                   common.folder === f ||
                                     (f === 'default' && common.folder === 'default')
                                     ? 'bg-primary/5 border-primary/40 text-primary shadow-[0_0_12px_-3px_rgba(99,102,241,0.2)] ring-1 ring-primary/20'

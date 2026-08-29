@@ -55,6 +55,24 @@ export function assertEitherConnectionOrConfig(connectionId: unknown, config: un
   }
 }
 
+/**
+ * Reject an oversized array before it reaches a handler that does per-element
+ * synchronous work. The IPC payload ceiling (4 MiB) is far too loose a bound
+ * for anything that runs one sqlite statement per element on the main thread.
+ */
+export function assertBoundedArray(
+  value: unknown,
+  name: string,
+  max: number,
+): asserts value is unknown[] {
+  if (!Array.isArray(value)) {
+    throw validationError(`${name} must be an array`);
+  }
+  if (value.length > max) {
+    throw validationError(`${name} must contain at most ${max} items (got ${value.length})`);
+  }
+}
+
 /** Shared cap on transient secret fields (passwords, keys, tokens) accepted over IPC. */
 export const MAX_SECRET_LEN = 4096;
 

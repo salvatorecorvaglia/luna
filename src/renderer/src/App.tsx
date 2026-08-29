@@ -132,6 +132,14 @@ export default function App() {
             'OS-level secret storage is unavailable. Saving connection passwords is disabled. Install gnome-keyring or libsecret-1-0 and restart to enable.',
             { duration: 12000, icon: <ShieldAlert className="size-4" aria-hidden="true" /> },
           );
+        } else if (status.backend === 'locked') {
+          // The key file is intact but unreadable this session (locked keyring,
+          // denied Keychain prompt). Saved credentials are fine — say so, so the
+          // user unlocks and restarts instead of assuming they were lost.
+          toast.error(
+            'Luna could not unlock the stored credential key. Your saved credentials are intact — unlock your OS keyring and restart Luna to use them.',
+            { duration: 15000, icon: <ShieldAlert className="size-4" aria-hidden="true" /> },
+          );
         }
         setWarnedAboutBackend(true);
       })

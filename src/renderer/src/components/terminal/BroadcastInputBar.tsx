@@ -91,7 +91,7 @@ export function BroadcastInputBar({ open, onClose }: BroadcastInputBarProps) {
         <button
           type="button"
           onClick={toggleSelectAll}
-          className="flex items-center gap-1 rounded bg-muted/80 px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted cursor-pointer flex-shrink-0"
+          className="flex items-center gap-1 rounded bg-muted/80 px-2 py-1 text-2xs text-muted-foreground hover:bg-muted cursor-pointer flex-shrink-0"
         >
           {effectiveSelectedIds.length === activeConnectedSessions.length ? (
             <CheckSquare className="size-3 text-primary" />
@@ -108,7 +108,7 @@ export function BroadcastInputBar({ open, onClose }: BroadcastInputBarProps) {
               type="button"
               key={s.id}
               onClick={() => toggleSelectId(s.id)}
-              className={`flex items-center gap-1.5 rounded border px-2 py-0.5 text-[11px] flex-shrink-0 cursor-pointer transition-colors ${
+              className={`flex items-center gap-1.5 rounded border px-2 py-0.5 text-2xs flex-shrink-0 cursor-pointer transition-colors ${
                 isSelected
                   ? 'border-primary/50 bg-primary/20 text-primary font-medium'
                   : 'border-border/60 bg-card/60 text-muted-foreground hover:border-border'

@@ -15,60 +15,73 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
-      include: ['src/main/**/*.{ts,tsx}', 'src/renderer/src/**/*.{ts,tsx}', 'src/shared/**/*.ts'],
+      include: [
+        'src/main/**/*.{ts,tsx}',
+        // The preload is the entire renderer↔main attack surface (326 lines of
+        // bridge). It was excluded from measurement entirely, which both
+        // flattered the reported numbers and hid regressions in invoke() and
+        // createEventListener().
+        'src/preload/**/*.ts',
+        'src/renderer/src/**/*.{ts,tsx}',
+        'src/shared/**/*.ts',
+      ],
       exclude: [
         '**/__tests__/**',
         '**/*.test.{ts,tsx}',
         '**/env.d.ts',
         'src/test/**',
-        'src/renderer/src/themes/terminal/**'
+        'src/renderer/src/themes/terminal/**',
       ],
-      // Floor — covers validation (incl. symlink jail), host-key TOFU +
-      // IPv6 disambiguation + OpenSSH fingerprint format, SOCKS5 request
-      // parsing (fragmentation and malformed input), port-forward config
-      // validation and the public-bind gate, password-manager reference
-      // grammar and argument-injection refusal, sliding-window rate limiting,
-      // transfer-queue, credential round-trip, emit redaction plus the
-      // RAW_CHANNELS allowlist, IPC error shape (no stack/metadata across the
-      // bridge), local-terminal output batching and the session cap,
-      // connection create/update validation parity, db migrations, error-map
-      // classification, terminal-output sanitisation, the host-key dialog's
-      // reject path, the port-forward runtime against real sockets (bind
-      // failure, teardown of live connections, fragmented SOCKS handshakes),
-      // and the shared abortable-stream skeleton's abort/completion races.
+      // Floor, not a target — a ratchet that stops coverage regressing.
       //
-      // Added in the 2026-08 audit pass: the storage-provider re-registration
-      // that keeps SFTP alive across an automatic SSH reconnect, folder-sync
-      // mtime comparison (the tolerance is in seconds — see the service),
-      // local-terminal buffer draining on exit/kill, connection *import*
-      // validation parity with create, snippet/workspace malformed-column
-      // resilience and IPC input bounds, C1-control terminal sanitisation,
-      // the updater's awaited check, and a guard asserting every
-      // focus-trapping dialog declares its modal role.
+      // Raise these whenever a run reports higher. They were last left at
+      // lines 47 / functions 40 / branches 39 / statements 46, with a comment
+      // documenting actuals of "~48.6-48.7 lines". By the 2026-08-29 audit the
+      // real numbers had reached ~62 lines, so the gate sat ~14 points below
+      // reality and coverage could have regressed by a fifth before CI noticed.
+      // A stale ratchet is worse than none: it reads as enforcement while
+      // enforcing nothing.
       //
-      // A ratchet, not a target: raise these whenever a run reports higher so
-      // coverage can't silently regress. Actuals at the time of writing move
-      // between ~48.6-48.7 lines, 40.0-40.5 branches, 41.3-41.8 functions and
-      // 47.4-47.6 statements — the spread is real run-to-run variance, so the
-      // floors sit ~1pt below the *lower* end rather than just under the best
-      // observed value. A floor pinned to the peak flakes in CI.
+      // What the floor covers: IPC input validation (including the symlink
+      // jail and its O_NOFOLLOW anchoring), host-key TOFU with the changed-key
+      // MITM and weak-algorithm cases, OpenSSH-format fingerprints, credential
+      // AES-GCM round-trip and tamper detection, the locked-keyring path that
+      // must never regenerate the master key, file:// navigation allowlisting,
+      // SOCKS5 request parsing under fragmentation, port-forward config
+      // validation and the public-bind gate, password-manager reference grammar
+      // and argument-injection refusal, sliding-window rate limiting, the
+      // transfer queue, emit redaction plus the RAW_CHANNELS allowlist, the IPC
+      // error shape (no stack or metadata across the bridge), local-terminal
+      // output batching and the session cap, connection create/update/import
+      // validation parity, db migrations, error-map classification, terminal
+      // output sanitisation, the command palette's selection ordering, the
+      // terminal key handler's "never swallow a plain Ctrl+C" invariant, and
+      // the guard asserting every focus-trapping dialog declares a modal role.
       //
-      // Note these cover the vitest suite only. The Playwright suite under
-      // e2e/ is excluded above and is not measured here — it exists to prove
-      // main/preload/renderer agree at runtime, which is not a line-coverage
-      // question.
+      // src/preload is in the coverage `include` above as of this pass. It is
+      // the entire renderer<->main bridge and was previously unmeasured, which
+      // flattered these numbers.
+      //
+      // Measured 2026-08-29 over three consecutive runs with zero variance:
+      // 61.05 statements / 53.34 branches / 53.56 functions / 62.45 lines.
+      // Floors sit ~1pt under that.
+      //
+      // These cover the vitest suite only. The Playwright suite under
+      // tests/e2e/ is excluded above and is not measured here — it exists to
+      // prove main/preload/renderer agree at runtime, which is not a
+      // line-coverage question.
       thresholds: {
-        lines: 47,
-        functions: 40,
-        branches: 39,
-        statements: 46
-      }
-    }
+        lines: 61,
+        functions: 52,
+        branches: 52,
+        statements: 60,
+      },
+    },
   },
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src/renderer/src'),
-      '@shared': resolve(__dirname, 'src/shared')
-    }
-  }
-})
+      '@shared': resolve(__dirname, 'src/shared'),
+    },
+  },
+});

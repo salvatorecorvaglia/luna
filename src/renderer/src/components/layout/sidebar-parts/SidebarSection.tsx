@@ -91,7 +91,7 @@ export function SidebarSection({
         onPointerDown={(e) => controls.start(e)}
         className="flex items-center justify-between px-2.5 pb-1 cursor-grab active:cursor-grabbing group/section"
       >
-        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50 group-hover/section:text-muted-foreground/80 transition-colors">
+        <div className="flex items-center gap-1.5 text-3xs font-bold uppercase tracking-widest text-muted-foreground/50 group-hover/section:text-muted-foreground/80 transition-colors">
           {isSsh ? <Terminal className="size-3" /> : <FolderClosed className="size-3" />}
           <span>{isSsh ? 'SSH Sessions' : 'S3 Storage'}</span>
         </div>

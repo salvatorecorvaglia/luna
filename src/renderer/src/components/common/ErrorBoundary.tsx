@@ -20,13 +20,13 @@ interface State {
 }
 
 export class ErrorBoundary extends Component<Props, State> {
-  state: State = { hasError: false, error: null };
+  override state: State = { hasError: false, error: null };
 
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, info: React.ErrorInfo): void {
+  override componentDidCatch(error: Error, info: React.ErrorInfo): void {
     // Forward to the unified logger so renderer crashes land in the same
     // file as main-process logs. Local console.error stays for devtools.
     console.error('[ErrorBoundary]', error, info.componentStack);
@@ -51,7 +51,7 @@ export class ErrorBoundary extends Component<Props, State> {
     window.location.reload();
   };
 
-  render(): ReactNode {
+  override render(): ReactNode {
     if (this.state.hasError) {
       const scoped = Boolean(this.props.viewName);
       return (

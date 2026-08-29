@@ -5,7 +5,7 @@ import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
 import { PromptDialog } from '@/components/common/PromptDialog';
 import { TerminalToolbar } from '@/components/terminal/TerminalToolbar';
-import { connectToHost } from '@/lib/ssh';
+import { openNewSession } from '@/lib/ssh';
 import { cn } from '@/lib/utils';
 import {
   getAllSessionIdsFromTree,
@@ -91,7 +91,10 @@ export function TerminalTabs() {
     (tabId: string) => {
       const session = sessions.get(tabId);
       if (!session) return;
-      void connectToHost(session.connectionId);
+      // openNewSession, not connectToHost: the latter focuses an existing
+      // connected session for the connection — which, for a tab you just
+      // right-clicked, is always this one. Duplicate then did nothing.
+      void openNewSession(session.connectionId);
     },
     [sessions],
   );

@@ -5,9 +5,14 @@
     "moduleResolution": "bundler",
     "target": "ESNext",
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
-    "outDir": "./out",
+    "outDir": "./out/tsc/web",
     "rootDir": ".",
     "strict": true,
+    // `import type` is already used consistently, so this is close to free and
+    // stops a type-only module being pulled into a runtime bundle by accident.
+    "verbatimModuleSyntax": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
     "noImplicitReturns": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,

@@ -1,30 +1,30 @@
-import {defineConfig, externalizeDepsPlugin} from 'electron-vite'
-import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
-import {resolve} from 'path'
+import { resolve } from 'node:path';
+import tailwindcss from '@tailwindcss/vite';
+import react from '@vitejs/plugin-react';
+import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
     build: {
-      sourcemap: process.env.NODE_ENV !== 'production'
+      sourcemap: process.env.NODE_ENV !== 'production',
     },
     resolve: {
       alias: {
-        '@shared': resolve('src/shared')
-      }
-    }
+        '@shared': resolve('src/shared'),
+      },
+    },
   },
   preload: {
     plugins: [externalizeDepsPlugin()],
     build: {
-      sourcemap: process.env.NODE_ENV !== 'production'
+      sourcemap: process.env.NODE_ENV !== 'production',
     },
     resolve: {
       alias: {
-        '@shared': resolve('src/shared')
-      }
-    }
+        '@shared': resolve('src/shared'),
+      },
+    },
   },
   renderer: {
     root: 'src/renderer',
@@ -43,16 +43,16 @@ export default defineConfig({
             if (id.includes('@tanstack/react-virtual')) return 'react-virtual';
             if (id.includes('framer-motion')) return 'framer-motion';
             return undefined;
-          }
-        }
-      }
+          },
+        },
+      },
     },
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
         '@': resolve('src/renderer/src'),
-        '@shared': resolve('src/shared')
-      }
-    }
-  }
-})
+        '@shared': resolve('src/shared'),
+      },
+    },
+  },
+});

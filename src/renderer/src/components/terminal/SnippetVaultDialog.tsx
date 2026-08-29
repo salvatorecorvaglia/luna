@@ -384,7 +384,7 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
                           {s.tags.map((t) => (
                             <span
                               key={t}
-                              className="inline-flex items-center gap-0.5 rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                              className="inline-flex items-center gap-0.5 rounded-md bg-muted px-1.5 py-0.5 text-3xs text-muted-foreground"
                             >
                               <Tag className="size-2.5" />
                               {t}

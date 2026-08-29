@@ -1,10 +1,11 @@
-import { IPC } from '@shared/constants';
+import { IPC, LIMITS } from '@shared/constants';
 import type {
   CreateConnectionInput,
   ExportedConnection,
   UpdateConnectionInput,
 } from '@shared/types/connection';
 import { registerHandler } from '../lib/ipc-handler';
+import { assertBoundedArray } from '../lib/validate';
 import { connectionService } from '../services/connection-service';
 
 export function registerConnectionHandlers(): void {
@@ -40,6 +41,7 @@ export function registerConnectionHandlers(): void {
   });
 
   registerHandler(IPC.CONNECTION_REORDER, (_event, ids: string[]) => {
+    assertBoundedArray(ids, 'ids', LIMITS.MAX_BULK_CONNECTIONS);
     connectionService.reorderConnections(ids);
   });
 
@@ -48,6 +50,7 @@ export function registerConnectionHandlers(): void {
   });
 
   registerHandler(IPC.CONNECTION_IMPORT, (_event, connections: ExportedConnection[]) => {
+    assertBoundedArray(connections, 'connections', LIMITS.MAX_BULK_CONNECTIONS);
     return connectionService.importConnections(connections);
   });
 

@@ -61,8 +61,15 @@ export function SettingsPanel() {
   const queryClient = useQueryClient();
   const settingsOpen = useUIStore((s) => s.settingsOpen);
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
-  const { terminalTheme, setTerminalTheme, fontSize, setFontSize, scrollback, setScrollback } =
-    useTerminalStore();
+  // Individual selectors, not `useTerminalStore()`. Subscribing to the whole
+  // store re-rendered this panel on every session status tick.
+  const terminalTheme = useTerminalStore((s) => s.terminalTheme);
+  const setTerminalTheme = useTerminalStore((s) => s.setTerminalTheme);
+  const fontSize = useTerminalStore((s) => s.fontSize);
+  const setFontSize = useTerminalStore((s) => s.setFontSize);
+  const scrollback = useTerminalStore((s) => s.scrollback);
+  const setScrollback = useTerminalStore((s) => s.setScrollback);
+  const initializeSettings = useTerminalStore((s) => s.initializeSettings);
   const [concurrency, setConcurrency] = useState(DEFAULT_SETTINGS['transfer.concurrency']);
   const [autoReconnect, setAutoReconnect] = useState(DEFAULT_SETTINGS['ssh.autoReconnect']);
   const [readyTimeout, setReadyTimeout] = useState(DEFAULT_SETTINGS['ssh.readyTimeout'] / 1000);
@@ -78,20 +85,37 @@ export function SettingsPanel() {
   const [appVersion, setAppVersion] = useState('0.0.0');
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
 
-  // Load settings from DB on open
+  // Load settings from DB on open.
+  //
+  // Note `initializeSettings`, not `setFontSize`/`setScrollback`: the latter are
+  // the *persisting* actions, so hydrating through them wrote every value
+  // straight back to the DB over IPC. Merely opening this panel round-tripped
+  // the whole settings table. `initializeSettings` exists for exactly this and
+  // is what App already uses on boot.
   useEffect(() => {
     if (!settingsOpen) return;
+    let cancelled = false;
+
     void getApi()
       .app.getVersion()
-      .then(setAppVersion)
+      .then((v) => {
+        if (!cancelled) setAppVersion(v);
+      })
       .catch((err: unknown) => logger.error('Failed to load app version', { err }));
+
     void getApi()
       .settings.getAll()
       .then((settings: Record<string, unknown>) => {
-        if (settings['terminal.fontSize'] != null)
-          setFontSize(Number(settings['terminal.fontSize']));
-        if (settings['terminal.scrollback'] != null)
-          setScrollback(Number(settings['terminal.scrollback']));
+        if (cancelled) return;
+        const hydrate: { fontSize?: number; scrollback?: number } = {};
+        if (settings['terminal.fontSize'] != null) {
+          hydrate.fontSize = Number(settings['terminal.fontSize']);
+        }
+        if (settings['terminal.scrollback'] != null) {
+          hydrate.scrollback = Number(settings['terminal.scrollback']);
+        }
+        initializeSettings(hydrate);
+
         if (settings['transfer.concurrency'] != null)
           setConcurrency(Number(settings['transfer.concurrency']));
         if (settings['ssh.autoReconnect'] != null)
@@ -104,8 +128,15 @@ export function SettingsPanel() {
           setMaxReconnectAttempts(Number(settings['ssh.maxReconnectAttempts']));
         if (settings['ssh.allowPublicPortForwardBind'] != null)
           setAllowPublicBind(Boolean(settings['ssh.allowPublicPortForwardBind']));
-      });
-  }, [settingsOpen, setFontSize, setScrollback]);
+      })
+      // Previously unhandled: a failing read escaped to the global
+      // unhandledrejection toast instead of being logged here.
+      .catch((err: unknown) => logger.error('Failed to load settings', { err }));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [settingsOpen, initializeSettings]);
 
   const persistSetting = useCallback(
     <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
@@ -219,14 +250,14 @@ export function SettingsPanel() {
                         {/* Mini terminal preview — bumped from 8px so the
                             sample text is actually legible. */}
                         <div
-                          className="w-full rounded-md p-2 font-mono text-[10px] leading-tight"
+                          className="w-full rounded-md p-2 font-mono text-3xs leading-tight"
                           style={{ backgroundColor: t.bg, color: t.fg }}
                         >
                           <span style={{ color: t.accent }}>$</span> ls -la
                           <br />
                           <span className="opacity-70">drwxr-xr-x</span>
                         </div>
-                        <span className="text-[11px] font-medium">{t.label}</span>
+                        <span className="text-2xs font-medium">{t.label}</span>
                       </button>
                     ))}
                   </div>
@@ -439,7 +470,7 @@ export function SettingsPanel() {
                   <FileText className="size-3.5" />
                   Open log file
                 </button>
-                <p className="text-[11px] text-muted-foreground/60">
+                <p className="text-2xs text-muted-foreground/60">
                   Open the application log folder to attach to bug reports
                 </p>
               </Section>
@@ -456,7 +487,7 @@ export function SettingsPanel() {
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-xs font-medium text-foreground">Delete all connections</p>
-                      <p className="mt-0.5 text-[11px] text-muted-foreground leading-relaxed">
+                      <p className="mt-0.5 text-2xs text-muted-foreground leading-relaxed">
                         Permanently removes every saved connection and credential. Cannot be undone.
                       </p>
                     </div>
@@ -487,7 +518,7 @@ export function SettingsPanel() {
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     Your place in one calm workspace.
                   </p>
-                  <p className="mt-1 text-[11px] text-muted-foreground/60">v{appVersion}</p>
+                  <p className="mt-1 text-2xs text-muted-foreground/60">v{appVersion}</p>
                 </div>
               </Section>
             </div>
@@ -620,7 +651,7 @@ function EditableNumberRow({
         >
           <Plus className="size-3" />
         </button>
-        {suffix && <span className="ml-1 text-[11px] text-muted-foreground">{suffix.trim()}</span>}
+        {suffix && <span className="ml-1 text-2xs text-muted-foreground">{suffix.trim()}</span>}
       </div>
     </div>
   );

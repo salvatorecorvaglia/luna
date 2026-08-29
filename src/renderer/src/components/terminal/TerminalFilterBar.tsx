@@ -38,7 +38,7 @@ export function TerminalFilterBar({ open, onClose, onApplyFilter }: TerminalFilt
           <button
             type="button"
             onClick={() => handleLevelSelect('all')}
-            className={`px-2 py-0.5 text-[10px] font-medium rounded cursor-pointer transition-colors ${
+            className={`px-2 py-0.5 text-3xs font-medium rounded cursor-pointer transition-colors ${
               activeLevel === 'all'
                 ? 'bg-primary text-primary-foreground'
                 : 'text-muted-foreground hover:text-foreground'
@@ -49,7 +49,7 @@ export function TerminalFilterBar({ open, onClose, onApplyFilter }: TerminalFilt
           <button
             type="button"
             onClick={() => handleLevelSelect('error')}
-            className={`px-2 py-0.5 text-[10px] font-medium rounded cursor-pointer transition-colors ${
+            className={`px-2 py-0.5 text-3xs font-medium rounded cursor-pointer transition-colors ${
               activeLevel === 'error'
                 ? 'bg-destructive text-destructive-foreground'
                 : 'text-destructive-fg/80 hover:text-destructive-fg'
@@ -60,7 +60,7 @@ export function TerminalFilterBar({ open, onClose, onApplyFilter }: TerminalFilt
           <button
             type="button"
             onClick={() => handleLevelSelect('warn')}
-            className={`px-2 py-0.5 text-[10px] font-medium rounded cursor-pointer transition-colors ${
+            className={`px-2 py-0.5 text-3xs font-medium rounded cursor-pointer transition-colors ${
               activeLevel === 'warn'
                 ? 'bg-warning text-warning-foreground'
                 : 'text-warning/80 hover:text-warning'
@@ -71,7 +71,7 @@ export function TerminalFilterBar({ open, onClose, onApplyFilter }: TerminalFilt
           <button
             type="button"
             onClick={() => handleLevelSelect('info')}
-            className={`px-2 py-0.5 text-[10px] font-medium rounded cursor-pointer transition-colors ${
+            className={`px-2 py-0.5 text-3xs font-medium rounded cursor-pointer transition-colors ${
               activeLevel === 'info'
                 ? 'bg-info text-info-foreground'
                 : 'text-info/80 hover:text-info'

@@ -15,13 +15,13 @@ import {
   X,
 } from 'lucide-react';
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { isMac } from '@/lib/platform';
 import { cn } from '@/lib/utils';
 import { useStorageStore } from '@/stores/storage-store';
 import { FileList } from './FileList';
 
 export type { FileEntry };
 
-const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 const MOD = isMac ? '⌘' : 'Ctrl';
 
 interface FilePaneProps {
@@ -48,7 +48,7 @@ interface FilePaneProps {
   onToggleHidden?: () => void;
   onMkdir?: () => void;
   onFolderSync?: () => void;
-  onSelectAll?: () => void;
+  onSelectAll?: (names: string[]) => void;
   side: 'local' | 'remote';
   /**
    * For remote panes, identifies the backing storage kind so the pane can hide
@@ -172,7 +172,13 @@ export function FilePane({
     setDragOver(true);
   }, []);
 
-  const handleDragLeave = useCallback(() => {
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    // dragleave fires as the cursor crosses into a *child* row, so clearing
+    // unconditionally made the drop-target highlight flicker across the whole
+    // pane. Only clear when the pointer has actually left this element's
+    // subtree. relatedTarget is null when leaving the window entirely.
+    const next = e.relatedTarget;
+    if (next instanceof Node && e.currentTarget.contains(next)) return;
     setDragOver(false);
   }, []);
 
@@ -217,7 +223,7 @@ export function FilePane({
               side === 'local' ? 'bg-info' : 'bg-success',
             )}
           />
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {title}
           </span>
           {/* Surface in-flight loads in the header so an empty list isn't
@@ -417,7 +423,7 @@ export function FilePane({
             <button
               type="button"
               onClick={onRefresh}
-              className="mt-2 rounded-full bg-accent px-4 py-1.5 text-[11px] font-semibold text-accent-foreground hover:bg-accent/80 transition-colors"
+              className="mt-2 rounded-full bg-accent px-4 py-1.5 text-2xs font-semibold text-accent-foreground hover:bg-accent/80 transition-colors"
             >
               Try again
             </button>
@@ -457,7 +463,7 @@ function FilePaneSkeleton({ showPermissions }: { showPermissions: boolean }) {
       aria-live="polite"
       aria-label="Loading directory"
     >
-      <div className="flex items-center border-b border-border/60 bg-muted/20 text-[11px] font-medium text-muted-foreground/60 no-select">
+      <div className="flex items-center border-b border-border/60 bg-muted/20 text-2xs font-medium text-muted-foreground/60 no-select">
         <div className="flex flex-1 items-center px-3 py-1.5">Name</div>
         <div className="w-20 px-2 py-1.5 text-right">Size</div>
         {showPermissions && <div className="w-[84px] px-2 py-1.5 text-right">Perms</div>}

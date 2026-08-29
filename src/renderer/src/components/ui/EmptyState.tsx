@@ -44,14 +44,14 @@ export function EmptyState({
           {icon}
         </div>
       )}
-      <span className={cn('font-medium text-foreground/80', compact ? 'text-[11px]' : 'text-xs')}>
+      <span className={cn('font-medium text-foreground/80', compact ? 'text-2xs' : 'text-xs')}>
         {title}
       </span>
       {description && (
         <span
           className={cn(
             'text-muted-foreground/70',
-            compact ? 'text-[10px]' : 'text-[11px] leading-relaxed max-w-xs',
+            compact ? 'text-3xs' : 'text-2xs leading-relaxed max-w-xs',
           )}
         >
           {description}

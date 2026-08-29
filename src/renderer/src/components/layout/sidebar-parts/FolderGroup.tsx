@@ -53,7 +53,7 @@ export function FolderGroup({
             <button
               type="button"
               onClick={() => setIsOpen(!isOpen)}
-              className="group/folder flex w-full items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium text-muted-foreground/60 hover:text-muted-foreground transition-colors cursor-pointer"
+              className="group/folder flex w-full items-center gap-1.5 px-2.5 py-1 text-2xs font-medium text-muted-foreground/60 hover:text-muted-foreground transition-colors cursor-pointer"
             >
               <ChevronRight
                 className={cn(
@@ -63,7 +63,7 @@ export function FolderGroup({
               />
               <FolderClosed className="size-3 text-muted-foreground/40 group-hover/folder:text-muted-foreground/70" />
               <span className="truncate">{name}</span>
-              <span className="ml-auto text-[10px] text-muted-foreground/20 group-hover/folder:text-muted-foreground/50 tabular-nums">
+              <span className="ml-auto text-3xs text-muted-foreground/20 group-hover/folder:text-muted-foreground/50 tabular-nums">
                 {connections.length}
               </span>
             </button>

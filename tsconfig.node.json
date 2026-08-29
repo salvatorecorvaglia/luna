@@ -4,12 +4,21 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "target": "ESNext",
-    "lib": [
-      "ESNext"
-    ],
-    "outDir": "./out",
+    "lib": ["ESNext"],
+    // Each project gets its own outDir. All three used to emit to ./out, which
+    // is also electron-vite's build output and where package.json "main"
+    // points — so `tsc -b` (the natural command for a solution-style
+    // tsconfig.json) emitted .d.ts/.tsbuildinfo from three overlapping
+    // projects into the app bundle and clobbered out/main/index.js.
+    // --noEmit masks this today; the split makes it safe regardless.
+    "outDir": "./out/tsc/node",
     "rootDir": ".",
     "strict": true,
+    // `import type` is already used consistently, so this is close to free and
+    // stops a type-only module being pulled into a runtime bundle by accident.
+    "verbatimModuleSyntax": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
     "noImplicitReturns": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
@@ -19,9 +28,7 @@
     "resolveJsonModule": true,
     "declaration": true,
     "paths": {
-      "@shared/*": [
-        "./src/shared/*"
-      ]
+      "@shared/*": ["./src/shared/*"]
     },
     "noUncheckedIndexedAccess": true
   },

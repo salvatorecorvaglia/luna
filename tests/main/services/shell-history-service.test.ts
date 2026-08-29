@@ -59,4 +59,63 @@ describe('ShellHistoryService', () => {
     expect(recentMatch).toHaveLength(1);
     expect(recentMatch[0]!.command).toBe('echo findme-recent-marker');
   });
+
+  // Regression: `source` was hardcoded to 'zsh' for every match even though
+  // loadLocalHistory reads both files, so every bash command was mislabelled.
+  // `HistoryMatch.source` exists precisely to tell these apart.
+  it('labels each command with the shell whose history file it came from', async () => {
+    await writeFile(join(fakeHome, '.zsh_history'), 'echo from-zsh\n', 'utf-8');
+    await writeFile(join(fakeHome, '.bash_history'), 'echo from-bash\n', 'utf-8');
+    const { ShellHistoryService } = await import(
+      '../../../src/main/services/shell-history-service'
+    );
+    const service = new ShellHistoryService();
+
+    const zsh = await service.searchHistory('from-zsh');
+    expect(zsh).toHaveLength(1);
+    expect(zsh[0]!.source).toBe('zsh');
+
+    const bash = await service.searchHistory('from-bash');
+    expect(bash).toHaveLength(1);
+    expect(bash[0]!.source).toBe('bash');
+  });
+
+  // Regression: results were built by concatenating both files and reversing
+  // the whole array once. Because bash was appended second, that surfaced every
+  // bash entry before any zsh entry — and the `limit` break then truncated the
+  // zsh half away entirely. On macOS (zsh by default) that is the user's actual
+  // recent history disappearing behind stale bash lines.
+  it('does not let one shell starve the other out of a limited result set', async () => {
+    const many = `${Array.from({ length: 100 }, (_, i) => `echo shared-token-bash-${i}`).join('\n')}\n`;
+    await writeFile(join(fakeHome, '.bash_history'), many, 'utf-8');
+    await writeFile(join(fakeHome, '.zsh_history'), 'echo shared-token-zsh-only\n', 'utf-8');
+
+    const { ShellHistoryService } = await import(
+      '../../../src/main/services/shell-history-service'
+    );
+    const service = new ShellHistoryService();
+
+    const matches = await service.searchHistory('shared-token', 10);
+    expect(matches).toHaveLength(10);
+    expect(matches.some((m) => m.source === 'zsh')).toBe(true);
+  });
+
+  // Regression: the cache was populated once per process and never invalidated,
+  // so commands run during the session never appeared until an app restart.
+  it('picks up newly written history after the cache is invalidated', async () => {
+    await writeFile(join(fakeHome, '.zsh_history'), 'echo first\n', 'utf-8');
+    const { ShellHistoryService } = await import(
+      '../../../src/main/services/shell-history-service'
+    );
+    const service = new ShellHistoryService();
+
+    expect(await service.searchHistory('second')).toHaveLength(0);
+
+    await writeFile(join(fakeHome, '.zsh_history'), 'echo first\necho second\n', 'utf-8');
+    service.invalidateCache();
+
+    const after = await service.searchHistory('second');
+    expect(after).toHaveLength(1);
+    expect(after[0]!.command).toBe('echo second');
+  });
 });

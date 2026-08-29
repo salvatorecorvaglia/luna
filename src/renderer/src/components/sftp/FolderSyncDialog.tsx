@@ -183,16 +183,14 @@ export function FolderSyncDialog({
         <div className="rounded-lg border border-border bg-accent/20 p-4 space-y-3">
           <div className="grid grid-cols-2 gap-4 text-xs font-mono">
             <div>
-              <span className="text-muted-foreground block text-[11px] mb-0.5">
-                Local Directory:
-              </span>
+              <span className="text-muted-foreground block text-2xs mb-0.5">Local Directory:</span>
               <span className="truncate block font-semibold" title={localPath}>
                 {localPath}
               </span>
             </div>
 
             <div>
-              <span className="text-muted-foreground block text-[11px] mb-0.5">
+              <span className="text-muted-foreground block text-2xs mb-0.5">
                 Remote Storage Path:
               </span>
               <span className="truncate block font-semibold" title={remotePath}>
@@ -235,28 +233,28 @@ export function FolderSyncDialog({
         {diffResult && (
           <div className="grid grid-cols-4 gap-3 text-center text-xs">
             <div className="rounded-lg border border-border p-2.5 bg-background">
-              <div className="text-muted-foreground text-[11px]">Only Local</div>
+              <div className="text-muted-foreground text-2xs">Only Local</div>
               <div className="text-base font-bold text-primary mt-0.5">
                 {diffResult.onlyLocalCount}
               </div>
             </div>
 
             <div className="rounded-lg border border-border p-2.5 bg-background">
-              <div className="text-muted-foreground text-[11px]">Only Remote</div>
+              <div className="text-muted-foreground text-2xs">Only Remote</div>
               <div className="text-base font-bold text-primary mt-0.5">
                 {diffResult.onlyRemoteCount}
               </div>
             </div>
 
             <div className="rounded-lg border border-border p-2.5 bg-background">
-              <div className="text-muted-foreground text-[11px]">Modified</div>
+              <div className="text-muted-foreground text-2xs">Modified</div>
               <div className="text-base font-bold text-warning mt-0.5">
                 {diffResult.modifiedCount}
               </div>
             </div>
 
             <div className="rounded-lg border border-border p-2.5 bg-background">
-              <div className="text-muted-foreground text-[11px]">Identical</div>
+              <div className="text-muted-foreground text-2xs">Identical</div>
               <div className="text-base font-bold text-success mt-0.5">
                 {diffResult.identicalCount}
               </div>
@@ -275,7 +273,7 @@ export function FolderSyncDialog({
           <div className="rounded-lg border border-border overflow-hidden">
             <div className="max-h-60 overflow-y-auto font-mono text-xs">
               <table className="w-full text-left border-collapse">
-                <thead className="sticky top-0 bg-muted/80 backdrop-blur-xs border-b border-border text-[11px] text-muted-foreground">
+                <thead className="sticky top-0 bg-muted/80 backdrop-blur-xs border-b border-border text-2xs text-muted-foreground">
                   <tr>
                     <th className="p-2.5">Relative File Path</th>
                     <th className="p-2.5 text-right">Local Size</th>
@@ -298,7 +296,7 @@ export function FolderSyncDialog({
                       </td>
                       <td className="p-2.5 text-center">
                         <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-3xs font-medium ${
                             item.status === 'identical'
                               ? 'bg-success/10 text-success'
                               : item.status === 'modified'
@@ -311,17 +309,17 @@ export function FolderSyncDialog({
                       </td>
                       <td className="p-2.5 text-center">
                         {item.recommendedAction === 'upload' && (
-                          <span className="inline-flex items-center gap-1 text-primary text-[11px] font-semibold">
+                          <span className="inline-flex items-center gap-1 text-primary text-2xs font-semibold">
                             <Upload className="size-3" /> Upload
                           </span>
                         )}
                         {item.recommendedAction === 'download' && (
-                          <span className="inline-flex items-center gap-1 text-primary text-[11px] font-semibold">
+                          <span className="inline-flex items-center gap-1 text-primary text-2xs font-semibold">
                             <Download className="size-3" /> Download
                           </span>
                         )}
                         {item.recommendedAction === 'skip' && (
-                          <span className="text-muted-foreground/60 text-[11px]">Skip</span>
+                          <span className="text-muted-foreground/60 text-2xs">Skip</span>
                         )}
                       </td>
                     </tr>

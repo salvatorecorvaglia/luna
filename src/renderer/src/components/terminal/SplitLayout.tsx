@@ -13,6 +13,15 @@ interface SplitLayoutProps {
   activeSessionId: string | null;
 }
 
+/**
+ * Narrowest a pane may be squeezed to, as a fraction of the split. Shared by
+ * the pointer drag, the keyboard resize and the ARIA bounds so the three
+ * cannot disagree — the drag path used to hard-code 0.1/0.9 inline.
+ */
+const MIN_RATIO = 0.1;
+/** Keyboard resize step per arrow press. */
+const RATIO_STEP = 0.02;
+
 function SplitLayoutInner({ node, tabId, activeSessionId }: SplitLayoutProps) {
   // Select only this node's own session (when it's a leaf), not the whole
   // Map. `sessions.get(x)` returns the *same* object reference for any entry
@@ -170,10 +179,35 @@ function SplitLayoutInner({ node, tabId, activeSessionId }: SplitLayoutProps) {
         <SplitLayout node={node.children[0]} tabId={tabId} activeSessionId={activeSessionId} />
       </div>
 
+      {/* Was pointer-only: no role, no tabIndex, no keys — a keyboard or
+          screen-reader user could not resize a split at all. SftpManager's
+          splitter already had this treatment; this matches it. */}
       <div
         onPointerDown={handlePointerDown}
+        role="separator"
+        aria-orientation={isVertical ? 'vertical' : 'horizontal'}
+        aria-label={isVertical ? 'Resize panes horizontally' : 'Resize panes vertically'}
+        aria-valuenow={Math.round(ratio * 100)}
+        aria-valuemin={Math.round(MIN_RATIO * 100)}
+        aria-valuemax={Math.round((1 - MIN_RATIO) * 100)}
+        tabIndex={0}
+        onKeyDown={(e) => {
+          // Arrow keys move along the split's own axis, so the binding matches
+          // the direction the user sees the divider travel.
+          const decrease = isVertical ? 'ArrowLeft' : 'ArrowUp';
+          const increase = isVertical ? 'ArrowRight' : 'ArrowDown';
+          if (e.key !== decrease && e.key !== increase) return;
+          e.preventDefault();
+          const delta = e.key === increase ? RATIO_STEP : -RATIO_STEP;
+          updateSplitRatio(
+            tabId,
+            getFirstLeafSessionId(node.children[0]),
+            Math.min(1 - MIN_RATIO, Math.max(MIN_RATIO, ratio + delta)),
+          );
+        }}
         className={cn(
           'bg-border/60 hover:bg-primary/60 transition-colors z-20',
+          'focus-visible:bg-primary/80 focus-visible:outline-none',
           isVertical ? 'w-1 h-full cursor-col-resize' : 'h-1 w-full cursor-row-resize',
           isResizing && 'bg-primary/80',
         )}

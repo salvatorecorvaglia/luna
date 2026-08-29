@@ -158,3 +158,79 @@ describe('CommandPalette — actions', () => {
     expect(api.connections.deleteAll).not.toHaveBeenCalled();
   });
 });
+
+describe('CommandPalette — selection ordering', () => {
+  /**
+   * Regression: the highlighted row and the executed command were resolved
+   * against two different arrays. Rows were indexed by their *grouped*
+   * position, while Enter and aria-activedescendant read the flat
+   * `[...staticCommands, ...connectionCommands]` list. With any saved
+   * connection the two disagree, so the palette highlighted one command and
+   * ran another. This asserts they are the same command.
+   */
+  function highlightedLabel(): string {
+    const selected = document.querySelector('[data-selected="true"]');
+    expect(selected).not.toBeNull();
+    return selected?.textContent ?? '';
+  }
+
+  it('runs the command the user can see highlighted', async () => {
+    useConnectionStore.setState({ connectionFormOpen: false, editingConnectionId: null });
+    (api.connections.list as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: 'c1', name: 'prod-db', host: 'db.example.com', port: 22, username: 'root' },
+    ]);
+
+    renderPalette();
+    const input = await screen.findByPlaceholderText('Type a command...');
+    // Wait for the connection-derived commands to land, so the grouped and
+    // flat orderings actually diverge.
+    await screen.findByText(/prod-db/);
+
+    for (let i = 0; i < 3; i++) fireEvent.keyDown(input, { key: 'ArrowDown' });
+
+    const shown = highlightedLabel();
+    const activeId = input.getAttribute('aria-activedescendant');
+    expect(activeId).not.toBeNull();
+
+    // aria-activedescendant must point at the row that is visually highlighted.
+    const active = document.getElementById(activeId as string);
+    expect(active?.getAttribute('data-selected')).toBe('true');
+    expect(active?.textContent).toBe(shown);
+  });
+
+  it('keeps aria-activedescendant on the highlighted row at every step', async () => {
+    (api.connections.list as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: 'c1', name: 'alpha', host: 'a.example.com', port: 22, username: 'root' },
+      { id: 'c2', name: 'beta', host: 'b.example.com', port: 22, username: 'root' },
+    ]);
+
+    renderPalette();
+    const input = await screen.findByPlaceholderText('Type a command...');
+    await screen.findByText(/alpha/);
+
+    for (let i = 0; i < 8; i++) {
+      fireEvent.keyDown(input, { key: 'ArrowDown' });
+      const activeId = input.getAttribute('aria-activedescendant');
+      const active = activeId ? document.getElementById(activeId) : null;
+      expect(active, `step ${i}: aria-activedescendant resolves to a rendered row`).not.toBeNull();
+      expect(active?.getAttribute('data-selected'), `step ${i}: it is the highlighted row`).toBe(
+        'true',
+      );
+    }
+  });
+
+  it('keeps the palette mounted for a command that opens a nested dialog', async () => {
+    // "Delete All Connections" only sets local state to open a ConfirmDialog.
+    // Closing the palette unmounted the component — and the dialog with it — so
+    // the command was a silent no-op.
+    renderPalette();
+    const input = await screen.findByPlaceholderText('Type a command...');
+    fireEvent.change(input, { target: { value: 'Delete All' } });
+
+    const row = await screen.findByText('Delete All Connections');
+    fireEvent.click(row);
+
+    expect(useUIStore.getState().commandPaletteOpen).toBe(true);
+    expect(await screen.findByText('Delete all connections?')).toBeTruthy();
+  });
+});

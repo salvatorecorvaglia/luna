@@ -13,7 +13,7 @@ import {
   Upload,
   X,
 } from 'lucide-react';
-import { memo, useState } from 'react';
+import { memo, useCallback, useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { cancelTransfer } from '@/hooks/use-transfers';
@@ -23,46 +23,62 @@ import { getApi } from '@/services/api';
 import { useTransferStore } from '@/stores/transfer-store';
 
 export function TransferQueue() {
-  const {
-    transfers,
-    queueExpanded,
-    toggleQueueExpanded,
-    clearCompleted,
-    removeTransfer,
-    addTransfer,
-  } = useTransferStore();
+  // Individual selectors rather than `useTransferStore()`. Zustand actions are
+  // stable identities, so selecting them one by one also gives the memoised
+  // rows below stable props.
+  const transfers = useTransferStore((s) => s.transfers);
+  const queueExpanded = useTransferStore((s) => s.queueExpanded);
+  const toggleQueueExpanded = useTransferStore((s) => s.toggleQueueExpanded);
+  const clearCompleted = useTransferStore((s) => s.clearCompleted);
+  const removeTransfer = useTransferStore((s) => s.removeTransfer);
+  const addTransfer = useTransferStore((s) => s.addTransfer);
 
-  const retryTransfer = async (item: TransferItem) => {
-    removeTransfer(item.id);
-    try {
-      const transferId =
-        item.type === 'download'
-          ? await getApi().storage.download({
-              sessionId: item.sessionId,
-              remotePath: item.remotePath,
-              localPath: item.localPath,
-            })
-          : await getApi().storage.upload({
-              sessionId: item.sessionId,
-              localPath: item.localPath,
-              remotePath: item.remotePath,
-            });
-      addTransfer({
-        id: transferId,
-        type: item.type,
-        localPath: item.localPath,
-        remotePath: item.remotePath,
-        fileName: item.fileName,
-        size: item.size,
-        transferred: 0,
-        status: 'queued',
-        bytesPerSec: 0,
-        sessionId: item.sessionId,
-      });
-    } catch (err: unknown) {
-      toast.error(...toastArgs(err, 'Retry failed'));
-    }
-  };
+  const handleRemove = useCallback(
+    (item: TransferItem) => removeTransfer(item.id),
+    [removeTransfer],
+  );
+
+  const retryTransfer = useCallback(
+    async (item: TransferItem) => {
+      // Do NOT remove the old row up front. It used to be dropped before the
+      // await, so if the retry threw, the failed transfer had already vanished
+      // from the queue — no record, and no way to try again. Keep it until the
+      // replacement actually exists.
+      try {
+        const transferId =
+          item.type === 'download'
+            ? await getApi().storage.download({
+                sessionId: item.sessionId,
+                remotePath: item.remotePath,
+                localPath: item.localPath,
+              })
+            : await getApi().storage.upload({
+                sessionId: item.sessionId,
+                localPath: item.localPath,
+                remotePath: item.remotePath,
+              });
+        addTransfer({
+          id: transferId,
+          type: item.type,
+          localPath: item.localPath,
+          remotePath: item.remotePath,
+          fileName: item.fileName,
+          size: item.size,
+          transferred: 0,
+          status: 'queued',
+          bytesPerSec: 0,
+          sessionId: item.sessionId,
+        });
+        // The replacement is in the queue; now the old row can go. Guard against
+        // the case where the queue deduped and handed back the same id.
+        if (transferId !== item.id) removeTransfer(item.id);
+      } catch (err: unknown) {
+        // The original row is still there, so the user can retry again.
+        toast.error(...toastArgs(err, 'Retry failed'));
+      }
+    },
+    [addTransfer, removeTransfer],
+  );
 
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   const items = Array.from(transfers.values());
@@ -73,7 +89,7 @@ export function TransferQueue() {
   if (items.length === 0) {
     return (
       <div className="border-t border-border/60 bg-card/80">
-        <div className="flex items-center justify-center gap-2 px-3 py-1.5 text-[11px] text-muted-foreground/70 no-select">
+        <div className="flex items-center justify-center gap-2 px-3 py-1.5 text-2xs text-muted-foreground/70 no-select">
           <Upload className="size-3" aria-hidden="true" />
           <span>No transfers — drag files between panes to start</span>
         </div>
@@ -124,7 +140,7 @@ export function TransferQueue() {
             <button
               type="button"
               onClick={() => setConfirmCancelOpen(true)}
-              className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-destructive-fg cursor-pointer"
+              className="flex items-center gap-1 text-2xs text-muted-foreground hover:text-destructive-fg cursor-pointer"
               aria-label="Cancel all active transfers"
             >
               <X className="size-3" aria-hidden="true" />
@@ -160,8 +176,8 @@ export function TransferQueue() {
                 <TransferRow
                   key={item.id}
                   item={item}
-                  onRemove={() => removeTransfer(item.id)}
-                  onRetry={() => retryTransfer(item)}
+                  onRemove={handleRemove}
+                  onRetry={retryTransfer}
                 />
               ))}
             </div>
@@ -171,7 +187,7 @@ export function TransferQueue() {
                 <button
                   type="button"
                   onClick={clearCompleted}
-                  className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
+                  className="flex items-center gap-1 text-2xs text-muted-foreground hover:text-foreground cursor-pointer"
                 >
                   <Trash2 className="size-3" />
                   Clear completed
@@ -227,14 +243,26 @@ function errorHint(
   }
 }
 
+/**
+ * `onRemove`/`onRetry` take the item rather than closing over it.
+ *
+ * With `() => removeTransfer(item.id)` inline at the call site, both props were
+ * a fresh function identity on every parent render — so `memo` compared unequal
+ * every time and did nothing. Progress events batch to one store commit per
+ * animation frame, so with N transfers in flight all N rows re-rendered ~60×/s
+ * regardless of whether their own bytes had moved.
+ *
+ * Taking the item as an argument lets the parent pass the store actions
+ * straight through (they are stable) and a single `useCallback` for retry.
+ */
 const TransferRow = memo(function TransferRow({
   item,
   onRemove,
   onRetry,
 }: {
   item: TransferItem;
-  onRemove: () => void;
-  onRetry: () => void;
+  onRemove: (item: TransferItem) => void;
+  onRetry: (item: TransferItem) => void;
 }) {
   const percent = item.size > 0 ? Math.round((item.transferred / item.size) * 100) : 0;
   const isInProgress = item.status === 'active' || item.status === 'queued';
@@ -244,7 +272,7 @@ const TransferRow = memo(function TransferRow({
     if (isInProgress) {
       cancelTransfer(item.id);
     }
-    onRemove();
+    onRemove(item);
   };
 
   return (
@@ -262,7 +290,17 @@ const TransferRow = memo(function TransferRow({
         <div className="mt-1 flex items-center gap-2">
           {/* Progress bar */}
           {isInProgress && (
-            <div className="h-1.5 flex-1 rounded-full bg-muted overflow-hidden">
+            // Semantics, not just pixels: this was a bare styled div, so a
+            // screen reader was told nothing about transfer progress at all.
+            <div
+              className="h-1.5 flex-1 rounded-full bg-muted overflow-hidden"
+              role="progressbar"
+              aria-valuenow={percent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={`${item.type === 'upload' ? 'Uploading' : 'Downloading'} ${item.fileName}`}
+              aria-valuetext={`${percent}%`}
+            >
               <div
                 className={cn(
                   'h-full rounded-full transition-all duration-300',
@@ -273,7 +311,7 @@ const TransferRow = memo(function TransferRow({
             </div>
           )}
           <span
-            className="text-[10px] text-muted-foreground flex-shrink-0 tabular-nums"
+            className="text-3xs text-muted-foreground flex-shrink-0 tabular-nums"
             title={item.status === 'error' ? item.error : undefined}
           >
             {item.status === 'active'
@@ -298,7 +336,7 @@ const TransferRow = memo(function TransferRow({
       {item.status === 'error' && (
         <button
           type="button"
-          onClick={onRetry}
+          onClick={() => onRetry(item)}
           title="Retry transfer"
           className="flex-shrink-0 rounded p-0.5 text-muted-foreground/50 hover:text-foreground cursor-pointer"
           aria-label="Retry transfer"

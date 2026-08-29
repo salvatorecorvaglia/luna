@@ -360,7 +360,7 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
                       )}
 
                       <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-3xs font-medium ${
                           t.status === 'active'
                             ? 'bg-success/10 text-success'
                             : 'bg-destructive/10 text-destructive-fg'
@@ -370,7 +370,7 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-4 text-[11px] text-muted-foreground mt-1">
+                    <div className="flex items-center gap-4 text-2xs text-muted-foreground mt-1">
                       <span>Active Conns: {t.activeConnections ?? 0}</span>
                       <span>In: {formatBytes(t.bytesRead ?? 0)}</span>
                       <span>Out: {formatBytes(t.bytesWritten ?? 0)}</span>

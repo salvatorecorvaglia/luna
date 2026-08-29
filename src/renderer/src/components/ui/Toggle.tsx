@@ -34,7 +34,7 @@ export function Toggle({ label, description, enabled, onToggle, disabled = false
           <span
             id={descriptionId}
             className={cn(
-              'mt-0.5 block text-[11px] leading-snug text-muted-foreground/70',
+              'mt-0.5 block text-2xs leading-snug text-muted-foreground/70',
               disabled && 'opacity-60',
             )}
           >

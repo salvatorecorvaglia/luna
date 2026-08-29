@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { join, resolve as resolvePath } from 'node:path';
 import { is } from '@electron-toolkit/utils';
 import { ErrorCode, LunaError } from '@shared/errors';
 import { app, BrowserWindow, dialog, session, shell } from 'electron';
@@ -7,6 +7,7 @@ import { registerAllHandlers } from './ipc';
 import { setMainWindow } from './ipc/app.ipc';
 import { disposeLocalTerminals } from './ipc/local-terminal.ipc';
 import log from './lib/logger';
+import { isAllowedNavigation } from './lib/navigation-guard';
 import { initializeCredentialStore } from './services/credential-store';
 import { closeDatabase, getDatabase, MigrationError } from './services/database';
 import { sftpManager } from './services/sftp-manager';
@@ -17,9 +18,15 @@ import { initAutoUpdater } from './services/updater';
 // Two Luna processes racing a DB migration or a credential master-key rewrap
 // against the same userData directory is a narrow but real risk, so a second
 // launch focuses the existing window instead of starting a second process.
-// Quitting here — before app.whenReady() — means the second process never
-// opens the database, initializes the credential store, or creates a window.
-if (!app.requestSingleInstanceLock()) {
+// `app.quit()` alone is not enough: it is asynchronous, and the
+// `app.whenReady().then(...)` below is registered unconditionally at module
+// scope. If whenReady resolved before the quit completed, the second process
+// still ran getDatabase() and initializeCredentialStore() — precisely the race
+// the lock exists to prevent. The `gotSingleInstanceLock` guard inside the
+// whenReady callback is what actually closes it.
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!gotSingleInstanceLock) {
   app.quit();
 } else {
   app.on('second-instance', () => {
@@ -63,6 +70,12 @@ process.on('unhandledRejection', (reason) => {
     process.exit(1);
   }
 });
+
+/**
+ * The one document this app is ever allowed to navigate to in a packaged build.
+ * Resolved once so the `will-navigate` guard can compare against it.
+ */
+const RENDERER_ENTRY = resolvePath(join(__dirname, '../renderer/index.html'));
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -118,11 +131,16 @@ function createWindow(): void {
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     void mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);
   } else {
-    void mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
+    void mainWindow.loadFile(RENDERER_ENTRY);
   }
 }
 
 void app.whenReady().then(() => {
+  // Second instance: the lock was lost, app.quit() is already scheduled, and
+  // this callback may still run before the process actually exits. Do nothing —
+  // in particular do not open the database or initialize the credential store.
+  if (!gotSingleInstanceLock) return;
+
   // macOS ignores BrowserWindow's `icon` option for the Dock — without this
   // the Dock shows Electron's default icon during development (`npm run dev`).
   if (process.platform === 'darwin' && !app.isPackaged) {
@@ -144,17 +162,10 @@ void app.whenReady().then(() => {
   // bypass setWindowOpenHandler entirely via top-level navigation.
   app.on('web-contents-created', (_event, contents) => {
     contents.on('will-navigate', (event, url) => {
-      try {
-        const u = new URL(url);
-        const isDevRenderer =
-          is.dev && process.env['ELECTRON_RENDERER_URL']?.startsWith(`${u.protocol}//${u.host}`);
-        if (u.protocol !== 'file:' && !isDevRenderer) {
-          log.warn(`[Main] Blocked navigation to ${url}`);
-          event.preventDefault();
-        }
-      } catch {
-        event.preventDefault();
-      }
+      const devRendererUrl = is.dev ? process.env['ELECTRON_RENDERER_URL'] : undefined;
+      if (isAllowedNavigation(url, RENDERER_ENTRY, devRendererUrl)) return;
+      log.warn(`[Main] Blocked navigation to ${url}`);
+      event.preventDefault();
     });
     contents.on('will-attach-webview', (event) => {
       event.preventDefault();
@@ -187,11 +198,13 @@ void app.whenReady().then(() => {
               "script-src 'self'; " +
               // Keep <style>-tag inlining unrestricted only because xterm needs it;
               // attribute styles are governed by style-src-attr below.
-              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-              "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+              "style-src 'self' 'unsafe-inline'; " +
+              "style-src-elem 'self' 'unsafe-inline'; " +
               "style-src-attr 'unsafe-inline'; " +
               "img-src 'self' data: blob:; " +
-              "font-src 'self' data: https://fonts.gstatic.com; " +
+              // Fonts are self-hosted (renderer/src/assets/fonts.css), so no
+              // external origin is allowlisted here any more.
+              "font-src 'self' data:; " +
               "connect-src 'self'; " +
               "frame-ancestors 'none'; " +
               "base-uri 'self'; " +

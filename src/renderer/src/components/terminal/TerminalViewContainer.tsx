@@ -2,7 +2,7 @@ import type { PaneNode } from '@shared/types/terminal';
 import { Monitor, Plus, Terminal as TerminalIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { connectToHost } from '@/lib/ssh';
+import { openNewSession } from '@/lib/ssh';
 import { useConnectionStore } from '@/stores/connection-store';
 import {
   hasSessionInTree,
@@ -11,6 +11,7 @@ import {
   useTerminalTabOrder,
   useTerminalTheme,
 } from '@/stores/terminal-store';
+import { useUIStore } from '@/stores/ui-store';
 import { terminalThemes } from '@/themes/terminal';
 import { LocalTerminalTabs } from './LocalTerminalTabs';
 import { SplitLayout } from './SplitLayout';
@@ -73,7 +74,9 @@ export function TerminalViewContainer({ type }: TerminalViewContainerProps) {
     } else {
       const { activeConnectionId } = useConnectionStore.getState();
       if (activeConnectionId) {
-        void connectToHost(activeConnectionId);
+        // "New Tab"/"New Session" must always create. connectToHost would just
+        // re-focus the already-connected tab and look like a dead button.
+        void openNewSession(activeConnectionId);
       } else {
         useConnectionStore.getState().openCreateForm();
       }
@@ -99,6 +102,16 @@ export function TerminalViewContainer({ type }: TerminalViewContainerProps) {
     const handler = (e: KeyboardEvent) => {
       if (!e.metaKey && !e.ctrlKey) return;
 
+      // Both the SSH and Local containers stay mounted once visited (App keeps
+      // them in the DOM, hidden), so both have this listener attached. Without
+      // this gate, Cmd+2 in the SSH view also activated the hidden Local view's
+      // 2nd tab — whichever listener ran last won, silently moving the active
+      // session out of the view the user is looking at. Cmd+W was already
+      // guarded by its `modeTabs` membership check below; the digit branch was
+      // not.
+      const activeView = useUIStore.getState().activeView;
+      if (type === 'local' ? activeView !== 'local' : activeView !== 'terminal') return;
+
       const { sessions, tabOrder, setActiveSession, activeSessionId, closeTab, layouts } =
         useTerminalStore.getState();
       const modeTabs = tabOrder.filter((id) => {
@@ -123,6 +136,37 @@ export function TerminalViewContainer({ type }: TerminalViewContainerProps) {
         }
       }
 
+      // Cmd+T — new tab. Advertised in ShortcutsHelp and the command palette
+      // but never actually implemented, so the badge was a lie.
+      if (e.code === 'KeyT' && !e.shiftKey) {
+        e.preventDefault();
+        handleNewTab();
+        return;
+      }
+
+      // Cmd+Shift+] / Cmd+Shift+[ — next / previous tab. Also advertised in two
+      // places without a handler behind them.
+      //
+      // Matched on `e.code`, not `e.key`: with Shift held, `key` is '}' / '{'
+      // on a US layout and something else entirely elsewhere. App.tsx uses
+      // `e.code` for its view chords for the same reason.
+      if (e.shiftKey && (e.code === 'BracketRight' || e.code === 'BracketLeft')) {
+        e.preventDefault();
+        const currentTab = modeTabs.findIndex((tabId) => {
+          const root = layouts.get(tabId);
+          return activeSessionId && root && hasSessionInTree(root, activeSessionId);
+        });
+        if (currentTab === -1) return;
+        const delta = e.code === 'BracketRight' ? 1 : -1;
+        // Wrap, so the shortcut is usable as a cycle rather than dead-ending.
+        const nextTab = (currentTab + delta + modeTabs.length) % modeTabs.length;
+        // Non-null: index is taken modulo a non-empty array.
+        const tabId = modeTabs[nextTab]!;
+        const root = layouts.get(tabId);
+        setActiveSession(root ? getFirstLeafIdFromRoot(root) : tabId);
+        return;
+      }
+
       // Cmd+1 through Cmd+9
       const digit = parseInt(e.key, 10);
       if (digit >= 1 && digit <= 9) {
@@ -143,7 +187,7 @@ export function TerminalViewContainer({ type }: TerminalViewContainerProps) {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [type]);
+  }, [type, handleNewTab]);
 
   const themeBg = terminalThemes[terminalTheme]?.background || '#282a36';
 

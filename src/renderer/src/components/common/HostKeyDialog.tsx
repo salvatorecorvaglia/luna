@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { DialogShell } from '@/components/common/DialogShell';
 import { Spinner } from '@/components/ui';
+import { useCopiedFlag } from '@/hooks/use-copied-flag';
 import { connectToHost } from '@/lib/ssh';
 import { cn } from '@/lib/utils';
 import { Z } from '@/lib/z-layers';
@@ -13,13 +14,14 @@ import { getApi } from '@/services/api';
 export function HostKeyDialog() {
   const [event, setEvent] = useState<SshHostKeyChangeEvent | null>(null);
   const [loading, setLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const { copied, markCopied } = useCopiedFlag();
 
   useEffect(() => {
     const cleanup = getApi().ssh.onHostKeyChange((payload: SshHostKeyChangeEvent) => {
       setEvent(payload);
       setLoading(false);
-      setCopied(false);
+      // The copied indicator is self-resetting (useCopiedFlag), so a new
+      // host-key event no longer needs to clear it explicitly.
     });
     return cleanup;
   }, []);
@@ -57,9 +59,8 @@ export function HostKeyDialog() {
   const handleCopyFingerprint = useCallback(async () => {
     if (!event) return;
     await navigator.clipboard.writeText(event.newFingerprint);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }, [event]);
+    markCopied();
+  }, [event, markCopied]);
 
   return (
     <DialogShell
@@ -159,7 +160,7 @@ export function HostKeyDialog() {
 
           {/* Warning for key change */}
           {!event.isFirst && (
-            <div className="mt-3 rounded-lg bg-destructive/5 border border-destructive/20 p-2.5 text-[11px] text-destructive-fg/90 leading-relaxed">
+            <div className="mt-3 rounded-lg bg-destructive/5 border border-destructive/20 p-2.5 text-2xs text-destructive-fg/90 leading-relaxed">
               ⚠️ If you did not expect this change, someone could be eavesdropping on your
               connection. Only trust the new key if you are sure the server was re-keyed.
             </div>

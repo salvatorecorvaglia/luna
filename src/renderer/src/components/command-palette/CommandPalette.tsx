@@ -24,6 +24,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { useConnections } from '@/hooks/use-connections';
+import { attachFocusTrap } from '@/lib/focus-trap';
+import { isMac } from '@/lib/platform';
 import { connectToHost } from '@/lib/ssh';
 import { cn } from '@/lib/utils';
 import { Z } from '@/lib/z-layers';
@@ -42,9 +44,17 @@ interface Command {
   action: () => void;
   keywords?: string[];
   shortcut?: string[];
+  /**
+   * Keep the palette mounted after running the action.
+   *
+   * `App` renders the palette conditionally (`{commandPaletteOpen && <CommandPalette/>}`),
+   * so closing it unmounts this component — and with it any dialog it owns. A
+   * command whose action only opens a nested dialog would set the flag, unmount
+   * in the same batch, and appear to do nothing at all.
+   */
+  keepOpen?: boolean;
 }
 
-const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 const MOD = isMac ? '⌘' : 'Ctrl';
 
 const overlayVariants = {
@@ -65,24 +75,31 @@ const dialogVariants = {
 } as const;
 
 export function CommandPalette() {
-  const {
-    commandPaletteOpen,
-    setCommandPaletteOpen,
-    setActiveView,
-    toggleSidebar,
-    setSettingsOpen,
-    setShortcutsHelpOpen,
-  } = useUIStore();
-  const { setTerminalTheme, activeSessionId, tabOrder, setActiveSession, closeTab } =
-    useTerminalStore();
-  const { openCreateForm } = useConnectionStore();
-  const { toggleHiddenFiles, showHiddenFiles } = useStorageStore();
+  // Individual selectors rather than whole-store subscriptions. The
+  // `useTerminalStore()` one in particular re-rendered the entire palette on
+  // every session status tick, and the command list is rebuilt from these on
+  // each render.
+  const commandPaletteOpen = useUIStore((s) => s.commandPaletteOpen);
+  const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen);
+  const setActiveView = useUIStore((s) => s.setActiveView);
+  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
+  const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
+  const setShortcutsHelpOpen = useUIStore((s) => s.setShortcutsHelpOpen);
+  const setTerminalTheme = useTerminalStore((s) => s.setTerminalTheme);
+  const activeSessionId = useTerminalStore((s) => s.activeSessionId);
+  const tabOrder = useTerminalStore((s) => s.tabOrder);
+  const setActiveSession = useTerminalStore((s) => s.setActiveSession);
+  const closeTab = useTerminalStore((s) => s.closeTab);
+  const openCreateForm = useConnectionStore((s) => s.openCreateForm);
+  const toggleHiddenFiles = useStorageStore((s) => s.toggleHiddenFiles);
+  const showHiddenFiles = useStorageStore((s) => s.showHiddenFiles);
   const { data: connections = [] } = useConnections();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
   const queryClient = useQueryClient();
   const listRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   // Capture the element that owned focus before the palette opened so we
   // can return focus there on close (important for keyboard-only users).
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
@@ -134,6 +151,8 @@ export function CommandPalette() {
         category: 'Connections',
         action: () => setConfirmDeleteAll(true),
         keywords: ['purge', 'clear', 'reset', 'delete'],
+        // Opens the ConfirmDialog owned by this component — see `keepOpen`.
+        keepOpen: true,
       },
       {
         id: 'view-local',
@@ -340,17 +359,27 @@ export function CommandPalette() {
     return groups;
   }, [filtered]);
 
-  // Precompute flat index per command ID so we avoid a mutable counter during render.
-  const flatIndexMap = useMemo(() => {
+  /**
+   * The rendered order, flattened.
+   *
+   * `selectedIndex` used to be resolved against two different arrays: rows were
+   * highlighted by their *grouped* position, while Enter and
+   * `aria-activedescendant` read `filtered` — which is
+   * `[...staticCommands, ...connectionCommands]`, i.e. categories interleaved.
+   * The two orderings agree only by accident, so the palette routinely
+   * highlighted one command and ran a different one. Deriving the flat list
+   * from `grouped` makes the rendered order the only order.
+   */
+  const ordered = useMemo(() => Array.from(grouped.values()).flat(), [grouped]);
+
+  // Index per command id, for the rows. Same array as keyboard navigation uses.
+  const indexById = useMemo(() => {
     const map = new Map<string, number>();
-    let idx = 0;
-    for (const [, cmds] of grouped) {
-      for (const cmd of cmds) {
-        map.set(cmd.id, idx++);
-      }
-    }
+    ordered.forEach((cmd, idx) => {
+      map.set(cmd.id, idx);
+    });
     return map;
-  }, [grouped]);
+  }, [ordered]);
 
   // Reset selection to the top whenever the search query changes so the
   // first result is always the active one.
@@ -358,6 +387,16 @@ export function CommandPalette() {
   useEffect(() => {
     setSelectedIndex(0);
   }, [query]);
+
+  // Real focus trap, as used by every other dialog in the app (DialogShell
+  // routes through the same helper). Escape is already handled by the input's
+  // onKeyDown, so only the Tab cycle is delegated here.
+  useEffect(() => {
+    if (!commandPaletteOpen) return;
+    const panel = panelRef.current;
+    if (!panel) return;
+    return attachFocusTrap(panel);
+  }, [commandPaletteOpen]);
 
   // Scroll selected item into view
 
@@ -369,33 +408,32 @@ export function CommandPalette() {
     }
   }, [selectedIndex]);
 
-  const activeOption = filtered[selectedIndex];
+  const activeOption = ordered[selectedIndex];
   const activeOptionId = activeOption ? `command-option-${activeOption.id}` : undefined;
 
   const executeCommand = (cmd: Command) => {
     cmd.action();
-    setCommandPaletteOpen(false);
+    if (!cmd.keepOpen) setCommandPaletteOpen(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelectedIndex((i) => Math.min(i + 1, filtered.length - 1));
+      setSelectedIndex((i) => Math.min(i + 1, ordered.length - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setSelectedIndex((i) => Math.max(i - 1, 0));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (filtered[selectedIndex]) {
-        executeCommand(filtered[selectedIndex]);
-      }
+      const cmd = ordered[selectedIndex];
+      if (cmd) executeCommand(cmd);
     } else if (e.key === 'Escape') {
       setCommandPaletteOpen(false);
-    } else if (e.key === 'Tab') {
-      // Keep focus inside the palette — Arrow keys handle navigation, Tab would
-      // otherwise escape into the background and lose modal context.
-      e.preventDefault();
     }
+    // Tab is deliberately not handled here any more — attachFocusTrap below
+    // owns it. Swallowing Tab on the input alone was not a trap: it only
+    // covered the input, so tabbing from the close button escaped straight
+    // into the background while the palette stayed modal on screen.
   };
 
   return (
@@ -412,8 +450,17 @@ export function CommandPalette() {
               onClick={() => setCommandPaletteOpen(false)}
               className={cn('fixed inset-0 bg-black/50 backdrop-blur-sm', Z.modal)}
             />
+            {/* Now that this traps focus it is a modal in fact, so it has to
+                say so — otherwise a screen reader user is trapped in a region
+                that was never announced. (tests/unit/design-tokens.test.ts
+                enforces this for every focus-trapping dialog.) The combobox
+                input inside keeps its own listbox semantics. */}
             <motion.div
               key="panel"
+              ref={panelRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Command palette"
               variants={dialogVariants}
               initial="initial"
               animate="animate"
@@ -460,18 +507,18 @@ export function CommandPalette() {
                   aria-label="Commands"
                   className="max-h-[300px] overflow-y-auto p-1.5"
                 >
-                  {filtered.length === 0 ? (
+                  {ordered.length === 0 ? (
                     <div className="py-8 text-center text-xs text-muted-foreground/60">
                       No commands found
                     </div>
                   ) : (
                     Array.from(grouped.entries()).map(([category, cmds]) => (
                       <div key={category} role="group" aria-label={category}>
-                        <div className="px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
+                        <div className="px-2 pb-1 pt-2 text-3xs font-bold uppercase tracking-widest text-muted-foreground/50">
                           {category}
                         </div>
                         {cmds.map((cmd) => {
-                          const index = flatIndexMap.get(cmd.id) ?? 0;
+                          const index = indexById.get(cmd.id) ?? 0;
                           const isSelected = index === selectedIndex;
                           return (
                             // biome-ignore lint/a11y/useKeyWithClickEvents: combobox option — keyboard handled by the input's onKeyDown, not per-row
@@ -498,9 +545,9 @@ export function CommandPalette() {
                                 {cmd.icon}
                               </div>
                               <div className="min-w-0 flex-1">
-                                <div className="text-[13px]">{cmd.label}</div>
+                                <div className="text-sm-plus">{cmd.label}</div>
                                 {cmd.description && (
-                                  <div className="truncate text-[11px] text-muted-foreground/60">
+                                  <div className="truncate text-2xs text-muted-foreground/60">
                                     {cmd.description}
                                   </div>
                                 )}
@@ -510,7 +557,7 @@ export function CommandPalette() {
                                   {cmd.shortcut.map((key) => (
                                     <kbd
                                       key={key}
-                                      className="rounded border border-border/60 bg-muted/50 px-1 py-px font-mono text-[10px] text-muted-foreground"
+                                      className="rounded border border-border/60 bg-muted/50 px-1 py-px font-mono text-3xs text-muted-foreground"
                                     >
                                       {key}
                                     </kbd>
@@ -526,28 +573,28 @@ export function CommandPalette() {
                 </div>
 
                 {/* Footer */}
-                <div className="flex items-center justify-between border-t border-border/60 px-3 py-1.5 text-[11px] text-muted-foreground/50 rounded-b-xl">
+                <div className="flex items-center justify-between border-t border-border/60 px-3 py-1.5 text-2xs text-muted-foreground/50 rounded-b-xl">
                   <div className="flex items-center gap-3">
                     <span className="flex items-center gap-1">
-                      <kbd className="rounded border border-border/60 bg-muted/50 px-1 py-px font-mono text-[10px]">
+                      <kbd className="rounded border border-border/60 bg-muted/50 px-1 py-px font-mono text-3xs">
                         ↑↓
                       </kbd>
                       navigate
                     </span>
                     <span className="flex items-center gap-1">
-                      <kbd className="rounded border border-border/60 bg-muted/50 px-1 py-px font-mono text-[10px]">
+                      <kbd className="rounded border border-border/60 bg-muted/50 px-1 py-px font-mono text-3xs">
                         ↵
                       </kbd>
                       select
                     </span>
                     <span className="flex items-center gap-1">
-                      <kbd className="rounded border border-border/60 bg-muted/50 px-1 py-px font-mono text-[10px]">
+                      <kbd className="rounded border border-border/60 bg-muted/50 px-1 py-px font-mono text-3xs">
                         esc
                       </kbd>
                       close
                     </span>
                   </div>
-                  <span>{filtered.length} commands</span>
+                  <span>{ordered.length} commands</span>
                 </div>
               </div>
             </motion.div>

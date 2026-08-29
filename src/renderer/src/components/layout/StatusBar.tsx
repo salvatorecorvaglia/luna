@@ -1,6 +1,7 @@
 import type { ActivePortForwardInfo } from '@shared/types/connection';
+import { useQuery } from '@tanstack/react-query';
 import { Activity, Network, Upload, Wifi, WifiOff } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { TunnelManagerDialog } from '@/components/connection/TunnelManagerDialog';
 import { cn } from '@/lib/utils';
 import { getApi } from '@/services/api';
@@ -13,26 +14,30 @@ export function StatusBar() {
   const transfers = useTransferStore((s) => s.transfers);
   const toggleQueueExpanded = useTransferStore((s) => s.toggleQueueExpanded);
 
-  const [tunnels, setTunnels] = useState<ActivePortForwardInfo[]>([]);
   const [tunnelDialogOpen, setTunnelDialogOpen] = useState(false);
 
-  useEffect(() => {
-    let unmounted = false;
-    const fetchTunnels = async () => {
-      try {
-        const list = await getApi().ssh.listActivePortForwards();
-        if (!unmounted) setTunnels(list);
-      } catch {
-        // Ignored
-      }
-    };
-    fetchTunnels();
-    const interval = setInterval(fetchTunnels, 3000);
-    return () => {
-      unmounted = true;
-      clearInterval(interval);
-    };
-  }, []);
+  const hasSshSessions = useMemo(
+    () => Array.from(sessions.values()).some((s) => s.type !== 'local'),
+    [sessions],
+  );
+
+  /**
+   * Was a raw `setInterval(fetchTunnels, 3000)` that ran for the lifetime of
+   * the component — with zero SSH sessions, and while the window was hidden or
+   * the machine asleep. As a query it stops when there is nothing to poll for
+   * (`enabled`), pauses in the background (`refetchIntervalInBackground` is off
+   * by default), dedupes against any other consumer, and gets an error state
+   * instead of a silently swallowed catch.
+   */
+  const { data: tunnels = [] } = useQuery<ActivePortForwardInfo[]>({
+    queryKey: ['port-forwards'],
+    queryFn: () => getApi().ssh.listActivePortForwards(),
+    refetchInterval: 3000,
+    enabled: hasSshSessions,
+    // A transient IPC failure should not blank the tunnel indicator.
+    placeholderData: (prev) => prev,
+    staleTime: 0,
+  });
 
   const activeSession = activeSessionId ? sessions.get(activeSessionId) : null;
   const activeSessions = useMemo(
@@ -48,7 +53,7 @@ export function StatusBar() {
 
   return (
     <>
-      <div className="flex h-[26px] items-center justify-between border-t border-border/60 bg-card/60 px-3 text-[11px] text-muted-foreground no-select">
+      <div className="flex h-[26px] items-center justify-between border-t border-border/60 bg-card/60 px-3 text-2xs text-muted-foreground no-select">
         {/* Left */}
         <div className="flex min-w-0 flex-1 items-center gap-4">
           {activeSession ? (
@@ -66,7 +71,7 @@ export function StatusBar() {
               </span>
               <span
                 className={cn(
-                  'flex-shrink-0 rounded-full px-1.5 py-px text-[10px] font-semibold uppercase tracking-wider',
+                  'flex-shrink-0 rounded-full px-1.5 py-px text-3xs font-semibold uppercase tracking-wider',
                   activeSession.status === 'connected'
                     ? 'bg-success/10 text-success'
                     : activeSession.status === 'error'

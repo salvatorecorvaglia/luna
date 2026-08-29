@@ -70,8 +70,8 @@ export function TerminalSearchBar({
           role="status"
           className={
             match.total === 0
-              ? 'text-[10px] text-destructive-fg tabular-nums'
-              : 'text-[10px] text-muted-foreground tabular-nums'
+              ? 'text-3xs text-destructive-fg tabular-nums'
+              : 'text-3xs text-muted-foreground tabular-nums'
           }
           aria-label={
             match.total === 0 ? 'No matches' : `Match ${match.index + 1} of ${match.total}`

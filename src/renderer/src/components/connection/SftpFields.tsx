@@ -384,7 +384,7 @@ export function SftpFields({
                         <span className="font-semibold capitalize text-foreground flex items-center gap-1.5">
                           {pf.type} forwarding
                         </span>
-                        <span className="text-[10px] text-muted-foreground">
+                        <span className="text-3xs text-muted-foreground">
                           {pf.type === 'dynamic'
                             ? `SOCKS5 Server on ${pf.bindAddress}:${pf.localPort}`
                             : pf.type === 'local'
@@ -421,7 +421,7 @@ export function SftpFields({
                     <div className="col-span-1">
                       <label
                         htmlFor="sftp-type"
-                        className="mb-1 block text-[10px] font-medium text-muted-foreground"
+                        className="mb-1 block text-3xs font-medium text-muted-foreground"
                       >
                         Type
                       </label>
@@ -445,7 +445,7 @@ export function SftpFields({
                     <div className="col-span-1">
                       <label
                         htmlFor="sftp-bind-address"
-                        className="mb-1 block text-[10px] font-medium text-muted-foreground"
+                        className="mb-1 block text-3xs font-medium text-muted-foreground"
                       >
                         Bind Address
                       </label>
@@ -462,7 +462,7 @@ export function SftpFields({
                     <div className="col-span-1">
                       <label
                         htmlFor="sftp-port-445"
-                        className="mb-1 block text-[10px] font-medium text-muted-foreground"
+                        className="mb-1 block text-3xs font-medium text-muted-foreground"
                       >
                         Port
                       </label>
@@ -483,7 +483,7 @@ export function SftpFields({
                       <div className="col-span-2">
                         <label
                           htmlFor="sftp-destination-host"
-                          className="mb-1 block text-[10px] font-medium text-muted-foreground"
+                          className="mb-1 block text-3xs font-medium text-muted-foreground"
                         >
                           Destination Host
                         </label>
@@ -500,7 +500,7 @@ export function SftpFields({
                       <div className="col-span-1">
                         <label
                           htmlFor="sftp-port"
-                          className="mb-1 block text-[10px] font-medium text-muted-foreground"
+                          className="mb-1 block text-3xs font-medium text-muted-foreground"
                         >
                           Port
                         </label>
@@ -520,14 +520,14 @@ export function SftpFields({
                     <button
                       type="button"
                       onClick={() => setIsAddingRule(false)}
-                      className="btn-outline h-7 px-3 text-[10px] text-muted-foreground border-border/60 cursor-pointer"
+                      className="btn-outline h-7 px-3 text-3xs text-muted-foreground border-border/60 cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button
                       type="button"
                       onClick={handleAddRule}
-                      className="btn-primary h-7 px-3 text-[10px] cursor-pointer"
+                      className="btn-primary h-7 px-3 text-3xs cursor-pointer"
                     >
                       Add Rule
                     </button>
@@ -546,7 +546,7 @@ export function SftpFields({
                       remotePort: '',
                     });
                   }}
-                  className="btn-outline w-full h-8 text-[11px] font-medium hover:bg-accent/40 border-dashed border-border/80 flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="btn-outline w-full h-8 text-2xs font-medium hover:bg-accent/40 border-dashed border-border/80 flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Plus className="size-3.5" />
                   Add Port Forwarding Rule

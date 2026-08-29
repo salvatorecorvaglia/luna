@@ -4,6 +4,14 @@ import type { PortForwardingConfig } from '@shared/types/connection';
 import type { Client, ClientChannel } from 'ssh2';
 import { v4 as uuidv4 } from 'uuid';
 import log from '../../lib/logger';
+
+/**
+ * How long to wait for the server to acknowledge `unforwardIn` before giving
+ * up and treating the remote forward as closed. Generous, because a healthy
+ * server answers in milliseconds — this only fires on a dead transport.
+ */
+const UNFORWARD_TIMEOUT_MS = 5_000;
+
 import {
   buildGreetingResponse,
   buildReply,
@@ -200,7 +208,12 @@ function startRemoteForward(
 
   // biome-ignore lint/suspicious/noExplicitAny: ssh2 does not type its tcp-connection info payload
   const tcpListener = (info: any, accept: () => ClientChannel, reject: () => void): void => {
-    if (info?.destPort !== remotePort) return;
+    if (info?.destPort !== remotePort) {
+      // Decline explicitly. Simply returning left the channel pending on the
+      // server side for the rest of the session.
+      reject();
+      return;
+    }
     const localSocket = netConnect(localDestPort, localDestHost, () => {
       const stream = accept();
       trackSocket(sockets, localSocket, counters);
@@ -258,11 +271,31 @@ function startRemoteForward(
             client.off('tcp connection', tcpListener);
             for (const socket of sockets) socket.destroy();
             sockets.clear();
+            // The try/catch only covers a *synchronous* throw. On an already-dead
+            // transport ssh2 accepts the callback and never invokes it, so this
+            // promise never settled — and `stopSinglePortForward` awaits it, so
+            // the ssh:stop-port-forward IPC call hung until the renderer gave up,
+            // leaking the pending promise and its closure. Settle either way.
+            let settled = false;
+            const done = (): void => {
+              if (settled) return;
+              settled = true;
+              clearTimeout(timer);
+              resolveClose();
+            };
+            const timer = setTimeout(() => {
+              log.warn(
+                `[PortForward] unforwardIn(${remoteBind}:${remotePort}) did not acknowledge within ` +
+                  `${UNFORWARD_TIMEOUT_MS}ms — treating the forward as closed.`,
+              );
+              done();
+            }, UNFORWARD_TIMEOUT_MS);
+            timer.unref();
             try {
-              client.unforwardIn(remoteBind, remotePort, () => resolveClose());
+              client.unforwardIn(remoteBind, remotePort, done);
             } catch {
               // Transport already dead — nothing to unforward.
-              resolveClose();
+              done();
             }
           }),
       });

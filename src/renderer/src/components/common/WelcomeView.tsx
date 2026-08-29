@@ -33,8 +33,8 @@ const actions = [
 ] as const;
 
 export function WelcomeView() {
-  const { openCreateForm } = useConnectionStore();
-  const { setActiveView } = useUIStore();
+  const openCreateForm = useConnectionStore((s) => s.openCreateForm);
+  const setActiveView = useUIStore((s) => s.setActiveView);
 
   const handleAction = (key: string) => {
     if (key === 'new') openCreateForm();
@@ -101,7 +101,7 @@ export function WelcomeView() {
           variants={fadeUp}
           className="mt-6 flex items-center justify-center gap-1.5 text-xs text-muted-foreground/70"
         >
-          <kbd className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+          <kbd className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/60 px-1.5 py-0.5 font-mono text-3xs text-muted-foreground">
             {/Mac|iPod|iPhone|iPad/.test(navigator.userAgent) ? (
               <>
                 <Command className="size-2.5" />K

@@ -5,9 +5,20 @@
     "moduleResolution": "bundler",
     "target": "ESNext",
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
-    "outDir": "./out",
+    "outDir": "./out/tsc/test",
     "rootDir": ".",
     "strict": true,
+    // `import type` is already used consistently, so this is close to free and
+    // stops a type-only module being pulled into a runtime bundle by accident.
+    "verbatimModuleSyntax": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    // These three were set in tsconfig.node.json and tsconfig.web.json but not
+    // here — and this project `include`s all of src/**, so it was compiling the
+    // whole app under the loosest settings of the three.
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -20,10 +31,5 @@
       "@shared/*": ["./src/shared/*"]
     }
   },
-  "include": [
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "tests/**/*.ts",
-    "tests/**/*.tsx"
-  ]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx"]
 }

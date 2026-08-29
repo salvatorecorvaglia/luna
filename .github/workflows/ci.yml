@@ -3,14 +3,8 @@ name: CI
 on:
   push:
     branches: [main, develop]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
   pull_request:
     branches: [main, develop]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -49,7 +43,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run Biome
-        run: pnpm run lint
+        run: pnpm exec biome check . --error-on-warnings
 
       - name: Run TypeScript type-checking
         run: pnpm run typecheck
@@ -59,9 +53,13 @@ jobs:
         continue-on-error: false
 
   test:
-    name: Tests (Node 22)
-    runs-on: ubuntu-latest
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -86,6 +84,7 @@ jobs:
         run: pnpm run test:coverage
 
       - name: Upload coverage report
+        if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v6
         with:
           name: coverage-report
@@ -149,9 +148,95 @@ jobs:
           path: playwright-report/
           retention-days: 14
 
+  package-smoke:
+    name: Packaging smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    needs: [quality]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Fix node-gyp permissions
+        shell: bash
+        run: find /Users/runner /home/runner ~/.pnpm-store -name "gyp_main.py" -exec chmod +x {} + 2>/dev/null || true
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Package (unpacked)
+        run: pnpm run package:dir
+
+      - name: Assert native helpers are unpacked from the asar
+        shell: bash
+        run: |
+          set -euo pipefail
+          unpacked=$(find dist -type d -name 'app.asar.unpacked' -print -quit)
+          if [ -z "$unpacked" ]; then
+            echo "::error::no app.asar.unpacked directory was produced"
+            exit 1
+          fi
+          echo "Found: $unpacked"
+          echo "--- native artifacts outside the asar ---"
+          find "$unpacked" -type f \( -name '*.node' -o -name 'spawn-helper' \
+            -o -name '*.dll' -o -name '*.exe' \) | sed "s|^$unpacked/||" | sort
+
+          fail=0
+
+          # better-sqlite3: layout differs between a prebuild (prebuilds/*.node)
+          # and a source build (build/Release/*.node), so match either.
+          if ! find "$unpacked" -path '*better-sqlite3*' -name '*.node' | grep -q .; then
+            echo "::error::no better-sqlite3 .node addon outside the asar"
+            fail=1
+          fi
+
+          # node-pty's addon must always be unpacked.
+          if ! find "$unpacked" -path '*node-pty*' -name 'pty.node' | grep -q .; then
+            echo "::error::node-pty pty.node is not unpacked"
+            fail=1
+          fi
+
+          # The regression this job exists for: spawn-helper has no extension,
+          # so the '**/*.node' unpack rule never matched it, and a local
+          # terminal cannot spawn when it is trapped inside the asar.
+          # Windows uses conpty/winpty helpers instead of spawn-helper.
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            if ! find "$unpacked" -path '*node-pty*' -name 'conpty*.node' | grep -q .; then
+              echo "::error::node-pty conpty addon is not unpacked"
+              fail=1
+            fi
+          else
+            helper=$(find "$unpacked" -path '*node-pty*' -name 'spawn-helper' -print -quit)
+            if [ -z "$helper" ]; then
+              echo "::error::node-pty spawn-helper is not unpacked — local terminals will not start"
+              fail=1
+            elif [ ! -x "$helper" ]; then
+              echo "::error::spawn-helper is not executable: $helper"
+              fail=1
+            else
+              echo "ok: $helper (executable)"
+            fi
+          fi
+
+          exit $fail
+
   dependency-review:
     name: Dependency Review
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: github.event_name == 'pull_request'
     steps:
       - name: Checkout repository

@@ -98,7 +98,18 @@ class TransferQueue {
       this.dedupIndex.delete(key);
     }
 
-    if (this.queue.length >= LIMITS.MAX_QUEUED_TRANSFERS) {
+    // Count reservations toward the cap, not just the settled queue.
+    //
+    // `storage:download` / `storage:upload` deliberately skip the storage rate
+    // limiter (a folder sync or multi-file drag legitimately bursts), which
+    // makes this the only backpressure on those channels. But the check used to
+    // read `this.queue.length` alone, and a reservation is created *before* the
+    // `await` on stat() below and only moves into `queue` afterwards. So N
+    // concurrent invokes all saw an empty queue, all passed, and all issued a
+    // statSize() round trip against the remote server — unbounded concurrent
+    // requests, which is exactly what the cap exists to prevent.
+    const pending = this.queue.length + this.reserved.size;
+    if (pending >= LIMITS.MAX_QUEUED_TRANSFERS) {
       throw new LunaError(
         `Transfer queue is full (${LIMITS.MAX_QUEUED_TRANSFERS} pending). Wait for transfers to complete or cancel some.`,
         ErrorCode.VALIDATION_ERROR,

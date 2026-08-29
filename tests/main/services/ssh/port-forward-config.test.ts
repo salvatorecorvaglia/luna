@@ -27,20 +27,28 @@ describe('isLoopbackAddress', () => {
     // The whole 127/8 block is loopback, not just .0.1 — a check that only
     // matched 127.0.0.1 would wrongly treat 127.0.0.2 as a public bind.
     '127.0.0.2',
-    'localhost',
-    'LOCALHOST',
     '::1',
     '[::1]',
   ])('treats %s as loopback', (address) => {
     expect(isLoopbackAddress(address)).toBe(true);
   });
 
-  it.each(['0.0.0.0', '192.168.1.10', '10.0.0.1', '::', 'example.com', '128.0.0.1'])(
-    'treats %s as non-loopback',
-    (address) => {
-      expect(isLoopbackAddress(address)).toBe(false);
-    },
-  );
+  it.each([
+    '0.0.0.0',
+    '192.168.1.10',
+    '10.0.0.1',
+    '::',
+    'example.com',
+    '128.0.0.1',
+    // The name "localhost" is deliberately rejected: server.listen() resolves
+    // it through /etc/hosts, so a doctored hosts entry would turn a bind this
+    // function certified as loopback into a public one. Only literal addresses
+    // can be verified without a resolver. Previously these two returned true.
+    'localhost',
+    'LOCALHOST',
+  ])('treats %s as non-loopback', (address) => {
+    expect(isLoopbackAddress(address)).toBe(false);
+  });
 });
 
 describe('validatePortForwardConfig', () => {

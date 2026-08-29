@@ -14,11 +14,13 @@
   <key>com.apple.security.cs.allow-jit</key>
   <true/>
 
-  <!-- Required for native modules (better-sqlite3, ssh2) under hardened runtime -->
-  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
-  <true/>
+  <!-- NOTE: com.apple.security.cs.allow-unsigned-executable-memory was removed.
+       Its old comment claimed native modules needed it; they do not. That key is
+       the legacy pre-allow-jit workaround, and V8's JIT is already covered by
+       com.apple.security.cs.allow-jit above. Keeping it disabled one of the main
+       hardened-runtime memory protections for no benefit. -->
 
-  <!-- Allow dynamic library loading for native addons -->
+  <!-- Allow loading the bundled native addons (.node) under hardened runtime -->
   <key>com.apple.security.cs.disable-library-validation</key>
   <true/>
 </dict>

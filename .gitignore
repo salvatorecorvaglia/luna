@@ -22,6 +22,11 @@ jspm_packages/
 .npm/
 .stylelintcache/
 .vite/
+# Electron / electron-builder download caches. Both CI workflows set
+# ELECTRON_CACHE and ELECTRON_BUILDER_CACHE to $GITHUB_WORKSPACE/.cache/..., so
+# reproducing a CI run locally with the same env drops several hundred MB of
+# Electron zips right here in the repo root.
+.cache/
 
 # TypeScript cache
 *.tsbuildinfo

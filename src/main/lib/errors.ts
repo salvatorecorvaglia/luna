@@ -39,7 +39,10 @@ export class S3StorageError extends LunaError {
 
   constructor(
     message: string,
-    public readonly cause?: unknown,
+    // `override`: this shadows the optional `cause` that Error (and therefore
+    // LunaError) already declares. Surfaced by noImplicitOverride — the
+    // behaviour is unchanged, it is now just stated.
+    public override readonly cause?: unknown,
     metadata?: Record<string, unknown> & { retryable?: boolean },
   ) {
     const retryable = metadata?.retryable === true;

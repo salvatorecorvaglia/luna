@@ -1,165 +1,111 @@
 /**
  * @vitest-environment jsdom
+ *
+ * App-level integration: the sidebar, the welcome view, and the connection
+ * form, wired through the real stores and the real getApi() seam.
+ *
+ * Rewritten from a version that hand-rolled a 130-line `vi.stubGlobal('api', …)`
+ * — duplicating `src/test/fake-api.ts`, bypassing the `getApi()` seam the
+ * design-token guard exists to enforce, and stubbing a `terminal:` namespace
+ * that no longer exists on `LunaAPI`. Its two assertions were also weak enough
+ * to pass without the behaviour under test: the "form opens" case asserted only
+ * that *some* element matched /New Connection/i, which the sidebar button
+ * itself satisfies whether or not the form ever rendered.
  */
-
-import { fireEvent, render, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from '../../../src/renderer/src/App';
+import { useConnectionStore } from '../../../src/renderer/src/stores/connection-store';
 import { useTerminalStore } from '../../../src/renderer/src/stores/terminal-store';
 import { useUIStore } from '../../../src/renderer/src/stores/ui-store';
+import { installFakeApi } from '../../../src/test/fake-api';
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: false,
-    },
+vi.mock('sonner', () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
   },
+  Toaster: () => null,
+}));
+
+let api: ReturnType<typeof installFakeApi>;
+let queryClient: QueryClient;
+
+function renderApp(): void {
+  render(
+    <QueryClientProvider client={queryClient}>
+      <App />
+    </QueryClientProvider>,
+  );
+}
+
+const connection = {
+  id: 'c1',
+  name: 'prod-db',
+  provider: 'sftp' as const,
+  host: 'db.example.com',
+  port: 22,
+  username: 'root',
+  authType: 'password' as const,
+};
+
+beforeEach(() => {
+  api = installFakeApi();
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  useUIStore.setState({ activeView: 'terminal', sidebarOpen: true, settingsOpen: false });
+  useTerminalStore.setState({ tabOrder: [], sessions: new Map(), activeSessionId: null });
+  useConnectionStore.setState({ connectionFormOpen: false, editingConnectionId: null });
 });
 
-// Mock electron global (api is added to window via preload in real app)
-vi.stubGlobal('api', {
-  app: {
-    getCredentialBackend: vi.fn().mockResolvedValue({ backend: 'safeStorage' }),
-    getVersion: vi.fn().mockResolvedValue('1.2.3'),
-    getActiveSessions: vi.fn().mockResolvedValue({ ssh: [], s3: [] }),
-    onUpdateAvailable: vi.fn().mockReturnValue(() => {}),
-    onUpdateDownloadProgress: vi.fn().mockReturnValue(() => {}),
-    onUpdateDownloaded: vi.fn().mockReturnValue(() => {}),
-    onUpdateError: vi.fn().mockReturnValue(() => {}),
-    installUpdate: vi.fn().mockResolvedValue(undefined),
-  },
-  connections: {
-    list: vi.fn().mockResolvedValue([]),
-    get: vi.fn().mockResolvedValue(null),
-    create: vi.fn().mockResolvedValue(undefined),
-    update: vi.fn().mockResolvedValue(undefined),
-    delete: vi.fn().mockResolvedValue(undefined),
-    reorder: vi.fn().mockResolvedValue(undefined),
-  },
-  credentials: {
-    onTamper: vi.fn().mockReturnValue(() => {}),
-  },
-  ssh: {
-    onHostKeyChange: vi.fn().mockReturnValue(() => {}),
-    trustHostKey: vi.fn().mockResolvedValue({ trusted: true }),
-  },
-  transfers: {
-    onProgress: vi.fn().mockReturnValue(() => {}),
-    onComplete: vi.fn().mockReturnValue(() => {}),
-    onError: vi.fn().mockReturnValue(() => {}),
-    onCancelled: vi.fn().mockReturnValue(() => {}),
-  },
-  storage: {
-    list: vi.fn().mockResolvedValue([]),
-    stat: vi.fn(),
-    mkdir: vi.fn(),
-    rename: vi.fn(),
-    delete: vi.fn(),
-    readFile: vi.fn(),
-    download: vi.fn(),
-    upload: vi.fn(),
-    onListTruncated: vi.fn().mockReturnValue(() => {}),
-  },
-  shell: {
-    homeDir: vi.fn().mockResolvedValue('/home/user'),
-    readdir: vi.fn().mockResolvedValue([]),
-    openFileDialog: vi.fn().mockResolvedValue({ canceled: true, filePaths: [] }),
-    saveFileDialog: vi.fn().mockResolvedValue({ canceled: true, filePath: '' }),
-  },
-  settings: {
-    get: vi.fn().mockResolvedValue('""'),
-    set: vi.fn().mockResolvedValue(undefined),
-    getAll: vi.fn().mockResolvedValue({}),
-  },
-  window: {
-    isMaximized: vi.fn().mockResolvedValue(false),
-    onMaximize: vi.fn().mockReturnValue(() => {}),
-    onUnmaximize: vi.fn().mockReturnValue(() => {}),
-    onFocus: vi.fn().mockReturnValue(() => {}),
-    onBlur: vi.fn().mockReturnValue(() => {}),
-    minimize: vi.fn(),
-    maximize: vi.fn(),
-    unmaximize: vi.fn(),
-    close: vi.fn(),
-  },
-  terminal: {
-    spawn: vi.fn().mockResolvedValue('t1'),
-    onData: vi.fn().mockReturnValue(() => {}),
-    onExit: vi.fn().mockReturnValue(() => {}),
-  },
-  localTerminal: {
-    spawn: vi.fn().mockResolvedValue('lt1'),
-    onData: vi.fn().mockReturnValue(() => {}),
-    onExit: vi.fn().mockReturnValue(() => {}),
-  },
-  s3: {
-    connect: vi.fn().mockResolvedValue(undefined),
-    disconnect: vi.fn().mockResolvedValue(undefined),
-    testConnection: vi.fn().mockResolvedValue({ ok: true }),
-  },
-  log: vi.fn().mockResolvedValue(undefined),
-});
-
-// Mock ResizeObserver which is not present in jsdom but used by xterm/framer-motion
-vi.stubGlobal(
-  'ResizeObserver',
-  class ResizeObserver {
-    observe = vi.fn();
-    unobserve = vi.fn();
-    disconnect = vi.fn();
-  },
-);
-
-// Mock matchMedia
-vi.stubGlobal(
-  'matchMedia',
-  vi.fn().mockImplementation((query) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: vi.fn(), // deprecated
-    removeListener: vi.fn(), // deprecated
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
-);
-
-describe('Connections Integration', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    queryClient.clear();
-    useUIStore.setState({ activeView: 'terminal', sidebarOpen: true });
-    useTerminalStore.setState({ tabOrder: [], sessions: new Map() });
-  });
-
-  it('renders the welcome view when no connections exist', async () => {
-    render(
-      <QueryClientProvider client={queryClient}>
-        <App />
-      </QueryClientProvider>,
-    );
+describe('connections integration', () => {
+  it('shows the welcome view when there are no connections', async () => {
+    renderApp();
     expect(await screen.findByText(/Welcome to Luna/i)).toBeInTheDocument();
   });
 
-  it('opens the connection form when "New Connection" is clicked', async () => {
-    render(
-      <QueryClientProvider client={queryClient}>
-        <App />
-      </QueryClientProvider>,
+  it('lists saved connections in the sidebar', async () => {
+    (api.connections.list as ReturnType<typeof vi.fn>).mockResolvedValue([connection]);
+    renderApp();
+    expect(await screen.findByText('prod-db')).toBeInTheDocument();
+  });
+
+  it('opens a real connection form when "New connection" is clicked', async () => {
+    renderApp();
+    await screen.findByLabelText(/New connection/i);
+    fireEvent.click(screen.getByLabelText(/New connection/i));
+
+    // Assert against the dialog itself, not just a text match anywhere on the
+    // page — the sidebar button also matches /New Connection/i, so the old
+    // assertion passed whether or not the form rendered.
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/New Connection/i)).toBeInTheDocument();
+    // And the form is actually usable: its fields are present.
+    expect(within(dialog).getByLabelText(/Connection Name/i)).toBeInTheDocument();
+    expect(within(dialog).getByPlaceholderText('My Server')).toBeInTheDocument();
+    expect(useConnectionStore.getState().connectionFormOpen).toBe(true);
+  });
+
+  it('closes the form again on Escape without creating anything', async () => {
+    renderApp();
+    fireEvent.click(await screen.findByLabelText(/New connection/i));
+    const dialog = await screen.findByRole('dialog');
+
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+
+    await waitFor(() => expect(useConnectionStore.getState().connectionFormOpen).toBe(false));
+    expect(api.connections.create).not.toHaveBeenCalled();
+  });
+
+  it('surfaces an empty sidebar rather than crashing when the list request fails', async () => {
+    (api.connections.list as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('database is locked'),
     );
-
-    // Ensure app is loaded
-    await screen.findByText(/Connections/i);
-
-    // Use the sidebar plus button (aria-label="New connection")
-    const btn = await screen.findByLabelText(/New connection/i);
-    fireEvent.click(btn);
-
-    // ConnectionForm should now be visible (it has a title "New Connection" in its header)
-    const titles = await screen.findAllByText(/New Connection/i);
-    expect(titles.length).toBeGreaterThan(0);
+    renderApp();
+    // The app must still boot — a failed connections query is not fatal.
+    expect(await screen.findByText(/Welcome to Luna/i)).toBeInTheDocument();
   });
 });

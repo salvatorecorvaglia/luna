@@ -9,6 +9,7 @@ import type { LocalFileEntry } from '@shared/types/sftp';
 import { dialog } from 'electron';
 import { registerHandler } from '../lib/ipc-handler';
 import {
+  assertBoundedInt,
   assertNonEmptyString,
   assertSafeAbsolutePath,
   assertSafeRealAbsolutePath,
@@ -271,18 +272,61 @@ export function registerShellHandlers(): void {
         throw new LunaError(`Content exceeds maximum size of 50MB`, ErrorCode.VALIDATION_ERROR);
       }
 
-      await writeFile(target, content, 'utf-8');
+      // O_NOFOLLOW anchors the write to the inode we just validated, exactly as
+      // SHELL_READ_FILE does for reads. Plain writeFile() re-resolved the path,
+      // leaving a window in which `target` could be swapped for a symlink
+      // pointing outside the home jail between the check and the write.
+      // O_WRONLY|O_CREAT|O_TRUNC reproduces writeFile's default 'w' flag.
+      const fh = await open(
+        target,
+        fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_TRUNC | fsConstants.O_NOFOLLOW,
+        0o600,
+      );
+      try {
+        await fh.writeFile(content, 'utf-8');
+      } finally {
+        await fh.close();
+      }
     },
   );
 
+  const MAX_SEARCH_QUERY_LEN = 512;
+
   registerHandler(IPC.SHELL_CLI_REFERENCE, (_event, query: string) => {
+    // Every sibling handler in this file validates; these two did not, so a
+    // non-string reached .trim() and threw a TypeError that decayed into an
+    // opaque INTERNAL_ERROR. An empty query is meaningful here (it lists all
+    // docs), so only the type and length are constrained.
+    if (query != null && typeof query !== 'string') {
+      throw new LunaError('query must be a string', ErrorCode.VALIDATION_ERROR);
+    }
+    if (typeof query === 'string' && query.length > MAX_SEARCH_QUERY_LEN) {
+      throw new LunaError(
+        `query exceeds maximum length of ${MAX_SEARCH_QUERY_LEN} characters`,
+        ErrorCode.VALIDATION_ERROR,
+      );
+    }
     return cliReferenceService.searchDocs(query);
   });
 
   registerHandler(
     IPC.SHELL_SEARCH_HISTORY,
     (_event, payload: { query: string; limit?: number }) => {
-      return shellHistoryService.searchHistory(payload?.query || '', payload?.limit || 50);
+      const query = payload?.query ?? '';
+      if (typeof query !== 'string') {
+        throw new LunaError('query must be a string', ErrorCode.VALIDATION_ERROR);
+      }
+      if (query.length > MAX_SEARCH_QUERY_LEN) {
+        throw new LunaError(
+          `query exceeds maximum length of ${MAX_SEARCH_QUERY_LEN} characters`,
+          ErrorCode.VALIDATION_ERROR,
+        );
+      }
+      // `limit` was previously unbounded, so `limit: 1e9` returned the whole
+      // cached history in one IPC response.
+      const limit = payload?.limit ?? 50;
+      assertBoundedInt(limit, 'limit', 1, 500);
+      return shellHistoryService.searchHistory(query, limit);
     },
   );
 

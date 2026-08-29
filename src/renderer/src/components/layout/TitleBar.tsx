@@ -54,7 +54,7 @@ export function TitleBar() {
         {/* Logo */}
         <div className="flex items-center gap-2 pl-1 pr-2">
           <img src={lunaLogo} alt="Luna Logo" className="h-[18px] w-[18px] object-contain" />
-          <span className="text-[13px] font-semibold tracking-tight text-foreground">Luna</span>
+          <span className="text-sm-plus font-semibold tracking-tight text-foreground">Luna</span>
         </div>
 
         {/* Sidebar toggle */}

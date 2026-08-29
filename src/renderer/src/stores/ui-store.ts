@@ -3,6 +3,15 @@ import { persist } from 'zustand/middleware';
 
 export type ActiveView = 'terminal' | 'sftp' | 'local' | 'welcome';
 
+/**
+ * Sidebar width bounds. Exported so the resize handle in `Sidebar` clamps to
+ * the same range this store enforces — the two used to disagree ([200,400] in
+ * the drag handler vs [180,600] here), so the drag could not reach widths the
+ * store considered perfectly valid.
+ */
+export const SIDEBAR_MIN_WIDTH = 180;
+export const SIDEBAR_MAX_WIDTH = 600;
+
 // Enable smooth theme transitions after initial load
 if (typeof document !== 'undefined') {
   requestAnimationFrame(() => document.documentElement.classList.add('theme-transition'));
@@ -48,7 +57,9 @@ export const useUIStore = create<UIState>()(
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       setSidebarWidth: (width) =>
-        set({ sidebarWidth: Math.min(600, Math.max(180, Math.round(width))) }),
+        set({
+          sidebarWidth: Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(width))),
+        }),
       toggleCommandPalette: () => set((s) => ({ commandPaletteOpen: !s.commandPaletteOpen })),
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
       setActiveView: (view) => set({ activeView: view }),

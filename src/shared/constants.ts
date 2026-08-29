@@ -154,6 +154,16 @@ export const LIMITS = {
   SSH_CONNECT_TIMEOUT_MS: 60_000,
   /** Maximum total entries returned by a single S3 list call. Prevents OOM on huge buckets. */
   MAX_S3_LIST_ENTRIES: 50_000,
+  /**
+   * Cap on the element count of a bulk connection operation (reorder, import).
+   *
+   * These handlers run one synchronous sqlite statement per element inside a
+   * transaction, so their real bound was the 4 MiB IPC payload ceiling — around
+   * 100k statements executed on the main thread, freezing every live SSH
+   * session's event loop for the duration. Every other bulk handler in the app
+   * already caps its input; these two were missed.
+   */
+  MAX_BULK_CONNECTIONS: 5_000,
 } as const;
 
 /**

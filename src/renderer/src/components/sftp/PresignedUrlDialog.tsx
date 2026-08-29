@@ -107,7 +107,7 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
             <div>
               <span
                 id="presign-file-name-label"
-                className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80"
+                className="text-3xs font-bold uppercase tracking-wider text-muted-foreground/80"
               >
                 File Name
               </span>
@@ -125,7 +125,7 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
                 <div>
                   <span
                     id="presign-link-expiry-duration-label"
-                    className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 block mb-1.5"
+                    className="text-3xs font-bold uppercase tracking-wider text-muted-foreground/80 block mb-1.5"
                   >
                     Link Expiry Duration
                   </span>
@@ -176,7 +176,7 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
                   <div className="space-y-1.5">
                     <label
                       htmlFor="presign-expiry-time-seconds"
-                      className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 block"
+                      className="text-3xs font-bold uppercase tracking-wider text-muted-foreground/80 block"
                     >
                       Expiry Time (Seconds)
                     </label>
@@ -196,7 +196,7 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
               <div className="space-y-2">
                 <span
                   id="presign-generated-time-limited-url-label"
-                  className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 block"
+                  className="text-3xs font-bold uppercase tracking-wider text-muted-foreground/80 block"
                 >
                   Generated Time-limited URL
                 </span>
@@ -225,7 +225,7 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
                     )}
                   </button>
                 </div>
-                <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
+                <p className="text-3xs text-muted-foreground/60 leading-relaxed">
                   Anyone with this URL can download this object until the signed authorization
                   expires.
                 </p>

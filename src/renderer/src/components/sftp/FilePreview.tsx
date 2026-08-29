@@ -15,6 +15,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { useCopiedFlag } from '@/hooks/use-copied-flag';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
 import { useStorageStore } from '@/stores/storage-store';
@@ -81,7 +82,7 @@ export function FilePreview() {
   const [showConfirmClose, setShowConfirmClose] = useState(false);
   const [wordWrap, setWordWrap] = useState(false);
   const [autoTail, setAutoTail] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const { copied, markCopied } = useCopiedFlag();
 
   // Search state
   const [showSearch, setShowSearch] = useState(false);
@@ -147,9 +148,8 @@ export function FilePreview() {
 
   const handleCopyAll = () => {
     navigator.clipboard.writeText(editorContent);
-    setCopied(true);
     toast.success('Content copied to clipboard');
-    setTimeout(() => setCopied(false), 2000);
+    markCopied();
   };
 
   const previewOpen = previewFile !== null;
@@ -263,11 +263,11 @@ export function FilePreview() {
                   <FileCode className="size-4 text-success" />
                 )}
                 <span className="text-sm font-medium text-foreground">{previewFile.name}</span>
-                <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground uppercase">
+                <span className="rounded-md bg-muted px-2 py-0.5 text-3xs font-medium text-muted-foreground uppercase">
                   {detectLanguage(previewFile.name)}
                 </span>
                 {isDirty && (
-                  <span className="text-[10px] font-medium text-warning bg-warning/10 px-2 py-0.5 rounded-md">
+                  <span className="text-3xs font-medium text-warning bg-warning/10 px-2 py-0.5 rounded-md">
                     Modified
                   </span>
                 )}
@@ -374,7 +374,7 @@ export function FilePreview() {
                   className="flex-1 bg-transparent outline-none text-foreground text-xs"
                 />
                 {searchQuery && (
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-2xs text-muted-foreground">
                     {matchCount} match{matchCount !== 1 ? 'es' : ''}
                   </span>
                 )}
@@ -472,7 +472,7 @@ export function FilePreview() {
             </div>
 
             {/* Footer Bar */}
-            <div className="flex items-center justify-between border-t border-border/60 px-4 py-1.5 bg-muted/20 text-[11px] text-muted-foreground font-mono">
+            <div className="flex items-center justify-between border-t border-border/60 px-4 py-1.5 bg-muted/20 text-2xs text-muted-foreground font-mono">
               <div>
                 Lines: {lineCount.toLocaleString()} | Size: {editorContent.length.toLocaleString()}{' '}
                 chars

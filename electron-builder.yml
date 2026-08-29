@@ -13,13 +13,47 @@ files:
   - '!src/*'
   - '!electron.vite.config.*'
   - '!{biome.json,dev-app-update.yml,CHANGELOG.md,README.md}'
-  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
-  - '!{.github,tests,coverage,vitest.config.*}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json,tsconfig.test.json}'
+  - '!{.github,tests,coverage,vitest.config.*,playwright.config.*}'
+  - '!{build,pnpm-workspace.yaml,pnpm-lock.yaml}'
+  - '!{CONTRIBUTING.md,SECURITY.md,CONTRIBUTORS.md}'
 
 asarUnpack:
   - '**/*.node'
   - '**/better-sqlite3/**'
   - '**/ssh2/**'
+  # node-pty ships helper *executables* that are not .node files and are exec'd
+  # at runtime — build/Release/spawn-helper and prebuilds/*/spawn-helper on
+  # macOS/Linux, winpty-agent.exe / winpty.dll on Windows. The '**/*.node'
+  # pattern above does not match any of them.
+  #
+  # In practice electron-builder's own native-dependency detection already
+  # unpacks the whole node-pty directory, so this line is belt-and-braces
+  # rather than a fix for a live bug: verified by packaging with and without
+  # it, spawn-helper lands in app.asar.unpacked either way. It is kept because
+  # that behaviour is a heuristic we do not control, and a helper trapped
+  # inside the asar cannot be exec'd — which would break every local terminal
+  # in packaged builds while `pnpm dev` looked fine. The package-smoke job in
+  # ci.yml pins the outcome so a future electron-builder change cannot regress
+  # it silently.
+  - '**/node-pty/**'
+
+# Electron fuses: flip off the escape hatches that turn a signed Luna bundle
+# into a generic Node interpreter. Without `runAsNode` disabled, any local
+# process can run
+#   ELECTRON_RUN_AS_NODE=1 /Applications/Luna.app/Contents/MacOS/Luna evil.js
+# and execute arbitrary code *inside* the bundle — inheriting Luna's Keychain
+# ACL, and therefore able to safeStorage.decryptString() the credential key.
+# For an app whose whole job is holding SSH credentials this is the highest
+# security-per-line setting available.
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableCookieEncryption: true
+  onlyLoadAppFromAsar: true
+  loadBrowserProcessSpecificV8Snapshot: false
+  grantFileProtocolExtraPrivileges: false
 
 # ─────────────────── macOS ───────────────────
 mac:
