@@ -66,10 +66,7 @@
         "noConsole": {
           "level": "warn",
           "options": {
-            "allow": [
-              "warn",
-              "error"
-            ]
+            "allow": ["warn", "error"]
           }
         },
         "noDebugger": "error",
@@ -98,10 +95,7 @@
   },
   "overrides": [
     {
-      "includes": [
-        "src/main/lib/logger.ts",
-        "src/renderer/src/lib/logger.ts"
-      ],
+      "includes": ["src/main/lib/logger.ts", "src/renderer/src/lib/logger.ts"],
       "linter": {
         "rules": {
           "suspicious": {

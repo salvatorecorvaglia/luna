@@ -7,6 +7,161 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-08-29
+
+### Security
+
+- **Credential Key Is Never Regenerated On A Transient Failure**: `safeStorage.decryptString` fails
+  non-destructively in ordinary situations — a locked macOS Keychain, a denied Keychain ACL prompt,
+  Windows DPAPI after a profile move, a Linux keyring not yet unlocked at login. The credential
+  store caught that, nulled the key and fell through to the "no key file" branch, which **overwrote
+  the still-valid `.storage_key.enc` with a freshly generated key**, making every stored SSH
+  password, passphrase and S3 access key permanently undecryptable. An unreadable key file is now a
+  hard error that leaves the file byte-for-byte intact, reports a new `locked` backend state, and
+  surfaces a toast telling the user to unlock their keyring and restart.
+- **Undecryptable Credential Rows Are Retained, Not Deleted**: `retrieveCredential` deleted any row
+  it could not decrypt, turning a recoverable condition into permanent data loss. Rows are now kept
+  — the caller is already prompted to re-enter by the `null` return, and `storeCredential` is
+  `INSERT OR REPLACE`, so retention costs nothing and preserves the evidence of a genuine tamper.
+- **Navigation Is Allowlisted To The Bundled Renderer**: the `will-navigate` guard only rejected
+  non-`file:` URLs, but a packaged build *is* `file://` — so top-level navigation to any local HTML
+  file was permitted, and such a document inherited the full `window.api` bridge with no CSP. Added
+  `src/main/lib/navigation-guard.ts`, which allowlists exactly the bundled entry point (plus the
+  Vite dev origin in development).
+- **Electron Fuses**: `runAsNode`, `enableNodeOptionsEnvironmentVariable` and
+  `enableNodeCliInspectArguments` are now disabled and `onlyLoadAppFromAsar` enabled. Without this,
+  `ELECTRON_RUN_AS_NODE=1` turned the signed bundle into a general-purpose Node interpreter running
+  with Luna's own Keychain access.
+- **Single-Instance Lock Actually Gates Startup**: `app.quit()` is asynchronous and the
+  `whenReady` handler was registered unconditionally, so a second process could still open the
+  database and initialize the credential store before quitting — the exact race the lock exists to
+  prevent.
+- **Hardened Runtime**: removed `com.apple.security.cs.allow-unsigned-executable-memory` from the
+  macOS entitlements. It is the legacy pre-`allow-jit` workaround, is not required by native
+  modules, and disabled a hardened-runtime memory protection for no benefit.
+- **Loopback Binds Are Checked By Address, Not Name**: `isLoopbackAddress` accepted the DNS name
+  `localhost`, which `server.listen()` resolves through `/etc/hosts` — a doctored entry turned a
+  bind certified as loopback into a public one with no warning and no opt-in.
+- **Write-Path TOCTOU Closed**: `shell:write-file` resolved the real path and then called
+  `writeFile`, leaving a window in which the target could be swapped for a symlink escaping the
+  home jail. It now opens with `O_NOFOLLOW`, matching the read path.
+- **Owner-Only File Permissions**: `luna.db` (and its WAL/SHM siblings) and `.storage_key.enc` were
+  created world-readable under the default umask, exposing hosts, usernames, key paths, known_hosts
+  and encrypted credential blobs to every local user on a shared machine.
+- **Linux `basic_text` Is No Longer Reported As OS-Protected**: `safeStorage.isEncryptionAvailable()`
+  returns true on Linux even when the selected backend encrypts with the hardcoded key `"peanuts"`.
+  The security banner told users their credentials were protected when they were trivially
+  recoverable.
+- **IPC Input Bounds**: `connection:reorder` and `connection:import` gained an element cap (they ran
+  one synchronous `UPDATE` per element, bounded only by the 4 MiB payload ceiling), the shell
+  history and CLI-reference handlers now validate their `query`/`limit`, and reserved transfers
+  count toward `MAX_QUEUED_TRANSFERS` instead of bypassing it before the first `await`.
+- **Self-Hosted Fonts**: Inter and JetBrains Mono are bundled as `woff2` (13 unicode subsets,
+  ~344 KB) instead of being fetched from Google's CDN on every launch. Both Content-Security-Policy
+  definitions dropped `fonts.googleapis.com` and `fonts.gstatic.com` and are now `'self'`-only.
+
+### Fixed
+
+- **Command Palette Ran The Wrong Command**: the highlighted row was indexed by grouped order while
+  Enter and `aria-activedescendant` read the flat filtered list, so with any saved connection the
+  palette highlighted one command and executed a different one.
+- **"Delete All Connections" Did Nothing**: the command set state to open a confirmation dialog and
+  closed the palette in the same batch, unmounting the component that owned the dialog.
+- **`Cmd+1`–`Cmd+9` Fired In Both Terminal Views**: both the SSH and local containers stay mounted
+  once visited, so the digit shortcut activated a tab in the hidden view as well.
+- **"Duplicate Session" And "New Session" Only Re-Focused**: both called the focus-or-connect path,
+  which returns the existing connected session. Split into `connectToHost` and `openNewSession`.
+- **`Cmd+A` Selected Hidden Files**: select-all was built from the raw entry list rather than the
+  rendered one, so with a filter active or dotfiles hidden it selected rows the user could not see
+  — and a subsequent delete acted on them.
+- **Shell History Was Mislabelled, Mis-Ordered And Stale**: every match was reported as `zsh` even
+  though both history files are read; concatenating then reversing put all bash entries ahead of
+  all zsh entries (starving zsh out of limited result sets on macOS); and the cache was never
+  invalidated, so commands run during the session never appeared.
+- **Opening Settings Wrote Settings Back To Disk**: the panel hydrated through the *persisting*
+  store actions, round-tripping every value to the database over IPC just for being opened.
+- **Sidebar Resize Leaked Listeners**: unmounting mid-drag (`Cmd+B`) left `document` listeners
+  attached and `<body>` stuck with `cursor: col-resize` and `user-select: none`. The drag clamp also
+  disagreed with the store's own bounds.
+- **JSON Connection Import Silently Imported Nothing**: the file dialog offers `json` first, but the
+  importer had no JSON branch, so re-importing a Luna export reported "0 imported" with no error.
+- **Failed Transfer Retries Lost The Row**: the original entry was removed before awaiting the API,
+  so a failed retry erased the record with no way to try again.
+- **Port Forwarding**: stopping a forward could hang forever when the transport was already dead
+  (`unforwardIn` accepts a callback it never invokes — now bounded by a timeout), and a
+  non-matching `tcp connection` was dropped without `reject()`, leaving the channel pending
+  server-side.
+- **Blank Error Toasts**: `formatError` returned an empty title for an `Error` with an empty
+  message, where the non-`Error` branch already guarded against it.
+- **Duplicate `aria-activedescendant` Targets**: both file panes emitted `file-row-N` ids, making
+  the reference ambiguous document-wide, and it dangled when the focused row was virtualised out.
+- **Missing Effect Cleanup**: the home-directory probe in `SftpManager` and the "copied!" timers in
+  `FilePreview` and `HostKeyDialog` could fire after unmount.
+- **Advertised Shortcuts That Did Not Exist**: `⌘T`, `⌘⇧]` and `⌘⇧[` are now implemented; the
+  `Refresh (SFTP/S3) — R` row was removed rather than implemented, since a bare printable key is a
+  poor global shortcut in an app full of text fields and live terminals.
+- **Context Menu Overflow**: the viewport clamp counted a separator as a full row, mis-estimating
+  menu height.
+- **Drop-Target Flicker**: `onDragLeave` cleared the highlight when the cursor crossed a child row.
+- **Password Manager On Windows**: `execFile` without a shell never appended `.exe`, so the
+  1Password and Bitwarden integrations always reported "CLI not found" on Windows. Resolution now
+  walks `PATH` for executable extensions; `.cmd`/`.bat` shims are deliberately refused rather than
+  routed through a command processor in a credential path.
+
+### Improved
+
+- **Rendering Performance**: transfer rows are genuinely memoised (their callbacks were fresh
+  closures on every parent render, so all rows re-rendered ~60×/s during a transfer); whole-store
+  subscriptions in `ConnectionItem`, `CommandPalette`, `SettingsPanel`, `ConnectionForm`, `Sidebar`
+  and `WelcomeView` were narrowed to individual selectors; the file list no longer forces a layout
+  read per visible row per frame; `SortIcon` was hoisted out of the component body; and the status
+  bar's unconditional 3-second `setInterval` became a query that pauses when there are no SSH
+  sessions and in the background.
+- **Accessibility**: transfer progress bars expose `role="progressbar"` with value and label; the
+  split-pane and sidebar resize handles gained `role="separator"`, focusability and arrow-key
+  resizing (only the SFTP splitter had them); and the command palette now uses the shared focus
+  trap and announces itself as a modal dialog.
+- **Error Reporting**: a failed SFTP listing raised both a toast and an inline alert panel for the
+  same failure. The toast was dropped in favour of the scoped, actionable panel.
+- **Dialog Copy**: the confirmation dialog claimed "click to confirm" and implied Enter confirms,
+  which it does not.
+
+### Changed & Refactored
+
+- **Design Tokens**: added `--text-3xs`/`--text-2xs`/`--text-sm-plus` and migrated 101 arbitrary
+  `text-[Npx]` classes onto them. `tests/unit/design-tokens.test.ts` now fails the build on new
+  arbitrary pixel font sizes, alongside its existing colour, hex, z-index and `window.api` rules.
+- **Shared Helpers**: extracted `lib/platform.ts` (three components each re-derived `isMac` from
+  the deprecated `navigator.platform`) and a `useCopiedFlag` hook for the self-resetting "copied!"
+  indicator.
+- **TypeScript**: enabled `verbatimModuleSyntax`, `noImplicitOverride` and
+  `noFallthroughCasesInSwitch` across all three projects, aligned `tsconfig.test.json` with the
+  strictness the other two already had, and gave each project its own `outDir` so `tsc -b` cannot
+  emit over the application bundle.
+- **Coverage Gate**: raised the ratchet from 47/40/39/46 to 61/52/52/60 — it had drifted roughly 14
+  points below actual, so coverage could have regressed by a fifth before CI noticed — and added
+  `src/preload/**` to the measured set, since it is the entire renderer↔main bridge.
+- **Linting**: `pnpm run lint` now covers the whole repository rather than just `src/` and `tests/`,
+  and CI fails on warnings.
+- **CI**: unit tests run on Linux, macOS and Windows (the Windows shell branch previously had no
+  real coverage); a new packaging smoke job runs `electron-builder` and asserts the native helper
+  binaries land outside the asar; and `paths-ignore` was removed so required checks always report
+  on documentation-only pull requests. The release workflow no longer interpolates its
+  `workflow_dispatch` tag input directly into a shell command, matching how it already handled
+  release notes.
+- **Scripts**: added `package` and `package:dir` — `build` only ever produced bundles in `out/`,
+  never an installer — plus an `engines` field matching the documented Node and pnpm floors.
+
+### Added
+
+- **Tests**: regression coverage for each behavioural fix above, including the locked-keyring path
+  that must never regenerate the master key, `file://` navigation allowlisting, the command
+  palette's selection ordering, and shell-history labelling and ordering. New suites for
+  `lib/terminal-input.ts` (which carries the "never intercept a plain `Ctrl+C`" invariant and had no
+  tests) and `shared/error-messages.ts`. `tests/unit/integration/connections.test.tsx` was rewritten
+  onto the shared `installFakeApi()` helper.
+
+
 ## [1.2.2] - 2026-08-26
 
 ### Fixed
