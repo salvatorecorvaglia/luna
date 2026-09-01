@@ -1,8 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { join } from 'node:path';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// vi.mock factories are hoisted above module-scope consts, so the spy has to
-// be created inside vi.hoisted to exist by the time the factory runs.
-const { execFileMock } = vi.hoisted(() => ({ execFileMock: vi.fn() }));
+// vi.mock factories are hoisted above module-scope consts, so the spies have to
+// be created inside vi.hoisted to exist by the time the factories run.
+const { execFileMock, accessMock } = vi.hoisted(() => ({
+  execFileMock: vi.fn(),
+  accessMock: vi.fn(),
+}));
 
 // promisify(execFile) reads the custom-promisified symbol when present, so the
 // mock exposes it directly rather than relying on callback conventions.
@@ -12,6 +16,10 @@ vi.mock('node:child_process', () => ({
   }),
 }));
 
+// Only consulted on the win32 branch, where the service probes PATH for a real
+// executable instead of handing a bare name to execFile.
+vi.mock('node:fs/promises', () => ({ access: accessMock }));
+
 vi.mock('../../../src/main/lib/logger', () => ({
   default: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
@@ -20,9 +28,31 @@ import { PasswordManagerService } from '../../../src/main/services/password-mana
 
 const service = new PasswordManagerService();
 
+const REAL_PLATFORM = process.platform;
+const REAL_PATH = process.env['PATH'];
+
+/**
+ * The reference grammar and the argv shape are platform-independent, but the
+ * lookup in front of them is not: on win32 the service resolves the binary
+ * through PATH itself (execFile without a shell will not append `.exe`), so on
+ * a Windows runner every one of these cases died with "CLI not found" before
+ * the code under test ran. Pin the platform per test instead.
+ */
+function setPlatform(platform: NodeJS.Platform): void {
+  Object.defineProperty(process, 'platform', { value: platform, configurable: true });
+}
+
 beforeEach(() => {
+  setPlatform('linux');
   execFileMock.mockReset();
   execFileMock.mockResolvedValue({ stdout: 'hunter2\n', stderr: '' });
+  accessMock.mockReset();
+});
+
+afterAll(() => {
+  setPlatform(REAL_PLATFORM);
+  if (REAL_PATH === undefined) delete process.env['PATH'];
+  else process.env['PATH'] = REAL_PATH;
 });
 
 describe('resolveSecretReference — accepted references', () => {
@@ -137,5 +167,42 @@ describe('resolveSecretReference — other rejections', () => {
     const [, , options] = execFileMock.mock.calls[0]!;
     expect(options.maxBuffer).toBeGreaterThan(0);
     expect(options.timeout).toBeGreaterThan(0);
+  });
+});
+
+describe('resolveSecretReference — Windows executable resolution', () => {
+  // node:path binds `delimiter` (and `join`) to the *real* platform at import
+  // time, not the pinned one, so a single colon-free PATH entry keeps this
+  // readable on a POSIX runner — a `C:` drive letter would be split apart by
+  // the POSIX PATH delimiter.
+  const PATH_DIR = '\\tools\\bin';
+
+  beforeEach(() => {
+    setPlatform('win32');
+    process.env['PATH'] = PATH_DIR;
+  });
+
+  it('appends .exe and runs the resolved absolute path', async () => {
+    accessMock.mockImplementation(async (candidate: string) => {
+      if (!candidate.endsWith('op.exe'))
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+    });
+    await expect(service.resolveSecretReference('op://Private/db/password')).resolves.toBe(
+      'hunter2',
+    );
+    expect(execFileMock).toHaveBeenCalledWith(
+      join(PATH_DIR, 'op.exe'),
+      ['read', '--', 'op://Private/db/password'],
+      expect.anything(),
+    );
+  });
+
+  it('refuses a .cmd shim rather than routing credentials through a command processor', async () => {
+    accessMock.mockImplementation(async (candidate: string) => {
+      if (!candidate.endsWith('bw.cmd'))
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+    });
+    await expect(service.resolveSecretReference('bw://item')).rejects.toThrow(/not found on PATH/);
+    expect(execFileMock).not.toHaveBeenCalled();
   });
 });

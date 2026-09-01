@@ -203,31 +203,43 @@ jobs:
             fail=1
           fi
 
-          # node-pty's addon must always be unpacked.
-          if ! find "$unpacked" -path '*node-pty*' -name 'pty.node' | grep -q .; then
+          # node-pty: assert against the one directory it actually loads from at
+          # runtime. lib/utils.js tries build/Release, build/Debug, then
+          # prebuilds/<platform>-<arch>, and unixTerminal.js exec's spawn-helper
+          # out of whichever of those won. node-pty also ships prebuilds for the
+          # *other* platforms — unused, and non-executable in the npm tarball —
+          # so matching on path substrings picked the wrong copy and failed a
+          # build that was in fact correct (a darwin prebuild nested under
+          # dist/linux-unpacked/ matches '*linux*').
+          ptyroot=$(find "$unpacked" -type d -path '*node_modules/node-pty' -print -quit)
+          if [ -z "$ptyroot" ]; then
+            echo "::error::node-pty is not unpacked from the asar"
+            exit 1
+          fi
+          native="$ptyroot/build/Release"
+          if [ ! -f "$native/pty.node" ]; then
+            native="$ptyroot/prebuilds/$(node -p 'process.platform + "-" + process.arch')"
+          fi
+          echo "node-pty loads native artifacts from: ${native#"$unpacked"/}"
+
+          if [ ! -f "$native/pty.node" ]; then
             echo "::error::node-pty pty.node is not unpacked"
             fail=1
           fi
 
           # The regression this job exists for: spawn-helper has no extension,
           # so the '**/*.node' unpack rule never matched it, and a local
-          # terminal cannot spawn when it is trapped inside the asar.
-          # Windows uses conpty/winpty helpers instead of spawn-helper.
+          # terminal cannot spawn when it is trapped inside the asar (or lands
+          # without its executable bit). Windows uses conpty/winpty helpers
+          # instead, and has no executable bit to lose.
           if [ "$RUNNER_OS" = "Windows" ]; then
-            if ! find "$unpacked" -path '*node-pty*' -name 'conpty*.node' | grep -q .; then
+            if ! find "$ptyroot" -name 'conpty*.node' | grep -q .; then
               echo "::error::node-pty conpty addon is not unpacked"
               fail=1
             fi
           else
-            # Match only the platform-appropriate spawn-helper. node-pty ships
-            # prebuilds for multiple platforms; only the one matching the build
-            # OS needs to be executable.
-            if [ "$(uname)" = "Darwin" ]; then
-              helper=$(find "$unpacked" -path '*node-pty*' -path '*darwin*' -name 'spawn-helper' -print -quit)
-            else
-              helper=$(find "$unpacked" -path '*node-pty*' -path '*linux*' -name 'spawn-helper' -print -quit)
-            fi
-            if [ -z "$helper" ]; then
+            helper="$native/spawn-helper"
+            if [ ! -f "$helper" ]; then
               echo "::error::node-pty spawn-helper is not unpacked — local terminals will not start"
               fail=1
             elif [ ! -x "$helper" ]; then

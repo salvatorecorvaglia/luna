@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join, parse, relative, sep } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   assertBoundedInt,
@@ -14,6 +14,41 @@ import {
 } from '../../../src/main/lib/validate';
 
 const HOME = homedir();
+
+/**
+ * Create a scratch directory whose *real* path is genuinely outside HOME.
+ *
+ * `os.tmpdir()` is not that on Windows: it lives under the user profile
+ * (`C:\Users\<user>\AppData\Local\Temp`), so it is inside home, and its 8.3
+ * short form (`C:\Users\RUNNER~1\...`) only *looks* outside until realpath()
+ * expands it — which is exactly what the validators do. Try the plausible
+ * bases in order and keep the first that is both writable and really outside.
+ */
+function mkdtempOutsideHome(prefix: string): string {
+  const realHome = realpathSync.native(HOME);
+  const isOutsideHome = (p: string): boolean => {
+    const rel = relative(realHome, p);
+    return rel.length > 0 && (isAbsolute(rel) || rel === '..' || rel.startsWith(`..${sep}`));
+  };
+
+  // RUNNER_TEMP is the CI-provided scratch space (on Windows runners it sits on
+  // a different volume than the profile); the drive/filesystem root is the
+  // last resort when the profile swallows the temp directory.
+  const bases = [process.env['RUNNER_TEMP'], tmpdir(), parse(realHome).root].filter(
+    (b): b is string => Boolean(b),
+  );
+  for (const base of bases) {
+    let dir: string | undefined;
+    try {
+      dir = mkdtempSync(join(base, prefix));
+      if (isOutsideHome(realpathSync.native(dir))) return dir;
+    } catch {
+      // Not writable — try the next base.
+    }
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  }
+  throw new Error(`no writable directory outside ${realHome} to host "${prefix}"`);
+}
 
 describe('assertNonEmptyString', () => {
   it('accepts a non-empty string', () => {
@@ -140,7 +175,9 @@ describe('expandAndConfineToHomeSync', () => {
 
 describe('expandAndConfineToHome', () => {
   it('expands a leading ~ to the home directory', async () => {
-    await expect(expandAndConfineToHome('~/keys/id_rsa', 'p')).resolves.toBe(`${HOME}/keys/id_rsa`);
+    await expect(expandAndConfineToHome('~/keys/id_rsa', 'p')).resolves.toBe(
+      join(HOME, 'keys', 'id_rsa'),
+    );
   });
 
   it('expands a bare ~ to the home directory', async () => {
@@ -179,7 +216,7 @@ describe('expandAndConfineToHome', () => {
 
   it('requireExists: true rejects if target escapes home', async () => {
     const homeTmp = mkdtempSync(join(HOME, '.luna-test-expand-escape-'));
-    const outsideTmp = mkdtempSync(join(tmpdir(), 'luna-outside-expand-'));
+    const outsideTmp = mkdtempOutsideHome('luna-outside-expand-');
     const escapeLink = join(homeTmp, 'escape');
     symlinkSync(outsideTmp, escapeLink);
     try {
@@ -203,7 +240,7 @@ describe('assertSafeRealAbsolutePath (symlink-following)', () => {
 
   beforeAll(() => {
     homeTmp = mkdtempSync(join(HOME, '.luna-test-'));
-    outsideTmp = mkdtempSync(join(tmpdir(), 'luna-outside-'));
+    outsideTmp = mkdtempOutsideHome('luna-outside-');
     escapeLink = join(homeTmp, 'escape');
     symlinkSync(outsideTmp, escapeLink);
     safeFile = join(homeTmp, 'safe.txt');
@@ -256,12 +293,14 @@ describe('assertSafeRealAbsolutePath (symlink-following)', () => {
 
 describe('expandAndValidatePrivateKeyPath', () => {
   it('expands a leading ~ and resolves/follows symlinks without home confinement', async () => {
-    const outsideTmp = mkdtempSync(join(tmpdir(), 'luna-outside-key-'));
+    const outsideTmp = mkdtempOutsideHome('luna-outside-key-');
     const safeFile = join(outsideTmp, 'key.pem');
     writeFileSync(safeFile, 'ok');
     try {
       const out = await expandAndValidatePrivateKeyPath(safeFile, 'p');
-      expect(out).toBe(realpathSync(safeFile));
+      // fs.promises.realpath (what the validator uses) is the native resolver,
+      // which expands Windows 8.3 short names; the JS realpathSync does not.
+      expect(out).toBe(realpathSync.native(safeFile));
     } finally {
       rmSync(outsideTmp, { recursive: true, force: true });
     }
