@@ -219,7 +219,14 @@ jobs:
               fail=1
             fi
           else
-            helper=$(find "$unpacked" -path '*node-pty*' -name 'spawn-helper' -print -quit)
+            # Match only the platform-appropriate spawn-helper. node-pty ships
+            # prebuilds for multiple platforms; only the one matching the build
+            # OS needs to be executable.
+            if [ "$(uname)" = "Darwin" ]; then
+              helper=$(find "$unpacked" -path '*node-pty*' -path '*darwin*' -name 'spawn-helper' -print -quit)
+            else
+              helper=$(find "$unpacked" -path '*node-pty*' -path '*linux*' -name 'spawn-helper' -print -quit)
+            fi
             if [ -z "$helper" ]; then
               echo "::error::node-pty spawn-helper is not unpacked — local terminals will not start"
               fail=1

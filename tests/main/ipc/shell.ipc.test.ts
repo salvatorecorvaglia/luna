@@ -1,8 +1,10 @@
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
+import { homedir, platform } from 'node:os';
 import { join } from 'node:path';
 import { IPC } from '@shared/constants';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const isWindows = platform() === 'win32';
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>();
 
@@ -40,7 +42,7 @@ describe('shell IPC — joinPath', () => {
       { base: home, fileName: 'sub/evil.txt' },
     );
     // basename() should reduce 'sub/evil.txt' → 'evil.txt'
-    expect(result).toBe(`${home}/evil.txt`);
+    expect(result).toBe(join(home, 'evil.txt'));
   });
 
   it('refuses traversal segments embedded in fileName', async () => {
@@ -51,7 +53,7 @@ describe('shell IPC — joinPath', () => {
       {},
       { base: home, fileName: '../../etc/passwd' },
     );
-    expect(result).toBe(`${home}/passwd`);
+    expect(result).toBe(join(home, 'passwd'));
   });
 
   it('rejects an empty base path via assertValidPath', async () => {
@@ -121,7 +123,7 @@ describe('shell IPC — symlink jail (TOCTOU & bypass)', () => {
     await rm(workdir, { recursive: true, force: true });
   });
 
-  it('readFile rejects a symlink inside home pointing outside', async () => {
+  it.skipIf(isWindows)('readFile rejects a symlink inside home pointing outside', async () => {
     const link = join(workdir, 'escape');
     // /etc exists on darwin/linux; use a system path outside the home jail.
     await symlink('/etc/hosts', link);
@@ -176,7 +178,7 @@ describe('shell IPC — symlink jail (TOCTOU & bypass)', () => {
     expect(result.size).toBe(5);
   });
 
-  it('readFile is anchored by O_NOFOLLOW after realpath resolution', async () => {
+  it.skipIf(isWindows)('readFile is anchored by O_NOFOLLOW after realpath resolution', async () => {
     // Simulates the post-validation symlink swap: a file inside the jail is
     // replaced with a symlink pointing outside. open(..., O_NOFOLLOW) must
     // refuse to follow the final-component link rather than silently reading

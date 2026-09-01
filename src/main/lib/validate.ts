@@ -128,7 +128,12 @@ export function assertSafeAbsolutePath(value: unknown, name: string): asserts va
   }
   // Compare to path.normalize (cross-platform) rather than resolve(), which
   // would silently rewrite a non-canonical input into a valid-looking one.
-  if (stripTrailingSep(value) !== stripTrailingSep(normalize(value))) {
+  // On Windows, forward slashes are valid but normalize() converts them to
+  // backslashes. Unify separator direction on the input side so the comparison
+  // doesn't false-positive on mixed separators, while still catching '..' and
+  // redundant separators that normalize() collapses.
+  const unifySep = (p: string): string => (sep === '\\' ? p.replace(/\//g, sep) : p);
+  if (stripTrailingSep(unifySep(value)) !== stripTrailingSep(normalize(value))) {
     throw validationError(`${name} must be canonical (no '..' or redundant separators)`);
   }
   const resolved = resolvePath(value);

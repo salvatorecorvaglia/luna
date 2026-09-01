@@ -1,4 +1,5 @@
 import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { IPC } from '@shared/constants';
 import type { ExportedConnection } from '@shared/types/connection';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -83,7 +84,7 @@ describe('db.ipc CONNECTION_IMPORT (privateKeyPath sanitization)', () => {
     expect(result.imported).toBe(1);
     expect(result.skipped).toHaveLength(0);
     // Args to INSERT: id, name, provider, host, port, username, auth_type, private_key_path, ...
-    expect(inserts[0]![7]).toBe(`${HOME}/.ssh/id_ed25519`);
+    expect(inserts[0]![7]).toBe(join(HOME, '.ssh', 'id_ed25519'));
   });
 
   it('allows imports whose privateKeyPath escapes via .. (lenient import policy)', async () => {

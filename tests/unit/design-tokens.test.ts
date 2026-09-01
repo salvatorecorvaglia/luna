@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -19,19 +19,24 @@ import { describe, expect, it } from 'vitest';
 const COMPONENTS_DIR = join(__dirname, '..', '..', 'src', 'renderer', 'src', 'components');
 const REPO_ROOT = join(__dirname, '..', '..');
 
+/** Normalise forward-slash paths to the OS separator so allowlist matching works on Windows. */
+function normPath(p: string): string {
+  return p.split('/').join(sep);
+}
+
 /** Files where raw Tailwind palette colors are intentionally allowed. */
 const COLOR_ALLOWLIST = new Set<string>([
   // Windows-style title-bar close button — OS-canonical bright red is
   // the established UX convention; the dim --color-destructive token
   // would not read as a "close window" affordance.
-  'src/renderer/src/components/layout/TitleBar.tsx',
+  normPath('src/renderer/src/components/layout/TitleBar.tsx'),
 ]);
 
 /** Files where arbitrary z-[N] values are intentionally allowed. */
 const Z_INDEX_ALLOWLIST = new Set<string>([
   // SettingsPanel's close button uses `relative z-[120]` for local
   // stacking inside the panel — not a global layer, so not a Z.* entry.
-  'src/renderer/src/components/common/SettingsPanel.tsx',
+  normPath('src/renderer/src/components/common/SettingsPanel.tsx'),
 ]);
 
 const RAW_COLOR_RE =
