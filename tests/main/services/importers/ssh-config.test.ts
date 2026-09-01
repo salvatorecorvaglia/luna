@@ -1,3 +1,5 @@
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseSshConfig } from '../../../../src/main/services/importers/ssh-config';
 
@@ -32,7 +34,9 @@ Host another-server
     expect(result[0]!.username).toBe('ubuntu');
     expect(result[0]!.port).toBe(2222);
     expect(result[0]!.authType).toBe('key');
-    expect(result[0]!.privateKeyPath).toContain('.ssh/id_rsa'); // Tilde expansion resolves home path
+    // Tilde expansion resolves to a real home path, with the separators of the
+    // host platform — asserting on a '/' substring only passed off Windows.
+    expect(result[0]!.privateKeyPath).toBe(join(homedir(), '.ssh', 'id_rsa'));
 
     expect(result[1]!.name).toBe('another-server');
     expect(result[1]!.host).toBe('example.com');
@@ -74,6 +78,6 @@ Host server-eq
     expect(result[0]!.username).toBe('root');
     expect(result[0]!.port).toBe(222);
     expect(result[0]!.authType).toBe('key');
-    expect(result[0]!.privateKeyPath).toContain('keys/key.pem');
+    expect(result[0]!.privateKeyPath).toBe(join(homedir(), 'keys', 'key.pem'));
   });
 });

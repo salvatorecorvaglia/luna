@@ -23,9 +23,9 @@ asarUnpack:
   - '**/better-sqlite3/**'
   - '**/ssh2/**'
   # node-pty ships helper *executables* that are not .node files and are exec'd
-  # at runtime — build/Release/spawn-helper and prebuilds/*/spawn-helper on
-  # macOS/Linux, winpty-agent.exe / winpty.dll on Windows. The '**/*.node'
-  # pattern above does not match any of them.
+  # at runtime — build/Release/spawn-helper on macOS (its gyp target is
+  # OS=="mac"-only; Linux forks the pty directly), winpty-agent.exe /
+  # winpty.dll on Windows. The '**/*.node' pattern above matches none of them.
   #
   # In practice electron-builder's own native-dependency detection already
   # unpacks the whole node-pty directory, so this line is belt-and-braces
