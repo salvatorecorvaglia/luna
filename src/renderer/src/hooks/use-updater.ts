@@ -2,13 +2,33 @@ import { useEffect } from 'react';
 import { toast } from 'sonner';
 import { getApi } from '@/services/api';
 
+/** Sends the user to the GitHub releases page; main owns the URL. */
+function openReleasePage(): void {
+  getApi()
+    .app.openReleasePage()
+    .catch(() => toast.error('Could not open the releases page'));
+}
+
 /**
  * Subscribes to auto-update IPC events and displays toast notifications.
  * Mount this once at the app level so update events are always captured.
  */
 export function useUpdaterEventListener(): void {
   useEffect(() => {
-    const cleanupAvailable = getApi().app.onUpdateAvailable(({ version }) => {
+    const cleanupAvailable = getApi().app.onUpdateAvailable(({ version, manual }) => {
+      // `manual` builds (an unsigned macOS bundle) cannot install an update
+      // themselves — Squirrel rejects the swap. Offering "Download" there ends
+      // in a failure the user can do nothing about, so send them to GitHub.
+      if (manual) {
+        toast.info(`Update v${version} available`, {
+          description: 'This build cannot update itself. Download the new version from GitHub.',
+          duration: Infinity,
+          id: 'update-available',
+          action: { label: 'Open GitHub', onClick: openReleasePage },
+        });
+        return;
+      }
+
       toast.info(`Update v${version} available`, {
         description: 'A new version of Luna is ready to download.',
         duration: Infinity,
@@ -57,9 +77,12 @@ export function useUpdaterEventListener(): void {
 
     const cleanupError = getApi().app.onUpdateError(({ error }) => {
       toast.dismiss('update-progress');
+      // Every update failure ends the same way — get the build from GitHub —
+      // so the error toast always carries a way to act on it.
       toast.error('Update failed', {
         description: error,
         id: 'update-error',
+        action: { label: 'Open GitHub', onClick: openReleasePage },
       });
     });
 

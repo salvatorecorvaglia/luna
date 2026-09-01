@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **macOS Auto-Update Offered An Install That Could Never Succeed**: Luna's macOS artifacts are
+  ad-hoc signed — there is no Developer ID identity and `notarize: false` in
+  `electron-builder.yml` — and macOS updates go through Squirrel.Mac, which refuses to swap in a
+  bundle whose signature does not satisfy the running app's designated requirement. The feed check
+  and the download both succeeded, so the user was walked through "Download" → "Restart now" and
+  only then met `Code signature at URL ... did not pass validation`, rewritten into a dead-end toast
+  with no action on it. The updater now probes the running bundle with `codesign --display` at
+  startup and reports a `manual` flag alongside every update: builds that cannot install their own
+  updates offer an **Open GitHub** action instead of a download, and `installUpdate` refuses to start
+  one. Detection fails closed — any error routes to the manual download, which always works. Windows
+  (NSIS) and Linux (AppImage) install unsigned updates fine and are unaffected.
+- **Update Staged For Install-On-Quit Failed Silently**: `autoInstallOnAppQuit` was armed
+  unconditionally, so on an unsigned macOS build it hit the same Squirrel validation on every quit
+  with nothing surfaced to the user. It is now enabled only where installing can actually succeed.
+- **Dangling Rejection In The Install Path**: `installUpdate` chained `downloadUpdate().then(...)`
+  with a `.catch` that could not see a `quitAndInstall` failure. It is now `async` with a real
+  `try`/`catch`.
+
+### Added
+
+- **`app:open-release-page` IPC Channel**: Opens the GitHub releases page for builds that cannot
+  self-update. The URL is hard-coded in the main process rather than passed in from the renderer —
+  `shell.openExternal` hands a URL to the OS, so a compromised renderer must never choose it. This
+  restores, on a safe seam, the manual download action removed in 1.2.2; the update-failed toast
+  carries it again, since every update failure ends the same way.
+- **Tests**: Coverage for the ad-hoc, unsigned and properly-signed bundle paths — that a `manual`
+  build never starts a download, that a signed one still installs normally, and that both the
+  update-available and update-failed toasts route to GitHub.
+
 ## [1.3.0] - 2026-08-29
 
 ### Security

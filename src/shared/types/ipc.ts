@@ -226,8 +226,13 @@ export interface IpcHandlerMap {
 
   // App
   'app:get-version': { request: void; response: string };
-  'app:check-update': { request: void; response: { available: boolean; version?: string } };
+  'app:check-update': {
+    request: void;
+    /** `manual` is true when this build can only update by downloading a fresh copy. */
+    response: { available: boolean; version?: string; manual: boolean };
+  };
   'app:install-update': { request: void; response: void };
+  'app:open-release-page': { request: void; response: void };
   'app:get-log-path': { request: void; response: string };
   'app:open-log-file': { request: void; response: void };
   'app:get-active-sessions': {
@@ -289,7 +294,8 @@ export interface IpcEventMap {
     limit: number;
   };
   'credential:on-tamper': { connectionId: string; reason: string; at: number };
-  'app:update-available': { version: string };
+  /** `manual`: this build cannot install the update itself; point the user at GitHub. */
+  'app:update-available': { version: string; manual: boolean };
   'app:update-download-progress': { percent: number; bytesPerSecond: number };
   'app:update-downloaded': Record<string, never>;
   'app:update-error': { error: string };

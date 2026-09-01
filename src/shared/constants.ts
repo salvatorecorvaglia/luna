@@ -100,6 +100,7 @@ export const IPC = {
   APP_OPEN_LOG_FILE: 'app:open-log-file',
   APP_GET_ACTIVE_SESSIONS: 'app:get-active-sessions',
   APP_GET_CREDENTIAL_BACKEND: 'app:get-credential-backend',
+  APP_OPEN_RELEASE_PAGE: 'app:open-release-page',
 
   // App update events (main -> renderer)
   APP_UPDATE_AVAILABLE: 'app:update-available',

@@ -21,7 +21,7 @@ vi.mock('sonner', () => ({
 
 // Captured event listeners — exposed so tests can fire events synthetically.
 type Handler<T> = (payload: T) => void;
-let availableHandler: Handler<{ version: string }> | null = null;
+let availableHandler: Handler<{ version: string; manual: boolean }> | null = null;
 let progressHandler: Handler<{ percent: number }> | null = null;
 let downloadedHandler: Handler<unknown> | null = null;
 let errorHandler: Handler<{ error: string }> | null = null;
@@ -32,6 +32,7 @@ const cleanupDownloaded = vi.fn();
 const cleanupError = vi.fn();
 
 const installUpdate = vi.fn().mockResolvedValue(undefined);
+const openReleasePage = vi.fn().mockResolvedValue(undefined);
 
 beforeEach(() => {
   toastInfo.mockReset();
@@ -44,6 +45,7 @@ beforeEach(() => {
   cleanupDownloaded.mockClear();
   cleanupError.mockClear();
   installUpdate.mockClear();
+  openReleasePage.mockClear();
   availableHandler = null;
   progressHandler = null;
   downloadedHandler = null;
@@ -52,6 +54,7 @@ beforeEach(() => {
     api: {
       app: {
         installUpdate,
+        openReleasePage,
         onUpdateAvailable: (cb: typeof availableHandler) => {
           availableHandler = cb;
           return cleanupAvailable;
@@ -84,7 +87,7 @@ describe('useUpdaterEventListener', () => {
 
   it('shows an info toast when an update becomes available', () => {
     renderHook(() => useUpdaterEventListener());
-    availableHandler?.({ version: '2.0.0' });
+    availableHandler?.({ version: '2.0.0', manual: false });
     expect(toastInfo).toHaveBeenCalledWith(
       'Update v2.0.0 available',
       expect.objectContaining({ id: 'update-available' }),
@@ -132,7 +135,7 @@ describe('useUpdaterEventListener', () => {
   it('surfaces a toast when installUpdate fails from the "Download" action', async () => {
     installUpdate.mockRejectedValueOnce(new Error('disk full'));
     renderHook(() => useUpdaterEventListener());
-    availableHandler?.({ version: '2.0.0' });
+    availableHandler?.({ version: '2.0.0', manual: false });
 
     const onClick = toastInfo.mock.calls[0]![1].action.onClick;
     onClick();
@@ -154,5 +157,27 @@ describe('useUpdaterEventListener', () => {
     await vi.waitFor(() => {
       expect(toastError).toHaveBeenCalledWith('Failed to restart for update');
     });
+  });
+
+  it('offers a GitHub download instead of an install when the build cannot self-update', () => {
+    // An unsigned macOS bundle can never complete a Squirrel install, so the
+    // toast must not hand the user a "Download" button that always fails.
+    renderHook(() => useUpdaterEventListener());
+    availableHandler?.({ version: '2.0.0', manual: true });
+
+    const opts = toastInfo.mock.calls[0]![1];
+    expect(opts.action.label).toBe('Open GitHub');
+    opts.action.onClick();
+
+    expect(openReleasePage).toHaveBeenCalled();
+    expect(installUpdate).not.toHaveBeenCalled();
+  });
+
+  it('gives the error toast a way out to GitHub', () => {
+    renderHook(() => useUpdaterEventListener());
+    errorHandler?.({ error: 'signature mismatch' });
+
+    toastError.mock.calls[0]![1].action.onClick();
+    expect(openReleasePage).toHaveBeenCalled();
   });
 });

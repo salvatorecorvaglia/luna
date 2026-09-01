@@ -6,7 +6,7 @@ import log from '../lib/logger';
 import { getCredentialBackendStatus } from '../services/credential-store';
 import { s3StorageProvider } from '../services/s3/s3-provider';
 import { sshManager } from '../services/ssh-manager';
-import { checkForUpdate, installUpdate } from '../services/updater';
+import { checkForUpdate, installUpdate, openReleasePage } from '../services/updater';
 
 let mainWindowRef: BrowserWindow | null = null;
 
@@ -33,9 +33,9 @@ export function registerAppHandlers(): void {
     return checkForUpdate();
   });
 
-  registerHandler(IPC.APP_INSTALL_UPDATE, () => {
-    installUpdate();
-  });
+  registerHandler(IPC.APP_INSTALL_UPDATE, () => installUpdate());
+
+  registerHandler(IPC.APP_OPEN_RELEASE_PAGE, () => openReleasePage());
 
   registerHandler(IPC.APP_GET_ACTIVE_SESSIONS, () => {
     return {

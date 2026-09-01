@@ -122,6 +122,7 @@ export function createFakeApi(): LunaAPI {
       getVersion: vi.fn().mockResolvedValue('1.0.0-test'),
       checkUpdate: vi.fn().mockResolvedValue(undefined),
       installUpdate: vi.fn().mockResolvedValue(undefined),
+      openReleasePage: vi.fn().mockResolvedValue(undefined),
       getLogPath: vi.fn().mockResolvedValue('/tmp/luna.log'),
       openLogFile: vi.fn().mockResolvedValue(undefined),
       getActiveSessions: vi.fn().mockResolvedValue({ ssh: [], s3: [] }),

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * `checkForUpdate()` used to fire the check and return the module-level state
@@ -8,13 +8,37 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 let isPackaged = true;
+let platform: NodeJS.Platform = 'linux';
+/** stderr `codesign --display` writes for the bundle under test. */
+let codesignStderr = 'Authority=Developer ID Application: Someone (ABCDE12345)\n';
+let codesignError: Error | null = null;
 const listeners = new Map<string, (payload: unknown) => void>();
 const checkForUpdates = vi.fn(() => Promise.resolve(null as unknown));
+const openExternal = vi.fn((_url: string) => Promise.resolve());
+const downloadUpdate = vi.fn(() => Promise.resolve());
+const quitAndInstall = vi.fn();
+const emitToRenderer = vi.fn();
+
+// `execFile` is consumed through `promisify`, so the double has to carry the
+// custom-promisified symbol the same way node's own `execFile` does.
+const execFile = Object.assign(vi.fn(), {
+  [Symbol.for('nodejs.util.promisify.custom')]: () =>
+    codesignError
+      ? Promise.reject(codesignError)
+      : Promise.resolve({ stdout: '', stderr: codesignStderr }),
+});
+
+vi.mock('node:child_process', () => ({
+  get execFile() {
+    return execFile;
+  },
+}));
 
 vi.mock('electron', () => ({
   get app() {
     return { isPackaged };
   },
+  shell: { openExternal: (url: string) => openExternal(url) },
 }));
 
 vi.mock('electron-updater', () => ({
@@ -30,12 +54,14 @@ vi.mock('electron-updater', () => ({
       listeners.set(event, cb);
     },
     checkForUpdates: () => checkForUpdates(),
-    downloadUpdate: vi.fn(() => Promise.resolve()),
-    quitAndInstall: vi.fn(),
+    downloadUpdate: () => downloadUpdate(),
+    quitAndInstall: (...args: unknown[]) => quitAndInstall(...args),
   },
 }));
 
-vi.mock('../../../src/main/services/emit', () => ({ emitToRenderer: vi.fn() }));
+vi.mock('../../../src/main/services/emit', () => ({
+  emitToRenderer: (...args: unknown[]) => emitToRenderer(...args),
+}));
 vi.mock('../../../src/main/lib/logger', () => ({
   default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
@@ -48,6 +74,7 @@ vi.mock('../../../src/main/lib/logger', () => ({
 async function freshUpdater(): Promise<typeof import('../../../src/main/services/updater')> {
   vi.resetModules();
   listeners.clear();
+  Object.defineProperty(process, 'platform', { value: platform, configurable: true });
   const mod = await import('../../../src/main/services/updater');
   // initAutoUpdater schedules a 5s startup check; fake timers keep it from
   // firing into the assertions below.
@@ -57,9 +84,22 @@ async function freshUpdater(): Promise<typeof import('../../../src/main/services
   return mod;
 }
 
+const realPlatform = process.platform;
+
 beforeEach(() => {
   isPackaged = true;
+  platform = 'linux';
+  codesignStderr = 'Authority=Developer ID Application: Someone (ABCDE12345)\n';
+  codesignError = null;
   checkForUpdates.mockClear();
+  openExternal.mockClear();
+  downloadUpdate.mockClear();
+  quitAndInstall.mockClear();
+  emitToRenderer.mockClear();
+});
+
+afterEach(() => {
+  Object.defineProperty(process, 'platform', { value: realPlatform, configurable: true });
 });
 
 describe('checkForUpdate', () => {
@@ -73,7 +113,11 @@ describe('checkForUpdate', () => {
       return null;
     });
 
-    await expect(checkForUpdate()).resolves.toEqual({ available: true, version: '2.0.0' });
+    await expect(checkForUpdate()).resolves.toEqual({
+      available: true,
+      version: '2.0.0',
+      manual: false,
+    });
   });
 
   it('reports no update when the feed says so', async () => {
@@ -83,7 +127,11 @@ describe('checkForUpdate', () => {
       return null;
     });
 
-    await expect(checkForUpdate()).resolves.toEqual({ available: false, version: undefined });
+    await expect(checkForUpdate()).resolves.toEqual({
+      available: false,
+      version: undefined,
+      manual: false,
+    });
   });
 
   it('resolves rather than rejecting when the check fails', async () => {
@@ -91,7 +139,11 @@ describe('checkForUpdate', () => {
     // as an error dialog the user can't act on.
     const { checkForUpdate } = await freshUpdater();
     checkForUpdates.mockImplementationOnce(() => Promise.reject(new Error('ENOTFOUND')));
-    await expect(checkForUpdate()).resolves.toEqual({ available: false, version: undefined });
+    await expect(checkForUpdate()).resolves.toEqual({
+      available: false,
+      version: undefined,
+      manual: false,
+    });
   });
 
   it('coalesces concurrent checks into one network call', async () => {
@@ -115,7 +167,87 @@ describe('checkForUpdate', () => {
   it('is inert in an unpackaged build', async () => {
     isPackaged = false;
     const { checkForUpdate } = await freshUpdater();
-    await expect(checkForUpdate()).resolves.toEqual({ available: false, version: undefined });
+    await expect(checkForUpdate()).resolves.toEqual({
+      available: false,
+      version: undefined,
+      manual: false,
+    });
     expect(checkForUpdates).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * An ad-hoc-signed macOS bundle cannot pass Squirrel's signature check, so the
+ * app must not walk the user through "Download" → "Restart now" → failure.
+ */
+describe('unsigned macOS builds', () => {
+  it('reports manual mode when the bundle has no signing authority', async () => {
+    platform = 'darwin';
+    codesignStderr = 'Executable=/Applications/Luna.app\nSignature=adhoc\n';
+    const { checkForUpdate } = await freshUpdater();
+
+    await expect(checkForUpdate()).resolves.toMatchObject({ manual: true });
+  });
+
+  it('reports manual mode when codesign cannot read the bundle at all', async () => {
+    platform = 'darwin';
+    codesignError = new Error('code object is not signed at all');
+    const { checkForUpdate } = await freshUpdater();
+
+    await expect(checkForUpdate()).resolves.toMatchObject({ manual: true });
+  });
+
+  it('stays in auto mode for a properly signed bundle', async () => {
+    platform = 'darwin';
+    const { checkForUpdate } = await freshUpdater();
+
+    await expect(checkForUpdate()).resolves.toMatchObject({ manual: false });
+  });
+
+  it('flags the update-available event as manual so the UI offers GitHub', async () => {
+    platform = 'darwin';
+    codesignStderr = 'Signature=adhoc\n';
+    await freshUpdater();
+
+    listeners.get('update-available')?.({ version: '2.0.0' });
+    await vi.waitFor(() => {
+      expect(emitToRenderer).toHaveBeenCalledWith('app:update-available', {
+        version: '2.0.0',
+        manual: true,
+      });
+    });
+  });
+
+  it('refuses to download an update it could never install', async () => {
+    platform = 'darwin';
+    codesignStderr = 'Signature=adhoc\n';
+    const { installUpdate } = await freshUpdater();
+
+    await installUpdate();
+
+    expect(downloadUpdate).not.toHaveBeenCalled();
+    expect(quitAndInstall).not.toHaveBeenCalled();
+    expect(emitToRenderer).toHaveBeenCalledWith(
+      'app:update-error',
+      expect.objectContaining({ error: expect.stringContaining('GitHub') }),
+    );
+  });
+
+  it('downloads and installs normally when the bundle is signed', async () => {
+    platform = 'darwin';
+    const { installUpdate } = await freshUpdater();
+
+    await installUpdate();
+
+    expect(downloadUpdate).toHaveBeenCalled();
+    expect(quitAndInstall).toHaveBeenCalledWith(false, true);
+  });
+});
+
+describe('openReleasePage', () => {
+  it('opens the GitHub releases page', async () => {
+    const { openReleasePage, RELEASES_URL } = await freshUpdater();
+    await openReleasePage();
+    expect(openExternal).toHaveBeenCalledWith(RELEASES_URL);
   });
 });

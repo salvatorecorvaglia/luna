@@ -288,6 +288,7 @@ const api = {
     getVersion: () => invoke(IPC.APP_GET_VERSION),
     checkUpdate: () => invoke(IPC.APP_CHECK_UPDATE),
     installUpdate: () => invoke(IPC.APP_INSTALL_UPDATE),
+    openReleasePage: () => invoke(IPC.APP_OPEN_RELEASE_PAGE),
     getLogPath: () => invoke(IPC.APP_GET_LOG_PATH),
     openLogFile: () => invoke(IPC.APP_OPEN_LOG_FILE),
     getActiveSessions: () => invoke(IPC.APP_GET_ACTIVE_SESSIONS),
