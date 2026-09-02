@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-09-02
+
 ### Fixed
 
 - **macOS Auto-Update Offered An Install That Could Never Succeed**: Luna's macOS artifacts are
