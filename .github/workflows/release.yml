@@ -118,17 +118,48 @@ jobs:
       - name: Build Electron app
         run: pnpm run build
 
+      # electron-builder's deb target shells out to fpm. Rather than expecting it
+      # on PATH it downloads a portable Ruby bundle into the electron-builder
+      # cache and unpacks it with 7za, and that unpack is what keeps failing the
+      # release:
+      #
+      #   ENOENT: no such file or directory, open
+      #   '.cache/electron-builder/fpm@2.1.4/fpm-1.17.0-ruby-3.4.3-linux-amd64-<hash>.tmp/ruby-3.4.3-portable/bin/bundle'
+      #
+      # The `.tmp` in that path is extractArchive()'s staging dir, so the tree is
+      # being read while it is still half-extracted — and because the cache dir is
+      # restored across runs by actions/cache, a partial extract from a failed run
+      # is carried into the next one. Installing fpm ourselves and setting
+      # USE_SYSTEM_FPM makes app-builder-lib's getFpmPath() return a bare "fpm"
+      # from PATH, so the portable-Ruby download/extract path is never taken.
+      - name: Install fpm (Linux deb target)
+        if: matrix.platform == 'linux'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ruby ruby-dev build-essential
+          sudo gem install --no-document fpm
+          fpm --version
+
       - name: Package & Publish
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          USE_SYSTEM_FPM: ${{ matrix.platform == 'linux' }}
         run: |
           if [ "${{ matrix.platform }}" = "linux" ]; then
-            # Build each arch sequentially: electron-builder's deb target uses fpm's
-            # bundled portable Ruby, and extracting it concurrently for x64 + arm64
-            # races and corrupts the cache (ENOENT on psych/nodes.rb).
-            npx electron-builder --linux --x64 --publish always
-            npx electron-builder --linux --arm64 --publish always
+            # Build each arch in its own electron-builder run so the deb and
+            # AppImage targets of the two architectures never contend on the
+            # shared toolset cache.
+            #
+            # The explicit `<target>:<arch>` list is required — bare `--x64` /
+            # `--arm64` does NOT restrict the build here. computeArchToTargetNamesMap()
+            # only honours the CLI arch once at least one target name is given on
+            # the command line; with none it falls through and expands the per-target
+            # `arch:` arrays in electron-builder.yml, so `--linux --x64` still built
+            # (and published) both architectures, twice over.
+            npx electron-builder --linux AppImage:x64 deb:x64 --publish always
+            npx electron-builder --linux AppImage:arm64 deb:arm64 --publish always
           else
             npx electron-builder --${{ matrix.platform }} --publish always
           fi
