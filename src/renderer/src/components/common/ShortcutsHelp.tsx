@@ -1,12 +1,10 @@
-import { AnimatePresence, motion } from 'framer-motion';
 import { Keyboard, X } from 'lucide-react';
-import { useEffect, useRef } from 'react';
-import { attachFocusTrap } from '@/lib/focus-trap';
-import { isMac } from '@/lib/platform';
+import { useCallback } from 'react';
+import { DialogShell } from '@/components/common/DialogShell';
+import { IconButton } from '@/components/ui';
+import { MOD_KEY } from '@/lib/platform';
 import { Z } from '@/lib/z-layers';
 import { useUIStore } from '@/stores/ui-store';
-
-const MOD = isMac ? '⌘' : 'Ctrl';
 
 interface ShortcutRowProps {
   label: string;
@@ -23,7 +21,7 @@ function ShortcutRow({ label, keys }: ShortcutRowProps) {
             key={i}
             className="flex min-w-[20px] items-center justify-center rounded border border-border/60 bg-muted/50 px-1.5 py-0.5 font-mono text-2xs font-medium text-foreground shadow-sm"
           >
-            {key === 'MOD' ? MOD : key}
+            {key === 'MOD' ? MOD_KEY : key}
           </kbd>
         ))}
       </div>
@@ -73,100 +71,71 @@ const CATEGORIES = [
 export function ShortcutsHelp() {
   const isOpen = useUIStore((s) => s.shortcutsHelpOpen);
   const setOpen = useUIStore((s) => s.setShortcutsHelpOpen);
-  const panelRef = useRef<HTMLDivElement>(null);
 
-  // Unlike most dialogs here, this one had no focus trap or Escape handler at
-  // all — Tab could leak out to the page behind it and Esc did nothing.
-  useEffect(() => {
-    if (!isOpen) return;
-    const panel = panelRef.current;
-    if (!panel) return;
-    return attachFocusTrap(panel, { onEscape: () => setOpen(false) });
-  }, [isOpen, setOpen]);
+  // Memoised: DialogShell re-attaches its focus trap whenever `onClose`
+  // changes identity.
+  const handleClose = useCallback(() => setOpen(false), [setOpen]);
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          <motion.div
-            key="overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setOpen(false)}
-            className={`fixed inset-0 ${Z.modal} bg-black/60 backdrop-blur-md`}
-          />
-          <motion.div
-            key="panel"
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className={`fixed left-1/2 top-1/2 ${Z.modal} w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 p-4`}
-          >
-            <div
-              ref={panelRef}
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="shortcuts-help-title"
-              className="overflow-hidden rounded-2xl border border-border/80 bg-card/95 shadow-2xl backdrop-blur-xl"
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between border-b border-border/40 px-6 py-4 bg-muted/20">
-                <div className="flex items-center gap-3">
-                  <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <Keyboard className="size-4" />
-                  </div>
-                  <div>
-                    <h2 id="shortcuts-help-title" className="text-sm font-bold text-foreground">
-                      Keyboard Shortcuts
-                    </h2>
-                    <p className="text-2xs text-muted-foreground">Speed up your workflow</p>
-                  </div>
-                </div>
+    <DialogShell
+      open={isOpen}
+      onClose={handleClose}
+      zLayer={Z.modal}
+      dismissOnOverlayClick
+      ariaLabelledBy="shortcuts-help-title"
+      panelClassName="w-full max-w-2xl overflow-hidden rounded-xl border border-border/80 bg-card shadow-xl"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-border/40 px-6 py-4 bg-muted/20">
+        <div className="flex items-center gap-3">
+          <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Keyboard className="size-4" />
+          </div>
+          <div>
+            <h2 id="shortcuts-help-title" className="text-base font-semibold text-foreground">
+              Keyboard Shortcuts
+            </h2>
+            <p className="text-2xs text-muted-foreground">Speed up your workflow</p>
+          </div>
+        </div>
 
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
-                  aria-label="Close"
-                >
-                  <X className="size-4" />
-                </button>
-              </div>
+        <IconButton
+          size="lg"
+          onClick={handleClose}
+          aria-label="Close"
+          icon={<X className="size-4" />}
+        />
+      </div>
 
-              {/* Grid */}
-              <div className="grid grid-cols-2 gap-x-12 gap-y-8 p-8">
-                {CATEGORIES.map((cat) => (
-                  <div key={cat.title}>
-                    <h3 className="mb-3 text-3xs font-bold uppercase tracking-widest text-primary/70">
-                      {cat.title}
-                    </h3>
-                    <div className="divide-y divide-border/20">
-                      {cat.shortcuts.map((s) => (
-                        <ShortcutRow key={s.label} label={s.label} keys={s.keys} />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Footer */}
-              <div className="bg-muted/10 border-t border-border/40 px-8 py-4">
-                <div className="flex items-center gap-2 text-2xs text-muted-foreground/60">
-                  <div className="size-1.5 rounded-full bg-primary/40" />
-                  <span>
-                    Press{' '}
-                    <kbd className="mx-1 rounded border border-border/40 bg-muted/40 px-1 font-mono text-3xs font-medium text-foreground">
-                      ?
-                    </kbd>{' '}
-                    at any time to open this help panel.
-                  </span>
-                </div>
-              </div>
+      {/* Grid */}
+      <div className="grid grid-cols-2 gap-x-12 gap-y-8 p-8">
+        {CATEGORIES.map((cat) => (
+          <div key={cat.title}>
+            <h3 className="mb-3 text-3xs font-bold uppercase tracking-widest text-primary/70">
+              {cat.title}
+            </h3>
+            <div className="divide-y divide-border/20">
+              {cat.shortcuts.map((s) => (
+                <ShortcutRow key={s.label} label={s.label} keys={s.keys} />
+              ))}
             </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+          </div>
+        ))}
+      </div>
+
+      {/* Footer */}
+      <div className="bg-muted/10 border-t border-border/40 px-8 py-4">
+        <div className="flex items-center gap-2 text-2xs text-muted-foreground/60">
+          <div className="size-1.5 rounded-full bg-primary/40" />
+          <span>
+            Press{' '}
+            <kbd className="mx-1 rounded border border-border/40 bg-muted/40 px-1 font-mono text-3xs font-medium text-foreground">
+              ?
+            </kbd>{' '}
+            at any time to open this help panel.
+          </span>
+        </div>
+      </div>
+    </DialogShell>
   );
 }

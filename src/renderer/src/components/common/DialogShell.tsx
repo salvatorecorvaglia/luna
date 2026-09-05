@@ -38,6 +38,13 @@ const dialogVariants = {
   exit: { opacity: 0, scale: 0.96, y: 8, transition: { duration: 0.1 } },
 } as const;
 
+/** Slide-in used by `layout="sheet-right"`. */
+const sheetVariants = {
+  initial: { opacity: 0, x: '100%' },
+  animate: { opacity: 1, x: 0, transition: { type: 'spring', damping: 28, stiffness: 320 } },
+  exit: { opacity: 0, x: '100%', transition: { duration: 0.2 } },
+} as const;
+
 export interface DialogShellProps {
   open: boolean;
   /** Called on Escape, and on an overlay click when `dismissOnOverlayClick` is set. */
@@ -49,6 +56,12 @@ export interface DialogShellProps {
   portal?: boolean;
   /** Clicking the backdrop calls `onClose`. Default `false` (Esc + explicit buttons only). */
   dismissOnOverlayClick?: boolean;
+  /**
+   * `center` (default) is a centered modal card. `sheet-right` is a full-height
+   * panel that slides in from the right edge — the Settings panel's shape.
+   * The card's own width still comes from `panelClassName`.
+   */
+  layout?: 'center' | 'sheet-right';
   role?: 'dialog' | 'alertdialog';
   ariaLabelledBy?: string;
   ariaDescribedBy?: string;
@@ -72,6 +85,7 @@ export function DialogShell({
   children,
   portal = true,
   dismissOnOverlayClick = false,
+  layout = 'center',
   role = 'dialog',
   ariaLabelledBy,
   ariaDescribedBy,
@@ -92,6 +106,7 @@ export function DialogShell({
     return attachFocusTrap(dialog, { onEscape: onClose });
   }, [open, onClose, onOpenFocus]);
 
+  const sheet = layout === 'sheet-right';
   const content = (
     <AnimatePresence>
       {open && (
@@ -102,16 +117,24 @@ export function DialogShell({
             initial="initial"
             animate="animate"
             exit="exit"
+            // A sheet's wrapper is only as wide as the panel, so an outside
+            // click lands here rather than on the wrapper below. Centered
+            // dialogs are fully covered by the wrapper and never reach this.
+            onClick={dismissOnOverlayClick ? onClose : undefined}
             className={`fixed inset-0 ${zLayer} bg-black/60 backdrop-blur-sm`}
           />
           <motion.div
             key="panel"
-            variants={dialogVariants}
+            variants={sheet ? sheetVariants : dialogVariants}
             initial="initial"
             animate="animate"
             exit="exit"
             onClick={dismissOnOverlayClick ? onClose : undefined}
-            className={`fixed inset-0 ${zLayer} flex items-center justify-center p-4`}
+            className={
+              sheet
+                ? `fixed inset-y-0 right-0 ${zLayer} flex`
+                : `fixed inset-0 ${zLayer} flex items-center justify-center p-4`
+            }
           >
             {/* Literal `role="dialog"` / `role="alertdialog"` (not a dynamic
                 `role={role}`) so both Biome's a11y linter and the design-token

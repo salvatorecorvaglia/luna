@@ -15,14 +15,22 @@ import {
   X,
 } from 'lucide-react';
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { isMac } from '@/lib/platform';
+import { IconButton } from '@/components/ui';
+import { MOD_KEY } from '@/lib/platform';
 import { cn } from '@/lib/utils';
 import { useStorageStore } from '@/stores/storage-store';
 import { FileList } from './FileList';
 
 export type { FileEntry };
 
-const MOD = isMac ? '⌘' : 'Ctrl';
+/**
+ * Pressed state for the filter toggle.
+ *
+ * `!`-prefixed because `.btn-icon` is declared outside Tailwind's `@layer`
+ * blocks in assets/main.css and therefore beats every utility class — the
+ * unprefixed `text-foreground bg-accent` that used to sit here never applied.
+ */
+const ACTIVE_TOGGLE = '!text-foreground !bg-accent';
 
 interface FilePaneProps {
   title: string;
@@ -53,19 +61,45 @@ interface FilePaneProps {
   /**
    * For remote panes, identifies the backing storage kind so the pane can hide
    * affordances that don't apply (e.g. POSIX permissions on S3 objects).
-   * Local panes ignore this — they always show permissions on POSIX hosts.
    */
   remoteKind?: 'sftp' | 's3';
+  /**
+   * Highest directory this pane may navigate to. Breadcrumbs start here, the
+   * home button returns here, and "go up" stops here.
+   *
+   * Defaults to `'/'` so remote panes are unaffected. Local panes must pass the
+   * user's home directory: `shell:readdir` refuses to list anything outside the
+   * home subtree, so offering `/` (or any ancestor of home) put the pane into a
+   * state where every control it still rendered returned "Access denied".
+   */
+  rootPath?: string;
 }
 
-function splitBreadcrumbs(path: string): { name: string; path: string }[] {
-  const parts = path.split('/').filter(Boolean);
-  const crumbs = [{ name: '/', path: '/' }];
+/** Strip the trailing slash so `/a/b/` and `/a/b` compare equal. Root becomes `''`. */
+function normalizeDir(path: string): string {
+  const trimmed = path.replace(/\/+$/, '');
+  return trimmed === '/' ? '' : trimmed;
+}
 
-  let current = '';
-  for (const part of parts) {
-    current += '/' + part;
-    crumbs.push({ name: part, path: current });
+/**
+ * Breadcrumb segments *below* `rootPath` — the root itself is rendered as the
+ * home button, so it never appears as a crumb.
+ *
+ * A path outside the root can still arrive here from a persisted store value
+ * written by an older build. Rather than render nothing, fall back to absolute
+ * crumbs so the user can at least see where they are.
+ */
+function splitBreadcrumbs(path: string, rootPath: string): { name: string; path: string }[] {
+  const root = normalizeDir(rootPath);
+  const current = normalizeDir(path);
+  const inRoot = current === root || current.startsWith(root + '/');
+  const base = inRoot ? root : '';
+
+  const crumbs: { name: string; path: string }[] = [];
+  let acc = base;
+  for (const part of current.slice(base.length).split('/').filter(Boolean)) {
+    acc = `${acc}/${part}`;
+    crumbs.push({ name: part, path: acc });
   }
 
   return crumbs;
@@ -98,16 +132,24 @@ export function FilePane({
   onSelectAll,
   side,
   remoteKind,
+  rootPath = '/',
 }: FilePaneProps) {
   const activeSessionId = useStorageStore((s) => s.activeSessionId);
   const isTruncated = useStorageStore((s) =>
     activeSessionId ? s.truncatedPaths.has(`${activeSessionId}\0${path}`) : false,
   );
 
-  // Unix permissions don't exist on S3 objects, so the perms column is
-  // suppressed there. Local panes and SFTP remote panes show it.
-  const showPermissions = side === 'remote' ? remoteKind !== 's3' : true;
-  const breadcrumbs = useMemo(() => splitBreadcrumbs(path), [path]);
+  // Unix permissions don't exist on S3 objects, and `shell:readdir` never
+  // populates them for local entries — so only SFTP remote panes have a
+  // permissions column to show. Local panes rendered an 84px column of em
+  // dashes before this narrowed.
+  const showPermissions = side === 'remote' && remoteKind !== 's3';
+  const breadcrumbs = useMemo(() => splitBreadcrumbs(path, rootPath), [path, rootPath]);
+  const atRoot = normalizeDir(path) === normalizeDir(rootPath);
+  // Derived from `rootPath`, not `side`: a pane rooted at `/` really is showing
+  // the root directory. The only non-`/` root in the app is the local pane's
+  // home jail (see the rootPath prop doc).
+  const rootLabel = normalizeDir(rootPath) === '' ? 'root directory' : 'home folder';
   const [dragOver, setDragOver] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [filterQuery, setFilterQuery] = useState('');
@@ -152,8 +194,13 @@ export function FilePane({
 
   const navigateUp = useCallback(() => {
     const parent = path.split('/').slice(0, -1).join('/') || '/';
-    onPathChange(parent);
-  }, [path, onPathChange]);
+    // Never step above the pane's root. The button is disabled at the root, so
+    // this is the guard for a path that arrived from outside it.
+    const root = normalizeDir(rootPath);
+    const next = normalizeDir(parent);
+    const withinRoot = root === '' || next === root || next.startsWith(root + '/');
+    onPathChange(withinRoot ? parent : rootPath);
+  }, [path, rootPath, onPathChange]);
 
   const handleOpen = useCallback(
     (entry: FileEntry) => {
@@ -238,73 +285,54 @@ export function FilePane({
         </div>
         <div className="flex items-center gap-0.5">
           {onMkdir && (
-            <button
-              type="button"
+            <IconButton
               onClick={onMkdir}
-              className="btn-icon !p-1"
               title="New folder"
               aria-label="New folder"
-            >
-              <FolderPlus className="size-3.5" aria-hidden="true" />
-            </button>
+              icon={<FolderPlus className="size-3.5" />}
+            />
           )}
           {onFolderSync && (
-            <button
-              type="button"
+            <IconButton
               onClick={onFolderSync}
-              className="btn-icon !p-1 text-primary"
+              className="!text-primary"
               title="Sync Folders"
               aria-label="Sync Folders"
-            >
-              <FolderSync className="size-3.5" aria-hidden="true" />
-            </button>
+              icon={<FolderSync className="size-3.5" />}
+            />
           )}
           {onToggleHidden && (
-            <button
-              type="button"
+            <IconButton
               onClick={onToggleHidden}
-              className="btn-icon !p-1"
               title={showHidden ? 'Hide dotfiles' : 'Show dotfiles'}
               aria-label={showHidden ? 'Hide dotfiles' : 'Show dotfiles'}
-            >
-              {showHidden ? (
-                <Eye className="size-3.5" aria-hidden="true" />
-              ) : (
-                <EyeOff className="size-3.5" aria-hidden="true" />
-              )}
-            </button>
+              icon={showHidden ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
+            />
           )}
 
-          <button
-            type="button"
+          <IconButton
             onClick={toggleFilter}
-            className={cn('btn-icon !p-1', filterOpen && 'text-foreground bg-accent')}
-            title={`Filter (${MOD}F)`}
+            className={cn(filterOpen && ACTIVE_TOGGLE)}
+            title={`Filter (${MOD_KEY}F)`}
             aria-label="Filter files"
             aria-pressed={filterOpen}
-          >
-            <Search className="size-3.5" aria-hidden="true" />
-          </button>
+            icon={<Search className="size-3.5" />}
+          />
 
-          <button
-            type="button"
+          <IconButton
             onClick={navigateUp}
-            className="btn-icon !p-1"
-            title="Go up"
+            disabled={atRoot}
+            title={atRoot ? `Already at the ${rootLabel}` : 'Go up'}
             aria-label="Go up"
-          >
-            <ArrowUp className="size-3.5" aria-hidden="true" />
-          </button>
+            icon={<ArrowUp className="size-3.5" />}
+          />
 
-          <button
-            type="button"
+          <IconButton
             onClick={onRefresh}
-            className="btn-icon !p-1"
             title="Refresh"
             aria-label="Refresh"
-          >
-            <RefreshCw className={cn('size-3.5', isLoading && 'animate-spin')} aria-hidden="true" />
-          </button>
+            icon={<RefreshCw className={cn('size-3.5', isLoading && 'animate-spin')} />}
+          />
         </div>
       </div>
 
@@ -324,14 +352,14 @@ export function FilePane({
         >
           <button
             type="button"
-            onClick={() => onPathChange('/')}
+            onClick={() => onPathChange(rootPath)}
             className="flex-shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer"
-            title="Root"
-            aria-label="Navigate to root directory"
+            title={rootLabel.charAt(0).toUpperCase() + rootLabel.slice(1)}
+            aria-label={`Navigate to ${rootLabel}`}
           >
             <Home className="size-3" />
           </button>
-          {breadcrumbs.slice(1).map((crumb, idx, arr) => {
+          {breadcrumbs.map((crumb, idx, arr) => {
             const isCurrent = idx === arr.length - 1;
             return (
               <span key={crumb.path} className="flex items-center gap-0.5">

@@ -89,6 +89,77 @@ describe('FilePane breadcrumbs', () => {
   });
 });
 
+/**
+ * `shell:readdir` refuses to list outside the home subtree, so a local pane
+ * that still offered `/`, `/Users`, or a "go up" past home put the user in a
+ * dead end: every remaining control returned "Access denied", and the
+ * breadcrumbs — derived from the failed path — offered no way back.
+ */
+describe('FilePane rootPath clamping', () => {
+  const rooted = { ...baseProps, rootPath: '/home/me' };
+
+  it('renders no breadcrumbs above the root', () => {
+    render(<FilePane {...rooted} path="/home/me/docs" entries={[]} />);
+    expect(screen.getByLabelText('Navigate to /home/me/docs')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Navigate to /home/me')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Navigate to /home')).not.toBeInTheDocument();
+  });
+
+  it('sends the home button to the root, not to /', () => {
+    render(<FilePane {...rooted} path="/home/me/docs" entries={[]} />);
+    fireEvent.click(screen.getByLabelText('Navigate to home folder'));
+    expect(rooted.onPathChange).toHaveBeenCalledWith('/home/me');
+  });
+
+  it('disables "go up" at the root', () => {
+    render(<FilePane {...rooted} path="/home/me" entries={[]} />);
+    expect(screen.getByLabelText('Go up')).toBeDisabled();
+  });
+
+  it('allows "go up" below the root, stopping at it', () => {
+    render(<FilePane {...rooted} path="/home/me/docs" entries={[]} />);
+    fireEvent.click(screen.getByLabelText('Go up'));
+    expect(rooted.onPathChange).toHaveBeenCalledWith('/home/me');
+  });
+
+  it('clamps a "go up" that would escape the root', () => {
+    // A path from outside the root (e.g. persisted by an older build).
+    render(<FilePane {...rooted} path="/etc/ssh" entries={[]} />);
+    fireEvent.click(screen.getByLabelText('Go up'));
+    expect(rooted.onPathChange).toHaveBeenCalledWith('/home/me');
+  });
+});
+
+describe('FilePane permissions column', () => {
+  // `shell:readdir` never populates `permissions`, so a local pane showed an
+  // 84px column of em dashes.
+  it('is hidden on local panes', () => {
+    render(<FilePane {...baseProps} path="/home/me" entries={[]} isLoading />);
+    expect(screen.queryByText('Perms')).not.toBeInTheDocument();
+  });
+
+  it('is shown on SFTP remote panes', () => {
+    render(
+      <FilePane
+        {...baseProps}
+        side="remote"
+        remoteKind="sftp"
+        path="/srv"
+        entries={[]}
+        isLoading
+      />,
+    );
+    expect(screen.getByText('Perms')).toBeInTheDocument();
+  });
+
+  it('is hidden on S3 remote panes', () => {
+    render(
+      <FilePane {...baseProps} side="remote" remoteKind="s3" path="/srv" entries={[]} isLoading />,
+    );
+    expect(screen.queryByText('Perms')).not.toBeInTheDocument();
+  });
+});
+
 describe('FilePane filter', () => {
   it('opens the filter input when the toggle is clicked', () => {
     render(<FilePane {...baseProps} path="/home/me" entries={sampleEntries} />);

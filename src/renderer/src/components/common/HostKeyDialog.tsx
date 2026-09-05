@@ -4,7 +4,7 @@ import { Check, Copy, Fingerprint, ShieldAlert, ShieldCheck } from 'lucide-react
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { DialogShell } from '@/components/common/DialogShell';
-import { Spinner } from '@/components/ui';
+import { IconButton, Spinner } from '@/components/ui';
 import { useCopiedFlag } from '@/hooks/use-copied-flag';
 import { connectToHost } from '@/lib/ssh';
 import { cn } from '@/lib/utils';
@@ -129,18 +129,19 @@ export function HostKeyDialog() {
                     SHA256:{event.newFingerprint}
                   </code>
 
-                  <button
-                    type="button"
+                  <IconButton
                     onClick={handleCopyFingerprint}
-                    className="btn-icon flex-shrink-0 !p-1"
+                    className="flex-shrink-0"
                     title="Copy fingerprint"
-                  >
-                    {copied ? (
-                      <Check className="size-3 text-success" />
-                    ) : (
-                      <Copy className="size-3" />
-                    )}
-                  </button>
+                    aria-label={copied ? 'Fingerprint copied' : 'Copy fingerprint'}
+                    icon={
+                      copied ? (
+                        <Check className="size-3 text-success" />
+                      ) : (
+                        <Copy className="size-3" />
+                      )
+                    }
+                  />
                 </div>
               </div>
             </div>

@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { ArrowRight, Command, FolderOpen, Plus } from 'lucide-react';
+import { isMac } from '@/lib/platform';
 import { useConnectionStore } from '@/stores/connection-store';
 import { useUIStore } from '@/stores/ui-store';
 import lunaLogo from '../../../../../resources/luna.png';
@@ -102,7 +103,7 @@ export function WelcomeView() {
           className="mt-6 flex items-center justify-center gap-1.5 text-xs text-muted-foreground/70"
         >
           <kbd className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/60 px-1.5 py-0.5 font-mono text-3xs text-muted-foreground">
-            {/Mac|iPod|iPhone|iPad/.test(navigator.userAgent) ? (
+            {isMac ? (
               <>
                 <Command className="size-2.5" />K
               </>

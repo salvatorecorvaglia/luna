@@ -32,6 +32,37 @@ const COLOR_ALLOWLIST = new Set<string>([
   normPath('src/renderer/src/components/layout/TitleBar.tsx'),
 ]);
 
+/**
+ * Files allowed to reference the raw `btn-icon` class.
+ *
+ * `IconButton` is the primitive that applies it — and, by requiring
+ * `aria-label` at the type level, the reason none of the app's icon-only
+ * buttons can ship silent again. It had zero consumers while twenty raw
+ * `btn-icon` call sites remained, seven of which (the terminal toolbar) were
+ * genuinely unlabelled.
+ */
+const BTN_ICON_ALLOWLIST = new Set<string>([
+  normPath('src/renderer/src/components/ui/IconButton.tsx'),
+]);
+
+/**
+ * Files allowed to install a focus trap directly instead of rendering through
+ * `DialogShell`.
+ *
+ * DialogShell owns overlay, animation, stacking layer, focus trap and
+ * Escape-to-close. Three dialogs each rebuilt that chrome and drifted apart —
+ * two corner radii, two shadows, two title scales — before they were migrated.
+ */
+const FOCUS_TRAP_ALLOWLIST = new Set<string>([
+  // The primitive itself.
+  normPath('src/renderer/src/components/common/DialogShell.tsx'),
+  // Top-aligned combobox with its own sizing and keyboard model; not a
+  // centered card, so DialogShell's layouts don't express it.
+  normPath('src/renderer/src/components/command-palette/CommandPalette.tsx'),
+  // Not a portal dialog: an in-pane overlay covering a single terminal.
+  normPath('src/renderer/src/components/terminal/TerminalPane.tsx'),
+]);
+
 /** Files where arbitrary z-[N] values are intentionally allowed. */
 const Z_INDEX_ALLOWLIST = new Set<string>([
   // SettingsPanel's close button uses `relative z-[120]` for local
@@ -46,6 +77,23 @@ const HEX_CLASS_RE =
   /\b(?:text|bg|border|from|to|ring|fill|stroke|via|outline|caret|placeholder|accent|decoration|divide|shadow)-\[#[0-9A-Fa-f]+(?:\/[0-9]+)?\]/;
 
 const ARBITRARY_Z_RE = /\bz-\[[0-9]+\]/;
+
+const RAW_BTN_ICON_RE = /\bbtn-icon\b/;
+
+const FOCUS_TRAP_RE = /\battachFocusTrap\b/;
+
+/**
+ * `MOD_KEY` in lib/platform.ts is the single source for the chord modifier
+ * symbol. It had no consumers while three components each re-derived it.
+ */
+const MOD_REDERIVE_RE = /isMac\s*\?\s*['\u2018\u201c]\u2318/;
+
+/**
+ * `lib/platform.ts` exists solely to centralise platform detection ("three
+ * components each rolled their own"). Two of them still sniffed the user-agent
+ * inline afterwards.
+ */
+const NAVIGATOR_PLATFORM_RE = /\bnavigator\.(?:userAgent|platform)\b/;
 
 /**
  * Arbitrary pixel font sizes, e.g. `text-[11px]`.
@@ -115,6 +163,25 @@ function scan(file: string): Violation[] {
     }
     const hex = HEX_CLASS_RE.exec(line);
     if (hex) out.push({ file: relPath, line: i + 1, rule: 'hex-class-literal', match: hex[0] });
+
+    if (!BTN_ICON_ALLOWLIST.has(relPath)) {
+      const icon = RAW_BTN_ICON_RE.exec(line);
+      if (icon) out.push({ file: relPath, line: i + 1, rule: 'raw-btn-icon', match: icon[0] });
+    }
+
+    if (!FOCUS_TRAP_ALLOWLIST.has(relPath)) {
+      const trap = FOCUS_TRAP_RE.exec(line);
+      if (trap)
+        out.push({ file: relPath, line: i + 1, rule: 'hand-rolled-dialog', match: trap[0] });
+    }
+
+    const modKey = MOD_REDERIVE_RE.exec(line);
+    if (modKey)
+      out.push({ file: relPath, line: i + 1, rule: 'mod-key-rederived', match: modKey[0] });
+
+    const navPlatform = NAVIGATOR_PLATFORM_RE.exec(line);
+    if (navPlatform)
+      out.push({ file: relPath, line: i + 1, rule: 'platform-sniff', match: navPlatform[0] });
 
     if (!Z_INDEX_ALLOWLIST.has(relPath)) {
       const z = ARBITRARY_Z_RE.exec(line);
@@ -241,6 +308,47 @@ describe('design-token coverage', () => {
     if (offenders.length > 0) {
       throw new Error(
         `Focus-trapping dialogs must be announced as modals. Add role="dialog" aria-modal="true" and point aria-labelledby at the dialog's heading id.\n${offenders.join('\n')}`,
+      );
+    }
+    expect(offenders).toHaveLength(0);
+  });
+
+  it('icon-only buttons go through IconButton, not the raw btn-icon class', () => {
+    const offenders = allViolations.filter((v) => v.rule === 'raw-btn-icon');
+    if (offenders.length > 0) {
+      const report = offenders
+        .map((v) => `  ${v.file}:${v.line}  ${v.match} — use <IconButton> from '@/components/ui'.`)
+        .join('\n');
+      throw new Error(
+        `Raw btn-icon usage leaked back into components. IconButton applies the class and requires an aria-label at the type level, which is what keeps icon-only controls from shipping silent to screen readers.\n${report}`,
+      );
+    }
+    expect(offenders).toHaveLength(0);
+  });
+
+  it('modal dialogs render through DialogShell rather than trapping focus themselves', () => {
+    const offenders = allViolations.filter((v) => v.rule === 'hand-rolled-dialog');
+    if (offenders.length > 0) {
+      const report = offenders
+        .map((v) => `  ${v.file}:${v.line}  ${v.match} — render through <DialogShell> instead.`)
+        .join('\n');
+      throw new Error(
+        `A component installed its own focus trap. DialogShell owns the overlay, animation, stacking layer, focus trap and Escape handling; hand-rolling them is how the app ended up with three different dialog radii and title scales. If this genuinely is not a centered/sheet dialog, add it to FOCUS_TRAP_ALLOWLIST with a justification.\n${report}`,
+      );
+    }
+    expect(offenders).toHaveLength(0);
+  });
+
+  it('components use MOD_KEY and lib/platform instead of re-deriving the platform', () => {
+    const offenders = allViolations.filter(
+      (v) => v.rule === 'mod-key-rederived' || v.rule === 'platform-sniff',
+    );
+    if (offenders.length > 0) {
+      const report = offenders
+        .map((v) => `  ${v.file}:${v.line}  ${v.match} — import from '@/lib/platform'.`)
+        .join('\n');
+      throw new Error(
+        `Platform detection was re-implemented in a component. lib/platform.ts exports isMac, isLinux and MOD_KEY precisely so there is one place to change.\n${report}`,
       );
     }
     expect(offenders).toHaveLength(0);

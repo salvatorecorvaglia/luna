@@ -229,8 +229,8 @@ export function SftpFields({
                 <button
                   type="button"
                   onClick={() => onSftpChange({ showPassword: !sftp.showPassword })}
+                  aria-label={sftp.showPassword ? 'Hide password' : 'Show password'}
                   className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground/60 hover:text-foreground cursor-pointer"
-                  tabIndex={-1}
                 >
                   {sftp.showPassword ? (
                     <EyeOff className="size-3.5" />

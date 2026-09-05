@@ -143,8 +143,8 @@ export function S3Fields({
           <button
             type="button"
             onClick={() => onS3Change({ showSecretKey: !s3.showSecretKey })}
+            aria-label={s3.showSecretKey ? 'Hide secret access key' : 'Show secret access key'}
             className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground/60 hover:text-foreground cursor-pointer"
-            tabIndex={-1}
           >
             {s3.showSecretKey ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
           </button>
@@ -188,7 +188,10 @@ export function S3Fields({
           </FormField>
         </div>
         <label className="group flex h-[38.5px] flex-1 cursor-pointer items-center gap-2.5 rounded-lg px-2 transition-all hover:bg-accent/40 active:scale-[0.98] select-none">
-          <div className="relative flex size-4 shrink-0 items-center justify-center rounded border border-border bg-card transition-all group-hover:border-primary/50">
+          {/* The real checkbox is sr-only, so it can be focused with no visible
+              effect. `has-[:focus-visible]` (not `peer-`, which needs a preceding
+              sibling — the input is a child here) mirrors focus onto this box. */}
+          <div className="relative flex size-4 shrink-0 items-center justify-center rounded border border-border bg-card transition-all group-hover:border-primary/50 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-info has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-card">
             <input
               type="checkbox"
               checked={s3.forcePathStyle}

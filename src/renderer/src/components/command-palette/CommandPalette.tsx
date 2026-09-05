@@ -23,9 +23,10 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { IconButton } from '@/components/ui';
 import { useConnections } from '@/hooks/use-connections';
 import { attachFocusTrap } from '@/lib/focus-trap';
-import { isMac } from '@/lib/platform';
+import { MOD_KEY } from '@/lib/platform';
 import { connectToHost } from '@/lib/ssh';
 import { cn } from '@/lib/utils';
 import { Z } from '@/lib/z-layers';
@@ -54,8 +55,6 @@ interface Command {
    */
   keepOpen?: boolean;
 }
-
-const MOD = isMac ? '⌘' : 'Ctrl';
 
 const overlayVariants = {
   initial: { opacity: 0 },
@@ -141,7 +140,7 @@ export function CommandPalette() {
         category: 'Connections',
         action: () => openCreateForm(),
         keywords: ['add', 'create', 'ssh'],
-        shortcut: [MOD, 'N'],
+        shortcut: [MOD_KEY, 'N'],
       },
       {
         id: 'delete-all-connections',
@@ -161,7 +160,7 @@ export function CommandPalette() {
         category: 'Views',
         action: () => setActiveView('local'),
         keywords: ['terminal', 'local', 'view'],
-        shortcut: [MOD, '⇧', '1'],
+        shortcut: [MOD_KEY, '⇧', '1'],
       },
       {
         id: 'view-terminal',
@@ -170,7 +169,7 @@ export function CommandPalette() {
         category: 'Views',
         action: () => setActiveView('terminal'),
         keywords: ['ssh', 'tab', 'view'],
-        shortcut: [MOD, '⇧', '2'],
+        shortcut: [MOD_KEY, '⇧', '2'],
       },
       {
         id: 'view-sftp',
@@ -179,7 +178,7 @@ export function CommandPalette() {
         category: 'Views',
         action: () => setActiveView('sftp'),
         keywords: ['files', 'browse', 'view'],
-        shortcut: [MOD, '⇧', '3'],
+        shortcut: [MOD_KEY, '⇧', '3'],
       },
       {
         id: 'toggle-sidebar',
@@ -188,7 +187,7 @@ export function CommandPalette() {
         category: 'Interface',
         action: toggleSidebar,
         keywords: ['panel', 'hide', 'show'],
-        shortcut: [MOD, 'B'],
+        shortcut: [MOD_KEY, 'B'],
       },
       {
         id: 'theme-dracula',
@@ -221,7 +220,7 @@ export function CommandPalette() {
         category: 'Interface',
         action: () => setSettingsOpen(true),
         keywords: ['preferences', 'config'],
-        shortcut: [MOD, ','],
+        shortcut: [MOD_KEY, ','],
       },
       {
         id: 'keyboard-shortcuts',
@@ -277,7 +276,7 @@ export function CommandPalette() {
           category: 'Terminal',
           action: () => closeTab(activeSessionId),
           keywords: ['close', 'tab', 'kill'],
-          shortcut: [MOD, 'W'],
+          shortcut: [MOD_KEY, 'W'],
         },
         {
           id: 'terminal-next-tab',
@@ -285,7 +284,7 @@ export function CommandPalette() {
           icon: <ChevronRight className="size-4" aria-hidden="true" />,
           category: 'Terminal',
           action: () => setActiveSession(next),
-          shortcut: [MOD, '⇧', ']'],
+          shortcut: [MOD_KEY, '⇧', ']'],
         },
         {
           id: 'terminal-prev-tab',
@@ -293,7 +292,7 @@ export function CommandPalette() {
           icon: <ChevronLeft className="size-4" aria-hidden="true" />,
           category: 'Terminal',
           action: () => setActiveSession(prev),
-          shortcut: [MOD, '⇧', '['],
+          shortcut: [MOD_KEY, '⇧', '['],
         },
       );
     }
@@ -489,14 +488,13 @@ export function CommandPalette() {
                     aria-activedescendant={activeOptionId}
                   />
 
-                  <button
-                    type="button"
+                  <IconButton
+                    size="md"
                     onClick={() => setCommandPaletteOpen(false)}
-                    className="btn-icon !p-1.5 ml-1"
+                    className="ml-1"
                     aria-label="Close command palette"
-                  >
-                    <X className="size-4" />
-                  </button>
+                    icon={<X className="size-4" />}
+                  />
                 </div>
 
                 {/* Results */}

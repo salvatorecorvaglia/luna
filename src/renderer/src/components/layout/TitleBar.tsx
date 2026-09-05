@@ -9,14 +9,18 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { IconButton } from '@/components/ui';
+import { isMac } from '@/lib/platform';
 import { cn } from '@/lib/utils';
 import { getApi } from '@/services/api';
 import { useUIStore } from '@/stores/ui-store';
 import lunaLogo from '../../../../../resources/luna.png';
 
-// Resolved once at module load — navigator.userAgent doesn't change at runtime
-// and the regex was re-running on every TitleBar render.
-const IS_MAC = /Mac|iPhone|iPad/.test(navigator.userAgent);
+const VIEW_TABS = [
+  { view: 'local', icon: Monitor, label: 'Local' },
+  { view: 'terminal', icon: Terminal, label: 'Terminal' },
+  { view: 'sftp', icon: FolderOpen, label: 'SFTP' },
+] as const;
 
 export function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false);
@@ -25,7 +29,12 @@ export function TitleBar() {
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
 
-  const isMac = IS_MAC;
+  // -1 when the current view has no tab (e.g. 'welcome') — fall back to the
+  // first tab so the roving tabIndex always has exactly one holder.
+  const activeTabIndex = Math.max(
+    0,
+    VIEW_TABS.findIndex((t) => t.view === activeView),
+  );
 
   useEffect(() => {
     const check = async () => setIsMaximized(await getApi().window.isMaximized());
@@ -34,6 +43,31 @@ export function TitleBar() {
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
   }, []);
+
+  /**
+   * Arrow / Home / End movement across the tablist. Selection follows focus,
+   * which is the expected behaviour for a tablist whose panels are already
+   * mounted — switching views here is free.
+   */
+  const handleTabListKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const DELTA: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1 };
+    let next: number;
+    if (e.key in DELTA) {
+      // Non-null assertion is safe: the result is taken modulo a non-empty array.
+      next = (activeTabIndex + DELTA[e.key]! + VIEW_TABS.length) % VIEW_TABS.length;
+    } else if (e.key === 'Home') {
+      next = 0;
+    } else if (e.key === 'End') {
+      next = VIEW_TABS.length - 1;
+    } else {
+      return;
+    }
+    e.preventDefault();
+    const target = VIEW_TABS[next]!;
+    setActiveView(target.view);
+    // Move DOM focus with selection so the roving tabIndex stays coherent.
+    (e.currentTarget.children[next] as HTMLElement | undefined)?.focus();
+  };
 
   const handleMinimize = () => getApi().window.minimize();
   const handleMaximize = async () => {
@@ -59,36 +93,39 @@ export function TitleBar() {
 
         {/* Sidebar toggle */}
 
-        <button
-          type="button"
+        <IconButton
+          size="md"
           onClick={toggleSidebar}
-          className={cn('btn-icon', !sidebarOpen && 'text-muted-foreground/50')}
+          className={cn(!sidebarOpen && '!text-muted-foreground/50')}
           title="Toggle sidebar"
           aria-label="Toggle sidebar"
-        >
-          <PanelLeft className="size-4" />
-        </button>
+          aria-pressed={sidebarOpen}
+          icon={<PanelLeft className="size-4" />}
+        />
 
-        {/* View Switcher */}
-        <div className="ml-1 flex items-center rounded-lg bg-muted/60 p-[3px]">
-          <ViewTab
-            active={activeView === 'local'}
-            onClick={() => setActiveView('local')}
-            icon={<Monitor className="size-3.5" />}
-            label="Local"
-          />
-          <ViewTab
-            active={activeView === 'terminal'}
-            onClick={() => setActiveView('terminal')}
-            icon={<Terminal className="size-3.5" />}
-            label="Terminal"
-          />
-          <ViewTab
-            active={activeView === 'sftp'}
-            onClick={() => setActiveView('sftp')}
-            icon={<FolderOpen className="size-3.5" />}
-            label="SFTP"
-          />
+        {/* View Switcher — the app's primary navigation, so it is a real
+            tablist (matching TerminalTabs) rather than three plain buttons:
+            assistive tech gets aria-selected, and arrow keys move between
+            views the way a tablist is expected to behave. */}
+        <div
+          role="tablist"
+          aria-label="View"
+          onKeyDown={handleTabListKeyDown}
+          className="ml-1 flex items-center rounded-lg bg-muted/60 p-[3px]"
+        >
+          {VIEW_TABS.map(({ view, icon: Icon, label }, i) => (
+            <ViewTab
+              key={view}
+              active={activeView === view}
+              // Exactly one tab must stay keyboard-reachable. On views with no
+              // tab of their own ('welcome'), `activeTabIndex` falls back to 0
+              // so the group doesn't drop out of the tab order entirely.
+              tabbable={i === activeTabIndex}
+              onClick={() => setActiveView(view)}
+              icon={<Icon className="size-3.5" />}
+              label={label}
+            />
+          ))}
         </div>
       </div>
 
@@ -101,36 +138,33 @@ export function TitleBar() {
           <>
             <div className="mx-1.5 h-3.5 w-px bg-border/60" />
 
-            <button
-              type="button"
+            <IconButton
+              size="md"
               onClick={handleMinimize}
-              className="btn-icon"
               aria-label="Minimize"
-            >
-              <Minus className="size-3.5" />
-            </button>
+              icon={<Minus className="size-3.5" />}
+            />
 
-            <button
-              type="button"
+            <IconButton
+              size="md"
               onClick={handleMaximize}
-              className="btn-icon"
               aria-label={isMaximized ? 'Restore' : 'Maximize'}
-            >
-              {isMaximized ? (
-                <Minimize2 className="size-3.5" />
-              ) : (
-                <Maximize2 className="size-3.5" />
-              )}
-            </button>
+              icon={
+                isMaximized ? (
+                  <Minimize2 className="size-3.5" />
+                ) : (
+                  <Maximize2 className="size-3.5" />
+                )
+              }
+            />
 
-            <button
-              type="button"
+            <IconButton
+              size="md"
               onClick={handleClose}
-              className="btn-icon hover:!bg-red-500/90 hover:!text-white"
+              className="hover:!bg-red-500/90 hover:!text-white"
               aria-label="Close"
-            >
-              <X className="size-3.5" />
-            </button>
+              icon={<X className="size-3.5" />}
+            />
           </>
         )}
       </div>
@@ -140,11 +174,14 @@ export function TitleBar() {
 
 function ViewTab({
   active,
+  tabbable,
   onClick,
   icon,
   label,
 }: {
   active: boolean;
+  /** Holder of the group's single tab stop. See the roving tabIndex note above. */
+  tabbable: boolean;
   onClick: () => void;
   icon: React.ReactNode;
   label: string;
@@ -152,6 +189,10 @@ function ViewTab({
   return (
     <button
       type="button"
+      role="tab"
+      aria-selected={active}
+      // Roving tabIndex: one stop for the whole group, then arrow keys within.
+      tabIndex={tabbable ? 0 : -1}
       onClick={onClick}
       className={cn(
         'relative flex items-center gap-1.5 rounded-md px-3 py-[5px] text-xs font-medium cursor-pointer',

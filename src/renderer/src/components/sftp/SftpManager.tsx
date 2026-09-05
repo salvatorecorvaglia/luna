@@ -161,9 +161,18 @@ export function SftpManager() {
     setRemotePath,
   ]);
 
-  // Set local path to home directory on mount
+  /**
+   * The local pane's root. `shell:readdir` refuses to list outside the home
+   * subtree, so this is both the seed path and the boundary the pane clamps
+   * navigation to.
+   *
+   * Resolved unconditionally rather than behind an `if (localPath) return`
+   * early-out: with a persisted `localPath` that guard skipped the lookup
+   * entirely, leaving the pane with no idea where its root was.
+   */
+  const [localHome, setLocalHome] = useState('/');
+
   useEffect(() => {
-    if (localPath) return;
     // Guard the resolution: without it, unmounting (view switch) before the
     // IPC round-trip settles sets state on a dead component. Every sibling
     // effect in this codebase already uses this pattern.
@@ -171,15 +180,20 @@ export function SftpManager() {
     getApi()
       .shell.homeDir()
       .then((home) => {
-        if (!cancelled) setLocalPath(home);
+        if (cancelled) return;
+        setLocalHome(home);
+        // Read through getState() rather than the render closure so this
+        // effect doesn't have to depend on `localPath` — and therefore doesn't
+        // re-run on every directory change.
+        if (!useStorageStore.getState().localPath) setLocalPath(home);
       })
       .catch(() => {
-        if (!cancelled) setLocalPath('/');
+        if (!cancelled && !useStorageStore.getState().localPath) setLocalPath('/');
       });
     return () => {
       cancelled = true;
     };
-  }, [localPath, setLocalPath]);
+  }, [setLocalPath]);
 
   const currentSession = activeSessionId
     ? sessions.get(activeSessionId) || storageSessions.get(activeSessionId)
@@ -420,8 +434,8 @@ export function SftpManager() {
     }
   }, [activeSessionId, remotePath, invalidateSftp, deleteTarget]);
 
-  // Copy remote path to clipboard
-  const handleRemoteCopyPath = useCallback((entry: FileEntry) => {
+  // Copy path to clipboard — same behaviour on both sides.
+  const handleCopyPath = useCallback((entry: FileEntry) => {
     void navigator.clipboard.writeText(entry.path);
     toast.success('Path copied to clipboard');
   }, []);
@@ -598,12 +612,15 @@ export function SftpManager() {
             onDragStart={handleLocalDragStart}
             onDrop={handleLocalDrop}
             onFileOpen={handleLocalFileOpen}
+            onPreview={handleLocalFileOpen}
+            onCopyPath={handleCopyPath}
             onDownload={handleLocalUpload}
             downloadLabel="Upload"
             showHidden={showHiddenFiles}
             onToggleHidden={toggleHiddenFiles}
             onSelectAll={(names) => setLocalSelection(new Set(names))}
             side="local"
+            rootPath={localHome}
           />
         </div>
 
@@ -657,7 +674,7 @@ export function SftpManager() {
             onFileOpen={handleRemoteFileOpen}
             onRename={handleRemoteRename}
             onDelete={handleRemoteDelete}
-            onCopyPath={handleRemoteCopyPath}
+            onCopyPath={handleCopyPath}
             onPreview={handleRemoteFileOpen}
             onDownload={handleRemoteDownload}
             onGeneratePresignedUrl={setPresignedTarget}

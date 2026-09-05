@@ -38,11 +38,7 @@ export function FormField({
       </label>
       {children}
       {error && (
-        <p
-          id={id ? `${id}-error` : undefined}
-          role="alert"
-          className="mt-1 text-xs text-destructive-fg"
-        >
+        <p id={id ? `${id}-error` : undefined} role="alert" className="form-error">
           {error}
         </p>
       )}

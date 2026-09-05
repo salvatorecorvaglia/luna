@@ -51,9 +51,11 @@ describe('ShortcutsHelp', () => {
 
   it('closes on backdrop click', () => {
     useUIStore.setState({ shortcutsHelpOpen: true });
-    const { container } = render(<ShortcutsHelp />);
+    render(<ShortcutsHelp />);
 
-    const overlay = container.querySelector('.fixed.inset-0');
+    // Queried off document.body, not the render container: DialogShell portals
+    // its overlay so an ancestor's overflow/transform can't clip it.
+    const overlay = document.body.querySelector('.fixed.inset-0');
     expect(overlay).toBeTruthy();
     fireEvent.click(overlay!);
 

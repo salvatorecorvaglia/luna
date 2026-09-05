@@ -8,6 +8,7 @@ import { MacroRecorderDialog } from '@/components/terminal/MacroRecorderDialog';
 import { SnippetVaultDialog } from '@/components/terminal/SnippetVaultDialog';
 import { TerminalFilterBar } from '@/components/terminal/TerminalFilterBar';
 import { WorkspacePresetsDialog } from '@/components/terminal/WorkspacePresetsDialog';
+import { IconButton } from '@/components/ui';
 import { connectToHost } from '@/lib/ssh';
 import { cn } from '@/lib/utils';
 import { getApi } from '@/services/api';
@@ -20,6 +21,16 @@ import { useActiveSessionId, useTerminalStore } from '@/stores/terminal-store';
  * the tab-bar component isn't also responsible for seven independent dialog
  * lifecycles.
  */
+
+/**
+ * Pressed state for the two toggle buttons.
+ *
+ * `!`-prefixed because `.btn-icon` is declared outside Tailwind's `@layer`
+ * blocks in assets/main.css, so it wins over every utility class — the same
+ * reason the size classes in IconButton use `!p-1` / `!p-1.5` / `!p-2`.
+ */
+const ACTIVE_TOGGLE = '!bg-primary/20 !text-primary';
+
 export function TerminalToolbar() {
   const activeSessionId = useActiveSessionId();
   const sessions = useTerminalStore((s) => s.sessions);
@@ -47,78 +58,58 @@ export function TerminalToolbar() {
   return (
     <>
       <div className="flex items-center gap-1 px-2 border-l border-border/40">
-        <button
-          type="button"
+        <IconButton
           onClick={() => setShowSnippetVault(true)}
-          className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
           title="Snippet Vault & Scripts"
-        >
-          <Code className="size-3.5" />
-        </button>
+          aria-label="Snippet Vault & Scripts"
+          icon={<Code className="size-3.5" />}
+        />
 
-        <button
-          type="button"
+        <IconButton
           onClick={() => setShowBroadcastBar((v) => !v)}
-          className={cn(
-            'rounded p-1 transition-colors cursor-pointer',
-            showBroadcastBar
-              ? 'bg-primary/20 text-primary'
-              : 'text-muted-foreground hover:bg-accent hover:text-foreground',
-          )}
+          className={cn(showBroadcastBar && ACTIVE_TOGGLE)}
           title="Broadcast Input to Multiple Terminals"
-        >
-          <Radio className="size-3.5" />
-        </button>
+          aria-label="Broadcast Input to Multiple Terminals"
+          aria-pressed={showBroadcastBar}
+          icon={<Radio className="size-3.5" />}
+        />
 
-        <button
-          type="button"
+        <IconButton
           onClick={() => setShowFilterBar((v) => !v)}
-          className={cn(
-            'rounded p-1 transition-colors cursor-pointer',
-            showFilterBar
-              ? 'bg-primary/20 text-primary'
-              : 'text-muted-foreground hover:bg-accent hover:text-foreground',
-          )}
+          className={cn(showFilterBar && ACTIVE_TOGGLE)}
           title="Live Terminal Output Filter"
-        >
-          <Filter className="size-3.5" />
-        </button>
+          aria-label="Live Terminal Output Filter"
+          aria-pressed={showFilterBar}
+          icon={<Filter className="size-3.5" />}
+        />
 
-        <button
-          type="button"
+        <IconButton
           onClick={() => setShowMacroRecorder(true)}
-          className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
           title="Terminal Macro Recorder"
-        >
-          <Circle className="size-3.5 text-destructive-fg/80" />
-        </button>
+          aria-label="Terminal Macro Recorder"
+          icon={<Circle className="size-3.5 text-destructive-fg/80" />}
+        />
 
-        <button
-          type="button"
+        <IconButton
           onClick={() => setShowCliRef(true)}
-          className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
           title="Offline CLI Syntax & Flag Reference"
-        >
-          <BookOpen className="size-3.5 text-primary/80" />
-        </button>
+          aria-label="Offline CLI Syntax & Flag Reference"
+          icon={<BookOpen className="size-3.5 text-primary/80" />}
+        />
 
-        <button
-          type="button"
+        <IconButton
           onClick={() => setShowAuditExport(true)}
-          className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
           title="Export Session Audit Log (HTML/JSON/TXT)"
-        >
-          <FileText className="size-3.5 text-success/80" />
-        </button>
+          aria-label="Export Session Audit Log (HTML, JSON or TXT)"
+          icon={<FileText className="size-3.5 text-success/80" />}
+        />
 
-        <button
-          type="button"
+        <IconButton
           onClick={() => setShowWorkspaces(true)}
-          className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
           title="Workspace Layout Presets"
-        >
-          <LayoutGrid className="size-3.5" />
-        </button>
+          aria-label="Workspace Layout Presets"
+          icon={<LayoutGrid className="size-3.5" />}
+        />
       </div>
 
       {/* Gated behind their `show*` flag rather than always mounted: each of

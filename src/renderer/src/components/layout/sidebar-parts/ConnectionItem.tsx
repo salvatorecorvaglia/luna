@@ -282,105 +282,111 @@ export function ConnectionItem({
 
   const statusLabel = isConnected ? 'connected' : isConnecting ? 'connecting' : 'disconnected';
 
+  /**
+   * Where this connection points, in one string.
+   *
+   * Computed once and used for the row's accessible name, its tooltip, and its
+   * visible subtitle. The name previously always read
+   * `${username}@${host}` — but `Connection.host` and `username` are empty for
+   * S3 connections (see shared/types/connection.ts), so an S3 row announced
+   * itself as "my-bucket (@) — connected".
+   */
+  const targetLabel = isS3
+    ? `${connection.endpoint || connection.region || 'S3 Storage'}${
+        connection.defaultBucket ? ` / ${connection.defaultBucket}` : ''
+      }`
+    : `${connection.username}@${connection.host}${
+        connection.port !== 22 ? `:${connection.port}` : ''
+      }`;
+
   return (
     <>
       <ContextMenu items={contextMenuItems}>
-        <button
-          type="button"
-          onClick={handleConnect}
-          aria-label={`${connection.name} (${connection.username}@${connection.host}) — ${statusLabel}`}
+        {/* The drag handle is a sibling of the activate button, not a child of
+            it: a <button> inside a <button> is invalid HTML, and assistive tech
+            has no way to represent the nesting. The `group` marker moves to this
+            wrapper so the handle's hover reveal still works. */}
+        <div
           className={cn(
-            'group flex w-full items-center gap-2.5 rounded-lg px-2.5 text-left cursor-pointer transition-colors',
-            compact ? 'py-[7px]' : 'py-2',
+            'group flex w-full items-center rounded-lg pr-1.5 transition-colors',
             isActive
               ? 'bg-sidebar-accent border-l-[3px] border-l-sidebar-primary pl-[7px]'
-              : 'hover:bg-sidebar-accent/60',
+              : 'pl-2.5 hover:bg-sidebar-accent/60',
           )}
         >
-          {/* Status indicator — shape + color so colorblind users can
-              still distinguish states. Connected: solid dot with ring.
-              Connecting: spinner. Disconnected: hollow ring. */}
-          <div className="relative flex-shrink-0" aria-hidden="true">
-            {isConnecting ? (
-              <Loader2 className="size-3 text-warning animate-spin" strokeWidth={2.5} />
-            ) : isConnected ? (
-              <div
-                className={cn(
-                  'size-2.5 rounded-full ring-2 ring-success/30',
-                  !connection.colorTag && 'bg-success',
-                )}
-                style={connection.colorTag ? { backgroundColor: connection.colorTag } : undefined}
-              />
-            ) : (
-              <div
-                className={cn(
-                  'size-2.5 rounded-full border-[1.5px] border-muted-foreground/60',
-                  connection.colorTag && 'opacity-60',
-                )}
-                style={
-                  connection.colorTag
-                    ? { borderColor: connection.colorTag, backgroundColor: 'transparent' }
-                    : undefined
-                }
-              />
-            )}
-          </div>
-          <span className="sr-only" aria-live="polite">
-            {statusLabel}
-          </span>
-
-          <div className="min-w-0 flex-1">
-            <div
-              className="truncate text-sm-plus font-medium text-sidebar-foreground"
-              title={connection.name}
-            >
-              {connection.name}
-            </div>
-            {!compact && (
-              <div
-                className="truncate text-2xs text-muted-foreground"
-                title={
-                  isS3
-                    ? `${connection.endpoint || connection.region || 'S3 Storage'}${
-                        connection.defaultBucket ? ` / ${connection.defaultBucket}` : ''
-                      }`
-                    : `${connection.username}@${connection.host}${
-                        connection.port !== 22 ? `:${connection.port}` : ''
-                      }`
-                }
-              >
-                {isS3 ? (
-                  <>
-                    {connection.endpoint || connection.region || 'S3 Storage'}
-                    {connection.defaultBucket && ` / ${connection.defaultBucket}`}
-                  </>
-                ) : (
-                  <>
-                    {connection.username}@{connection.host}
-                    {connection.port !== 22 && `:${connection.port}`}
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-
-          <ChevronRight
-            aria-hidden="true"
-            className="size-3.5 text-muted-foreground/30 group-hover:text-muted-foreground/70 flex-shrink-0 transition-colors"
-          />
           <button
             type="button"
-            aria-label="Drag to reorder"
+            onClick={handleConnect}
+            aria-label={`${connection.name} (${targetLabel}) — ${statusLabel}`}
+            className={cn(
+              'flex min-w-0 flex-1 items-center gap-2.5 text-left cursor-pointer',
+              compact ? 'py-[7px]' : 'py-2',
+            )}
+          >
+            {/* Status indicator — shape + color so colorblind users can
+                still distinguish states. Connected: solid dot with ring.
+                Connecting: spinner. Disconnected: hollow ring.
+                Marked aria-hidden because the status is already in the
+                button's accessible name above. */}
+            <div className="relative flex-shrink-0" aria-hidden="true">
+              {isConnecting ? (
+                <Loader2 className="size-3 text-warning animate-spin" strokeWidth={2.5} />
+              ) : isConnected ? (
+                <div
+                  className={cn(
+                    'size-2.5 rounded-full ring-2 ring-success/30',
+                    !connection.colorTag && 'bg-success',
+                  )}
+                  style={connection.colorTag ? { backgroundColor: connection.colorTag } : undefined}
+                />
+              ) : (
+                <div
+                  className={cn(
+                    'size-2.5 rounded-full border-[1.5px] border-muted-foreground/60',
+                    connection.colorTag && 'opacity-60',
+                  )}
+                  style={
+                    connection.colorTag
+                      ? { borderColor: connection.colorTag, backgroundColor: 'transparent' }
+                      : undefined
+                  }
+                />
+              )}
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <div
+                className="truncate text-sm-plus font-medium text-sidebar-foreground"
+                title={connection.name}
+              >
+                {connection.name}
+              </div>
+              {!compact && (
+                <div className="truncate text-2xs text-muted-foreground" title={targetLabel}>
+                  {targetLabel}
+                </div>
+              )}
+            </div>
+
+            <ChevronRight
+              aria-hidden="true"
+              className="size-3.5 text-muted-foreground/30 group-hover:text-muted-foreground/70 flex-shrink-0 transition-colors"
+            />
+          </button>
+
+          <button
+            type="button"
+            aria-label={`Drag to reorder ${connection.name}`}
             onPointerDown={(e) => {
               e.stopPropagation();
               dragControls.start(e);
             }}
             onClick={(e) => e.stopPropagation()}
-            className="cursor-grab active:cursor-grabbing px-1 py-2 -mr-1 opacity-0 group-hover:opacity-100 transition-opacity"
+            className="cursor-grab active:cursor-grabbing px-1 py-2 opacity-0 group-hover:opacity-100 transition-opacity"
           >
             <GripVertical className="size-3 text-muted-foreground/40" />
           </button>
-        </button>
+        </div>
       </ContextMenu>
 
       <ConfirmDialog

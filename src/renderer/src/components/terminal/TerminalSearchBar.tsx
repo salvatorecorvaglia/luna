@@ -1,6 +1,7 @@
 import type { SearchAddon } from '@xterm/addon-search';
 import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import type { RefObject } from 'react';
+import { IconButton } from '@/components/ui';
 
 interface TerminalSearchBarProps {
   inputRef: RefObject<HTMLInputElement | null>;
@@ -81,35 +82,31 @@ export function TerminalSearchBar({
         </span>
       )}
 
-      <button
-        type="button"
+      {/* !p-0.5 overrides IconButton's smallest size step — this bar is a
+          compact inline strip. The enforced 2rem hit area is unaffected. */}
+      <IconButton
         onClick={onFindPrevious}
-        className="btn-icon !p-0.5"
+        className="!p-0.5"
         title="Previous"
         aria-label="Previous match"
-      >
-        <ChevronUp className="size-3.5" />
-      </button>
+        icon={<ChevronUp className="size-3.5" />}
+      />
 
-      <button
-        type="button"
+      <IconButton
         onClick={onFindNext}
-        className="btn-icon !p-0.5"
+        className="!p-0.5"
         title="Next"
         aria-label="Next match"
-      >
-        <ChevronDown className="size-3.5" />
-      </button>
+        icon={<ChevronDown className="size-3.5" />}
+      />
 
-      <button
-        type="button"
+      <IconButton
         onClick={onClose}
-        className="btn-icon !p-0.5"
+        className="!p-0.5"
         title="Close"
         aria-label="Close search"
-      >
-        <X className="size-3.5" />
-      </button>
+        icon={<X className="size-3.5" />}
+      />
     </div>
   );
 }

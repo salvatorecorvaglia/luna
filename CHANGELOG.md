@@ -7,6 +7,112 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Local File Pane Offered Navigation That Could Never Succeed**: `shell:readdir` confines
+  directory listing to the user's home subtree, but the local pane still rendered a home button
+  wired to `/`, a breadcrumb for every ancestor above home (`/Users`, `/`), and a "go up" that
+  walked straight past it. Each of those returned `FORBIDDEN`, and because the breadcrumb trail is
+  derived from the current path, a failed navigation to `/` left exactly one control on screen —
+  the home button that had just failed. The pane was a dead end with no way back. `FilePane` now
+  takes a `rootPath`: breadcrumbs start there, the home button returns there, and "go up" is
+  disabled at it. Remote panes default to `/` and are unchanged.
+- **`SftpManager` Never Learned Where Home Was On A Remount**: the home-directory probe sat behind
+  `if (localPath) return`, so with a persisted path the lookup was skipped entirely — leaving the
+  pane with no idea what its own root was. It now resolves unconditionally and seeds `localPath`
+  only when empty, reading the store through `getState()` so the effect doesn't re-run on every
+  directory change.
+- **Settings Number Fields Could Not Be Typed Into**: `EditableNumberRow` parsed and clamped on
+  every keystroke. With `min` 1000, typing the "2" of "20000" into Scrollback was immediately
+  rewritten to "1000", so the value was unreachable by hand; the field also could never be cleared,
+  because `parseInt('')` is `NaN` and the commit branch was skipped. Font Size behaved the same way.
+  Both were effectively stepper-only. A draft buffer now holds what the user types and the clamp
+  runs once, on blur or Enter.
+- **Local Pane Rendered A Permissions Column That Was Always Empty**: `showPermissions` was
+  unconditionally true for local panes, but `permissions` is populated only on the SFTP path —
+  `shell:readdir` never returns it. Every local row printed an em dash in an 84px column.
+- **A `<button>` Was Nested Inside A `<button>` In Every Sidebar Row**: the connection row was a
+  button containing the drag-handle button. Interactive nesting is invalid HTML, browsers may
+  reparent it, and assistive technology cannot represent it. The two are now siblings under a
+  wrapper that carries the `group` marker, so the handle's hover reveal is unaffected.
+- **Utility Classes On Icon Buttons Were Silently Dropped**: `.btn-icon` is declared outside
+  Tailwind's `@layer` blocks in `main.css`, so it outranks every utility class regardless of source
+  order. Utilities passed alongside it therefore did nothing — the file pane's filter toggle never
+  showed its active `text-foreground`, and the folder-sync button never showed its `text-primary`.
+  Both now use `!`-prefixed overrides, matching the existing `!p-1` precedent at those call sites.
+
+### Improved
+
+- **Accessibility — Seven Silent Toolbar Buttons**: every control in `TerminalToolbar` (snippets,
+  broadcast, filter, macro recorder, CLI reference, audit export, workspace presets) carried a
+  `title` and no accessible name, so screen readers announced seven unlabelled buttons. They also
+  bypassed `.btn-icon`, giving them a ~22px hit area against the 32px minimum enforced everywhere
+  else. All seven now go through `IconButton`, and the two toggles report `aria-pressed`.
+- **Accessibility — Password And Secret Reveal Toggles Were Unreachable**: both the SSH password and
+  the S3 secret-access-key reveal buttons set `tabIndex={-1}` and had no accessible name, so
+  keyboard users could not reach them at all. The tab stop is restored and each announces its
+  action.
+- **Accessibility — S3 Connections Announced An Empty `user@host`**: the sidebar row's accessible
+  name was always `${username}@${host}`, but both fields are empty for S3 connections (as
+  `Connection.host` documents), so a row announced itself as `"my-bucket (@) — connected"`. The
+  label now branches on provider the way the visible subtitle already did. The per-row `aria-live`
+  region was also removed: it duplicated the status already in the label, and one live region per
+  connection meant every row re-announced on any status change.
+- **Accessibility — The View Switcher Is A Real Tablist**: Local / Terminal / SFTP is the app's
+  primary navigation but was three plain buttons — no `aria-selected`, no arrow-key movement, and
+  nothing telling assistive technology which view was current. It now follows the same
+  `role="tablist"` pattern `TerminalTabs` already used, with a roving tab index that keeps exactly
+  one tab stop even on views that have no tab of their own.
+- **Accessibility — The Path-Style URLs Checkbox Had No Visible Focus**: its real input is
+  `sr-only`, so focusing it changed nothing on screen. The custom box now mirrors focus via
+  `has-[:focus-visible]`.
+- **Local And Remote File Panes Are Closer To Parity**: right-clicking a local file offered a
+  one-item menu ("Upload") while the remote pane offered six. Preview and Copy Path — both already
+  possible with existing IPC — are now available on the local side too. Write operations still
+  differ: `shell:mkdir`, `shell:rename` and `shell:delete` do not exist, and adding filesystem
+  mutation to the IPC surface wants its own review.
+
+### Changed & Refactored
+
+- **Design-System Primitives That Had No Consumers**: the recurring failure mode this pass found was
+  not missing tokens — the existing guard already prevents colour and contrast drift — but
+  primitives built to end a class of drift and then never adopted. `IconButton`, whose doc comment
+  says it exists "so we can't ship another silent toolbar control", had **zero** consumers against
+  20 raw `btn-icon` call sites across eight files; seven of those were genuinely unlabelled.
+  `MOD_KEY` had zero, while three components each re-derived `isMac ? '⌘' : 'Ctrl'`. The
+  `.form-error` class had zero, while `FormField` rolled its own error styling one size larger than
+  the token specifies. All three are now adopted.
+- **Three Dialogs Stopped Hand-Rolling `DialogShell`**: it had twelve adopters while
+  `ConnectionForm`, `SettingsPanel` and `ShortcutsHelp` each rebuilt the overlay, animation,
+  stacking layer, focus trap and Escape handling themselves. The visible cost was drift: two corner
+  radii (`rounded-xl` / `rounded-2xl`), two shadows, and two dialog-title scales. `DialogShell`
+  gained a `layout="sheet-right"` variant to express the Settings panel's slide-in, and all three
+  now render through it.
+- **Platform Detection Has One Source Again**: `lib/platform.ts` exists precisely because "three
+  components each rolled their own", yet `TitleBar` and `WelcomeView` still sniffed
+  `navigator.userAgent` inline afterwards. Both import `isMac` now.
+- **Orphan Label Ids**: `conn-provider-label` and `conn-color-tag-label` were declared but never
+  referenced. The sibling radiogroups point at them via `aria-labelledby` instead of duplicating the
+  text in an `aria-label`, matching what `SettingsPanel` already did correctly.
+- **`aria-pressed` Is Reserved For Static-Label Toggles**: a button whose label already flips
+  ("Hide dotfiles" / "Show dotfiles") announced "Hide dotfiles, pressed", which contradicts the
+  label's own wording. Those now rely on the label alone; toggles with a fixed label (Filter,
+  Broadcast, sidebar) keep `aria-pressed`.
+
+### Added
+
+- **Four New Rules In `tests/unit/design-tokens.test.ts`**: raw `btn-icon` outside `IconButton`,
+  `attachFocusTrap` outside `DialogShell`, re-derivation of the modifier symbol, and
+  `navigator.userAgent`/`navigator.platform` in a component. Each carries an allowlist for the
+  genuine exceptions — the command palette (a top-aligned combobox, not a centered card) and
+  `TerminalPane` (an in-pane overlay, not a portal dialog). Adoption is now enforced rather than
+  merely intended, which is what the previous round of these primitives lacked.
+- **Tests**: coverage for the root clamping (breadcrumbs, home button, disabled "go up", and the
+  escape-clamp for a path from outside the root), the permissions column across local/SFTP/S3, the
+  sidebar row's un-nested markup and its accessible name for both providers, and the view switcher's
+  tablist semantics, arrow/Home/End movement and single tab stop. New suites for `ConnectionItem`
+  and `TitleBar`, neither of which had any.
+
 ## [1.4.0] - 2026-09-02
 
 ### Fixed

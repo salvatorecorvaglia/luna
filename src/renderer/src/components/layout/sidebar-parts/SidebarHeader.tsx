@@ -1,4 +1,5 @@
 import { Eye, EyeOff, Plus } from 'lucide-react';
+import { IconButton } from '@/components/ui';
 import { cn } from '@/lib/utils';
 
 interface SidebarHeaderProps {
@@ -22,27 +23,21 @@ export function SidebarHeader({
         Connections
       </span>
       <div className="flex items-center gap-1">
-        <button
-          type="button"
+        <IconButton
           onClick={onToggleHidden}
-          className={cn(
-            'btn-icon !p-1',
-            showHiddenConnections ? 'text-primary' : 'text-muted-foreground/50',
-          )}
+          className={cn(showHiddenConnections ? '!text-primary' : '!text-muted-foreground/50')}
           title={toggleLabel}
           aria-label={toggleLabel}
-        >
-          {showHiddenConnections ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
-        </button>
-        <button
-          type="button"
+          icon={
+            showHiddenConnections ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />
+          }
+        />
+        <IconButton
           onClick={onNewConnection}
-          className="btn-icon !p-1"
           title="New connection"
           aria-label="New connection"
-        >
-          <Plus className="size-3.5" aria-hidden="true" />
-        </button>
+          icon={<Plus className="size-3.5" />}
+        />
       </div>
     </div>
   );
