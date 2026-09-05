@@ -54,7 +54,7 @@ describe('ConnectionItem markup', () => {
   it('keeps both controls reachable as siblings', () => {
     renderItem(makeConnection());
 
-    expect(screen.getByLabelText(/^TEST \(root@192\.168\.0\.137\)/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^TEST \(root@192\.168\.0\.13\)/)).toBeInTheDocument();
     expect(screen.getByLabelText('Drag to reorder TEST')).toBeInTheDocument();
   });
 });
