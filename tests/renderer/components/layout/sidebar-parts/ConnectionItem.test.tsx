@@ -25,9 +25,9 @@ function renderItem(connection: Connection) {
 function makeConnection(overrides: Partial<Connection> = {}): Connection {
   return {
     id: 'c1',
-    name: 'BSCP',
+    name: 'TEST',
     provider: 'sftp',
-    host: '192.168.0.137',
+    host: '192.168.0.13',
     port: 22,
     username: 'root',
     authType: 'password',
@@ -46,7 +46,7 @@ describe('ConnectionItem markup', () => {
   it('does not nest the drag handle inside the activate button', () => {
     renderItem(makeConnection());
 
-    const grip = screen.getByLabelText('Drag to reorder BSCP');
+    const grip = screen.getByLabelText('Drag to reorder TEST');
     expect(grip.closest('button')).toBe(grip);
     expect(grip.parentElement?.closest('button')).toBeNull();
   });
@@ -54,21 +54,21 @@ describe('ConnectionItem markup', () => {
   it('keeps both controls reachable as siblings', () => {
     renderItem(makeConnection());
 
-    expect(screen.getByLabelText(/^BSCP \(root@192\.168\.0\.137\)/)).toBeInTheDocument();
-    expect(screen.getByLabelText('Drag to reorder BSCP')).toBeInTheDocument();
+    expect(screen.getByLabelText(/^TEST \(root@192\.168\.0\.137\)/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Drag to reorder TEST')).toBeInTheDocument();
   });
 });
 
 describe('ConnectionItem accessible name', () => {
   it('describes an SSH connection by user@host', () => {
     renderItem(makeConnection());
-    expect(screen.getByLabelText('BSCP (root@192.168.0.137) — disconnected')).toBeInTheDocument();
+    expect(screen.getByLabelText('TEST (root@192.168.0.13) — disconnected')).toBeInTheDocument();
   });
 
   it('includes a non-default port', () => {
     renderItem(makeConnection({ port: 2222 }));
     expect(
-      screen.getByLabelText('BSCP (root@192.168.0.137:2222) — disconnected'),
+      screen.getByLabelText('TEST (root@192.168.0.13:2222) — disconnected'),
     ).toBeInTheDocument();
   });
 
