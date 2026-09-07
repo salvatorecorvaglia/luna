@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.3] - 2026-09-07
+
+### Fixed
+
+- **SSH Status Listener Race On First Connect**: the `connected` event from the main process was
+  subscribed inside `TerminalPane`'s `onReady` callback — i.e. only after xterm had finished loading
+  and mounting. On a first connect (cold module load, no warm cache) the SSH handshake often won
+  that race, so the event fired before anyone was listening and the session stayed stuck on
+  "connecting" — spinner in the tab, `CONNECTING` in the status bar — even though the shell was
+  already usable. The listener now lives in `App`, registered once at startup, so the subscription
+  exists long before any session is created. This also covers split panes and sessions recovered
+  after a reload.
+
 ## [1.5.2] - 2026-09-07
 
 ### Improved
