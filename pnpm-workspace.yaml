@@ -3,6 +3,11 @@ packages:
 
 overrides:
   esbuild: "0.28.1"
+  # Security: transitive deps of electron-builder pinned to patched releases.
+  # fast-uri <3.1.6 - SSRF / host confusion (GHSA, 4 advisories)
+  # @xmldom/xmldom <0.8.15 - XML fragment injection
+  fast-uri: "^3.1.6"
+  "@xmldom/xmldom": "^0.8.15"
 
 allowBuilds:
   cpu-features: true
