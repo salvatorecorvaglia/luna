@@ -6,23 +6,41 @@ import { app, shell } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from '../lib/logger';
 import { emitToRenderer } from './emit';
+import {
+  applyStagedUpdate,
+  cleanupStaleStageDirs,
+  hasStagedUpdate,
+  isSelfInstallSupported,
+  type SelfUpdateInfo,
+  stageUpdate,
+} from './mac-self-update';
+import { RELEASES_URL } from './release';
 
 const execFileAsync = promisify(execFile);
 
-/**
- * Where users go when this build cannot install its own updates. Hard-coded
- * rather than passed in from the renderer: `shell.openExternal` hands a URL to
- * the OS, so a compromised renderer must never get to choose it.
- */
-export const RELEASES_URL = 'https://github.com/salvatorecorvaglia/luna/releases/latest';
+/** Re-exported so callers keep a single import for everything update-related. */
+export { RELEASES_URL };
 
 const MANUAL_UPDATE_MESSAGE =
   'This build cannot install updates itself. Download the latest version from GitHub.';
+
+/**
+ * How this build can take an update:
+ *  - `squirrel` — electron-updater installs it (Windows, Linux, signed macOS)
+ *  - `self`     — an ad-hoc macOS build replaces its own bundle, see
+ *                 `mac-self-update.ts`
+ *  - `manual`   — neither is possible; the user downloads from GitHub
+ */
+type UpdateMode = 'squirrel' | 'self' | 'manual';
 
 let updateAvailable = false;
 let updateVersion = '';
 let inFlightCheck: Promise<unknown> | null = null;
 let autoInstallSupport: Promise<boolean> | null = null;
+/** The feed entry for the pending update — the self-installer needs its files. */
+let pendingUpdateInfo: SelfUpdateInfo | null = null;
+/** Guards a second "Download" press from starting a parallel download. */
+let selfInstallInFlight = false;
 
 /**
  * Can this running binary actually replace itself?
@@ -44,8 +62,13 @@ let autoInstallSupport: Promise<boolean> | null = null;
  * Windows (NSIS) and Linux (AppImage) install unsigned updates fine, so they
  * short-circuit to `true`.
  *
- * Fails closed: any unexpected error means we route the user to a manual
- * download, which always works, rather than to an install that may not.
+ * A `false` here is not the end of the road: `mac-self-update.ts` takes over
+ * and replaces the bundle without Squirrel, verifying the download against the
+ * feed's SHA-512 instead of a signature chain. Only when that is impossible
+ * too (see `isSelfInstallSupported`) is the user sent to GitHub.
+ *
+ * Fails closed: any unexpected error means we do not hand the bundle to
+ * Squirrel, since an install that cannot work is worse than one route down.
  */
 function detectAutoInstallSupport(): Promise<boolean> {
   if (process.platform !== 'darwin') return Promise.resolve(true);
@@ -77,6 +100,22 @@ function isAutoInstallSupported(): Promise<boolean> {
   return autoInstallSupport;
 }
 
+/**
+ * Which of the three install routes this build gets.
+ *
+ * Order matters: Squirrel first wherever it can work, because it is the
+ * platform's own mechanism and validates the signature chain. The in-place
+ * replace is the fallback for ad-hoc macOS builds, and GitHub the fallback
+ * for that — an app the user cannot write to (installed by an admin, or
+ * running translocated) can only be updated by hand.
+ */
+async function resolveUpdateMode(): Promise<UpdateMode> {
+  if (!app.isPackaged) return 'squirrel';
+  if (await isAutoInstallSupported()) return 'squirrel';
+  if (await isSelfInstallSupported()) return 'self';
+  return 'manual';
+}
+
 function checkOnce(): Promise<unknown> {
   if (!app.isPackaged) return Promise.resolve(null);
   if (inFlightCheck) return inFlightCheck;
@@ -98,6 +137,11 @@ export function initAutoUpdater(): void {
   // Start the signature probe now so the answer is ready by the time the first
   // feed check resolves; nothing below blocks on it.
   void isAutoInstallSupported();
+
+  // A staged bundle is a few hundred megabytes; one abandoned by a previous
+  // run (downloaded but never applied, or an apply that died) would otherwise
+  // sit in the temp directory forever.
+  void cleanupStaleStageDirs();
 
   autoUpdater.logger = log;
   autoUpdater.autoDownload = false;
@@ -128,10 +172,16 @@ export function initAutoUpdater(): void {
   autoUpdater.on('update-available', (info) => {
     updateAvailable = true;
     updateVersion = info.version;
+    // The feed's file list (names, sizes, SHA-512s) is what the self-installer
+    // downloads and verifies against, so keep it for `installUpdate`.
+    pendingUpdateInfo = { version: info.version, files: info.files };
     // `manual` tells the renderer to offer a GitHub download instead of an
     // in-app install it cannot complete.
-    void isAutoInstallSupported().then((supported) => {
-      emitToRenderer(IPC.APP_UPDATE_AVAILABLE, { version: info.version, manual: !supported });
+    void resolveUpdateMode().then((mode) => {
+      emitToRenderer(IPC.APP_UPDATE_AVAILABLE, {
+        version: info.version,
+        manual: mode === 'manual',
+      });
     });
   });
 
@@ -186,8 +236,8 @@ export function initAutoUpdater(): void {
  * listeners in `initAutoUpdater` have already run by the time the promise
  * settles, so the values read below are current.
  *
- * `manual` is true when this build can only be updated by downloading a fresh
- * copy — see `detectAutoInstallSupport`.
+ * `manual` is true only when this build can neither install an update through
+ * Squirrel nor replace its own bundle — see `resolveUpdateMode`.
  */
 export async function checkForUpdate(): Promise<{
   available: boolean;
@@ -200,7 +250,7 @@ export async function checkForUpdate(): Promise<{
     const msg = err instanceof Error ? err.message : String(err);
     log.warn('[Updater] Manual check failed:', msg);
   }
-  const manual = app.isPackaged ? !(await isAutoInstallSupported()) : false;
+  const manual = (await resolveUpdateMode()) === 'manual';
   return { available: updateAvailable, version: updateVersion || undefined, manual };
 }
 
@@ -217,12 +267,19 @@ export async function installUpdate(): Promise<void> {
     return;
   }
 
+  const mode = await resolveUpdateMode();
+
   // Belt-and-braces: the renderer is told up front (via `manual`) not to offer
   // an install here, but a stale toast from before the probe resolved must not
-  // start a download that can only end in a Squirrel validation error.
-  if (!(await isAutoInstallSupported())) {
+  // start a download that ends nowhere.
+  if (mode === 'manual') {
     log.warn('[Updater] Refusing installUpdate: build cannot install its own updates.');
     emitToRenderer(IPC.APP_UPDATE_ERROR, { error: MANUAL_UPDATE_MESSAGE });
+    return;
+  }
+
+  if (mode === 'self') {
+    await installBySelfReplace();
     return;
   }
 
@@ -239,5 +296,53 @@ export async function installUpdate(): Promise<void> {
     }
     log.error('[Updater] Failed to download update:', errorMessage);
     emitToRenderer(IPC.APP_UPDATE_ERROR, { error: errorMessage });
+  }
+}
+
+/**
+ * The ad-hoc macOS install, driven by the same two toast presses as the
+ * Squirrel one: the first stages the update, the second applies it.
+ *
+ * Splitting it that way is what lets the renderer keep a single flow —
+ * "Download" → progress → "Restart now" — regardless of which mechanism is
+ * doing the work underneath.
+ */
+async function installBySelfReplace(): Promise<void> {
+  if (hasStagedUpdate()) {
+    // Second press ("Restart now"): the verified bundle is already unpacked,
+    // so hand it to the detached helper and get out of its way — it cannot
+    // move the bundle until this process is gone.
+    if (!applyStagedUpdate({ relaunch: true })) {
+      emitToRenderer(IPC.APP_UPDATE_ERROR, { error: MANUAL_UPDATE_MESSAGE });
+      return;
+    }
+    app.quit();
+    return;
+  }
+
+  if (selfInstallInFlight) {
+    log.info('[Updater] Download already in progress; ignoring the repeat request.');
+    return;
+  }
+
+  if (!pendingUpdateInfo) {
+    emitToRenderer(IPC.APP_UPDATE_ERROR, {
+      error: 'No update is ready to download. Check for updates again.',
+    });
+    return;
+  }
+
+  selfInstallInFlight = true;
+  try {
+    await stageUpdate(pendingUpdateInfo, (percent, bytesPerSecond) => {
+      emitToRenderer(IPC.APP_UPDATE_DOWNLOAD_PROGRESS, { percent, bytesPerSecond });
+    });
+    emitToRenderer(IPC.APP_UPDATE_DOWNLOADED, {});
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    log.error('[Updater] In-place update failed:', errorMessage);
+    emitToRenderer(IPC.APP_UPDATE_ERROR, { error: errorMessage });
+  } finally {
+    selfInstallInFlight = false;
   }
 }

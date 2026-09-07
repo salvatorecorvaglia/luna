@@ -16,9 +16,11 @@ function openReleasePage(): void {
 export function useUpdaterEventListener(): void {
   useEffect(() => {
     const cleanupAvailable = getApi().app.onUpdateAvailable(({ version, manual }) => {
-      // `manual` builds (an unsigned macOS bundle) cannot install an update
-      // themselves — Squirrel rejects the swap. Offering "Download" there ends
-      // in a failure the user can do nothing about, so send them to GitHub.
+      // `manual` means neither install route is open to this build: Squirrel
+      // rejects the swap (an unsigned macOS bundle) *and* the app cannot
+      // replace its own bundle — it lives somewhere this user cannot write, or
+      // is running translocated. Offering "Download" there ends in a failure
+      // the user can do nothing about, so send them to GitHub.
       if (manual) {
         toast.info(`Update v${version} available`, {
           description: 'This build cannot update itself. Download the new version from GitHub.',

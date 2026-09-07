@@ -18,6 +18,17 @@ const openExternal = vi.fn((_url: string) => Promise.resolve());
 const downloadUpdate = vi.fn(() => Promise.resolve());
 const quitAndInstall = vi.fn();
 const emitToRenderer = vi.fn();
+const quit = vi.fn();
+/** Whether the ad-hoc macOS in-place updater can run on this "build". */
+let selfInstallSupported = false;
+let hasStaged = false;
+const applyStagedUpdate = vi.fn((_opts: { relaunch: boolean }) => true);
+const stageUpdate = vi.fn((...args: unknown[]) => {
+  const onProgress = args[1] as (percent: number, bytesPerSecond: number) => void;
+  onProgress(42, 1_000_000);
+  hasStaged = true;
+  return Promise.resolve({ version: '2.0.0', appPath: '/tmp/s/Luna.app', stageDir: '/tmp/s' });
+});
 
 // `execFile` is consumed through `promisify`, so the double has to carry the
 // custom-promisified symbol the same way node's own `execFile` does.
@@ -36,9 +47,17 @@ vi.mock('node:child_process', () => ({
 
 vi.mock('electron', () => ({
   get app() {
-    return { isPackaged };
+    return { isPackaged, quit: () => quit() };
   },
   shell: { openExternal: (url: string) => openExternal(url) },
+}));
+
+vi.mock('../../../src/main/services/mac-self-update', () => ({
+  isSelfInstallSupported: () => Promise.resolve(selfInstallSupported),
+  hasStagedUpdate: () => hasStaged,
+  stageUpdate: (...args: unknown[]) => stageUpdate(...args),
+  applyStagedUpdate: (opts: { relaunch: boolean }) => applyStagedUpdate(opts),
+  cleanupStaleStageDirs: () => Promise.resolve(),
 }));
 
 vi.mock('electron-updater', () => ({
@@ -96,6 +115,12 @@ beforeEach(() => {
   downloadUpdate.mockClear();
   quitAndInstall.mockClear();
   emitToRenderer.mockClear();
+  quit.mockClear();
+  stageUpdate.mockClear();
+  applyStagedUpdate.mockClear();
+  applyStagedUpdate.mockReturnValue(true);
+  selfInstallSupported = false;
+  hasStaged = false;
 });
 
 afterEach(() => {
@@ -249,5 +274,117 @@ describe('openReleasePage', () => {
     const { openReleasePage, RELEASES_URL } = await freshUpdater();
     await openReleasePage();
     expect(openExternal).toHaveBeenCalledWith(RELEASES_URL);
+  });
+});
+
+/**
+ * With no Developer ID certificate, Squirrel can never install an update on
+ * macOS — but replacing the bundle in place still can, so an ad-hoc build is
+ * only pushed to GitHub when even that is impossible.
+ */
+describe('in-place updates for ad-hoc macOS builds', () => {
+  async function adhocDarwinUpdater(): Promise<
+    typeof import('../../../src/main/services/updater')
+  > {
+    platform = 'darwin';
+    codesignStderr = 'Signature=adhoc\n';
+    selfInstallSupported = true;
+    return freshUpdater();
+  }
+
+  it('stays out of manual mode when the app can replace its own bundle', async () => {
+    const { checkForUpdate } = await adhocDarwinUpdater();
+    await expect(checkForUpdate()).resolves.toMatchObject({ manual: false });
+  });
+
+  it('offers the in-app download rather than GitHub', async () => {
+    await adhocDarwinUpdater();
+
+    listeners.get('update-available')?.({ version: '2.0.0', files: [] });
+    await vi.waitFor(() => {
+      expect(emitToRenderer).toHaveBeenCalledWith('app:update-available', {
+        version: '2.0.0',
+        manual: false,
+      });
+    });
+  });
+
+  it('downloads through the self-installer, never through Squirrel', async () => {
+    const { installUpdate } = await adhocDarwinUpdater();
+    listeners.get('update-available')?.({
+      version: '2.0.0',
+      files: [{ url: 'luna-2.0.0-mac-arm64.zip', sha512: 'digest', size: 10 }],
+    });
+
+    await installUpdate();
+
+    // The feed's file list is what the self-installer verifies against.
+    expect(stageUpdate).toHaveBeenCalledWith(
+      {
+        version: '2.0.0',
+        files: [{ url: 'luna-2.0.0-mac-arm64.zip', sha512: 'digest', size: 10 }],
+      },
+      expect.any(Function),
+    );
+    expect(downloadUpdate).not.toHaveBeenCalled();
+    expect(quitAndInstall).not.toHaveBeenCalled();
+    expect(emitToRenderer).toHaveBeenCalledWith('app:update-download-progress', {
+      percent: 42,
+      bytesPerSecond: 1_000_000,
+    });
+    expect(emitToRenderer).toHaveBeenCalledWith('app:update-downloaded', {});
+  });
+
+  it('applies the staged bundle and quits on the second press', async () => {
+    // "Restart now" reaches the same IPC as "Download"; the staged bundle is
+    // what tells the two apart.
+    const { installUpdate } = await adhocDarwinUpdater();
+    hasStaged = true;
+
+    await installUpdate();
+
+    expect(stageUpdate).not.toHaveBeenCalled();
+    expect(applyStagedUpdate).toHaveBeenCalledWith({ relaunch: true });
+    expect(quit).toHaveBeenCalled();
+  });
+
+  it('falls back to GitHub when the swap cannot be started', async () => {
+    const { installUpdate } = await adhocDarwinUpdater();
+    hasStaged = true;
+    applyStagedUpdate.mockReturnValue(false);
+
+    await installUpdate();
+
+    expect(quit).not.toHaveBeenCalled();
+    expect(emitToRenderer).toHaveBeenCalledWith(
+      'app:update-error',
+      expect.objectContaining({ error: expect.stringContaining('GitHub') }),
+    );
+  });
+
+  it('surfaces a failed download instead of leaving the toast spinning', async () => {
+    const { installUpdate } = await adhocDarwinUpdater();
+    listeners.get('update-available')?.({ version: '2.0.0', files: [] });
+    stageUpdate.mockImplementationOnce(() =>
+      Promise.reject(new Error('The update package failed its checksum check and was discarded.')),
+    );
+
+    await installUpdate();
+
+    expect(emitToRenderer).toHaveBeenCalledWith('app:update-error', {
+      error: 'The update package failed its checksum check and was discarded.',
+    });
+  });
+
+  it('still points at GitHub when the bundle cannot be replaced either', async () => {
+    platform = 'darwin';
+    codesignStderr = 'Signature=adhoc\n';
+    selfInstallSupported = false;
+    const { checkForUpdate, installUpdate } = await freshUpdater();
+
+    await expect(checkForUpdate()).resolves.toMatchObject({ manual: true });
+    await installUpdate();
+    expect(stageUpdate).not.toHaveBeenCalled();
+    expect(downloadUpdate).not.toHaveBeenCalled();
   });
 });

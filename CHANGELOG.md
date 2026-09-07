@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **In-App Updates Are Back On macOS**: unsigned macOS builds had auto-update disabled outright,
+  because Squirrel.Mac refuses to swap in a bundle whose signature does not satisfy the running
+  app's designated requirement — Luna's artifacts are ad-hoc signed, so that check can never pass
+  and every update ended at a "download it from GitHub" toast. What Squirrel contributes there is
+  signature-chain validation, and on an ad-hoc build there is no chain to validate; Luna now does
+  the swap itself and takes its integrity guarantee from the SHA-512 that electron-updater already
+  reads out of `latest-mac.yml` over HTTPS. The release zip for the running architecture is
+  streamed from github.com, hashed as it arrives and discarded unless the digest matches the feed
+  byte for byte, unpacked with `ditto`, and checked to be a Luna bundle of the expected version
+  before a detached helper waits for the app to exit, moves the old bundle aside (rolling back if
+  the copy fails), clears quarantine with `xattr -cr` and relaunches. Signed builds still go
+  through Squirrel; the GitHub fallback now appears only when the bundle cannot be replaced at all
+  — an app installed by another user, or running translocated.
+
 ## [1.5.0] - 2026-09-07
 
 ### Fixed

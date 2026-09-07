@@ -147,10 +147,14 @@ pnpm run test:e2e
 Since pre-built release binaries may not be notarized with an Apple Developer certificate, macOS Gatekeeper may block the app or display a warning saying **`"Luna" is damaged and can't be opened`** (*`"Luna" è danneggiato e non può essere aperto`*).
 
 > [!IMPORTANT]
-> **Automatic updates do not work on macOS for unsigned builds.** Squirrel.Mac validates an
-> application's code signature before swapping in a downloaded update, and an unsigned app has
-> none — so Luna can detect and download an update but cannot apply it. Update by downloading the
-> new release manually. Auto-update on Windows and Linux is unaffected.
+> **Only the first install is manual.** Squirrel.Mac validates an application's code signature
+> before swapping in a downloaded update, and an unsigned build has none — so Luna cannot use the
+> system updater on macOS. It updates itself instead: the release zip for your architecture is
+> downloaded from GitHub, checked against the SHA-512 published in the update feed, and unpacked
+> over `Luna.app` (clearing quarantine for you) when you press **Restart now** or quit the app.
+> That needs Luna to be installed somewhere you can write, such as `/Applications` or
+> `~/Applications`. If it isn't, Luna points you at the GitHub release instead. Auto-update on
+> Windows and Linux is unaffected.
 
 To resolve this and allow Luna to open:
 

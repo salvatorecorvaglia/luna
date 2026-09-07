@@ -228,7 +228,7 @@ export interface IpcHandlerMap {
   'app:get-version': { request: void; response: string };
   'app:check-update': {
     request: void;
-    /** `manual` is true when this build can only update by downloading a fresh copy. */
+    /** `manual` is true when this build can neither self-install nor self-replace. */
     response: { available: boolean; version?: string; manual: boolean };
   };
   'app:install-update': { request: void; response: void };
@@ -294,7 +294,7 @@ export interface IpcEventMap {
     limit: number;
   };
   'credential:on-tamper': { connectionId: string; reason: string; at: number };
-  /** `manual`: this build cannot install the update itself; point the user at GitHub. */
+  /** `manual`: no in-app route can install this update; point the user at GitHub. */
   'app:update-available': { version: string; manual: boolean };
   'app:update-download-progress': { percent: number; bytesPerSecond: number };
   'app:update-downloaded': Record<string, never>;
