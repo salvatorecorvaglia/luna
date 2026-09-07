@@ -212,13 +212,23 @@ export async function buildConnectConfig(
       if (!result.trusted) {
         const stored = getStoredHostKey(params.host, params.port);
         // Audit trail: log every rejection with the fingerprint + algorithm.
-        // A "changed" event is what an MITM downgrade looks like in practice,
-        // so it's the most important signal to capture for forensics.
-        log.warn(
-          `[host-key] verification failed for ${params.host}:${params.port} ` +
-            `(algorithm=${algorithm}, fingerprint=${fingerprintKey(key)}, ` +
-            `stored=${stored?.fingerprint ?? 'none'}, isFirst=${result.isFirst})`,
-        );
+        // Keep the two cases at different levels: an unknown host is routine
+        // (once per host, TOFU deliberately prompts instead of auto-storing),
+        // while a *changed* key is what an MITM looks like in practice and is
+        // the signal worth spotting when scanning logs. Logging both as a
+        // warning buried the one that matters.
+        if (result.isFirst) {
+          log.info(
+            `[host-key] unknown host ${params.host}:${params.port} — prompting for trust ` +
+              `(algorithm=${algorithm}, fingerprint=${fingerprintKey(key)})`,
+          );
+        } else {
+          log.warn(
+            `[host-key] KEY CHANGED for ${params.host}:${params.port} ` +
+              `(algorithm=${algorithm}, fingerprint=${fingerprintKey(key)}, ` +
+              `stored=${stored?.fingerprint ?? 'none'})`,
+          );
+        }
         pendingHostKeys.remember(params.host, params.port, key, algorithm);
         emitToRenderer(IPC.SSH_ON_HOST_KEY_CHANGE, {
           sessionId: sessionId ?? '',
@@ -230,10 +240,16 @@ export async function buildConnectConfig(
           algorithm,
           isFirst: result.isFirst,
         });
-        const reason = result.isFirst
-          ? `Unknown host ${params.host}:${params.port}. Verify the ${algorithm} fingerprint before trusting.`
-          : `Host key for ${params.host}:${params.port} has changed. Confirm the new fingerprint before reconnecting.`;
-        emitToRenderer(IPC.SSH_ON_ERROR, { sessionId: sessionId ?? '', error: reason });
+        // Only a changed key is reported as a session error. On first use the
+        // host-key dialog is the whole story, and painting a red
+        // "--- Error: Unknown host ... ---" into the terminal underneath it
+        // makes a routine prompt read as a connection failure.
+        if (!result.isFirst) {
+          emitToRenderer(IPC.SSH_ON_ERROR, {
+            sessionId: sessionId ?? '',
+            error: `Host key for ${params.host}:${params.port} has changed. Confirm the new fingerprint before reconnecting.`,
+          });
+        }
       }
       return result.trusted;
     },
