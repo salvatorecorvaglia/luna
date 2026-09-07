@@ -1,8 +1,12 @@
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const execFileAsync = promisify(execFile);
+
+/** The `bash -n` check needs a real bash; the Windows CI runner has none. */
+const hasBash = existsSync('/bin/bash');
 
 /**
  * The in-place updater is the only path an ad-hoc-signed macOS build has, and
@@ -156,20 +160,23 @@ describe('buildApplyScript', () => {
     expect(script).not.toContain('/usr/bin/open');
   });
 
-  it('is valid bash — a syntax slip here would fail silently after the app quits', async () => {
-    const { buildApplyScript } = await freshModule();
-    const script = buildApplyScript(
-      1,
-      "/tmp/it's here/Luna.app",
-      '/Users/someone/My Apps/Luna.app',
-      '/tmp/stage',
-      true,
-    );
+  it.skipIf(!hasBash)(
+    'is valid bash — a syntax slip here would fail silently after the app quits',
+    async () => {
+      const { buildApplyScript } = await freshModule();
+      const script = buildApplyScript(
+        1,
+        "/tmp/it's here/Luna.app",
+        '/Users/someone/My Apps/Luna.app',
+        '/tmp/stage',
+        true,
+      );
 
-    // The helper runs detached with no stdio once Luna is gone, so nothing
-    // would surface a parse error; `bash -n` is the only chance to catch it.
-    await expect(execFileAsync('/bin/bash', ['-n', '-c', script])).resolves.toBeDefined();
-  });
+      // The helper runs detached with no stdio once Luna is gone, so nothing
+      // would surface a parse error; `bash -n` is the only chance to catch it.
+      await expect(execFileAsync('/bin/bash', ['-n', '-c', script])).resolves.toBeDefined();
+    },
+  );
 
   it('quotes paths so a space or a quote cannot break out of the command', async () => {
     const { buildApplyScript } = await freshModule();

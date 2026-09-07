@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import { access, constants as fsConstants, mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { join, posix } from 'node:path';
 import { promisify } from 'node:util';
 import { app, net } from 'electron';
 import log from '../lib/logger';
@@ -77,10 +77,14 @@ let selfInstallSupport: Promise<boolean> | null = null;
  * `process.execPath` is `<bundle>/Contents/MacOS/Luna`, so the bundle is two
  * levels up. Returns null when that does not look like an app bundle — an
  * unpackaged dev run, or a binary someone lifted out of its bundle.
+ *
+ * The path helpers are pinned to `posix`: these are macOS paths whichever host
+ * the code is parsed on, and the platform-sensitive versions mangle them into
+ * drive-prefixed backslash paths when the test suite runs on Windows.
  */
 export function getBundlePath(): string | null {
   if (process.platform !== 'darwin') return null;
-  const bundlePath = resolve(dirname(process.execPath), '..', '..');
+  const bundlePath = posix.resolve(posix.dirname(process.execPath), '..', '..');
   if (!bundlePath.endsWith('.app')) return null;
   // A bundle with fewer than two segments below root ("/Luna.app") would make
   // the replace step operate dangerously close to the filesystem root.
@@ -108,7 +112,7 @@ function detectSelfInstallSupport(): Promise<boolean> {
 
   return Promise.all([
     access(bundlePath, fsConstants.W_OK),
-    access(dirname(bundlePath), fsConstants.W_OK),
+    access(posix.dirname(bundlePath), fsConstants.W_OK),
   ])
     .then(() => true)
     .catch((err: unknown) => {
