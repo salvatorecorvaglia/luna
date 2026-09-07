@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.2] - 2026-09-07
+
+### Improved
+
+- **Unknown Hosts No Longer Read As Connection Failures**: the first time Luna meets a host it logs a
+  warning and paints a red `--- Error: Unknown host ... ---` banner into the terminal underneath the
+  trust prompt. But an unknown host is routine — TOFU deliberately prompts rather than auto-storing a
+  key — so the only message the user ever needs there is the dialog itself. The two cases are now
+  separated: a first-time host logs at `info` and is not reported as a session error at all, while a
+  *changed* key — the signal that actually looks like an MITM downgrade in practice — keeps its
+  `warn` log (`KEY CHANGED ...`) and is the only one that surfaces an error. Previously both were
+  logged at `warn`, which buried the one that matters when scanning logs.
+
 ## [1.5.1] - 2026-09-07
 
 ### Added
