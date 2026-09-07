@@ -142,15 +142,14 @@ describe('TerminalPane — onReady event wiring', () => {
     expect(writes.some((w) => w.includes('\x07'))).toBe(false);
   });
 
-  it('updates the terminal store when this session emits a status change', async () => {
+  // Status events are wired app-wide by useSshStatusListener (see its test),
+  // not from the pane — subscribing here would miss a handshake that completes
+  // before xterm mounts.
+  it('does not subscribe to status events', async () => {
     render(<TerminalPane sessionId="sess-1" />);
     await flush();
 
-    act(() => {
-      onStatus.emit({ sessionId: 'sess-1', status: 'reconnecting' });
-    });
-
-    expect(useTerminalStore.getState().sessions.get('sess-1')?.status).toBe('reconnecting');
+    expect(onStatus.fn).not.toHaveBeenCalled();
   });
 });
 
@@ -213,13 +212,12 @@ describe('TerminalPane — reconnect overlay', () => {
 });
 
 describe('TerminalPane — cleanup', () => {
-  it('unsubscribes all three ssh event listeners on unmount', async () => {
+  it('unsubscribes both ssh event listeners on unmount', async () => {
     const { unmount } = render(<TerminalPane sessionId="sess-1" />);
     await flush();
     unmount();
 
     expect(onClose.unsubscribe).toHaveBeenCalledTimes(1);
     expect(onError.unsubscribe).toHaveBeenCalledTimes(1);
-    expect(onStatus.unsubscribe).toHaveBeenCalledTimes(1);
   });
 });

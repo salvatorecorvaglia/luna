@@ -47,6 +47,7 @@ const SftpManager = lazy(() =>
 
 import { useShallow } from 'zustand/react/shallow';
 import { useSessionRecovery } from '@/hooks/use-session-recovery';
+import { useSshStatusListener } from '@/hooks/use-ssh-status-listener';
 import { useTransferEventListener } from '@/hooks/use-transfers';
 import { useUpdaterEventListener } from '@/hooks/use-updater';
 import { getApi } from '@/services/api';
@@ -109,6 +110,10 @@ export default function App() {
 
   // Sync state with active sessions in main process (handles Cmd+R recovery)
   useSessionRecovery();
+
+  // Keep session status in sync with the main process from app startup, so a
+  // handshake that completes before a terminal pane mounts is never missed
+  useSshStatusListener();
 
   // Surface a one-time toast if the credential store is using a plaintext
   // master key on disk (Linux without libsecret). Stored credentials are

@@ -1,4 +1,3 @@
-import type { SessionStatus } from '@shared/types/terminal';
 import { RefreshCcw } from 'lucide-react';
 import { memo, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
@@ -60,19 +59,13 @@ export const TerminalPane = memo(function TerminalPane({ sessionId, isActive }: 
         }
       });
 
-      const { updateSessionStatus } = useTerminalStore.getState();
-      const cleanupStatus = getApi().ssh.onStatus(
-        (event: { sessionId: string; status: SessionStatus }) => {
-          if (event.sessionId === sessionId) {
-            updateSessionStatus(sessionId, event.status);
-          }
-        },
-      );
+      // Status events are handled once, app-wide, by `useSshStatusListener`:
+      // subscribing from here only starts after xterm has mounted, which loses
+      // the `connected` event on a first connect (see that hook's comment).
 
       return () => {
         cleanupClose();
         cleanupError();
-        cleanupStatus();
       };
     },
   });
