@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-09-07
+
 ### Added
 
 - **In-App Updates Are Back On macOS**: unsigned macOS builds had auto-update disabled outright,
