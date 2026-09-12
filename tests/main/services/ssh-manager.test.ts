@@ -154,10 +154,14 @@ describe('sshManager', () => {
       client: { removeAllListeners, destroy, end: vi.fn() },
       shell: { close: shellClose },
       status: 'connected',
-      reconnectAttempts: 0,
-      reconnectTimer: null,
-      reconnecting: false,
-      reconnectGen: 7,
+    });
+    (sshManager as unknown as { reconnects: Map<string, unknown> }).reconnects.set('dup-session', {
+      connectionId: 'conn-id-1',
+      cols: 80,
+      rows: 24,
+      attempts: 0,
+      timer: null,
+      gen: 7,
     });
 
     // Fire connect; the cleanup branch runs synchronously before the first
@@ -169,10 +173,11 @@ describe('sshManager', () => {
     expect(removeAllListeners).toHaveBeenCalledTimes(1);
     expect(destroy).toHaveBeenCalledTimes(1);
     expect(shellClose).toHaveBeenCalledTimes(1);
-    // The new session should carry an incremented generation so any timers
-    // captured from the prior session bail on stale state.
-    const fresh = (m.sessions.get('dup-session') as { reconnectGen: number } | undefined)
-      ?.reconnectGen;
+    // The ladder should carry an incremented generation so any timers captured
+    // from the prior session bail on stale state.
+    const fresh = (
+      sshManager as unknown as { reconnects: Map<string, { gen: number }> }
+    ).reconnects.get('dup-session')?.gen;
     expect(fresh).toBe(8);
   });
 
@@ -212,6 +217,9 @@ describe('sshManager', () => {
   });
 
   describe('auto-reconnect', () => {
+    // Reconnect bookkeeping lives in sshManager.reconnects, not on the session
+    // — see the ReconnectState doc comment. Ladder behaviour itself is covered
+    // end to end in ssh-reconnect-ladder.test.ts.
     function buildSession(overrides: Record<string, unknown> = {}) {
       return {
         id: 'reconnect-session',
@@ -219,13 +227,46 @@ describe('sshManager', () => {
         client: { removeAllListeners: vi.fn(), destroy: vi.fn(), end: vi.fn() },
         shell: undefined,
         status: 'connected',
-        reconnectAttempts: 0,
-        reconnectTimer: null,
-        reconnecting: false,
-        reconnectGen: 0,
+        cols: 80,
+        rows: 24,
         ...overrides,
       };
     }
+
+    interface ReconnectReach {
+      sessions: Map<string, unknown>;
+      reconnects: Map<
+        string,
+        {
+          attempts: number;
+          timer: ReturnType<typeof setTimeout> | null;
+          gen: number;
+          connectionId: string;
+          cols: number;
+          rows: number;
+        }
+      >;
+      attemptReconnect: (id: string) => void;
+    }
+
+    function seedLadder(m: ReconnectReach, attempts: number): void {
+      m.reconnects.set('reconnect-session', {
+        attempts,
+        timer: null,
+        gen: 0,
+        connectionId: 'conn-id-1',
+        cols: 80,
+        rows: 24,
+      });
+    }
+
+    beforeEach(() => {
+      const m = sshManager as unknown as ReconnectReach;
+      for (const state of m.reconnects.values()) {
+        if (state.timer) clearTimeout(state.timer);
+      }
+      m.reconnects.clear();
+    });
 
     it('retires the session immediately when ssh.autoReconnect is disabled', () => {
       vi.mocked(getSetting).mockImplementation(
@@ -252,16 +293,17 @@ describe('sshManager', () => {
         if (key === 'ssh.autoReconnect') return true as never;
         return def as never;
       });
-      const m = sshManager as unknown as {
-        sessions: Map<string, unknown>;
-        attemptReconnect: (id: string) => void;
-      };
-      const session = buildSession({ status: 'disconnected', reconnectAttempts: 3 });
+      const m = sshManager as unknown as ReconnectReach;
+      const session = buildSession({ status: 'disconnected' });
       m.sessions.set('reconnect-session', session);
+      seedLadder(m, 3); // budget already spent
 
       m.attemptReconnect('reconnect-session');
 
       expect(m.sessions.has('reconnect-session')).toBe(false);
+      // The ladder itself must be gone too, or a later disconnect would start
+      // from an already-spent budget and give up immediately.
+      expect(m.reconnects.has('reconnect-session')).toBe(false);
       expect(emitToRenderer).toHaveBeenCalledWith(
         IPC.SSH_ON_ERROR,
         expect.objectContaining({
@@ -272,6 +314,9 @@ describe('sshManager', () => {
     });
 
     it('schedules exactly one reconnect timer per disconnect, honoring backoff', () => {
+      // This test used to assert only that a counter reached 1 and a boolean was
+      // true — neither a timer count nor a delay, despite its name. It installs
+      // fake timers, so both are observable; assert them.
       vi.useFakeTimers();
       try {
         vi.mocked(getSetting).mockImplementation((key: string, def: unknown) => {
@@ -279,20 +324,28 @@ describe('sshManager', () => {
           if (key === 'ssh.autoReconnect') return true as never;
           return def as never;
         });
-        const m = sshManager as unknown as {
-          sessions: Map<string, unknown>;
-          attemptReconnect: (id: string) => void;
-        };
+        const m = sshManager as unknown as ReconnectReach;
         const session = buildSession({ status: 'disconnected' });
         m.sessions.set('reconnect-session', session);
+        seedLadder(m, 0);
 
         m.attemptReconnect('reconnect-session');
+        const afterFirst = vi.getTimerCount();
+
         // A second call while a timer is already pending must not stack a
-        // second one — attemptReconnect() checks reconnectTimer for this.
+        // second one — attemptReconnect() returns early on a live timer.
         m.attemptReconnect('reconnect-session');
 
-        expect((session as { reconnectAttempts: number }).reconnectAttempts).toBe(1);
-        expect((session as { reconnecting: boolean }).reconnecting).toBe(true);
+        expect(afterFirst).toBe(1);
+        expect(vi.getTimerCount()).toBe(1);
+
+        const state = m.reconnects.get('reconnect-session');
+        expect(state?.attempts).toBe(1);
+        expect(state?.timer).not.toBeNull();
+
+        // First rung of the ladder is the 1s base delay, not an immediate retry.
+        vi.advanceTimersByTime(999);
+        expect(state?.timer).not.toBeNull();
       } finally {
         vi.useRealTimers();
       }

@@ -1,6 +1,7 @@
 import { IPC } from '@shared/constants';
 import { ErrorCode, LunaError } from '@shared/errors';
 import { registerHandler } from '../lib/ipc-handler';
+import { releaseStorageBucket } from '../lib/rate-limiter';
 import { SlidingWindowLimiter } from '../lib/sliding-window-limiter';
 import {
   assertBoundedInt,
@@ -100,6 +101,20 @@ export function registerSshHandlers(): void {
       params.cols,
       params.rows,
     );
+
+    if (!result.success) {
+      // Roll the eager registration back. Every failure path in connect()
+      // deletes the session *without* firing onSessionDisconnect, so the
+      // registration above would otherwise outlive the session forever —
+      // leaving `require()` handing out a provider for a session that does not
+      // exist, and stranding its rate-limiter bucket. markClosing first for the
+      // same reason the disconnect handler does: a storage IPC racing this gets
+      // a clear "closing" error rather than a provider with no transport.
+      storageRegistry.markClosing(params.sessionId);
+      storageRegistry.unregister(params.sessionId);
+      releaseStorageBucket(params.sessionId);
+    }
+
     return result;
   });
 

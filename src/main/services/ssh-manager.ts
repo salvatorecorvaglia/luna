@@ -54,20 +54,43 @@ interface SshSession {
   client: Client;
   shell: ClientChannel | null;
   status: SessionStatus;
-  reconnectAttempts: number;
-  reconnectTimer: ReturnType<typeof setTimeout> | null;
-  reconnecting: boolean;
-  /**
-   * Monotonically increasing token. Bumped by connect(), disconnect() and
-   * every reconnect attempt. Pending timers capture the value at scheduling
-   * time and bail out if the session generation has moved on.
-   */
-  reconnectGen: number;
   _streamListeners?: StreamListeners;
   historyId?: string;
   cols?: number;
   rows?: number;
   portForwards?: PortForwardHandle[];
+}
+
+/**
+ * Reconnect bookkeeping, held deliberately *outside* `sessions`.
+ *
+ * This used to live on the session, and that is what broke auto-reconnect:
+ * every failure path in connect() calls `sessions.delete(sessionId)`, so after
+ * the first failed attempt the retry logic looked up its own attempt counter,
+ * found no session, and silently stopped. `ssh.maxReconnectAttempts` was dead
+ * for any value above 1, the backoff ladder never advanced past its first
+ * rung, and the "Reconnection failed after N attempts" message was
+ * unreachable.
+ *
+ * Everything the ladder needs to make the *next* attempt therefore lives here,
+ * keyed by sessionId, and survives the session entry being destroyed and
+ * recreated underneath it.
+ */
+interface ReconnectState {
+  /** Target of the retry — connect() needs it once the session is gone. */
+  connectionId: string;
+  /** Terminal geometry to restore, likewise unavailable once the session is gone. */
+  cols: number;
+  rows: number;
+  /** Attempts consumed from the budget. Reset on a successful handshake. */
+  attempts: number;
+  timer: ReturnType<typeof setTimeout> | null;
+  /**
+   * Monotonically increasing token. Bumped by connect(), disconnect() and
+   * retireSession(). Pending timers capture it at scheduling time and bail out
+   * if the generation has moved on.
+   */
+  gen: number;
 }
 
 // Reconnect backoff is read lazily via getSshReconnectTunables(). It used to be
@@ -87,6 +110,8 @@ const HISTORY_RETENTION_ROWS = 1000;
 
 class SshManager {
   private sessions = new Map<string, SshSession>();
+  /** Reconnect ladders in progress, keyed by sessionId. See ReconnectState. */
+  private reconnects = new Map<string, ReconnectState>();
   private onDisconnectCallbacks: ((sessionId: string) => void)[] = [];
   private onConnectCallbacks: ((sessionId: string) => void)[] = [];
   /** Candidate host keys captured during a rejected verification, awaiting user trust. */
@@ -138,10 +163,60 @@ class SshManager {
 
   private setStatus(session: SshSession, status: SessionStatus): void {
     session.status = status;
-    emitToRenderer(IPC.SSH_ON_STATUS, {
-      sessionId: session.id,
-      status,
-    });
+    this.emitStatus(session.id, status);
+  }
+
+  /**
+   * Push a status change for a session that may not currently exist.
+   *
+   * Mid-ladder there is no session object: connect() deleted it on the failed
+   * attempt and the next one has not started. The renderer still needs to be
+   * told the session is 'reconnecting', so status has to be addressable by id
+   * rather than only by object.
+   */
+  private emitStatus(sessionId: string, status: SessionStatus): void {
+    emitToRenderer(IPC.SSH_ON_STATUS, { sessionId, status });
+  }
+
+  /** Reconnect state for a session, created on first use. */
+  private reconnectStateFor(
+    sessionId: string,
+    connectionId: string,
+    cols: number,
+    rows: number,
+  ): ReconnectState {
+    const existing = this.reconnects.get(sessionId);
+    if (existing) {
+      // Keep the target fresh: geometry can change between attempts.
+      existing.connectionId = connectionId;
+      existing.cols = cols;
+      existing.rows = rows;
+      return existing;
+    }
+    const created: ReconnectState = {
+      connectionId,
+      cols,
+      rows,
+      attempts: 0,
+      timer: null,
+      gen: 0,
+    };
+    this.reconnects.set(sessionId, created);
+    return created;
+  }
+
+  /**
+   * Abandon any ladder for this session: cancel the pending timer and drop the
+   * record, so a timer callback already queued sees no state and bails.
+   */
+  private clearReconnect(sessionId: string): void {
+    const state = this.reconnects.get(sessionId);
+    if (!state) return;
+    if (state.timer) {
+      clearTimeout(state.timer);
+      state.timer = null;
+    }
+    this.reconnects.delete(sessionId);
   }
 
   /**
@@ -187,27 +262,44 @@ class SshManager {
     connectionId: string,
     cols = 80,
     rows = 24,
+    options: { isReconnect?: boolean } = {},
   ): Promise<{ success: boolean; error?: string }> {
     const db = getDatabase();
     const row = db
       .prepare(`SELECT ${SSH_CONNECT_COLUMNS} FROM connections WHERE id = ?`)
       .get(connectionId) as SshConnectRow | undefined;
+    // These three bail out *before* a new session entry is created, so any
+    // entry already under this id has to be retired explicitly. It used to be
+    // left in place with a stale 'connecting'/'reconnecting' status and a dead
+    // Client, where listSessions() would report it forever — reachable by
+    // deleting a connection while a session for it was mid-reconnect.
+    const rejectConnect = (error: string): { success: boolean; error: string } => {
+      const stranded = this.sessions.get(sessionId);
+      if (stranded) this.retireSession(stranded, 'error');
+      else this.clearReconnect(sessionId);
+      return { success: false, error };
+    };
+
     if (!row) {
-      return { success: false, error: 'Connection not found' };
+      return rejectConnect('Connection not found');
     }
     if (row.provider !== 'sftp') {
-      return { success: false, error: `Connection ${connectionId} is not an SSH connection` };
+      return rejectConnect(`Connection ${connectionId} is not an SSH connection`);
     }
     if (!row.host || !row.username || !row.auth_type || row.port == null) {
-      return { success: false, error: 'SSH connection is missing required fields' };
+      return rejectConnect('SSH connection is missing required fields');
     }
 
     const client = new Client();
 
-    // Preserve any in-flight reconnect generation so stale timers from a prior
-    // session-with-the-same-id don't fire against this fresh client.
+    // Bump the generation so stale timers from a prior session-with-the-same-id
+    // don't fire against this fresh client.
     const existing = this.sessions.get(sessionId);
-    const prevGen = existing?.reconnectGen ?? 0;
+    const reconnectState = this.reconnectStateFor(sessionId, connectionId, cols, rows);
+    reconnectState.gen++;
+    // A user-initiated connect restarts the ladder; a retry must not, or the
+    // budget would never be consumed and the ladder would run forever.
+    if (!options.isReconnect) reconnectState.attempts = 0;
 
     if (existing) {
       // The internal reconnect path calls client.end() + sessions.delete()
@@ -218,9 +310,9 @@ class SshManager {
       // call handleDisconnect() against the new session entry.
       this.cleanupPortForwards(existing);
       this.cleanupStreamListeners(existing);
-      if (existing.reconnectTimer) {
-        clearTimeout(existing.reconnectTimer);
-        existing.reconnectTimer = null;
+      if (reconnectState.timer) {
+        clearTimeout(reconnectState.timer);
+        reconnectState.timer = null;
       }
       try {
         // Drop listeners before destroying so the synthetic 'close'/'error'
@@ -239,10 +331,6 @@ class SshManager {
       client,
       shell: null,
       status: 'connecting',
-      reconnectAttempts: 0,
-      reconnectTimer: null,
-      reconnecting: false,
-      reconnectGen: prevGen + 1,
       cols,
       rows,
     };
@@ -294,7 +382,15 @@ class SshManager {
       };
 
       onReady = (): void => {
-        session.reconnectAttempts = 0;
+        // Success clears the ladder: the budget is per outage, not per session.
+        const state = this.reconnects.get(sessionId);
+        if (state) {
+          state.attempts = 0;
+          if (state.timer) {
+            clearTimeout(state.timer);
+            state.timer = null;
+          }
+        }
         this.setStatus(session, 'connected');
 
         // Update last_connected_at and record history. Wrap in try/catch so a DB error
@@ -654,6 +750,10 @@ class SshManager {
       this.retireSession(session, 'disconnected');
       return;
     }
+    // Capture the retry target from the session while it still exists: connect()
+    // deletes the entry on a failed attempt, and the ladder needs connectionId
+    // and geometry to try again.
+    this.reconnectStateFor(sessionId, session.connectionId, session.cols ?? 80, session.rows ?? 24);
     this.attemptReconnect(sessionId);
   }
 
@@ -664,12 +764,8 @@ class SshManager {
    * never carry traffic again.
    */
   private retireSession(session: SshSession, status: SessionStatus): void {
-    if (session.reconnectTimer) {
-      clearTimeout(session.reconnectTimer);
-      session.reconnectTimer = null;
-    }
-    session.reconnecting = false;
-    session.reconnectGen++;
+    // Drop the ladder outright: a retired session is not coming back on its own.
+    this.clearReconnect(session.id);
     this.setStatus(session, status);
     this.cleanupPortForwards(session);
     this.cleanupStreamListeners(session);
@@ -686,86 +782,95 @@ class SshManager {
   }
 
   private attemptReconnect(sessionId: string): void {
-    const session = this.sessions.get(sessionId);
-    if (!session) return;
+    // Driven entirely by `reconnects`, never by `sessions`. The session entry is
+    // absent for most of a ladder's life — connect() deletes it on each failed
+    // attempt — so anything keyed on it here would stop after the first failure.
+    const state = this.reconnects.get(sessionId);
+    if (!state) return;
 
     // A pending timer means a reconnect is already scheduled — don't stack them.
-    if (session.reconnectTimer) return;
+    if (state.timer) return;
 
     const maxAttempts = getSetting('ssh.maxReconnectAttempts', 5);
-    if (session.reconnectAttempts >= maxAttempts) {
+    if (state.attempts >= maxAttempts) {
       log.warn(`[SSH] Giving up on ${sessionId} after ${maxAttempts} reconnect attempts`);
       emitToRenderer(IPC.SSH_ON_ERROR, {
         sessionId,
         error: `Reconnection failed after ${maxAttempts} attempts. Reconnect manually to try again.`,
       });
-      this.retireSession(session, 'error');
+      const session = this.sessions.get(sessionId);
+      if (session) {
+        this.retireSession(session, 'error');
+      } else {
+        // Mid-ladder the session is already gone, so there is nothing to retire
+        // — but the renderer still has a tab showing 'reconnecting' and must be
+        // told it has stopped.
+        this.clearReconnect(sessionId);
+        this.emitStatus(sessionId, 'error');
+      }
       return;
     }
 
-    session.reconnecting = true;
-    session.reconnectAttempts++;
+    state.attempts++;
     const { baseDelayMs, maxDelayMs } = getSshReconnectTunables();
-    const delay = Math.min(baseDelayMs * 2 ** (session.reconnectAttempts - 1), maxDelayMs);
+    const delay = Math.min(baseDelayMs * 2 ** (state.attempts - 1), maxDelayMs);
 
-    this.setStatus(session, 'reconnecting');
+    this.emitStatus(sessionId, 'reconnecting');
+    const session = this.sessions.get(sessionId);
+    if (session) session.status = 'reconnecting';
 
     // Capture the generation so the timer body can detect "I'm stale".
-    const gen = session.reconnectGen;
+    const gen = state.gen;
     // Wrap the entire async body in a terminal try/catch. setTimeout's
     // callback returns a Promise (the timer doesn't await it), so any
     // rejection escaping this scope lands as an unhandled rejection and
     // hits the process's uncaughtException handler — kills observability
     // of the actual SSH lifecycle failure that caused it.
-    session.reconnectTimer = setTimeout(() => {
+    state.timer = setTimeout(() => {
       void (async () => {
         try {
-          const sess = this.sessions.get(sessionId);
-          if (!sess || sess.reconnectGen !== gen) {
-            // Either the session is gone or someone (manual disconnect/reconnect) bumped
-            // the generation while we were waiting. Don't act on stale state.
+          const current = this.reconnects.get(sessionId);
+          if (!current || current.gen !== gen) {
+            // Either the ladder was abandoned (manual disconnect, retire) or
+            // someone bumped the generation while we were waiting. Don't act on
+            // stale state.
             return;
           }
-          sess.reconnectTimer = null;
-          if (sess.status === 'connected') {
-            sess.reconnecting = false;
-            return;
-          }
+          current.timer = null;
 
-          const connectionId = sess.connectionId;
-          const reconnectAttempts = sess.reconnectAttempts;
-          const cols = sess.cols;
-          const rows = sess.rows;
+          // Already back up by another route — nothing to do.
+          if (this.sessions.get(sessionId)?.status === 'connected') {
+            current.attempts = 0;
+            return;
+          }
 
           // connect() should always resolve with {success}, but treat a thrown
           // error the same as a failed reconnect.
           let result: { success: boolean; error?: string };
           try {
-            result = await this.connect(sessionId, connectionId, cols, rows);
+            result = await this.connect(
+              sessionId,
+              current.connectionId,
+              current.cols,
+              current.rows,
+              {
+                isReconnect: true,
+              },
+            );
           } catch (err) {
             log.error(`[SSH] Reconnect threw for ${sessionId}:`, err);
             result = { success: false, error: err instanceof Error ? err.message : String(err) };
           }
 
           if (!result.success) {
-            const newSess = this.sessions.get(sessionId);
-            if (newSess) {
-              newSess.reconnectAttempts = reconnectAttempts;
-              newSess.reconnecting = false;
-            }
+            // The ladder survives because its state is not stored on the
+            // session connect() just deleted.
             this.attemptReconnect(sessionId);
-          } else {
-            const newSess = this.sessions.get(sessionId);
-            if (newSess) newSess.reconnecting = false;
           }
         } catch (err) {
           // Last-resort: route any leak to the logger rather than letting it
           // escape as an unhandled rejection from inside a setTimeout.
           log.error(`[SSH] Reconnect timer body threw for ${sessionId}:`, err);
-          const sess = this.sessions.get(sessionId);
-          if (sess && sess.reconnectGen === gen) {
-            sess.reconnecting = false;
-          }
         }
       })();
     }, delay);
@@ -806,13 +911,9 @@ class SshManager {
     // write the history row and call client.end() twice.
     if (session.status === 'disconnected') return;
 
-    if (session.reconnectTimer) {
-      clearTimeout(session.reconnectTimer);
-      session.reconnectTimer = null;
-    }
-    // Bump the generation so any timer that escaped the clear (already in the
-    // task queue) sees stale state and bails.
-    session.reconnectGen++;
+    // Drop the ladder. A timer already in the task queue finds no state and
+    // bails, so a manual disconnect can't be undone by a pending retry.
+    this.clearReconnect(sessionId);
 
     this.cleanupPortForwards(session);
     this.cleanupStreamListeners(session);
@@ -1006,6 +1107,13 @@ class SshManager {
     const ids = Array.from(this.sessions.keys());
     for (const id of ids) {
       this.disconnect(id);
+    }
+    // A ladder mid-flight has no session entry — connect() deleted it on the
+    // failed attempt — so the loop above cannot reach it. Cancel those timers
+    // explicitly, or a pending retry outlives `before-quit` and tries to open a
+    // fresh connection while the app is shutting down.
+    for (const sessionId of Array.from(this.reconnects.keys())) {
+      this.clearReconnect(sessionId);
     }
     sshStreamBuffer.disposeAll();
   }

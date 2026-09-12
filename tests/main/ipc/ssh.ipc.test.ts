@@ -92,6 +92,32 @@ describe('ssh.ipc storage-provider lifecycle', () => {
     storageRegistry.unregister('sess-reconnect');
   });
 
+  it('rolls the eager registration back when the connect fails', async () => {
+    // SSH_CONNECT registers the provider up front so the SFTP view can list
+    // while the handshake is still in flight. But every failure path in
+    // connect() deletes the session without firing onSessionDisconnect, so
+    // nothing used to undo that registration: require() went on handing out a
+    // provider for a session that did not exist, for the life of the process.
+    sshManagerMock.connect!.mockResolvedValueOnce({ success: false, error: 'auth failed' });
+
+    const handler = handlers.get(IPC.SSH_CONNECT)!;
+    const result = await handler({}, { sessionId: 'sess-failed', connectionId: 'conn-1' });
+
+    expect(result).toEqual({ success: false, error: 'auth failed' });
+    expect(storageRegistry.get('sess-failed')).toBeUndefined();
+    expect(() => storageRegistry.require('sess-failed')).toThrow(/No storage provider/);
+  });
+
+  it('keeps the registration when the connect succeeds', async () => {
+    sshManagerMock.connect!.mockResolvedValueOnce({ success: true });
+
+    const handler = handlers.get(IPC.SSH_CONNECT)!;
+    await handler({}, { sessionId: 'sess-ok', connectionId: 'conn-1' });
+
+    expect(storageRegistry.get('sess-ok')).toBe(sftpStorageProvider);
+    storageRegistry.unregister('sess-ok');
+  });
+
   it('clears the closing marker so a reconnect is not poisoned', () => {
     storageRegistry.register('sess-closing', sftpStorageProvider);
     storageRegistry.markClosing('sess-closing');
