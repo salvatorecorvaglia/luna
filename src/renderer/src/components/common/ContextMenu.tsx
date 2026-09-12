@@ -149,9 +149,12 @@ export function ContextMenu({ items, children }: ContextMenuProps) {
                   // allows a non-focusable separator with no value. Adding a
                   // meaningless aria-valuenow to satisfy the rule would be
                   // worse than suppressing it.
+                  // The `useAriaPropsForRole` suppression that used to sit here
+                  // no longer matched anything and Biome reported it as an
+                  // unused suppression — which, under CI's
+                  // `--error-on-warnings`, failed the lint job outright.
                   <div
                     className="my-1 h-px bg-border/60"
-                    // biome-ignore lint/a11y/useAriaPropsForRole: non-focusable menu separator; aria-valuenow applies only to focusable separators
                     role="separator"
                     aria-orientation="horizontal"
                   />
