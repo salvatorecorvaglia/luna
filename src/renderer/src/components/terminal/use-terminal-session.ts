@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import '@xterm/xterm/css/xterm.css';
 import { logger } from '@/lib/logger';
 import { buildTerminalKeyHandler, installXtermPointerHandlers } from '@/lib/terminal-input';
+import { registerTerminal, unregisterTerminal } from '@/lib/terminal-registry';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { terminalThemes } from '@/themes/terminal';
 
@@ -253,6 +254,8 @@ export function useTerminalSession(opts: TerminalSessionOptions): TerminalSessio
       }
 
       terminalRef.current = terminal;
+      // Makes the scrollback reachable from outside this pane (audit export).
+      registerTerminal(sessionId, terminal);
       fitAddonRef.current = fitAddon;
       searchAddonRef.current = searchAddon;
 
@@ -289,6 +292,7 @@ export function useTerminalSession(opts: TerminalSessionOptions): TerminalSessio
         teardownPointer();
         if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
         terminal.dispose();
+        unregisterTerminal(sessionId);
         terminalRef.current = null;
         fitAddonRef.current = null;
         searchAddonRef.current = null;

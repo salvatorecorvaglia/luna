@@ -2,6 +2,7 @@ import { FileText, Save, X } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { DialogShell } from '@/components/common/DialogShell';
+import { readTerminalScrollback } from '@/lib/terminal-registry';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
 
@@ -10,21 +11,45 @@ interface AuditExportDialogProps {
   onClose: () => void;
   sessionId: string;
   sessionTitle: string;
-  bufferText?: string;
 }
 
+/**
+ * The transcript is read from the live terminal at export time, not taken as a
+ * prop.
+ *
+ * It used to be an optional `bufferText` prop defaulting to `''`. TerminalToolbar
+ * — the only caller — had no way to reach the xterm instance and passed nothing,
+ * so every export in every format wrote a file containing just a header. The
+ * component's own tests all passed `bufferText="hello"`, so they proved the
+ * component worked while nothing checked that anything was ever wired to it.
+ *
+ * Reading it here also keeps it current: a value passed down at render time
+ * would be stale by the time the user picks a format and confirms.
+ */
 export function AuditExportDialog({
   open,
   onClose,
   sessionId,
   sessionTitle,
-  bufferText = '',
 }: AuditExportDialogProps) {
   const [format, setFormat] = useState<'txt' | 'html' | 'json'>('html');
   const [exporting, setExporting] = useState(false);
 
   const handleExport = async () => {
     if (!sessionId) return;
+
+    const bufferText = readTerminalScrollback(sessionId);
+    if (bufferText === null) {
+      // No live terminal for this session — exporting would silently produce a
+      // header and nothing else, which is what this dialog used to always do.
+      toast.error('That terminal is no longer open, so there is no transcript to export.');
+      return;
+    }
+    if (bufferText === '') {
+      toast.error('This terminal has no output yet.');
+      return;
+    }
+
     setExporting(true);
 
     try {
