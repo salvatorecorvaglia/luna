@@ -28,6 +28,26 @@ vi.mock('../../../src/main/lib/logger', () => ({
   default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
+/**
+ * Writability of the install location is an input to the code under test, so
+ * the test has to control it — not inherit it from whatever machine is running.
+ *
+ * This test previously asserted `false` and relied on `/Applications/Luna.app`
+ * not existing, with a comment saying so. That holds on a CI runner and fails on
+ * any developer machine with Luna actually installed: the W_OK probe then
+ * succeeds, `isSelfInstallSupported()` correctly returns `true`, and the suite
+ * goes red over a property of the filesystem rather than a property of the code.
+ *
+ * Only `access` is replaced; the rest of node:fs/promises stays real because
+ * this module also uses mkdtemp/readdir/rm.
+ */
+const accessMock = vi.fn<(path: string, mode?: number) => Promise<void>>();
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>();
+  return { ...actual, access: (path: string, mode?: number) => accessMock(path, mode) };
+});
+
 const realPlatform = process.platform;
 const realExecPath = process.execPath;
 
@@ -44,6 +64,9 @@ async function freshModule(): Promise<typeof import('../../../src/main/services/
 beforeEach(() => {
   isPackaged = true;
   setEnvironment('darwin', '/Applications/Luna.app/Contents/MacOS/Luna');
+  // Default: the bundle and its parent are writable. Tests that care override.
+  accessMock.mockReset();
+  accessMock.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -87,10 +110,35 @@ describe('isSelfInstallSupported', () => {
   });
 
   it('is false when the install location is not writable by this user', async () => {
-    // /Applications/Luna.app does not exist in CI, so the W_OK probe fails —
-    // which is the same signal as an admin-installed app the user cannot touch.
+    // An admin-installed app the current user cannot touch, or a bundle that
+    // is not there at all — both surface as a rejected W_OK probe.
+    accessMock.mockRejectedValue(
+      Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' }),
+    );
     const { isSelfInstallSupported } = await freshModule();
     await expect(isSelfInstallSupported()).resolves.toBe(false);
+  });
+
+  it('is false when the bundle is writable but its parent directory is not', async () => {
+    // Both probes have to pass: the swap replaces the bundle *inside* its
+    // parent, so a read-only /Applications defeats it even when the bundle
+    // itself is writable.
+    accessMock.mockImplementation((path: string) =>
+      path === '/Applications'
+        ? Promise.reject(Object.assign(new Error('EACCES'), { code: 'EACCES' }))
+        : Promise.resolve(),
+    );
+    const { isSelfInstallSupported } = await freshModule();
+    await expect(isSelfInstallSupported()).resolves.toBe(false);
+  });
+
+  it('is true for a packaged, non-translocated, writable bundle', async () => {
+    // The positive case had no test at all, so nothing pinned the one
+    // configuration in which the in-place updater is allowed to run.
+    const { isSelfInstallSupported } = await freshModule();
+    await expect(isSelfInstallSupported()).resolves.toBe(true);
+    expect(accessMock).toHaveBeenCalledWith('/Applications/Luna.app', expect.any(Number));
+    expect(accessMock).toHaveBeenCalledWith('/Applications', expect.any(Number));
   });
 });
 
