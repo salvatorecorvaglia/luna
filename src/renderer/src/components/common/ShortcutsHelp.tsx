@@ -34,6 +34,7 @@ const CATEGORIES = [
     title: 'General',
     shortcuts: [
       { label: 'Command Palette', keys: ['MOD', 'K'] },
+      { label: 'Clear Terminal', keys: ['MOD', 'SHIFT', 'K'] },
       { label: 'Settings', keys: ['MOD', ','] },
       { label: 'Toggle Sidebar', keys: ['MOD', 'B'] },
       { label: 'Keyboard Shortcuts', keys: ['?'] },

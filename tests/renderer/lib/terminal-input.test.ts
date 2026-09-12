@@ -59,6 +59,7 @@ function keyEvent(init: KeyboardEventInit & { type?: string }): KeyboardEvent {
   const { type = 'keydown', ...rest } = init;
   const e = new KeyboardEvent(type, { ...rest, cancelable: true });
   vi.spyOn(e, 'preventDefault');
+  vi.spyOn(e, 'stopPropagation');
   return e;
 }
 
@@ -157,15 +158,58 @@ describe('buildTerminalKeyHandler — other bindings', () => {
     expect(e.preventDefault).toHaveBeenCalled();
   });
 
-  it('clears the terminal on the mod+K chord', async () => {
+  it('clears the terminal on the mod+shift+K chord', async () => {
     setPlatform('Linux x86_64');
     const { buildTerminalKeyHandler } = await loadModule();
     const term = fakeTerminal();
     const handler = buildTerminalKeyHandler(term as never, vi.fn());
 
-    // On Linux `mod` is plain Ctrl (not Ctrl+Shift, which is `meta`).
-    expect(handler(keyEvent({ key: 'k', ctrlKey: true }))).toBe(false);
+    expect(handler(keyEvent({ key: 'K', code: 'KeyK', ctrlKey: true, shiftKey: true }))).toBe(
+      false,
+    );
     expect(term.clear).toHaveBeenCalledTimes(1);
+  });
+
+  it('never swallows a plain Ctrl+K, which is readline kill-to-end-of-line', async () => {
+    // Clear used to be bound to plain mod+K. On Linux/Windows that is Ctrl+K,
+    // so the terminal ate a standard readline binding — and because the handler
+    // did not stop propagation, App.tsx's window listener opened the command
+    // palette on the same keypress.
+    setPlatform('Linux x86_64');
+    const { buildTerminalKeyHandler } = await loadModule();
+    const term = fakeTerminal();
+    const handler = buildTerminalKeyHandler(term as never, vi.fn());
+
+    const e = keyEvent({ key: 'k', code: 'KeyK', ctrlKey: true });
+    expect(handler(e)).toBe(true);
+    expect(term.clear).not.toHaveBeenCalled();
+    expect(e.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it('stops a claimed chord from also reaching the app-level shortcut handler', async () => {
+    // Returning false only tells xterm to stay out of it; the DOM event still
+    // bubbles to window. Without stopPropagation, Cmd+K cleared the scrollback
+    // *and* opened the command palette.
+    setPlatform('MacIntel');
+    const { buildTerminalKeyHandler } = await loadModule();
+    const term = fakeTerminal();
+    const handler = buildTerminalKeyHandler(term as never, vi.fn());
+
+    const e = keyEvent({ key: 'K', code: 'KeyK', metaKey: true, shiftKey: true });
+    expect(handler(e)).toBe(false);
+    expect(e.stopPropagation).toHaveBeenCalled();
+  });
+
+  it('leaves mod+K itself alone so the command palette still opens', async () => {
+    setPlatform('MacIntel');
+    const { buildTerminalKeyHandler } = await loadModule();
+    const term = fakeTerminal();
+    const handler = buildTerminalKeyHandler(term as never, vi.fn());
+
+    const e = keyEvent({ key: 'k', code: 'KeyK', metaKey: true });
+    expect(handler(e)).toBe(true);
+    expect(term.clear).not.toHaveBeenCalled();
+    expect(e.stopPropagation).not.toHaveBeenCalled();
   });
 
   it('leaves ordinary printable keys to the shell', async () => {

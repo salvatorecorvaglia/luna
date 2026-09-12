@@ -1,4 +1,3 @@
-import { AnimatePresence, motion } from 'framer-motion';
 import {
   Check,
   Copy,
@@ -15,6 +14,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { DialogShell } from '@/components/common/DialogShell';
 import { useCopiedFlag } from '@/hooks/use-copied-flag';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
@@ -60,18 +60,6 @@ const GUTTER_OVERSCAN = 10;
 function isImageType(type: string): boolean {
   return ['image/png', 'image/jpeg', 'image/gif', 'image/svg+xml', 'image/webp'].includes(type);
 }
-
-const overlayVariants = {
-  initial: { opacity: 0 },
-  animate: { opacity: 1 },
-  exit: { opacity: 0 },
-};
-
-const dialogVariants = {
-  initial: { opacity: 0, scale: 0.97 },
-  animate: { opacity: 1, scale: 1, transition: { duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] } },
-  exit: { opacity: 0, scale: 0.97, transition: { duration: 0.15 } },
-} as const;
 
 export function FilePreview() {
   const previewFile = useStorageStore((s) => s.previewFile);
@@ -231,273 +219,269 @@ export function FilePreview() {
     if (el) setGutterHeight(el.clientHeight);
   }, [previewFile]);
 
+  // Rendered through DialogShell rather than a hand-rolled overlay.
+  //
+  // This was a full-screen modal with no role, no aria-modal and no focus trap:
+  // keyboard users could Tab straight out of it into the file panes behind. It
+  // also slipped past both static guards in design-tokens.test.ts, because each
+  // keys off a marker this file did not have — one looks for attachFocusTrap,
+  // the other for DialogShell. A modal that opts out of the shared primitive is
+  // exactly the modal those guards cannot see.
+  if (!previewFile) return null;
+
   return (
-    <AnimatePresence>
-      {previewFile && (
-        <>
-          <motion.div
-            key="overlay"
-            variants={overlayVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            className={`fixed inset-0 ${Z.modal} bg-black/60 backdrop-blur-xs`}
-            onClick={handleClose}
-          />
-          <motion.div
-            key="panel"
-            variants={dialogVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            className={`fixed inset-2 ${Z.modal} flex flex-col rounded-xl border border-border/80 bg-card shadow-xl overflow-hidden sm:inset-8`}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-border/60 px-4 py-3 bg-muted/20">
-              <div className="flex items-center gap-2.5">
-                {isImageType(previewFile.type) ? (
-                  <FileImage className="size-4 text-brand-pink" />
-                ) : previewFile.type === 'application/pdf' ? (
-                  <FileText className="size-4 text-destructive-fg" />
-                ) : (
-                  <FileCode className="size-4 text-success" />
-                )}
-                <span className="text-sm font-medium text-foreground">{previewFile.name}</span>
-                <span className="rounded-md bg-muted px-2 py-0.5 text-3xs font-medium text-muted-foreground uppercase">
-                  {detectLanguage(previewFile.name)}
-                </span>
-                {isDirty && (
-                  <span className="text-3xs font-medium text-warning bg-warning/10 px-2 py-0.5 rounded-md">
-                    Modified
-                  </span>
-                )}
-              </div>
+    <>
+      <DialogShell
+        open
+        onClose={handleClose}
+        zLayer={Z.modal}
+        layout="fullscreen"
+        dismissOnOverlayClick
+        ariaLabelledBy="file-preview-title"
+        panelClassName="flex min-w-0 flex-1 flex-col rounded-xl border border-border/80 bg-card shadow-xl overflow-hidden"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-border/60 px-4 py-3 bg-muted/20">
+          <div className="flex items-center gap-2.5">
+            {isImageType(previewFile.type) ? (
+              <FileImage className="size-4 text-brand-pink" />
+            ) : previewFile.type === 'application/pdf' ? (
+              <FileText className="size-4 text-destructive-fg" />
+            ) : (
+              <FileCode className="size-4 text-success" />
+            )}
+            <span id="file-preview-title" className="text-sm font-medium text-foreground">
+              {previewFile.name}
+            </span>
+            <span className="rounded-md bg-muted px-2 py-0.5 text-3xs font-medium text-muted-foreground uppercase">
+              {detectLanguage(previewFile.name)}
+            </span>
+            {isDirty && (
+              <span className="text-3xs font-medium text-warning bg-warning/10 px-2 py-0.5 rounded-md">
+                Modified
+              </span>
+            )}
+          </div>
 
-              {/* Action Toolbar */}
-              <div className="flex items-center gap-2">
-                {!isImageType(previewFile.type) && previewFile.type !== 'application/pdf' && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setShowSearch((v) => !v)}
-                      className={`flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium border border-border/60 transition-colors cursor-pointer ${
-                        showSearch
-                          ? 'bg-primary/20 text-primary border-primary/40'
-                          : 'hover:bg-accent text-muted-foreground hover:text-foreground'
-                      }`}
-                      title="Search (Cmd+F / Ctrl+F)"
-                    >
-                      <Search className="size-3.5" />
-                    </button>
+          {/* Action Toolbar */}
+          <div className="flex items-center gap-2">
+            {!isImageType(previewFile.type) && previewFile.type !== 'application/pdf' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowSearch((v) => !v)}
+                  className={`flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium border border-border/60 transition-colors cursor-pointer ${
+                    showSearch
+                      ? 'bg-primary/20 text-primary border-primary/40'
+                      : 'hover:bg-accent text-muted-foreground hover:text-foreground'
+                  }`}
+                  title="Search (Cmd+F / Ctrl+F)"
+                >
+                  <Search className="size-3.5" />
+                </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setWordWrap((v) => !v)}
-                      className={`flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium border border-border/60 transition-colors cursor-pointer ${
-                        wordWrap
-                          ? 'bg-primary/20 text-primary border-primary/40'
-                          : 'hover:bg-accent text-muted-foreground hover:text-foreground'
-                      }`}
-                      title="Toggle Word Wrap"
-                    >
-                      <WrapText className="size-3.5" />
-                    </button>
+                <button
+                  type="button"
+                  onClick={() => setWordWrap((v) => !v)}
+                  className={`flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium border border-border/60 transition-colors cursor-pointer ${
+                    wordWrap
+                      ? 'bg-primary/20 text-primary border-primary/40'
+                      : 'hover:bg-accent text-muted-foreground hover:text-foreground'
+                  }`}
+                  title="Toggle Word Wrap"
+                >
+                  <WrapText className="size-3.5" />
+                </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setAutoTail((v) => !v)}
-                      className={`flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium border border-border/60 transition-colors cursor-pointer ${
-                        autoTail
-                          ? 'bg-success/20 text-success border-success/40'
-                          : 'hover:bg-accent text-muted-foreground hover:text-foreground'
-                      }`}
-                      title="Auto Tail (Live Scroll to Bottom)"
-                    >
-                      <Play className="size-3.5" />
-                      <span>Tail</span>
-                    </button>
+                <button
+                  type="button"
+                  onClick={() => setAutoTail((v) => !v)}
+                  className={`flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium border border-border/60 transition-colors cursor-pointer ${
+                    autoTail
+                      ? 'bg-success/20 text-success border-success/40'
+                      : 'hover:bg-accent text-muted-foreground hover:text-foreground'
+                  }`}
+                  title="Auto Tail (Live Scroll to Bottom)"
+                >
+                  <Play className="size-3.5" />
+                  <span>Tail</span>
+                </button>
 
-                    <button
-                      type="button"
-                      onClick={handleCopyAll}
-                      className="flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium border border-border/60 hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                      title="Copy All Content"
-                    >
-                      {copied ? (
-                        <Check className="size-3.5 text-success" />
-                      ) : (
-                        <Copy className="size-3.5" />
-                      )}
-                    </button>
-                  </>
-                )}
-
-                {!isImageType(previewFile.type) &&
-                  previewFile.type !== 'application/pdf' &&
-                  isDirty && (
-                    <button
-                      type="button"
-                      onClick={handleSave}
-                      disabled={isSaving}
-                      className="flex h-7 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      {isSaving ? (
-                        <Loader2 className="size-3 animate-spin" />
-                      ) : (
-                        <Save className="size-3" />
-                      )}
-                      <span>Save</span>
-                    </button>
+                <button
+                  type="button"
+                  onClick={handleCopyAll}
+                  className="flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium border border-border/60 hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  title="Copy All Content"
+                >
+                  {copied ? (
+                    <Check className="size-3.5 text-success" />
+                  ) : (
+                    <Copy className="size-3.5" />
                   )}
-
-                <button
-                  type="button"
-                  onClick={handleClose}
-                  className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
-                  aria-label="Close preview"
-                >
-                  <X className="size-4" />
                 </button>
-              </div>
-            </div>
-
-            {/* Search Bar Overlay */}
-            {showSearch && (
-              <div className="flex items-center gap-2 border-b border-border/60 bg-muted/30 px-4 py-2 text-xs">
-                <Search className="size-3.5 text-muted-foreground" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search in file..."
-                  autoFocus
-                  className="flex-1 bg-transparent outline-none text-foreground text-xs"
-                />
-                {searchQuery && (
-                  <span className="text-2xs text-muted-foreground">
-                    {matchCount} match{matchCount !== 1 ? 'es' : ''}
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setShowSearch(false)}
-                  className="text-muted-foreground hover:text-foreground cursor-pointer"
-                >
-                  <X className="size-3.5" />
-                </button>
-              </div>
+              </>
             )}
 
-            {/* Content */}
-            <div className="flex-1 overflow-hidden">
-              {isImageType(previewFile.type) ? (
-                <div className="flex h-full items-center justify-center bg-[repeating-conic-gradient(#80808012_0%_25%,transparent_0%_50%)] bg-[length:16px_16px]">
-                  <img
-                    src={`data:${previewFile.type};base64,${previewFile.content}`}
-                    alt={previewFile.name}
-                    className="max-h-full max-w-full object-contain rounded"
-                  />
-                </div>
-              ) : previewFile.type === 'application/pdf' ? (
-                /*
+            {!isImageType(previewFile.type) &&
+              previewFile.type !== 'application/pdf' &&
+              isDirty && (
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="flex h-7 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  {isSaving ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    <Save className="size-3" />
+                  )}
+                  <span>Save</span>
+                </button>
+              )}
+
+            <button
+              type="button"
+              onClick={handleClose}
+              className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+              aria-label="Close preview"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Search Bar Overlay */}
+        {showSearch && (
+          <div className="flex items-center gap-2 border-b border-border/60 bg-muted/30 px-4 py-2 text-xs">
+            <Search className="size-3.5 text-muted-foreground" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search in file..."
+              autoFocus
+              className="flex-1 bg-transparent outline-none text-foreground text-xs"
+            />
+            {searchQuery && (
+              <span className="text-2xs text-muted-foreground">
+                {matchCount} match{matchCount !== 1 ? 'es' : ''}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowSearch(false)}
+              className="text-muted-foreground hover:text-foreground cursor-pointer"
+            >
+              <X className="size-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Content */}
+        <div className="flex-1 overflow-hidden">
+          {isImageType(previewFile.type) ? (
+            <div className="flex h-full items-center justify-center bg-[repeating-conic-gradient(#80808012_0%_25%,transparent_0%_50%)] bg-[length:16px_16px]">
+              <img
+                src={`data:${previewFile.type};base64,${previewFile.content}`}
+                alt={previewFile.name}
+                className="max-h-full max-w-full object-contain rounded"
+              />
+            </div>
+          ) : previewFile.type === 'application/pdf' ? (
+            /*
                   Empty sandbox: the PDF viewer is a browser-native plugin and
                   needs no script execution from the framed document. The
                   previous `allow-scripts` granted a capability the preview
                   never used, on content fetched from a remote server.
                 */
-                <iframe
-                  src={`data:application/pdf;base64,${previewFile.content}#toolbar=0`}
-                  className="h-full w-full rounded border-none bg-white"
-                  title={previewFile.name}
-                  sandbox=""
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <div className="flex h-full font-mono text-xs leading-relaxed overflow-hidden bg-card/40">
-                  {/* Line Numbers Gutter */}
-                  <div
-                    ref={gutterRef}
-                    aria-hidden="true"
-                    className="select-none text-right pr-3 pl-4 py-4 bg-muted/5 text-muted-foreground/30 border-r border-border/20 font-mono min-w-[3.5rem] overflow-hidden"
-                  >
-                    {/* Spacer preserves total scroll height; only the visible
+            <iframe
+              src={`data:application/pdf;base64,${previewFile.content}#toolbar=0`}
+              className="h-full w-full rounded border-none bg-white"
+              title={previewFile.name}
+              sandbox=""
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="flex h-full font-mono text-xs leading-relaxed overflow-hidden bg-card/40">
+              {/* Line Numbers Gutter */}
+              <div
+                ref={gutterRef}
+                aria-hidden="true"
+                className="select-none text-right pr-3 pl-4 py-4 bg-muted/5 text-muted-foreground/30 border-r border-border/20 font-mono min-w-[3.5rem] overflow-hidden"
+              >
+                {/* Spacer preserves total scroll height; only the visible
                         window of numbers is materialised. */}
-                    <div
-                      style={{ height: lineCount * GUTTER_LINE_HEIGHT_PX, position: 'relative' }}
-                    >
+                <div style={{ height: lineCount * GUTTER_LINE_HEIGHT_PX, position: 'relative' }}>
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: visibleLines.start * GUTTER_LINE_HEIGHT_PX,
+                      left: 0,
+                      right: 0,
+                    }}
+                  >
+                    {Array.from(
+                      { length: visibleLines.end - visibleLines.start },
+                      (_, i) => visibleLines.start + i,
+                    ).map((lineIndex) => (
                       <div
+                        key={lineIndex}
+                        className="text-right"
                         style={{
-                          position: 'absolute',
-                          top: visibleLines.start * GUTTER_LINE_HEIGHT_PX,
-                          left: 0,
-                          right: 0,
+                          height: GUTTER_LINE_HEIGHT_PX,
+                          lineHeight: `${GUTTER_LINE_HEIGHT_PX}px`,
                         }}
                       >
-                        {Array.from(
-                          { length: visibleLines.end - visibleLines.start },
-                          (_, i) => visibleLines.start + i,
-                        ).map((lineIndex) => (
-                          <div
-                            key={lineIndex}
-                            className="text-right"
-                            style={{
-                              height: GUTTER_LINE_HEIGHT_PX,
-                              lineHeight: `${GUTTER_LINE_HEIGHT_PX}px`,
-                            }}
-                          >
-                            {lineIndex + 1}
-                          </div>
-                        ))}
+                        {lineIndex + 1}
                       </div>
-                    </div>
+                    ))}
                   </div>
-
-                  {/* Editor Input */}
-                  <textarea
-                    ref={textareaRef}
-                    value={editorContent}
-                    onChange={(e) => setEditorContent(e.target.value)}
-                    onScroll={handleScroll}
-                    disabled={isSaving}
-                    className={`flex-1 h-full w-full resize-none bg-transparent px-4 py-4 outline-none border-none text-foreground/90 font-mono focus:ring-0 leading-relaxed overflow-y-auto ${
-                      wordWrap
-                        ? 'whitespace-pre-wrap word-break-all'
-                        : 'whitespace-pre overflow-x-auto'
-                    }`}
-                    style={{ lineHeight: `${GUTTER_LINE_HEIGHT_PX}px` }}
-                    placeholder="Enter text..."
-                  />
                 </div>
-              )}
-            </div>
-
-            {/* Footer Bar */}
-            <div className="flex items-center justify-between border-t border-border/60 px-4 py-1.5 bg-muted/20 text-2xs text-muted-foreground font-mono">
-              <div>
-                Lines: {lineCount.toLocaleString()} | Size: {editorContent.length.toLocaleString()}{' '}
-                chars
               </div>
-              <div className="flex items-center gap-3">
-                {wordWrap && <span>Wrap ON</span>}
-                {autoTail && <span className="text-success">Tail ON</span>}
-              </div>
-            </div>
-          </motion.div>
 
-          <ConfirmDialog
-            open={showConfirmClose}
-            title="Unsaved Changes"
-            message="You have unsaved changes. Discarding them will lose all edits. Are you sure?"
-            confirmLabel="Discard"
-            destructive
-            onConfirm={() => {
-              setShowConfirmClose(false);
-              setPreviewFile(null);
-            }}
-            onCancel={() => setShowConfirmClose(false)}
-          />
-        </>
-      )}
-    </AnimatePresence>
+              {/* Editor Input */}
+              <textarea
+                ref={textareaRef}
+                value={editorContent}
+                onChange={(e) => setEditorContent(e.target.value)}
+                onScroll={handleScroll}
+                disabled={isSaving}
+                className={`flex-1 h-full w-full resize-none bg-transparent px-4 py-4 outline-none border-none text-foreground/90 font-mono focus:ring-0 leading-relaxed overflow-y-auto ${
+                  wordWrap ? 'whitespace-pre-wrap word-break-all' : 'whitespace-pre overflow-x-auto'
+                }`}
+                style={{ lineHeight: `${GUTTER_LINE_HEIGHT_PX}px` }}
+                placeholder="Enter text..."
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Footer Bar */}
+        <div className="flex items-center justify-between border-t border-border/60 px-4 py-1.5 bg-muted/20 text-2xs text-muted-foreground font-mono">
+          <div>
+            Lines: {lineCount.toLocaleString()} | Size: {editorContent.length.toLocaleString()}{' '}
+            chars
+          </div>
+          <div className="flex items-center gap-3">
+            {wordWrap && <span>Wrap ON</span>}
+            {autoTail && <span className="text-success">Tail ON</span>}
+          </div>
+        </div>
+      </DialogShell>
+
+      <ConfirmDialog
+        open={showConfirmClose}
+        title="Unsaved Changes"
+        message="You have unsaved changes. Discarding them will lose all edits. Are you sure?"
+        confirmLabel="Discard"
+        destructive
+        onConfirm={() => {
+          setShowConfirmClose(false);
+          setPreviewFile(null);
+        }}
+        onCancel={() => setShowConfirmClose(false)}
+      />
+    </>
   );
 }

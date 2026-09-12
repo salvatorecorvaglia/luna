@@ -13,6 +13,7 @@ import {
   useSftpDirectory,
 } from '@/hooks/use-sftp';
 import { useSftpDnd } from '@/hooks/use-sftp-dnd';
+import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
 import { useConnectionStore } from '@/stores/connection-store';
 import { useStorageStore } from '@/stores/storage-store';
@@ -551,7 +552,7 @@ export function SftpManager() {
           / error) so the user can tell whether to wait or take action. */}
       {isDisconnected && (
         <div
-          className="absolute inset-0 z-20 flex items-center justify-center bg-background/80 backdrop-blur-sm"
+          className={`absolute inset-0 ${Z.paneOverlay} flex items-center justify-center bg-background/80 backdrop-blur-sm`}
           role="status"
           aria-live="polite"
         >

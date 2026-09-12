@@ -7,6 +7,22 @@
  * straight into a `className`.
  */
 export const Z = {
+  /**
+   * Layering *inside* a single pane, below every app-level layer.
+   *
+   * These three existed as bare `z-10` / `z-20` / `z-30` utilities scattered
+   * across four components, which the arbitrary-z guard could not see (it only
+   * matched bracketed values). They were also in the wrong order: the terminal's
+   * hover action bar sat at z-30 while the disconnect alert it should sit under
+   * was at z-20, so the split/close buttons painted on top of a
+   * role="alertdialog" overlay.
+   */
+  /** In-pane controls floating over content: the terminal search bar. */
+  paneControl: 'z-[10]',
+  /** Pane furniture: splitter handles, hover action bars. */
+  paneChrome: 'z-[20]',
+  /** Pane-level covers that block interaction: disconnect / disconnected states. */
+  paneOverlay: 'z-[30]',
   /** In-page dropdowns/popovers (combobox results, menu surfaces). */
   dropdown: 'z-[50]',
   /** Tooltip overlays anchored to in-page elements. */
@@ -31,8 +47,13 @@ export const Z = {
    * Help tooltips that must surface above an open modal/form so contextual
    * hints are visible while a user is filling in a dialog. Sits below confirm
    * dialogs so a destructive prompt is never obscured.
+   *
+   * Was also z-[100], i.e. tied with hostKeyDialog, which left DOM order to
+   * decide whether a tooltip could cover a host-key MITM warning. Now strictly
+   * between panel (90) and hostKeyDialog (100), which is what the sentence
+   * above always claimed.
    */
-  tooltipOverlay: 'z-[100]',
+  tooltipOverlay: 'z-[95]',
   /** Drag chips and ephemeral floating UI during a drag gesture. */
   drag: 'z-[200]',
 } as const;

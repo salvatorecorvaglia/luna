@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { Z } from '../../src/renderer/src/lib/z-layers';
 
 /**
  * Token-coverage guard.
@@ -77,6 +78,23 @@ const HEX_CLASS_RE =
   /\b(?:text|bg|border|from|to|ring|fill|stroke|via|outline|caret|placeholder|accent|decoration|divide|shadow)-\[#[0-9A-Fa-f]+(?:\/[0-9]+)?\]/;
 
 const ARBITRARY_Z_RE = /\bz-\[[0-9]+\]/;
+
+/**
+ * Tailwind's *scale* z-utilities, which this guard used to miss entirely: it
+ * only matched bracketed `z-[N]`. Six plain `z-10`/`z-20`/`z-30` utilities were
+ * live across four components as a result, and they were mutually inconsistent
+ * — the terminal's hover action bar (z-30) painted over the disconnect overlay
+ * (z-20) it was supposed to sit beneath. Layer order belongs in z-layers.ts
+ * whichever spelling is used.
+ */
+const PLAIN_Z_RE = /\bz-(?:0|10|20|30|40|50|auto)\b/;
+
+/** Files where a bare z-utility is local stacking, not app layering. */
+const PLAIN_Z_ALLOWLIST = new Set<string>([
+  // `relative z-10` lifts the tooltip's text above its own background layer
+  // inside the same component. Not a participant in app-level stacking.
+  normPath('src/renderer/src/components/common/HelpTooltip.tsx'),
+]);
 
 const RAW_BTN_ICON_RE = /\bbtn-icon\b/;
 
@@ -188,6 +206,11 @@ function scan(file: string): Violation[] {
       if (z) out.push({ file: relPath, line: i + 1, rule: 'arbitrary-z-index', match: z[0] });
     }
 
+    if (!PLAIN_Z_ALLOWLIST.has(relPath)) {
+      const plainZ = PLAIN_Z_RE.exec(line);
+      if (plainZ) out.push({ file: relPath, line: i + 1, rule: 'plain-z-index', match: plainZ[0] });
+    }
+
     const textSize = ARBITRARY_TEXT_SIZE_RE.exec(line);
     if (textSize)
       out.push({ file: relPath, line: i + 1, rule: 'arbitrary-text-size', match: textSize[0] });
@@ -288,19 +311,36 @@ describe('design-token coverage', () => {
     const offenders: string[] = [];
     for (const file of walk(COMPONENTS_DIR)) {
       const source = readFileSync(file, 'utf8');
-      if (!source.includes('attachFocusTrap')) continue;
-
       const relPath = relative(REPO_ROOT, file);
+
+      // A file that renders through DialogShell inherits role and aria-modal
+      // from the primitive; it only has to supply the name. Checked separately
+      // from the `attachFocusTrap` case so a component can migrate to the
+      // primitive without tripping a rule about markup it no longer owns.
+      const usesDialogShell = /<DialogShell\b/.test(source);
+      // Matched as a call, not as a bare word: the substring check this used to
+      // do also matched the identifier inside a comment, so documenting the
+      // guard in a component was enough to trip it.
+      const trapsFocusItself = /\battachFocusTrap\s*\(/.test(source);
+
+      if (!usesDialogShell && !trapsFocusItself) continue;
+
       const missing: string[] = [];
-      // `alertdialog` is the correct role for a modal that interrupts with an
-      // important message — the host-key MITM warning and the terminal error
-      // overlay both use it deliberately.
-      if (!/role="(?:dialog|alertdialog)"/.test(source)) {
-        missing.push('role="dialog" (or "alertdialog")');
-      }
-      if (!/aria-modal="true"/.test(source)) missing.push('aria-modal="true"');
-      if (!/aria-labelledby=/.test(source) && !/aria-label=/.test(source)) {
-        missing.push('aria-labelledby (or aria-label)');
+      if (usesDialogShell) {
+        if (!/ariaLabelledBy=/.test(source) && !/aria-label=/.test(source)) {
+          missing.push('ariaLabelledBy (or aria-label)');
+        }
+      } else {
+        // `alertdialog` is the correct role for a modal that interrupts with an
+        // important message — the host-key MITM warning and the terminal error
+        // overlay both use it deliberately.
+        if (!/role="(?:dialog|alertdialog)"/.test(source)) {
+          missing.push('role="dialog" (or "alertdialog")');
+        }
+        if (!/aria-modal="true"/.test(source)) missing.push('aria-modal="true"');
+        if (!/aria-labelledby=/.test(source) && !/aria-label=/.test(source)) {
+          missing.push('aria-labelledby (or aria-label)');
+        }
       }
       if (missing.length > 0) offenders.push(`  ${relPath} — missing ${missing.join(', ')}`);
     }
@@ -308,6 +348,76 @@ describe('design-token coverage', () => {
     if (offenders.length > 0) {
       throw new Error(
         `Focus-trapping dialogs must be announced as modals. Add role="dialog" aria-modal="true" and point aria-labelledby at the dialog's heading id.\n${offenders.join('\n')}`,
+      );
+    }
+    expect(offenders).toHaveLength(0);
+  });
+
+  it('layer order comes from z-layers.ts, in either Tailwind spelling', () => {
+    const offenders = allViolations.filter((v) => v.rule === 'plain-z-index');
+    if (offenders.length > 0) {
+      const report = offenders
+        .map((v) => `  ${v.file}:${v.line}  ${v.match} — use a Z.* token from '@/lib/z-layers'.`)
+        .join('\n');
+      throw new Error(
+        `Bare Tailwind z-utilities bypass the layer table. They are how the terminal action bar (z-30) ended up painting over the disconnect alertdialog (z-20).\n${report}`,
+      );
+    }
+    expect(offenders).toHaveLength(0);
+  });
+
+  it('assigns every layer token a distinct value', () => {
+    // hostKeyDialog and tooltipOverlay were both z-[100], so whether a help
+    // tooltip could cover a host-key MITM warning came down to DOM order.
+    const byValue = new Map<string, string[]>();
+    for (const [name, value] of Object.entries(Z)) {
+      byValue.set(value, [...(byValue.get(value) ?? []), name]);
+    }
+    const collisions = [...byValue.entries()]
+      .filter(([, names]) => names.length > 1)
+      .map(([value, names]) => `  ${value} shared by ${names.join(', ')}`);
+
+    if (collisions.length > 0) {
+      throw new Error(
+        `Two layers with the same z-index leave their relative order to DOM order, which is exactly what a layer table exists to decide.\n${collisions.join('\n')}`,
+      );
+    }
+    expect(collisions).toHaveLength(0);
+  });
+
+  /**
+   * The gap that let FilePreview ship as a modal with no role, no aria-modal and
+   * no focus trap: both dialog guards keyed off a marker it lacked. The
+   * modal-role check only looks at files containing `attachFocusTrap`, and the
+   * hand-rolled-dialog check looks for the same string — so a component that
+   * simply rendered its own full-screen overlay and trapped nothing was invisible
+   * to both.
+   */
+  it('full-screen overlays render through DialogShell', () => {
+    const offenders: string[] = [];
+    for (const file of walk(COMPONENTS_DIR)) {
+      const relPath = relative(REPO_ROOT, file);
+      if (FOCUS_TRAP_ALLOWLIST.has(normPath(relPath))) continue;
+
+      const source = readFileSync(file, 'utf8');
+      // A fixed, inset overlay carrying an app-level layer token is a modal,
+      // whatever it calls itself.
+      const hasFixedOverlay = /fixed inset-(?:0|2|x-0|y-0)\b/.test(source);
+      const hasModalLayer =
+        /\$\{Z\.(?:modal|panel|confirm|hostKeyDialog)\}|Z\.(?:modal|panel|confirm|hostKeyDialog)\b/.test(
+          source,
+        );
+      if (!hasFixedOverlay || !hasModalLayer) continue;
+      if (source.includes('DialogShell')) continue;
+
+      offenders.push(
+        `  ${relPath} — full-screen overlay at a modal layer, but does not render through DialogShell`,
+      );
+    }
+
+    if (offenders.length > 0) {
+      throw new Error(
+        `A modal that opts out of DialogShell also opts out of role="dialog", aria-modal and the focus trap — and out of the guards above, which key off DialogShell/attachFocusTrap.\n${offenders.join('\n')}`,
       );
     }
     expect(offenders).toHaveLength(0);

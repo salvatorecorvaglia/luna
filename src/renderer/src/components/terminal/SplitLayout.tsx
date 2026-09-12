@@ -3,6 +3,7 @@ import { Columns, Rows, X } from 'lucide-react';
 import type React from 'react';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { Z } from '@/lib/z-layers';
 import { getFirstLeafSessionId, useTerminalStore } from '@/stores/terminal-store';
 import { LocalTerminalPane } from './LocalTerminalPane';
 import { TerminalPane } from './TerminalPane';
@@ -122,7 +123,9 @@ function SplitLayoutInner({ node, tabId, activeSessionId }: SplitLayoutProps) {
         )}
       >
         {/* Floating action bar */}
-        <div className="absolute right-2 top-2 z-30 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-card/90 backdrop-blur border border-border/80 rounded-md p-1 shadow-md">
+        <div
+          className={`absolute right-2 top-2 ${Z.paneChrome} flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-card/90 backdrop-blur border border-border/80 rounded-md p-1 shadow-md`}
+        >
           <button
             type="button"
             onClick={(e) => {
@@ -206,7 +209,8 @@ function SplitLayoutInner({ node, tabId, activeSessionId }: SplitLayoutProps) {
           );
         }}
         className={cn(
-          'bg-border/60 hover:bg-primary/60 transition-colors z-20',
+          'bg-border/60 hover:bg-primary/60 transition-colors',
+          Z.paneChrome,
           'focus-visible:bg-primary/80 focus-visible:outline-none',
           isVertical ? 'w-1 h-full cursor-col-resize' : 'h-1 w-full cursor-row-resize',
           isResizing && 'bg-primary/80',

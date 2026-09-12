@@ -2,6 +2,7 @@ import type { SearchAddon } from '@xterm/addon-search';
 import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import type { RefObject } from 'react';
 import { IconButton } from '@/components/ui';
+import { Z } from '@/lib/z-layers';
 
 interface TerminalSearchBarProps {
   inputRef: RefObject<HTMLInputElement | null>;
@@ -33,7 +34,7 @@ export function TerminalSearchBar({
     <div
       role="region"
       aria-label="Terminal search"
-      className="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-lg border border-border/80 bg-card px-2 py-1 shadow-lg"
+      className={`absolute right-2 top-2 ${Z.paneControl} flex items-center gap-1 rounded-lg border border-border/80 bg-card px-2 py-1 shadow-lg`}
     >
       <input
         ref={inputRef}

@@ -197,6 +197,10 @@ export default function App() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
+      // Case-folded: e.key is uppercase under Caps Lock (and with Shift), so
+      // matching 'k' alone silently dropped these chords. terminal-input.ts
+      // already accepted both cases for its own chords, so the two diverged.
+      const key = e.key.toLowerCase();
 
       // Don't hijack typing in form inputs. Allow xterm's hidden helper
       // textarea through — that textarea backs the terminal and the user
@@ -212,25 +216,25 @@ export default function App() {
       }
 
       // Cmd+K: Command palette
-      if (mod && e.key === 'k') {
+      if (mod && key === 'k') {
         e.preventDefault();
         setCommandPaletteOpen(true);
       }
 
       // Cmd+B: Toggle sidebar
-      if (mod && e.key === 'b') {
+      if (mod && key === 'b') {
         e.preventDefault();
         useUIStore.getState().toggleSidebar();
       }
 
       // Cmd+,: Settings
-      if (mod && e.key === ',') {
+      if (mod && key === ',') {
         e.preventDefault();
         useUIStore.getState().setSettingsOpen(true);
       }
 
       // Cmd+N: New connection
-      if (mod && e.key === 'n') {
+      if (mod && key === 'n') {
         e.preventDefault();
         useConnectionStore.getState().openCreateForm();
       }

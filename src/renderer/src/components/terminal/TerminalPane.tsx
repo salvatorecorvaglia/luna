@@ -3,6 +3,7 @@ import { memo, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { sanitizeTerminalText } from '@/lib/terminal-output';
+import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { TerminalSearchBar } from './TerminalSearchBar';
@@ -92,7 +93,7 @@ export const TerminalPane = memo(function TerminalPane({ sessionId, isActive }: 
           aria-modal="true"
           aria-labelledby={`terminal-overlay-title-${sessionId}`}
           aria-describedby={`terminal-overlay-desc-${sessionId}`}
-          className="absolute inset-0 z-20 flex items-center justify-center bg-background/60 backdrop-blur-sm"
+          className={`absolute inset-0 ${Z.paneOverlay} flex items-center justify-center bg-background/60 backdrop-blur-sm`}
         >
           <div className="flex flex-col items-center gap-4 rounded-xl border border-border/80 bg-card p-6 shadow-2xl">
             <div className="text-center">

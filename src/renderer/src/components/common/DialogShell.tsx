@@ -59,9 +59,10 @@ export interface DialogShellProps {
   /**
    * `center` (default) is a centered modal card. `sheet-right` is a full-height
    * panel that slides in from the right edge — the Settings panel's shape.
-   * The card's own width still comes from `panelClassName`.
+   * `fullscreen` is a near-edge-to-edge panel with a small margin — the file
+   * preview's shape. The card's own width still comes from `panelClassName`.
    */
-  layout?: 'center' | 'sheet-right';
+  layout?: 'center' | 'sheet-right' | 'fullscreen';
   role?: 'dialog' | 'alertdialog';
   ariaLabelledBy?: string;
   ariaDescribedBy?: string;
@@ -94,19 +95,48 @@ export function DialogShell({
 }: DialogShellProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
 
+  /**
+   * Held in refs so the effect below depends only on `open`.
+   *
+   * Both callbacks are routinely passed as inline arrows — ConfirmDialog and
+   * HostKeyDialog both do — so they get a fresh identity on every parent
+   * render. With them in the dependency array the effect re-ran each time,
+   * which meant: the focus trap was detached (restoring focus to whatever
+   * opened the dialog) and reattached, and `onOpenFocus` fired again, yanking
+   * focus back to Cancel/Reject. A user who had tabbed to "Delete" was silently
+   * moved off it whenever the parent happened to re-render — and parents
+   * re-render often, since several subscribe to the whole session Map.
+   *
+   * SettingsPanel already worked around exactly this for `onClose` with a ref
+   * of its own; doing it here fixes it for every caller instead.
+   */
+  const onCloseRef = useRef(onClose);
+  const onOpenFocusRef = useRef(onOpenFocus);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+    onOpenFocusRef.current = onOpenFocus;
+  });
+
   useEffect(() => {
     if (!open) return;
     const dialog = dialogRef.current;
     if (!dialog) return;
 
-    if (onOpenFocus) {
-      requestAnimationFrame(() => onOpenFocus(dialog));
+    if (onOpenFocusRef.current) {
+      requestAnimationFrame(() => onOpenFocusRef.current?.(dialog));
     }
 
-    return attachFocusTrap(dialog, { onEscape: onClose });
-  }, [open, onClose, onOpenFocus]);
+    return attachFocusTrap(dialog, { onEscape: () => onCloseRef.current() });
+  }, [open]);
 
   const sheet = layout === 'sheet-right';
+  const fullscreen = layout === 'fullscreen';
+
+  const wrapperClassName = sheet
+    ? `fixed inset-y-0 right-0 ${zLayer} flex`
+    : fullscreen
+      ? `fixed inset-2 ${zLayer} flex sm:inset-8`
+      : `fixed inset-0 ${zLayer} flex items-center justify-center p-4`;
   const content = (
     <AnimatePresence>
       {open && (
@@ -130,11 +160,7 @@ export function DialogShell({
             animate="animate"
             exit="exit"
             onClick={dismissOnOverlayClick ? onClose : undefined}
-            className={
-              sheet
-                ? `fixed inset-y-0 right-0 ${zLayer} flex`
-                : `fixed inset-0 ${zLayer} flex items-center justify-center p-4`
-            }
+            className={wrapperClassName}
           >
             {/* Literal `role="dialog"` / `role="alertdialog"` (not a dynamic
                 `role={role}`) so both Biome's a11y linter and the design-token

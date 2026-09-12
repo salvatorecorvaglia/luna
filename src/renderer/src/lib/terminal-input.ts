@@ -61,7 +61,14 @@ export function readClipboardAndPaste(terminal: Terminal): void {
  * to `terminal.attachCustomKeyEventHandler`.
  *
  * CRITICAL: never intercepts a plain Ctrl+C on Linux/Windows — that has to
- * reach the shell as SIGINT.
+ * reach the shell as SIGINT. For the same reason it no longer intercepts a
+ * plain Ctrl+K, which is readline's kill-to-end-of-line.
+ *
+ * Every branch that claims a chord calls stopPropagation as well as
+ * preventDefault. Returning false only tells xterm not to handle the key; the
+ * DOM event still bubbles to the window listener in App.tsx, so a chord handled
+ * here *and* there fired both actions. Cmd+K was the visible case: it cleared
+ * the scrollback and opened the command palette at once.
  */
 export function buildTerminalKeyHandler(
   terminal: Terminal,
@@ -72,10 +79,19 @@ export function buildTerminalKeyHandler(
     const meta = isMac ? e.metaKey : e.ctrlKey && e.shiftKey;
     const mod = isMac ? e.metaKey : e.ctrlKey;
 
+    /**
+     * Take ownership of a chord: suppress the default action, stop it reaching
+     * the app-level window handler, and tell xterm not to send it to the shell.
+     */
+    const claim = (): boolean => {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    };
+
     if (meta && (e.key === 'c' || e.key === 'C')) {
       if (copySelectionFromTerminal(terminal)) {
-        e.preventDefault();
-        return false;
+        return claim();
       }
       // No selection: on macOS Cmd+C is harmless; on Linux/Win this branch is
       // Ctrl+Shift+C — suppress to avoid any default browser action.
@@ -83,36 +99,36 @@ export function buildTerminalKeyHandler(
       return true;
     }
     if (meta && (e.key === 'v' || e.key === 'V')) {
-      e.preventDefault();
       readClipboardAndPaste(terminal);
-      return false;
+      return claim();
     }
     if (meta && (e.key === 'f' || e.key === 'F')) {
-      e.preventDefault();
       openSearch();
-      return false;
+      return claim();
     }
-    if (mod && (e.key === 'k' || e.key === 'K')) {
-      e.preventDefault();
+    // Clear is MOD+SHIFT+K, not MOD+K.
+    //
+    // MOD+K is the command palette — that is what ShortcutsHelp advertises and
+    // what App.tsx binds — and on Linux/Windows MOD+K is also readline's
+    // kill-to-end-of-line, which a terminal must never swallow. Matching on
+    // e.code keeps the binding layout-independent.
+    if (mod && e.shiftKey && e.code === 'KeyK') {
       terminal.clear();
-      return false;
+      return claim();
     }
     if (mod && (e.key === '=' || e.key === '+')) {
-      e.preventDefault();
       const { fontSize, setFontSize } = useTerminalStore.getState();
       setFontSize(fontSize + 1);
-      return false;
+      return claim();
     }
     if (mod && e.key === '-') {
-      e.preventDefault();
       const { fontSize, setFontSize } = useTerminalStore.getState();
       setFontSize(fontSize - 1);
-      return false;
+      return claim();
     }
     if (mod && e.key === '0') {
-      e.preventDefault();
       useTerminalStore.getState().setFontSize(LIMITS.DEFAULT_FONT_SIZE);
-      return false;
+      return claim();
     }
 
     const isMacSplitVertical = isMac && e.metaKey && !e.shiftKey && e.code === 'KeyD';
@@ -121,21 +137,19 @@ export function buildTerminalKeyHandler(
     const isWinLinuxSplitHorizontal = !isMac && e.ctrlKey && e.shiftKey && e.code === 'KeyH';
 
     if (isMacSplitVertical || isWinLinuxSplitVertical) {
-      e.preventDefault();
       const { activeSessionId, splitSession } = useTerminalStore.getState();
       if (activeSessionId) {
         splitSession(activeSessionId, 'vertical');
       }
-      return false;
+      return claim();
     }
 
     if (isMacSplitHorizontal || isWinLinuxSplitHorizontal) {
-      e.preventDefault();
       const { activeSessionId, splitSession } = useTerminalStore.getState();
       if (activeSessionId) {
         splitSession(activeSessionId, 'horizontal');
       }
-      return false;
+      return claim();
     }
 
     const isNextPane =
@@ -146,7 +160,6 @@ export function buildTerminalKeyHandler(
       (!isMac && e.ctrlKey && e.altKey && e.code === 'ArrowLeft');
 
     if (isNextPane || isPrevPane) {
-      e.preventDefault();
       const { activeSessionId, layouts, setActiveSession } = useTerminalStore.getState();
       if (activeSessionId) {
         const tabId = findTabIdForSession(layouts, activeSessionId);
@@ -166,7 +179,7 @@ export function buildTerminalKeyHandler(
           }
         }
       }
-      return false;
+      return claim();
     }
 
     return true;
