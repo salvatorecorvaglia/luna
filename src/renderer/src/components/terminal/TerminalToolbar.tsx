@@ -1,4 +1,4 @@
-import { BookOpen, Circle, Code, FileText, Filter, LayoutGrid, Radio } from 'lucide-react';
+import { BookOpen, Circle, Code, FileText, LayoutGrid, Radio } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { AuditExportDialog } from '@/components/terminal/AuditExportDialog';
@@ -6,7 +6,6 @@ import { BroadcastInputBar } from '@/components/terminal/BroadcastInputBar';
 import { CliReferenceDialog } from '@/components/terminal/CliReferenceDialog';
 import { MacroRecorderDialog } from '@/components/terminal/MacroRecorderDialog';
 import { SnippetVaultDialog } from '@/components/terminal/SnippetVaultDialog';
-import { TerminalFilterBar } from '@/components/terminal/TerminalFilterBar';
 import { WorkspacePresetsDialog } from '@/components/terminal/WorkspacePresetsDialog';
 import { IconButton } from '@/components/ui';
 import { connectToHost } from '@/lib/ssh';
@@ -37,7 +36,6 @@ export function TerminalToolbar() {
 
   const [showSnippetVault, setShowSnippetVault] = useState(false);
   const [showBroadcastBar, setShowBroadcastBar] = useState(false);
-  const [showFilterBar, setShowFilterBar] = useState(false);
   const [showMacroRecorder, setShowMacroRecorder] = useState(false);
   const [showCliRef, setShowCliRef] = useState(false);
   const [showAuditExport, setShowAuditExport] = useState(false);
@@ -75,15 +73,6 @@ export function TerminalToolbar() {
         />
 
         <IconButton
-          onClick={() => setShowFilterBar((v) => !v)}
-          className={cn(showFilterBar && ACTIVE_TOGGLE)}
-          title="Live Terminal Output Filter"
-          aria-label="Live Terminal Output Filter"
-          aria-pressed={showFilterBar}
-          icon={<Filter className="size-3.5" />}
-        />
-
-        <IconButton
           onClick={() => setShowMacroRecorder(true)}
           title="Terminal Macro Recorder"
           aria-label="Terminal Macro Recorder"
@@ -113,17 +102,13 @@ export function TerminalToolbar() {
       </div>
 
       {/* Gated behind their `show*` flag rather than always mounted: each of
-          these seven dialogs already self-gates on `open` internally (so
+          these dialogs already self-gates on `open` internally (so
           this changes nothing about when they're visible), but mounting them
           unconditionally meant every one of their hooks ran on every render
           of this tab bar even while closed. */}
       {showBroadcastBar && (
         <BroadcastInputBar open={showBroadcastBar} onClose={() => setShowBroadcastBar(false)} />
       )}
-      {showFilterBar && (
-        <TerminalFilterBar open={showFilterBar} onClose={() => setShowFilterBar(false)} />
-      )}
-
       {showCliRef && (
         <CliReferenceDialog
           open={showCliRef}

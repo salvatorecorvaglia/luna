@@ -11,7 +11,7 @@
 ### 🖥️ High-Performance Terminals
 *   **Hardware Acceleration:** Powered by [xterm.js](https://xtermjs.org/) using WebGL and Canvas renderers for low-latency rendering.
 *   **Advanced Layouts & Presets:** Supports vertical and horizontal split panes, dynamic resizing, and saving/restoring workspace layout presets.
-*   **Broadcast Input & Output Filtering:** Broadcast commands to multiple active terminal tabs simultaneously and filter live terminal logs using text or regex filters.
+*   **Broadcast Input:** Broadcast commands to multiple active terminal tabs simultaneously.
 *   **Automation & Snippet Vault:** Store reusable command snippets in a searchable Snippet Vault and record automated terminal keypress sequences with the Macro Recorder.
 *   **Session Audit & Shell History:** Index command history for fast search and export detailed session audit logs in JSON, HTML, or plain text formats.
 *   **Built-in CLI Reference:** Access interactive, searchable CLI command reference documentation directly inside the terminal workstation.
