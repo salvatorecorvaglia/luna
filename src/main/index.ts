@@ -276,6 +276,11 @@ void app.whenReady().then(() => {
   }
 
   registerAllHandlers();
+  // Paired with sftpManager.dispose() in `before-quit`. Deliberately started
+  // here rather than in the manager's constructor: the constructor runs at
+  // import time, and the timer's period comes from a setting, so reading it
+  // there opened the database before the single-instance lock above.
+  sftpManager.start();
   createWindow();
   initAutoUpdater();
 

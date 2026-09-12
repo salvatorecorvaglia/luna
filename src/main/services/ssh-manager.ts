@@ -8,7 +8,7 @@ import type {
 import type { SessionStatus } from '@shared/types/terminal';
 import { Client, type ClientChannel } from 'ssh2';
 import { v4 as uuidv4 } from 'uuid';
-import { getRuntimeNumber } from '../config/runtime';
+import { getSshReconnectTunables } from '../config/runtime';
 import { describeSshError } from '../lib/error-map';
 import log from '../lib/logger';
 import { TimeoutError, withTimeout } from '../lib/with-timeout';
@@ -70,10 +70,10 @@ interface SshSession {
   portForwards?: PortForwardHandle[];
 }
 
-/** Maximum delay between reconnect attempts (ms). The backoff doubles up to this cap. */
-const MAX_RECONNECT_DELAY_MS = getRuntimeNumber('SSH_RECONNECT_MAX_DELAY_MS');
-/** Base delay for the first reconnect attempt (ms). */
-const RECONNECT_BASE_DELAY_MS = getRuntimeNumber('SSH_RECONNECT_BASE_DELAY_MS');
+// Reconnect backoff is read lazily via getSshReconnectTunables(). It used to be
+// two module-scope consts here, which made importing this module open the
+// database and run migrations — before index.ts had taken the single-instance
+// lock. See the comment on getSshReconnectTunables in config/runtime.ts.
 
 /**
  * How often to prune `connection_history`. The prune used to run on every
@@ -705,10 +705,8 @@ class SshManager {
 
     session.reconnecting = true;
     session.reconnectAttempts++;
-    const delay = Math.min(
-      RECONNECT_BASE_DELAY_MS * 2 ** (session.reconnectAttempts - 1),
-      MAX_RECONNECT_DELAY_MS,
-    );
+    const { baseDelayMs, maxDelayMs } = getSshReconnectTunables();
+    const delay = Math.min(baseDelayMs * 2 ** (session.reconnectAttempts - 1), maxDelayMs);
 
     this.setStatus(session, 'reconnecting');
 

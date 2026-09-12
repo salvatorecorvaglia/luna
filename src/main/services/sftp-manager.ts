@@ -3,7 +3,7 @@ import { stat as fsStat } from 'node:fs/promises';
 import { BINARY_PREVIEW_EXTENSIONS, LIMITS } from '@shared/constants';
 import type { SftpEntry } from '@shared/types/sftp';
 import type { ReadStreamOptions, SFTPWrapper, WriteStreamOptions } from 'ssh2';
-import { getRuntimeNumber, getTransferTunables } from '../config/runtime';
+import { getSftpIdleTunables, getTransferTunables } from '../config/runtime';
 import { SftpTransferError, SshConnectionError } from '../lib/errors';
 import log from '../lib/logger';
 import { releaseStorageBucket } from '../lib/rate-limiter';
@@ -18,10 +18,11 @@ import { runPipeDownloadToFile, runPipeTransfer } from './storage/pipe-transfer'
 
 type StepCallback = (transferred: number, chunk: number, total: number) => void;
 
-// Read once at module load: these don't need per-call overrides, but keeping
-// them in the settings table makes them tunable without a rebuild.
-const IDLE_TIMEOUT_MS = getRuntimeNumber('SFTP_IDLE_TIMEOUT_MS');
-const IDLE_CHECK_INTERVAL_MS = getRuntimeNumber('SFTP_IDLE_CHECK_INTERVAL_MS');
+// Idle timings are read lazily via getSftpIdleTunables(). They used to be read
+// at module load, which meant importing this module opened the database and ran
+// every migration — before index.ts had taken the single-instance lock. See the
+// comment on getSftpIdleTunables in config/runtime.ts.
+//
 // The abort-cleanup delay is read per transfer via getTransferTunables() so a
 // settings change takes effect without a restart.
 
@@ -64,8 +65,21 @@ class SftpManager {
       // Free the rate-limiter bucket so disconnected sessions don't accumulate.
       releaseStorageBucket(sessionId);
     });
+  }
 
-    this.idleCheckTimer = setInterval(() => this.cleanupIdle(), IDLE_CHECK_INTERVAL_MS);
+  /**
+   * Start the idle-sweep timer. Call from `whenReady`, paired with dispose() on
+   * `before-quit` — this manager's lifecycle is owned by index.ts at both ends.
+   *
+   * This used to live in the constructor, which runs at import time because the
+   * module exports a singleton instance. That made the interval's period a
+   * setting read during module evaluation, which opened the database before the
+   * single-instance lock was taken. Idempotent, so a double call is harmless.
+   */
+  start(): void {
+    if (this.idleCheckTimer) return;
+    const { checkIntervalMs } = getSftpIdleTunables();
+    this.idleCheckTimer = setInterval(() => this.cleanupIdle(), checkIntervalMs);
     // Unref so an unexpected uncaughtException-then-quit path can't be
     // held open by this timer alone if `before-quit` doesn't fire (e.g. a
     // crash during init). Production cleanup still goes through dispose().
@@ -83,11 +97,12 @@ class SftpManager {
 
   private cleanupIdle(): void {
     const now = Date.now();
+    const { idleTimeoutMs } = getSftpIdleTunables();
     // Snapshot the entries first: closeSftp() mutates lastAccess, which
     // would otherwise risk skipping or revisiting entries during iteration.
     for (const [sessionId, lastTime] of Array.from(this.lastAccess)) {
       if (
-        now - lastTime > IDLE_TIMEOUT_MS &&
+        now - lastTime > idleTimeoutMs &&
         (this.leases.get(sessionId) ?? 0) === 0 &&
         !this.closing.has(sessionId)
       ) {

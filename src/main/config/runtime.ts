@@ -152,7 +152,63 @@ export function getTransferTunables(): TransferTunables {
   return transferTunables;
 }
 
-/** Drop the cached snapshot. Called by `SETTINGS_SET` so overrides take effect. */
+/**
+ * Reconnect backoff, read lazily.
+ *
+ * These were module-scope `const`s in ssh-manager.ts, which made them a
+ * *bootstrap* problem rather than a performance one: reading a setting calls
+ * getSetting() -> getDatabase(), so merely importing ssh-manager opened
+ * luna.db and ran every migration. index.ts imports it at line 14, and imports
+ * are evaluated before the module body, so all of that happened before
+ * `app.requestSingleInstanceLock()` on line 27 — defeating the lock whose
+ * stated purpose is to stop two processes racing a migration.
+ *
+ * Snapshotting here instead means the first read happens when a reconnect is
+ * actually scheduled, long after bootstrap, and the setting becomes live
+ * (invalidateRuntimeCache below) instead of frozen at import.
+ */
+export interface SshReconnectTunables {
+  baseDelayMs: number;
+  maxDelayMs: number;
+}
+
+let sshReconnectTunables: SshReconnectTunables | null = null;
+
+export function getSshReconnectTunables(): SshReconnectTunables {
+  if (!sshReconnectTunables) {
+    sshReconnectTunables = {
+      baseDelayMs: getRuntimeNumber('SSH_RECONNECT_BASE_DELAY_MS'),
+      maxDelayMs: getRuntimeNumber('SSH_RECONNECT_MAX_DELAY_MS'),
+    };
+  }
+  return sshReconnectTunables;
+}
+
+/**
+ * SFTP idle-sweep timings, read lazily. Same bootstrap problem as
+ * `getSshReconnectTunables` above — sftp-manager.ts is imported by index.ts at
+ * line 13, one line earlier still.
+ */
+export interface SftpIdleTunables {
+  idleTimeoutMs: number;
+  checkIntervalMs: number;
+}
+
+let sftpIdleTunables: SftpIdleTunables | null = null;
+
+export function getSftpIdleTunables(): SftpIdleTunables {
+  if (!sftpIdleTunables) {
+    sftpIdleTunables = {
+      idleTimeoutMs: getRuntimeNumber('SFTP_IDLE_TIMEOUT_MS'),
+      checkIntervalMs: getRuntimeNumber('SFTP_IDLE_CHECK_INTERVAL_MS'),
+    };
+  }
+  return sftpIdleTunables;
+}
+
+/** Drop every cached snapshot. Called by `SETTINGS_SET` so overrides take effect. */
 export function invalidateRuntimeCache(): void {
   transferTunables = null;
+  sshReconnectTunables = null;
+  sftpIdleTunables = null;
 }
