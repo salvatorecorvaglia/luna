@@ -147,15 +147,45 @@ void app.whenReady().then(() => {
     app.dock?.setIcon(icon);
   }
 
-  // Deny all renderer permission requests by default. Luna is a desktop tool
-  // for SSH/SFTP/S3 and never needs camera, microphone, geolocation, MIDI,
+  // Deny renderer permission requests by default. Luna is a desktop tool for
+  // SSH/SFTP/S3 and never needs camera, microphone, geolocation, MIDI,
   // notifications, etc. — silently denying these closes a class of
   // social-engineering / compromised-renderer attacks.
+  //
+  // Clipboard is the one exception, and it has to be, because a deny-all
+  // handler here silently broke every clipboard feature in the app. Chromium
+  // gates the async Clipboard API behind these two permissions, so
+  // `setPermissionCheckHandler(() => false)` made `navigator.clipboard.readText()`
+  // reject with NotAllowedError *and* `writeText()` reject with "Write
+  // permission denied" — taking out terminal copy and paste, "Copy path", copy
+  // host-key fingerprint, copy snippet, copy presigned URL, copy file contents
+  // and copy SOCKS proxy string. Nine call sites, all dead, in dev and in
+  // production alike (this handler is not gated on `isPackaged`). Several of
+  // them toasted "Copied to clipboard" over an empty clipboard because they
+  // never awaited the promise.
+  //
+  // Allowing clipboard access is not an escalation worth refusing: the renderer
+  // is already handed decrypted credentials over the bridge by design
+  // (`credential:retrieve`), so a compromised renderer has strictly better
+  // things to do than read the clipboard. Routing clipboard through a
+  // main-process IPC channel instead — the other option — would grant the
+  // renderer the same capability through a wider door, so it buys nothing.
+  //
+  // `clipboard-sanitized-write` rather than raw write: it is the permission
+  // Chromium checks for `writeText`, and it strips non-text payloads.
+  const ALLOWED_PERMISSIONS = new Set<string>(['clipboard-read', 'clipboard-sanitized-write']);
+
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    if (ALLOWED_PERMISSIONS.has(permission)) {
+      callback(true);
+      return;
+    }
     log.warn(`[Main] Denied renderer permission request: ${permission}`);
     callback(false);
   });
-  session.defaultSession.setPermissionCheckHandler(() => false);
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) =>
+    ALLOWED_PERMISSIONS.has(permission),
+  );
 
   // Hard-block navigation away from the bundled renderer. An attacker who
   // managed to inject a link or auto-navigate the WebContents would otherwise
