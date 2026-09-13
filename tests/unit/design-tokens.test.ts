@@ -98,6 +98,30 @@ const PLAIN_Z_ALLOWLIST = new Set<string>([
 
 const RAW_BTN_ICON_RE = /\bbtn-icon\b/;
 
+/**
+ * The four button *variant* classes, which must come from <Button> rather than
+ * being applied by hand — the same rule `btn-icon` already has for IconButton.
+ *
+ * Button existed with **zero consumers** while 22 call sites applied these
+ * classes directly, which is exactly the state the btn-icon guard was added to
+ * fix ("It had zero consumers while twenty raw btn-icon call sites remained").
+ * The cost was not cosmetic: Button is where the loading affordance lives —
+ * spinner beside the label, label text unchanged so the width does not shift,
+ * aria-busy set — and with nobody using it, three dialogs hand-rolled their own
+ * busy state and the rest simply had none.
+ *
+ * This deliberately does not police every raw <button> in the codebase. A
+ * terminal tab, a file row, a roving-tabindex option and a toggle are all
+ * legitimately buttons that are not design-system *buttons*, and forcing them
+ * onto a variant class would be wrong.
+ */
+const RAW_BTN_VARIANT_RE = /\bbtn-(?:primary|outline|ghost|destructive)\b/;
+
+/** Only the primitive itself may name the variant classes. */
+const BTN_VARIANT_ALLOWLIST = new Set<string>([
+  normPath('src/renderer/src/components/ui/Button.tsx'),
+]);
+
 const FOCUS_TRAP_RE = /\battachFocusTrap\b/;
 
 /**
@@ -185,6 +209,12 @@ function scan(file: string): Violation[] {
     if (!BTN_ICON_ALLOWLIST.has(relPath)) {
       const icon = RAW_BTN_ICON_RE.exec(line);
       if (icon) out.push({ file: relPath, line: i + 1, rule: 'raw-btn-icon', match: icon[0] });
+    }
+
+    if (!BTN_VARIANT_ALLOWLIST.has(relPath)) {
+      const variant = RAW_BTN_VARIANT_RE.exec(line);
+      if (variant)
+        out.push({ file: relPath, line: i + 1, rule: 'raw-btn-variant', match: variant[0] });
     }
 
     if (!FOCUS_TRAP_ALLOWLIST.has(relPath)) {
@@ -431,6 +461,22 @@ describe('design-token coverage', () => {
         .join('\n');
       throw new Error(
         `Raw btn-icon usage leaked back into components. IconButton applies the class and requires an aria-label at the type level, which is what keeps icon-only controls from shipping silent to screen readers.\n${report}`,
+      );
+    }
+    expect(offenders).toHaveLength(0);
+  });
+
+  it('button variants go through Button, not the raw btn-* classes', () => {
+    const offenders = allViolations.filter((v) => v.rule === 'raw-btn-variant');
+    if (offenders.length > 0) {
+      const report = offenders
+        .map(
+          (v) =>
+            `  ${v.file}:${v.line}  ${v.match} — use <Button variant="…"> from '@/components/ui'.`,
+        )
+        .join('\n');
+      throw new Error(
+        `Raw button-variant classes bypass the Button primitive, which is where the loading affordance (spinner + aria-busy + stable label width) lives. Button previously had zero consumers while 22 call sites applied these classes by hand.\n${report}`,
       );
     }
     expect(offenders).toHaveLength(0);

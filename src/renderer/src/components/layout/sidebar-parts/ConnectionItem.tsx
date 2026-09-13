@@ -7,7 +7,6 @@ import {
   Eye,
   EyeOff,
   GripVertical,
-  Loader2,
   LogOut,
   Pencil,
   RefreshCw,
@@ -19,6 +18,7 @@ import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
+import { Spinner } from '@/components/ui';
 import { useDeleteConnection, useUpdateConnection } from '@/hooks/use-connections';
 import { connectToS3 } from '@/lib/s3';
 import { connectToHost } from '@/lib/ssh';
@@ -368,7 +368,7 @@ export function ConnectionItem({
                 button's accessible name above. */}
             <div className="relative flex-shrink-0" aria-hidden="true">
               {isConnecting ? (
-                <Loader2 className="size-3 text-warning animate-spin" strokeWidth={2.5} />
+                <Spinner size="xs" className="text-warning" />
               ) : isConnected ? (
                 <div
                   className={cn(

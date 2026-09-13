@@ -16,7 +16,7 @@ import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { DialogShell } from '@/components/common/DialogShell';
-import { IconButton, Spinner } from '@/components/ui';
+import { Button, IconButton, Spinner } from '@/components/ui';
 import {
   useConnection,
   useConnections,
@@ -686,13 +686,12 @@ export function ConnectionForm() {
 
           {/* Fixed Footer */}
           <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border/60 bg-muted/5 px-5 py-4">
-            <button
-              type="button"
+            <Button
+              variant="outline"
               onClick={handleTest}
               aria-busy={testing}
               title={testing ? 'Click to cancel the running test' : undefined}
               className={cn(
-                'btn-outline',
                 testing &&
                   'bg-primary/5 border-primary/30 text-primary shadow-sm ring-1 ring-primary/20',
               )}
@@ -705,21 +704,15 @@ export function ConnectionForm() {
               <span className={cn(testing && 'font-semibold')}>
                 {testing ? 'Cancel test' : 'Test connection'}
               </span>
-            </button>
+            </Button>
 
             <div className="flex gap-2">
-              <button type="button" onClick={requestClose} className="btn-ghost">
+              <Button variant="ghost" onClick={requestClose}>
                 Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSaving || connectionsLoading}
-                aria-busy={isSaving || connectionsLoading}
-                className="btn-primary"
-              >
-                {(isSaving || connectionsLoading) && <Spinner size="sm" className="mr-2" />}
+              </Button>
+              <Button type="submit" loading={isSaving || connectionsLoading}>
                 {isEditing ? 'Update Connection' : 'Create Connection'}
-              </button>
+              </Button>
             </div>
           </div>
         </form>

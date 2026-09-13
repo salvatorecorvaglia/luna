@@ -4,7 +4,6 @@ import {
   FileCode,
   FileImage,
   FileText,
-  Loader2,
   Play,
   Save,
   Search,
@@ -15,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { DialogShell } from '@/components/common/DialogShell';
+import { Spinner } from '@/components/ui';
 import { useCopiedFlag } from '@/hooks/use-copied-flag';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
@@ -331,11 +331,7 @@ export function FilePreview() {
                   disabled={isSaving}
                   className="flex h-7 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 cursor-pointer"
                 >
-                  {isSaving ? (
-                    <Loader2 className="size-3 animate-spin" />
-                  ) : (
-                    <Save className="size-3" />
-                  )}
+                  {isSaving ? <Spinner size="xs" /> : <Save className="size-3" />}
                   <span>Save</span>
                 </button>
               )}

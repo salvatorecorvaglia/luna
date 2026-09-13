@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { IconButton, Toggle } from '@/components/ui';
+import { Button, IconButton, Toggle } from '@/components/ui';
 import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
 import { Z } from '@/lib/z-layers';
@@ -320,8 +320,8 @@ export function SettingsPanel() {
           {/* Connection management */}
           <Section title="Connection Profiles" icon={<FolderClosed className="size-4" />}>
             <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
+              <Button
+                variant="outline"
                 onClick={async () => {
                   try {
                     const connections = await getApi().connections.export();
@@ -345,14 +345,14 @@ export function SettingsPanel() {
                     toast.error(...toastArgs(err, 'Export failed'));
                   }
                 }}
-                className="btn-outline flex-1"
+                className="flex-1"
               >
                 <Download className="size-3.5" />
                 Export
-              </button>
+              </Button>
 
-              <button
-                type="button"
+              <Button
+                variant="outline"
                 onClick={async () => {
                   try {
                     const { imported, skipped } = await getApi().connections.importFromFile();
@@ -379,14 +379,14 @@ export function SettingsPanel() {
                     toast.error(...toastArgs(err, 'Import failed'));
                   }
                 }}
-                className="btn-outline flex-1"
+                className="flex-1"
               >
                 <Upload className="size-3.5" />
                 Import
-              </button>
+              </Button>
 
-              <button
-                type="button"
+              <Button
+                variant="outline"
                 onClick={async () => {
                   try {
                     const { imported, skipped } = await getApi().connections.importFromSshConfig();
@@ -411,24 +411,20 @@ export function SettingsPanel() {
                     toast.error(...toastArgs(err, 'Import from SSH config failed'));
                   }
                 }}
-                className="btn-outline col-span-2"
+                className="col-span-2"
               >
                 <FolderClosed className="size-3.5" />
                 Import SSH Config
-              </button>
+              </Button>
             </div>
           </Section>
 
           {/* Logs */}
           <Section title="Diagnostics" icon={<FileText className="size-4" />}>
-            <button
-              type="button"
-              onClick={() => getApi().app.openLogFile()}
-              className="btn-outline w-full"
-            >
+            <Button variant="outline" onClick={() => getApi().app.openLogFile()} className="w-full">
               <FileText className="size-3.5" />
               Open log file
-            </button>
+            </Button>
             <p className="text-2xs text-muted-foreground/60">
               Open the application log folder to attach to bug reports
             </p>
@@ -447,14 +443,14 @@ export function SettingsPanel() {
                   </p>
                 </div>
 
-                <button
-                  type="button"
+                <Button
+                  variant="destructive"
                   onClick={() => setConfirmDeleteAll(true)}
-                  className="btn-destructive flex-shrink-0"
+                  className="flex-shrink-0"
                 >
                   <Trash2 className="size-3.5" />
                   Delete all
-                </button>
+                </Button>
               </div>
             </div>
           </Section>

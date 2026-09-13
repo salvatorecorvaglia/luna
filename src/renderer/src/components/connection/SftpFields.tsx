@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { AUTH_TYPES } from './connection-form.constants';
 import { FormField } from './FormField';
@@ -277,9 +278,9 @@ export function SftpFields({
                       'border-destructive/60 focus:border-destructive',
                   )}
                 />
-                <button type="button" onClick={onBrowseKey} className="btn-outline shrink-0">
+                <Button variant="outline" onClick={onBrowseKey} className="shrink-0">
                   Browse
-                </button>
+                </Button>
               </div>
             </FormField>
 
@@ -517,20 +518,16 @@ export function SftpFields({
                   )}
 
                   <div className="flex justify-end gap-2 pt-1.5">
-                    <button
-                      type="button"
+                    <Button
+                      variant="outline"
                       onClick={() => setIsAddingRule(false)}
-                      className="btn-outline h-7 px-3 text-3xs text-muted-foreground border-border/60 cursor-pointer"
+                      className="h-7 px-3 text-3xs text-muted-foreground border-border/60 cursor-pointer"
                     >
                       Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleAddRule}
-                      className="btn-primary h-7 px-3 text-3xs cursor-pointer"
-                    >
+                    </Button>
+                    <Button onClick={handleAddRule} className="h-7 px-3 text-3xs cursor-pointer">
                       Add Rule
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ) : (
@@ -546,7 +543,7 @@ export function SftpFields({
                       remotePort: '',
                     });
                   }}
-                  className="btn-outline w-full h-8 text-2xs font-medium hover:bg-accent/40 border-dashed border-border/80 flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="w-full h-8 text-2xs font-medium hover:bg-accent/40 border-dashed border-border/80 flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Plus className="size-3.5" />
                   Add Port Forwarding Rule

@@ -2,6 +2,7 @@ import type { PaneNode } from '@shared/types/terminal';
 import { Monitor, Plus, Terminal as TerminalIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import { Button } from '@/components/ui';
 import { openNewSession } from '@/lib/ssh';
 import { useConnectionStore } from '@/stores/connection-store';
 import {
@@ -225,10 +226,10 @@ export function TerminalViewContainer({ type }: TerminalViewContainerProps) {
               </p>
             </div>
 
-            <button type="button" onClick={handleNewTab} className="btn-outline mt-1">
+            <Button variant="outline" onClick={handleNewTab} className="mt-1">
               <Plus className="size-3.5" />
               {type === 'ssh' ? 'New Session' : 'New Local Terminal'}
-            </button>
+            </Button>
           </div>
         )}
       </div>

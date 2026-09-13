@@ -7,7 +7,6 @@ import {
   ChevronDown,
   ChevronUp,
   Download,
-  Loader2,
   RotateCw,
   Trash2,
   Upload,
@@ -16,6 +15,7 @@ import {
 import { memo, useCallback, useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { Spinner } from '@/components/ui';
 import { cancelTransfer } from '@/hooks/use-transfers';
 import { formatEta, formatSize, formatSpeed } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -327,7 +327,7 @@ const TransferRow = memo(function TransferRow({
 
       {/* Status icon */}
       <div className="flex-shrink-0" aria-hidden="true">
-        {item.status === 'active' && <Loader2 className="size-3.5 text-info animate-spin" />}
+        {item.status === 'active' && <Spinner size="sm" className="text-info" />}
         {item.status === 'completed' && <CheckCircle2 className="size-3.5 text-success" />}
         {item.status === 'error' && <AlertCircle className="size-3.5 text-destructive-fg" />}
       </div>

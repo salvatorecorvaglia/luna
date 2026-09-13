@@ -4,7 +4,7 @@ import { Check, Copy, Fingerprint, ShieldAlert, ShieldCheck } from 'lucide-react
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { DialogShell } from '@/components/common/DialogShell';
-import { IconButton, Spinner } from '@/components/ui';
+import { Button, IconButton } from '@/components/ui';
 import { useCopiedFlag } from '@/hooks/use-copied-flag';
 import { connectToHost } from '@/lib/ssh';
 import { cn } from '@/lib/utils';
@@ -169,23 +169,22 @@ export function HostKeyDialog() {
 
           {/* Actions */}
           <div className="mt-4 flex justify-end gap-2">
-            <button type="button" data-reject onClick={handleReject} className="btn-ghost">
+            <Button variant="ghost" data-reject onClick={handleReject}>
               Reject
-            </button>
+            </Button>
 
-            <button
-              type="button"
+            {/* Button owns the busy affordance: spinner beside the label, the
+                label text unchanged so the width does not shift, and aria-busy
+                set. This was hand-rolled here (and nowhere else), which is what
+                a primitive with zero consumers buys you. */}
+            <Button
+              variant={event.isFirst ? 'primary' : 'destructive'}
               onClick={handleTrust}
-              disabled={loading}
-              aria-busy={loading}
-              className={cn(
-                event.isFirst ? 'btn-primary' : 'btn-destructive',
-                loading && 'opacity-60 pointer-events-none',
-              )}
+              loading={loading}
+              className={cn(loading && 'opacity-60 pointer-events-none')}
             >
-              {loading && <Spinner size="sm" />}
               {event.isFirst ? 'Trust & Connect' : 'Trust New Key'}
-            </button>
+            </Button>
           </div>
         </>
       )}

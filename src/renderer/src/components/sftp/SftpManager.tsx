@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { useShallow } from 'zustand/react/shallow';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { PromptDialog } from '@/components/common/PromptDialog';
+import { Button } from '@/components/ui';
 import {
   useInvalidateLocalDir,
   useInvalidateSftp,
@@ -546,14 +547,14 @@ export function SftpManager() {
           </p>
         </div>
 
-        <button
-          type="button"
+        <Button
+          variant="outline"
           onClick={() => useConnectionStore.getState().openCreateForm()}
-          className="btn-outline mt-1"
+          className="mt-1"
         >
           <Plus className="size-3.5" />
           New Connection
-        </button>
+        </Button>
       </div>
     );
   }

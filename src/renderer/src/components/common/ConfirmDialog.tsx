@@ -1,5 +1,6 @@
 import { AlertTriangle } from 'lucide-react';
 import { DialogShell } from '@/components/common/DialogShell';
+import { Button } from '@/components/ui';
 import { Z } from '@/lib/z-layers';
 
 interface ConfirmDialogProps {
@@ -61,17 +62,13 @@ export function ConfirmDialog({
           {/* Outline cancel — not ghost — so the "safe" choice has
               visible weight when paired with a destructive action. */}
 
-          <button type="button" data-cancel onClick={onCancel} className="btn-outline">
+          <Button variant="outline" data-cancel onClick={onCancel}>
             {cancelLabel}
-          </button>
+          </Button>
 
-          <button
-            type="button"
-            onClick={onConfirm}
-            className={destructive ? 'btn-destructive' : 'btn-primary'}
-          >
+          <Button variant={destructive ? 'destructive' : 'primary'} onClick={onConfirm}>
             {confirmLabel}
-          </button>
+          </Button>
         </div>
       </div>
     </DialogShell>

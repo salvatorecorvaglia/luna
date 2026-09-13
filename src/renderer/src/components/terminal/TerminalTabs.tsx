@@ -1,10 +1,11 @@
 import { Reorder } from 'framer-motion';
-import { ArrowRightToLine, Copy, Loader2, Pencil, WifiOff, X, XCircle } from 'lucide-react';
+import { ArrowRightToLine, Copy, Pencil, WifiOff, X, XCircle } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
 import { PromptDialog } from '@/components/common/PromptDialog';
 import { TerminalToolbar } from '@/components/terminal/TerminalToolbar';
+import { Spinner } from '@/components/ui';
 import { openNewSession } from '@/lib/ssh';
 import { cn } from '@/lib/utils';
 import {
@@ -254,7 +255,7 @@ const Tab = memo(function Tab({
           return <div className="size-2 rounded-full bg-success" />;
         case 'connecting':
         case 'reconnecting':
-          return <Loader2 className="size-3 text-warning animate-spin" />;
+          return <Spinner size="xs" className="text-warning" />;
         case 'error':
           return <WifiOff className="size-3 text-destructive-fg" />;
         default:

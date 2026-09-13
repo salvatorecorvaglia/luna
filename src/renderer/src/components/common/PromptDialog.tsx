@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { DialogShell } from '@/components/common/DialogShell';
+import { Button } from '@/components/ui';
 import { Z } from '@/lib/z-layers';
 
 interface PromptDialogProps {
@@ -87,12 +88,12 @@ export function PromptDialog({
             Enter to confirm · Esc to cancel
           </span>
           <div className="flex gap-2">
-            <button type="button" onClick={onCancel} className="btn-outline">
+            <Button variant="outline" onClick={onCancel}>
               {cancelLabel}
-            </button>
-            <button type="submit" disabled={!value.trim()} className="btn-primary">
+            </Button>
+            <Button type="submit" disabled={!value.trim()}>
               {confirmLabel}
-            </button>
+            </Button>
           </div>
         </div>
       </form>

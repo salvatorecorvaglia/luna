@@ -25,6 +25,15 @@ export interface UIThemeTokens {
   'accent-foreground': string;
   destructive: string;
   'destructive-foreground': string;
+  /**
+   * Destructive *ink* — text and icons, as opposed to `destructive` which is a
+   * fill. design-tokens.test.ts mandates it for destructive text and it is used
+   * in ~30 places, but it was missing from this interface and from TOKEN_KEYS,
+   * so it stayed frozen at main.css's light red while `destructive`,
+   * `background` and `card` all shifted with the terminal theme. On a light
+   * theme that left low-contrast red text on a light ground.
+   */
+  'destructive-fg': string;
   border: string;
   input: string;
   ring: string;
@@ -58,6 +67,7 @@ const TOKEN_KEYS: (keyof UIThemeTokens)[] = [
   'accent-foreground',
   'destructive',
   'destructive-foreground',
+  'destructive-fg',
   'border',
   'input',
   'ring',
@@ -255,6 +265,12 @@ export function deriveUITokens(term: ITheme): UIThemeTokens {
     'accent-foreground': fg,
     destructive: term.red || '#ef4444',
     'destructive-foreground': '#ffffff',
+    // Ink, so it is contrast-solved against the surface it sits on (`card`)
+    // rather than taken raw from the palette — a saturated mid red is unreadable
+    // on a dark ground and washed out on a light one.
+    'destructive-fg': hslToCss(
+      ensureContrast(hexToHsl(term.red || '#ef4444'), cardHsl, 4.5, dark ? 100 : 0),
+    ),
     border,
     input: border,
     ring: accentColor,

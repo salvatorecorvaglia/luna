@@ -7,7 +7,6 @@ import {
   FolderPlus,
   FolderSync,
   Home,
-  Loader2,
   RefreshCw,
   Search,
   ShieldAlert,
@@ -15,7 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { IconButton } from '@/components/ui';
+import { IconButton, Spinner } from '@/components/ui';
 import { MOD_KEY } from '@/lib/platform';
 import { cn } from '@/lib/utils';
 import { useStorageStore } from '@/stores/storage-store';
@@ -276,11 +275,7 @@ export function FilePane({
           {/* Surface in-flight loads in the header so an empty list isn't
               ambiguous between "no entries" and "still fetching". */}
           {isLoading && (
-            <Loader2
-              className="size-3 animate-spin text-muted-foreground/70"
-              aria-label="Loading directory"
-              role="status"
-            />
+            <Spinner size="xs" className="text-muted-foreground/70" label="Loading directory" />
           )}
         </div>
         <div className="flex items-center gap-0.5">

@@ -2,7 +2,7 @@ import { Check, Copy, Link2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { DialogShell } from '@/components/common/DialogShell';
-import { Spinner } from '@/components/ui';
+import { Button, Spinner } from '@/components/ui';
 import { useCopiedFlag } from '@/hooks/use-copied-flag';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
@@ -212,10 +212,10 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
                     className="form-input text-xs flex-1 bg-accent/10 border-border/80 select-all"
                     onClick={(e) => (e.target as HTMLInputElement).select()}
                   />
-                  <button
-                    type="button"
+                  <Button
+                    variant="outline"
                     onClick={handleCopy}
-                    className="btn-outline shrink-0 flex items-center justify-center p-2.5 h-9 cursor-pointer"
+                    className="shrink-0 flex items-center justify-center p-2.5 h-9 cursor-pointer"
                     title="Copy to Clipboard"
                   >
                     {copied ? (
@@ -223,7 +223,7 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
                     ) : (
                       <Copy className="size-4" />
                     )}
-                  </button>
+                  </Button>
                 </div>
                 <p className="text-3xs text-muted-foreground/60 leading-relaxed">
                   Anyone with this URL can download this object until the signed authorization
@@ -234,20 +234,19 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
           </div>
 
           <div className="mt-6 flex items-center justify-end gap-2 border-t border-border/40 pt-3">
-            <button
-              type="button"
+            <Button
+              variant="outline"
               onClick={onClose}
-              className="btn-outline h-8 px-4 text-xs font-semibold border-border/60 cursor-pointer"
+              className="h-8 px-4 text-xs font-semibold border-border/60 cursor-pointer"
             >
               Close
-            </button>
+            </Button>
 
             {!generatedUrl && (
-              <button
-                type="button"
-                disabled={generating}
+              <Button
+                loading={generating}
                 onClick={handleGenerate}
-                className="btn-primary h-8 px-4 text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                className="h-8 px-4 text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
                 {generating ? (
                   <>
@@ -257,7 +256,7 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
                 ) : (
                   'Generate URL'
                 )}
-              </button>
+              </Button>
             )}
           </div>
         </>
