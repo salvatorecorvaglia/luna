@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TunnelManagerDialog } from '../../../../src/renderer/src/components/connection/TunnelManagerDialog';
 import { installFakeApi } from '../../../../src/test/fake-api';
@@ -24,32 +26,44 @@ const TUNNEL = {
 
 let api: ReturnType<typeof installFakeApi>;
 
+/**
+ * The dialog reads both lists through TanStack Query now, on the same
+ * ['port-forwards'] key the status bar uses, so it needs a provider. Retries and
+ * the poll interval are off so tests observe exactly one fetch per key.
+ */
+function wrap(node: ReactNode) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, refetchInterval: false, gcTime: 0 } },
+  });
+  return <QueryClientProvider client={client}>{node}</QueryClientProvider>;
+}
+
 beforeEach(() => {
   api = installFakeApi();
 });
 
 describe('TunnelManagerDialog', () => {
   it('renders nothing when closed', () => {
-    render(<TunnelManagerDialog open={false} onClose={vi.fn()} />);
+    render(wrap(<TunnelManagerDialog open={false} onClose={vi.fn()} />));
     expect(screen.queryByText('Active Port Forwards & Tunnels')).toBeNull();
   });
 
   it('loads and lists active tunnels', async () => {
     (api.ssh.listActivePortForwards as ReturnType<typeof vi.fn>).mockResolvedValue([TUNNEL]);
-    render(<TunnelManagerDialog open onClose={vi.fn()} />);
+    render(wrap(<TunnelManagerDialog open onClose={vi.fn()} />));
     await screen.findByText('127.0.0.1:8080');
     expect(screen.getByText('localhost:80')).toBeTruthy();
     expect(screen.getByText('active')).toBeTruthy();
   });
 
   it('shows the empty state with no active tunnels', async () => {
-    render(<TunnelManagerDialog open onClose={vi.fn()} />);
+    render(wrap(<TunnelManagerDialog open onClose={vi.fn()} />));
     await screen.findByText('No active port forwards');
   });
 
   it('stops a tunnel via ssh.stopPortForward', async () => {
     (api.ssh.listActivePortForwards as ReturnType<typeof vi.fn>).mockResolvedValue([TUNNEL]);
-    render(<TunnelManagerDialog open onClose={vi.fn()} />);
+    render(wrap(<TunnelManagerDialog open onClose={vi.fn()} />));
     await screen.findByText('127.0.0.1:8080');
 
     fireEvent.click(screen.getByTitle('Stop tunnel'));
@@ -67,7 +81,7 @@ describe('TunnelManagerDialog', () => {
       ssh: [{ id: 'sess-1', connectionId: 'conn-1' }],
       s3: [],
     });
-    render(<TunnelManagerDialog open onClose={vi.fn()} />);
+    render(wrap(<TunnelManagerDialog open onClose={vi.fn()} />));
     await screen.findByRole('button', { name: /New Tunnel/ });
 
     fireEvent.click(screen.getByRole('button', { name: /New Tunnel/ }));
@@ -86,14 +100,14 @@ describe('TunnelManagerDialog', () => {
 
   it('closes on Escape', () => {
     const onClose = vi.fn();
-    render(<TunnelManagerDialog open onClose={onClose} />);
+    render(wrap(<TunnelManagerDialog open onClose={onClose} />));
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it('closes via the footer Close button', () => {
     const onClose = vi.fn();
-    render(<TunnelManagerDialog open onClose={onClose} />);
+    render(wrap(<TunnelManagerDialog open onClose={onClose} />));
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(onClose).toHaveBeenCalledTimes(1);
   });

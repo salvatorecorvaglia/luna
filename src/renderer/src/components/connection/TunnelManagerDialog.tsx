@@ -1,4 +1,5 @@
 import type { ActivePortForwardInfo, PortForwardingConfig } from '@shared/types/connection';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRightLeft,
   Check,
@@ -10,8 +11,9 @@ import {
   ShieldAlert,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { v4 as uuidv4 } from 'uuid';
 import { DialogShell } from '@/components/common/DialogShell';
 import { EmptyState, Spinner } from '@/components/ui';
 import { Z } from '@/lib/z-layers';
@@ -31,10 +33,53 @@ function formatBytes(bytes: number): string {
 }
 
 export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps) {
-  const [tunnels, setTunnels] = useState<ActivePortForwardInfo[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [activeSessions, setActiveSessions] = useState<{ id: string; connectionId: string }[]>([]);
+  const queryClient = useQueryClient();
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
+
+  /**
+   * Both lists come from TanStack Query, on the same `['port-forwards']` key the
+   * status bar uses.
+   *
+   * This dialog used to run its own `setInterval(fetchActiveData, 2000)` into
+   * local state, while StatusBar polled the same IPC at 3s through the query
+   * cache — two independent pollers, no shared cache, and mutations here
+   * invalidated neither, so the status bar's tunnel count lagged the dialog by up
+   * to 3 seconds after starting or stopping a forward. The interval was also
+   * rebuilt on the first poll, because its callback depended on
+   * selectedSessionId and also set it.
+   */
+  const { data: tunnels = [], isLoading: loadingTunnels } = useQuery<ActivePortForwardInfo[]>({
+    queryKey: ['port-forwards'],
+    queryFn: () => getApi().ssh.listActivePortForwards(),
+    refetchInterval: 2000,
+    enabled: open,
+    placeholderData: (prev) => prev,
+  });
+
+  const { data: activeSessions = [], isLoading: loadingSessions } = useQuery({
+    queryKey: ['active-sessions'],
+    queryFn: async () => (await getApi().app.getActiveSessions()).ssh,
+    refetchInterval: 2000,
+    enabled: open,
+    placeholderData: (prev) => prev,
+  });
+
+  const loading = loadingTunnels || loadingSessions;
+
+  /** Re-read both lists now, and let the status bar see the change too. */
+  const refresh = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ['port-forwards'] });
+    void queryClient.invalidateQueries({ queryKey: ['active-sessions'] });
+  }, [queryClient]);
+
+  // Default the session picker to the first available session, without making
+  // the fetch depend on (and therefore restart on) the selection.
+  useEffect(() => {
+    if (!selectedSessionId && activeSessions.length > 0) {
+      // Non-null: guarded by the length check.
+      setSelectedSessionId(activeSessions[0]!.id);
+    }
+  }, [activeSessions, selectedSessionId]);
 
   // New tunnel form state
   const [showAddForm, setShowAddForm] = useState(false);
@@ -44,38 +89,24 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
   const [newRemoteHost, setNewRemoteHost] = useState('127.0.0.1');
   const [newRemotePort, setNewRemotePort] = useState('80');
 
+  // Per-row "copied" marker, so useCopiedFlag (a single boolean) doesn't fit.
+  // The timer is tracked and cleared on unmount: it was a bare setTimeout, which
+  // fired against an unmounted dialog whenever the user copied and closed within
+  // the two-second window — the common case.
   const [copiedId, setCopiedId] = useState<string | null>(null);
-
-  const fetchActiveData = useCallback(async () => {
-    try {
-      const active = await getApi().app.getActiveSessions();
-      setActiveSessions(active.ssh);
-      if (active.ssh.length > 0 && !selectedSessionId) {
-        // Non-null: length check above guarantees index 0 exists.
-        setSelectedSessionId(active.ssh[0]!.id);
-      }
-
-      const activeTunnels = await getApi().ssh.listActivePortForwards();
-      setTunnels(activeTunnels);
-    } catch (err) {
-      console.error('Failed to fetch active tunnels:', err);
-    }
-  }, [selectedSessionId]);
-
-  useEffect(() => {
-    if (!open) return;
-    setLoading(true);
-    fetchActiveData().finally(() => setLoading(false));
-
-    const interval = setInterval(fetchActiveData, 2000);
-    return () => clearInterval(interval);
-  }, [open, fetchActiveData]);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (copiedTimerRef.current !== null) clearTimeout(copiedTimerRef.current);
+    },
+    [],
+  );
 
   const handleStopTunnel = async (sessionId: string, forwardId: string) => {
     try {
       await getApi().ssh.stopPortForward({ sessionId, forwardId });
       toast.success('Port forward stopped');
-      fetchActiveData();
+      refresh();
     } catch (err) {
       toast.error(`Failed to stop port forward: ${(err as Error).message}`);
     }
@@ -94,13 +125,26 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
       return;
     }
 
+    let remotePortNum: number | undefined;
+    if (newType !== 'dynamic') {
+      remotePortNum = parseInt(newRemotePort, 10);
+      if (Number.isNaN(remotePortNum) || remotePortNum < 1 || remotePortNum > 65535) {
+        toast.error('Invalid remote port');
+        return;
+      }
+    }
+
     const config: PortForwardingConfig = {
-      id: `tunnel-${Date.now()}`,
+      // uuid, not a timestamp: two forwards created in the same millisecond got
+      // the same id, and the id is what stopPortForward matches on.
+      id: uuidv4(),
       type: newType,
       bindAddress: newBindAddress || '127.0.0.1',
       localPort: portNum,
       remoteHost: newType !== 'dynamic' ? newRemoteHost || '127.0.0.1' : undefined,
-      remotePort: newType !== 'dynamic' ? parseInt(newRemotePort, 10) || 80 : undefined,
+      // Parsed strictly: `parseInt(...) || 80` silently rewrote a typed 0 —
+      // and any other unparseable value — into port 80.
+      remotePort: newType !== 'dynamic' ? remotePortNum : undefined,
     };
 
     try {
@@ -110,7 +154,7 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
       });
       toast.success(`Started ${newType} port forward on port ${portNum}`);
       setShowAddForm(false);
-      fetchActiveData();
+      refresh();
     } catch (err) {
       toast.error(`Failed to start port forward: ${(err as Error).message}`);
     }
@@ -121,10 +165,16 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
       t.type === 'dynamic'
         ? `socks5://${t.bindAddress}:${t.localPort}`
         : `http://${t.bindAddress}:${t.localPort}`;
-    navigator.clipboard.writeText(proxyStr);
+    void navigator.clipboard.writeText(proxyStr).then(
+      () => toast.success(`Copied: ${proxyStr}`),
+      () => toast.error('Failed to copy to clipboard'),
+    );
     setCopiedId(t.id);
-    toast.success(`Copied: ${proxyStr}`);
-    setTimeout(() => setCopiedId(null), 2000);
+    if (copiedTimerRef.current !== null) clearTimeout(copiedTimerRef.current);
+    copiedTimerRef.current = setTimeout(() => {
+      copiedTimerRef.current = null;
+      setCopiedId(null);
+    }, 2000);
   };
 
   return (

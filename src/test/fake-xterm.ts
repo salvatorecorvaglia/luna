@@ -49,6 +49,18 @@ export class FakeTerminal {
 
   open = vi.fn((container: HTMLElement) => {
     this.element = container;
+    // jsdom reports 0 for every layout property, and production code now skips
+    // a fit() on a zero-size element (a real hidden pane measures 0x0, and
+    // fitting it derives a geometry that then gets sent to the remote). A fake
+    // that reports 0x0 therefore models a *hidden* terminal, which is the
+    // opposite of what almost every test wants. Give the attached element a
+    // plausible size; a test that wants the hidden case overrides these.
+    if (container.offsetWidth === 0) {
+      Object.defineProperty(container, 'offsetWidth', { value: 800, configurable: true });
+    }
+    if (container.offsetHeight === 0) {
+      Object.defineProperty(container, 'offsetHeight', { value: 600, configurable: true });
+    }
   });
   loadAddon = vi.fn<(...args: unknown[]) => unknown>();
   write = vi.fn<(...args: unknown[]) => unknown>();

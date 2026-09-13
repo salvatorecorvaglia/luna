@@ -117,7 +117,35 @@ export function SftpManager() {
     })),
   );
 
-  const sessions = useTerminalStore((s) => s.sessions);
+  // Narrowed to the single SSH session this view is attached to, keyed off the
+  // file browser's own activeSessionId (which is a storage-store concern, and
+  // may be an S3 id, in which case there is no terminal session).
+  //
+  // This used to subscribe to the whole `sessions` Map. The store swaps that Map
+  // for a new one on every status change and every tab rename, so any unrelated
+  // SSH tick re-rendered this 750-line component — and with it both file panes
+  // and every virtualised row's context menu, none of which are memoized.
+  const sshSessionForActive = useTerminalStore((s) =>
+    activeSessionId ? (s.sessions.get(activeSessionId) ?? null) : null,
+  );
+
+  /**
+   * Signature over exactly the fields resolveSftpSession() reads — id,
+   * connectionId, status, type.
+   *
+   * The routing effect below legitimately needs the whole Map, but depending on
+   * the Map's identity meant it re-ran (and this component re-rendered) on every
+   * scrollback-unrelated session change. A string reduces to an Object.is
+   * comparison, so the effect re-runs only when something it would actually
+   * route on has moved.
+   */
+  const sessionRoutingKey = useTerminalStore((s) => {
+    let key = '';
+    for (const session of s.sessions.values()) {
+      key += `${session.id}\u0000${session.connectionId}\u0000${session.status}\u0000${session.type ?? 'ssh'};`;
+    }
+    return key;
+  });
   const activeConnectionId = useConnectionStore((s) => s.activeConnectionId);
   const invalidateSftp = useInvalidateSftp();
   const invalidateLocal = useInvalidateLocalDir();
@@ -141,7 +169,9 @@ export function SftpManager() {
   // isolation from this component's other state.
   useEffect(() => {
     const targetSessionId = resolveSftpSession(
-      sessions,
+      // Read through getState(): the effect is gated on sessionRoutingKey, so it
+      // does not need the Map's identity in its dependency list.
+      useTerminalStore.getState().sessions,
       storageSessions,
       activeConnectionId,
       activeSessionId,
@@ -155,7 +185,7 @@ export function SftpManager() {
     }
   }, [
     activeConnectionId,
-    sessions,
+    sessionRoutingKey,
     storageSessions,
     activeSessionId,
     setActiveSessionId,
@@ -197,7 +227,7 @@ export function SftpManager() {
   }, [setLocalPath]);
 
   const currentSession = activeSessionId
-    ? sessions.get(activeSessionId) || storageSessions.get(activeSessionId)
+    ? sshSessionForActive || storageSessions.get(activeSessionId)
     : null;
   const isSessionActive = currentSession?.status === 'connected';
 
@@ -503,10 +533,7 @@ export function SftpManager() {
     resizeDragCleanupRef.current = detach;
   }, []);
 
-  if (
-    !activeSessionId ||
-    (!sessions.get(activeSessionId) && !storageSessions.get(activeSessionId))
-  ) {
+  if (!activeSessionId || (!sshSessionForActive && !storageSessions.get(activeSessionId))) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 text-muted-foreground">
         <div className="flex size-14 items-center justify-center rounded-2xl bg-muted/50">
@@ -535,7 +562,7 @@ export function SftpManager() {
   // disconnect mid-use the way SSH does, so we only check the SSH side.
   // The overlay auto-dismisses when status flips back to 'connected' because
   // the derived flag flips with it — no imperative dismiss needed.
-  const activeSession = sessions.get(activeSessionId);
+  const activeSession = sshSessionForActive;
   const isDisconnected = activeSession && activeSession.status !== 'connected';
   const overlayMessage =
     activeSession?.status === 'reconnecting'

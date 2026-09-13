@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { DialogShell } from '@/components/common/DialogShell';
 import { Spinner } from '@/components/ui';
+import { useCopiedFlag } from '@/hooks/use-copied-flag';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
 
@@ -18,7 +19,7 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
   const [customSeconds, setCustomSeconds] = useState('3600');
   const [generating, setGenerating] = useState(false);
   const [generatedUrl, setGeneratedUrl] = useState('');
-  const [copied, setCopied] = useState(false);
+  const { copied, markCopied, reset: resetCopied } = useCopiedFlag();
 
   // Reset state when opening/closing
   useEffect(() => {
@@ -26,15 +27,15 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
       setExpiryType('1h');
       setCustomSeconds('3600');
       setGeneratedUrl('');
-      setCopied(false);
+      resetCopied();
     }
-  }, [open]);
+  }, [open, resetCopied]);
 
   const handleGenerate = async () => {
     if (!entry) return;
     setGenerating(true);
     setGeneratedUrl('');
-    setCopied(false);
+    resetCopied();
 
     let expiresSec = 3600;
     if (expiryType === '1m') expiresSec = 60;
@@ -65,9 +66,8 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
     if (!generatedUrl) return;
     try {
       await navigator.clipboard.writeText(generatedUrl);
-      setCopied(true);
+      markCopied();
       toast.success('Copied URL to clipboard');
-      setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error('Failed to copy to clipboard');
     }

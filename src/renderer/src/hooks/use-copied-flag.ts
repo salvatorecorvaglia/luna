@@ -14,6 +14,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 export function useCopiedFlag(resetAfterMs = 2000): {
   copied: boolean;
   markCopied: () => void;
+  /** Clear the flag now, cancelling the pending reset. For callers that reset
+   *  on some other event — a dialog reopening, a fresh value being generated. */
+  reset: () => void;
 } {
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -36,7 +39,12 @@ export function useCopiedFlag(resetAfterMs = 2000): {
     }, resetAfterMs);
   }, [clear, resetAfterMs]);
 
+  const reset = useCallback(() => {
+    clear();
+    setCopied(false);
+  }, [clear]);
+
   useEffect(() => clear, [clear]);
 
-  return { copied, markCopied };
+  return { copied, markCopied, reset };
 }

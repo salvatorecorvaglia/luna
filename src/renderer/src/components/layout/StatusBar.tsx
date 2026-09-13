@@ -1,7 +1,7 @@
 import type { ActivePortForwardInfo } from '@shared/types/connection';
 import { useQuery } from '@tanstack/react-query';
 import { Activity, Network, Upload, Wifi, WifiOff } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { TunnelManagerDialog } from '@/components/connection/TunnelManagerDialog';
 import { cn } from '@/lib/utils';
 import { getApi } from '@/services/api';
@@ -9,17 +9,27 @@ import { useTerminalStore } from '@/stores/terminal-store';
 import { useTransferStore } from '@/stores/transfer-store';
 
 export function StatusBar() {
-  const sessions = useTerminalStore((s) => s.sessions);
-  const activeSessionId = useTerminalStore((s) => s.activeSessionId);
-  const transfers = useTransferStore((s) => s.transfers);
+  // Every selector here reduces to a primitive or to the one session object
+  // this bar displays, rather than subscribing to the Maps.
+  //
+  // The store replaces `sessions` and `transfers` wholesale on every change, so
+  // subscribing to either meant the status bar re-rendered on every SSH status
+  // tick and once per animation frame for the whole duration of any transfer.
+  // Reducing inside the selector lets zustand compare the derived value and skip
+  // the render when the number on screen has not moved.
+  const activeSession = useTerminalStore((s) =>
+    s.activeSessionId ? (s.sessions.get(s.activeSessionId) ?? null) : null,
+  );
   const toggleQueueExpanded = useTransferStore((s) => s.toggleQueueExpanded);
 
   const [tunnelDialogOpen, setTunnelDialogOpen] = useState(false);
 
-  const hasSshSessions = useMemo(
-    () => Array.from(sessions.values()).some((s) => s.type !== 'local'),
-    [sessions],
-  );
+  const hasSshSessions = useTerminalStore((s) => {
+    for (const session of s.sessions.values()) {
+      if (session.type !== 'local') return true;
+    }
+    return false;
+  });
 
   /**
    * Was a raw `setInterval(fetchTunnels, 3000)` that ran for the lifetime of
@@ -39,17 +49,21 @@ export function StatusBar() {
     staleTime: 0,
   });
 
-  const activeSession = activeSessionId ? sessions.get(activeSessionId) : null;
-  const activeSessions = useMemo(
-    () => Array.from(sessions.values()).filter((s) => s.status === 'connected').length,
-    [sessions],
-  );
+  const activeSessions = useTerminalStore((s) => {
+    let count = 0;
+    for (const session of s.sessions.values()) {
+      if (session.status === 'connected') count++;
+    }
+    return count;
+  });
 
-  const activeTransfers = useMemo(
-    () =>
-      Array.from(transfers.values()).filter((t) => t.status === 'active' || t.status === 'queued'),
-    [transfers],
-  );
+  const activeTransferCount = useTransferStore((s) => {
+    let count = 0;
+    for (const transfer of s.transfers.values()) {
+      if (transfer.status === 'active' || transfer.status === 'queued') count++;
+    }
+    return count;
+  });
 
   return (
     <>
@@ -112,7 +126,7 @@ export function StatusBar() {
 
         {/* Right */}
         <div className="flex items-center gap-3">
-          {activeTransfers.length > 0 ? (
+          {activeTransferCount > 0 ? (
             <button
               type="button"
               onClick={toggleQueueExpanded}
@@ -120,7 +134,7 @@ export function StatusBar() {
             >
               <Upload className="size-3" />
               <span className="font-medium">
-                {activeTransfers.length} transfer{activeTransfers.length !== 1 ? 's' : ''}
+                {activeTransferCount} transfer{activeTransferCount !== 1 ? 's' : ''}
               </span>
             </button>
           ) : (

@@ -14,8 +14,9 @@ import {
   Terminal,
   Trash2,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
+import { useShallow } from 'zustand/react/shallow';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
 import { useDeleteConnection, useUpdateConnection } from '@/hooks/use-connections';
@@ -58,6 +59,41 @@ export function DraggableConnectionItem({
   );
 }
 
+interface SessionFlags {
+  isConnected: boolean;
+  isConnecting: boolean;
+}
+
+/** Stable reference so the unused branch never reports a change. */
+const EMPTY_SESSION_FLAGS: SessionFlags = { isConnected: false, isConnecting: false };
+
+/**
+ * One pass over the sessions belonging to `connectionId`.
+ *
+ * `reconnecting` counts as connecting for SSH but has no S3 equivalent, hence
+ * the flag rather than two near-identical folds.
+ */
+function foldSessionFlags(
+  sessions: Iterable<{ connectionId: string; status: string }>,
+  connectionId: string,
+  countReconnecting: boolean,
+): SessionFlags {
+  let isConnected = false;
+  let isConnecting = false;
+  for (const session of sessions) {
+    if (session.connectionId !== connectionId) continue;
+    if (session.status === 'connected') isConnected = true;
+    else if (
+      session.status === 'connecting' ||
+      (countReconnecting && session.status === 'reconnecting')
+    ) {
+      isConnecting = true;
+    }
+    if (isConnected && isConnecting) break;
+  }
+  return { isConnected, isConnecting };
+}
+
 export function ConnectionItem({
   connection,
   compact = false,
@@ -82,33 +118,35 @@ export function ConnectionItem({
   const openEditForm = useConnectionStore((s) => s.openEditForm);
   const openDuplicateForm = useConnectionStore((s) => s.openDuplicateForm);
   const setActiveView = useUIStore((s) => s.setActiveView);
-  // Narrow selector (only re-renders when the `sessions` Map reference itself
-  // changes, not on unrelated store fields) rather than subscribing to the
-  // whole store.
-  const sessions = useTerminalStore((s) => s.sessions);
-  const storageSessions = useStorageStore((s) => s.storageSessions);
   const setActiveSessionId = useStorageStore((s) => s.setActiveSessionId);
   const deleteMutation = useDeleteConnection();
   const updateMutation = useUpdateConnection();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const isS3 = connection.provider === 's3';
-  // Single pass over the relevant session map instead of two separate
-  // `Array.from(...).some(...)` scans (one per flag) — this ran on every
-  // sidebar-row render, unmemoized, so cost grew with rows x sessions.
-  const { isConnected, isConnecting } = useMemo(() => {
-    let connected = false;
-    let connecting = false;
-    const relevant = isS3 ? storageSessions : sessions;
-    for (const s of relevant.values()) {
-      if (s.connectionId !== connection.id) continue;
-      if (s.status === 'connected') connected = true;
-      else if (s.status === 'connecting' || (!isS3 && s.status === 'reconnecting')) {
-        connecting = true;
-      }
-      if (connected && connecting) break;
-    }
-    return { isConnected: connected, isConnecting: connecting };
-  }, [isS3, storageSessions, sessions, connection.id]);
+
+  // Derived *inside* the selector, and reduced to two booleans before the
+  // comparison happens.
+  //
+  // This used to subscribe to the whole `sessions` Map and fold over it in a
+  // useMemo. The store replaces that Map wholesale on every status change and
+  // every tab rename, so its reference changed constantly — and since this
+  // component is one instance per sidebar row, a single SSH session reaching
+  // 'connected' re-rendered every row in the list, each redoing the fold. With
+  // the fold in the selector, zustand compares the two booleans and a row
+  // re-renders only when its own connection's state actually changed.
+  const sshFlags = useTerminalStore(
+    useShallow((s) =>
+      isS3 ? EMPTY_SESSION_FLAGS : foldSessionFlags(s.sessions.values(), connection.id, true),
+    ),
+  );
+  const s3Flags = useStorageStore(
+    useShallow((s) =>
+      isS3
+        ? foldSessionFlags(s.storageSessions.values(), connection.id, false)
+        : EMPTY_SESSION_FLAGS,
+    ),
+  );
+  const { isConnected, isConnecting } = isS3 ? s3Flags : sshFlags;
   const isActive = activeConnectionId === connection.id && (isConnected || isConnecting);
 
   const handleConnect = () => {

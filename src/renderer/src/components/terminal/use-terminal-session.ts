@@ -117,6 +117,16 @@ export function useTerminalSession(opts: TerminalSessionOptions): TerminalSessio
       // `(terminal as any)._core._renderService` probe.
 
       if (fitAddon && terminal && terminal.element) {
+        // Skip a zero-size element.
+        //
+        // Views stay mounted and are hidden with `display: none` (App.tsx), and
+        // `isActive` tracks the active *pane*, not view visibility — so the
+        // active pane of a hidden view still reaches this. fit() then measures a
+        // 0x0 box, derives a nonsense geometry, and we send that to the remote
+        // as a window-size change. Chromium also reports 0x0 mid-layout.
+        const { offsetWidth, offsetHeight } = terminal.element;
+        if (offsetWidth === 0 || offsetHeight === 0) return;
+
         try {
           fitAddon.fit();
           void transportRef.current.resize({
@@ -290,7 +300,13 @@ export function useTerminalSession(opts: TerminalSessionOptions): TerminalSessio
         if (typeof readyCleanup === 'function') readyCleanup();
         observer.disconnect();
         teardownPointer();
-        if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
+        if (resizeTimeoutRef.current) {
+          clearTimeout(resizeTimeoutRef.current);
+          // Null it too: the isActive effect below reads this ref to decide
+          // whether a debounce is already pending, and a cleared-but-stale
+          // handle made it look armed when nothing was scheduled.
+          resizeTimeoutRef.current = null;
+        }
         terminal.dispose();
         unregisterTerminal(sessionId);
         terminalRef.current = null;

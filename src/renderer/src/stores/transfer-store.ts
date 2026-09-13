@@ -45,8 +45,31 @@ const TERMINAL_RETENTION_MS = 5 * 60 * 1000;
 /** Hard cap on retained terminal-state transfers — guards against bursts. */
 const MAX_RETAINED_TERMINAL = 200;
 
+/**
+ * Pending reaper timers, so they can be cancelled.
+ *
+ * These used to be bare setTimeout calls with no handle kept, which meant a
+ * burst of 200 completions left 200 live five-minute timers that nothing could
+ * cancel — `clearCompleted()` dropped the rows and the timers still fired
+ * afterwards (harmlessly, since removal is idempotent, but unboundedly).
+ */
+const autoRemoveTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
 function scheduleAutoRemove(transferId: string, remove: (id: string) => void): void {
-  setTimeout(() => remove(transferId), TERMINAL_RETENTION_MS);
+  cancelAutoRemove(transferId);
+  const timer = setTimeout(() => {
+    autoRemoveTimers.delete(transferId);
+    remove(transferId);
+  }, TERMINAL_RETENTION_MS);
+  autoRemoveTimers.set(transferId, timer);
+}
+
+function cancelAutoRemove(transferId: string): void {
+  const timer = autoRemoveTimers.get(transferId);
+  if (timer !== undefined) {
+    clearTimeout(timer);
+    autoRemoveTimers.delete(transferId);
+  }
 }
 
 /**
@@ -169,13 +192,17 @@ export const useTransferStore = create<TransferState>((set, get) => ({
     scheduleAutoRemove(transferId, (id) => get().removeTransfer(id));
   },
 
-  removeTransfer: (transferId) =>
+  removeTransfer: (transferId) => {
+    // Drop any pending reaper for this row: it has been removed by hand, so the
+    // timer has nothing left to do.
+    cancelAutoRemove(transferId);
     set((s) => {
       if (!s.transfers.has(transferId)) return s;
       const transfers = new Map(s.transfers);
       transfers.delete(transferId);
       return { transfers };
-    }),
+    });
+  },
 
   clearCompleted: () =>
     set((s) => {
@@ -183,6 +210,8 @@ export const useTransferStore = create<TransferState>((set, get) => ({
       for (const [id, item] of transfers) {
         if (item.status === 'completed' || item.status === 'error' || item.status === 'cancelled') {
           transfers.delete(id);
+          // The row is gone; its five-minute reaper would otherwise stay armed.
+          cancelAutoRemove(id);
         }
       }
       return { transfers };

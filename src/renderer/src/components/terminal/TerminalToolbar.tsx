@@ -32,7 +32,13 @@ const ACTIVE_TOGGLE = '!bg-primary/20 !text-primary';
 
 export function TerminalToolbar() {
   const activeSessionId = useActiveSessionId();
-  const sessions = useTerminalStore((s) => s.sessions);
+  // Only this toolbar's own session, not the Map. The store replaces `sessions`
+  // on every status change and rename, so subscribing to it re-rendered the
+  // whole toolbar (and remounted nothing, but re-ran every dialog's render path)
+  // whenever any unrelated session ticked.
+  const activeSession = useTerminalStore((s) =>
+    s.activeSessionId ? (s.sessions.get(s.activeSessionId) ?? null) : null,
+  );
 
   const [showSnippetVault, setShowSnippetVault] = useState(false);
   const [showBroadcastBar, setShowBroadcastBar] = useState(false);
@@ -45,7 +51,7 @@ export function TerminalToolbar() {
   // each just wants to type a line into whichever terminal is currently active.
   const sendData = (data: string) => {
     if (!activeSessionId) return;
-    const session = sessions.get(activeSessionId);
+    const session = activeSession;
     const result =
       session?.type === 'local'
         ? getApi().localTerminal.sendData({ sessionId: activeSessionId, data })
@@ -124,9 +130,7 @@ export function TerminalToolbar() {
           sessionId={activeSessionId || ''}
           sessionTitle={
             activeSessionId
-              ? sessions.get(activeSessionId)?.title ||
-                sessions.get(activeSessionId)?.connectionName ||
-                'Terminal Session'
+              ? activeSession?.title || activeSession?.connectionName || 'Terminal Session'
               : 'Terminal Session'
           }
         />

@@ -366,3 +366,38 @@ describe('useTerminalSession — search', () => {
     expect(lastApi!.searchMatch).toBeNull();
   });
 });
+
+describe('useTerminalSession — zero-size resize guard', () => {
+  /**
+   * Views stay mounted and hidden with `display: none` (App.tsx), while
+   * `isActive` tracks the active *pane* rather than view visibility — so the
+   * active pane of a hidden view still reaches the resize path. fit() on a 0x0
+   * element derives a nonsense geometry, and that geometry was then dispatched
+   * to the remote as a window-size change.
+   */
+  it('does not dispatch a resize while the element measures zero', async () => {
+    const transport = createMockTransport();
+    const { rerender } = renderHarness(transport, { isActive: false });
+    await flushMicrotasks();
+
+    // Simulate the hidden case, overriding the size the fake reports on open().
+    const element = FakeTerminal.last().element as HTMLElement;
+    Object.defineProperty(element, 'offsetWidth', { value: 0, configurable: true });
+    Object.defineProperty(element, 'offsetHeight', { value: 0, configurable: true });
+    transport.resize.mockClear();
+
+    vi.useFakeTimers();
+    try {
+      rerender(
+        <Harness transport={transport} logTag="Test" initErrorMessage="init failed" isActive />,
+      );
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+
+      expect(transport.resize).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
