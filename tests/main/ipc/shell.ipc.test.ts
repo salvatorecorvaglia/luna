@@ -146,15 +146,20 @@ describe('shell IPC — symlink jail (TOCTOU & bypass)', () => {
     expect(entry!.isDirectory).toBe(false);
   });
 
-  it('checkFile refuses a symlink whose target leaves the home jail', async () => {
-    // The location check runs twice, before and after realpath, precisely so a
-    // link sitting somewhere allowed cannot be used to probe somewhere that
-    // isn't. This previously resolved the link and reported on the target.
-    const link = join(workdir, 'escape-key');
-    await symlink('/etc/hosts', link);
-    const result = await handlers.get(IPC.SHELL_CHECK_FILE)!({}, link);
-    expect(result).toEqual({ ok: false, reason: 'forbidden' });
-  });
+  it.skipIf(isWindows)(
+    'checkFile refuses a symlink whose target leaves the home jail',
+    async () => {
+      // The location check runs twice, before and after realpath, precisely so
+      // a link sitting somewhere allowed cannot be used to probe somewhere that
+      // isn't. This previously resolved the link and reported on the target.
+      // /etc/hosts doesn't exist on Windows, so the dangling link reports
+      // `missing` there — same reason the readFile variant above skips win32.
+      const link = join(workdir, 'escape-key');
+      await symlink('/etc/hosts', link);
+      const result = await handlers.get(IPC.SHELL_CHECK_FILE)!({}, link);
+      expect(result).toEqual({ ok: false, reason: 'forbidden' });
+    },
+  );
 
   it('readFile resolves the real target (TOCTOU-safe)', async () => {
     const target = join(workdir, 'real.txt');
