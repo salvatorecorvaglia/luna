@@ -1,4 +1,5 @@
-import { writeFile } from 'node:fs/promises';
+import { constants as fsConstants } from 'node:fs';
+import { open } from 'node:fs/promises';
 import type { AuditExportOptions } from '@shared/types/session-audit';
 
 export type { AuditExportOptions };
@@ -56,7 +57,21 @@ ${sanitizedLines}
       outputContent = `==================================================\nLUNA TERMINAL AUDIT TRAIL: ${sessionTitle}\nEXPORTED AT: ${nowStr}\n==================================================\n\n${bufferText}`;
     }
 
-    await writeFile(destinationPath, outputContent, 'utf-8');
+    // O_NOFOLLOW anchors the write to the inode the IPC layer validated, the
+    // same way SHELL_WRITE_FILE does. Plain writeFile() re-resolved the path,
+    // leaving a window in which destinationPath could be swapped for a symlink
+    // pointing outside the home jail between assertSafeRealAbsolutePath() and
+    // the write. O_WRONLY|O_CREAT|O_TRUNC reproduces writeFile's default 'w'.
+    const fh = await open(
+      destinationPath,
+      fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_TRUNC | fsConstants.O_NOFOLLOW,
+      0o600,
+    );
+    try {
+      await fh.writeFile(outputContent, 'utf-8');
+    } finally {
+      await fh.close();
+    }
     return { success: true, path: destinationPath };
   }
 }

@@ -22,22 +22,38 @@ vi.mock('electron', () => ({
 
 // In-memory stand-in for the credentials table so the tamper-detection path
 // (store → retrieve → decrypt-failure → emit) can be exercised end-to-end.
-const credentialRows = new Map<string, Buffer>();
+interface FakeCredentialRow {
+  encrypted_data: Buffer;
+  aad_version: number;
+}
+
+/**
+ * Models both columns, including `aad_version`. Without it every stored row
+ * reads back as v0 (no AAD) while storeCredential writes v1, so nothing
+ * round-trips — the fake has to track the schema the code writes.
+ */
+const credentialRows = new Map<string, FakeCredentialRow>();
 vi.mock('../../../src/main/services/database', () => ({
   getDatabase: () => ({
     exec: () => {},
     prepare: (sql: string) => ({
       run: (...args: unknown[]) => {
         if (/^INSERT/i.test(sql)) {
-          credentialRows.set(args[0] as string, args[1] as Buffer);
+          credentialRows.set(args[0] as string, {
+            encrypted_data: args[1] as Buffer,
+            aad_version: (args[2] as number) ?? 0,
+          });
+        } else if (/^UPDATE/i.test(sql)) {
+          // SET encrypted_data = ?, aad_version = ? WHERE connection_id = ?
+          credentialRows.set(args[2] as string, {
+            encrypted_data: args[0] as Buffer,
+            aad_version: args[1] as number,
+          });
         } else if (/^DELETE/i.test(sql)) {
           credentialRows.delete(args[0] as string);
         }
       },
-      get: (id: string) => {
-        const row = credentialRows.get(id);
-        return row ? { encrypted_data: row } : undefined;
-      },
+      get: (id: string) => credentialRows.get(id),
     }),
   }),
 }));
@@ -113,10 +129,10 @@ describe('credential-store tamper detection', () => {
     try {
       storeCredential('conn-1', 'secret');
       // Flip a byte in the ciphertext to invalidate the GCM auth tag.
-      const sealed = credentialRows.get('conn-1')!;
+      const sealed = credentialRows.get('conn-1')!.encrypted_data;
       const tampered = Buffer.from(sealed);
       tampered[tampered.length - 1]! ^= 0xff;
-      credentialRows.set('conn-1', tampered);
+      credentialRows.set('conn-1', { encrypted_data: tampered, aad_version: 1 });
 
       const result = retrieveCredential('conn-1');
       expect(result).toBeNull();
@@ -140,14 +156,14 @@ describe('credential-store tamper detection', () => {
     const unsubscribe = onCredentialTamper(() => {});
     try {
       storeCredential('conn-2', 'secret');
-      const sealed = credentialRows.get('conn-2')!;
+      const sealed = credentialRows.get('conn-2')!.encrypted_data;
       const tampered = Buffer.from(sealed);
       tampered[tampered.length - 1]! ^= 0xff;
-      credentialRows.set('conn-2', tampered);
+      credentialRows.set('conn-2', { encrypted_data: tampered, aad_version: 1 });
 
       expect(retrieveCredential('conn-2')).toBeNull();
       expect(credentialRows.has('conn-2')).toBe(true);
-      expect(credentialRows.get('conn-2')).toEqual(tampered);
+      expect(credentialRows.get('conn-2')!.encrypted_data).toEqual(tampered);
     } finally {
       unsubscribe();
     }
@@ -159,10 +175,10 @@ describe('credential-store tamper detection', () => {
     unsubscribe();
 
     storeCredential('conn-3', 'secret');
-    const sealed = credentialRows.get('conn-3')!;
+    const sealed = credentialRows.get('conn-3')!.encrypted_data;
     const tampered = Buffer.from(sealed);
     tampered[tampered.length - 1]! ^= 0xff;
-    credentialRows.set('conn-3', tampered);
+    credentialRows.set('conn-3', { encrypted_data: tampered, aad_version: 1 });
 
     retrieveCredential('conn-3');
     expect(events).toHaveLength(0);
@@ -190,4 +206,73 @@ afterAll(() => {
   } catch {
     /* best-effort */
   }
+});
+
+describe('credential-store AAD binding', () => {
+  beforeEach(() => {
+    credentialRows.clear();
+  });
+
+  /**
+   * The attack the AAD closes. GCM authenticated the ciphertext but nothing
+   * bound it to the row it lived in, so anyone able to write luna.db could move
+   * a blob from one connection to another: the tag stayed valid, decryption
+   * succeeded, and connection B authenticated with connection A's password —
+   * with no tamper-log entry, because nothing was actually corrupt.
+   */
+  it('refuses a credential blob moved to a different connection', () => {
+    storeCredential('conn-victim', 'victim-password');
+    storeCredential('conn-attacker', 'attacker-password');
+
+    const victimBlob = credentialRows.get('conn-victim')!;
+    // Swap the victim's sealed blob into the attacker's row, version and all.
+    credentialRows.set('conn-attacker', { ...victimBlob });
+
+    expect(retrieveCredential('conn-attacker')).toBeNull();
+    // The victim's own row is untouched and still works.
+    expect(retrieveCredential('conn-victim')).toBe('victim-password');
+  });
+
+  it('reports a moved blob as a tamper event', () => {
+    const events: CredentialTamperEvent[] = [];
+    const unsubscribe = onCredentialTamper((e) => events.push(e));
+    try {
+      storeCredential('conn-a', 'secret-a');
+      storeCredential('conn-b', 'secret-b');
+      credentialRows.set('conn-b', { ...credentialRows.get('conn-a')! });
+
+      retrieveCredential('conn-b');
+
+      expect(events).toHaveLength(1);
+      expect(events[0]!.connectionId).toBe('conn-b');
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it('still reads a pre-migration row and rewrites it bound to its connection', () => {
+    // aad_version 0 is the original format. Existing installs must keep working,
+    // which is why the column defaults to 0 rather than the format being guessed
+    // from the blob.
+    const legacyBlob = __test__.encrypt('legacy-secret');
+    credentialRows.set('conn-legacy', { encrypted_data: legacyBlob, aad_version: 0 });
+
+    expect(retrieveCredential('conn-legacy')).toBe('legacy-secret');
+
+    // Upgraded in place on read, so the window where a row is unbound closes on
+    // first use rather than on next password change.
+    const upgraded = credentialRows.get('conn-legacy')!;
+    expect(upgraded.aad_version).toBe(1);
+    expect(upgraded.encrypted_data).not.toEqual(legacyBlob);
+
+    // And the upgraded row is now bound: moving it no longer works.
+    storeCredential('conn-other', 'other');
+    credentialRows.set('conn-other', { ...credentialRows.get('conn-legacy')! });
+    expect(retrieveCredential('conn-other')).toBeNull();
+  });
+
+  it('writes new credentials at the current AAD version', () => {
+    storeCredential('conn-new', 'fresh');
+    expect(credentialRows.get('conn-new')!.aad_version).toBe(1);
+  });
 });

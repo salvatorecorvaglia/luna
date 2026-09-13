@@ -32,6 +32,7 @@ function reachIn() {
       timeoutMs?: number,
     ): Promise<T>;
     closeSftp(id: string): void;
+    openGen: Map<string, number>;
   };
 }
 
@@ -289,5 +290,69 @@ describe('SftpManager — runOp fatal-error invalidation', () => {
     expect(result).toBe('ok');
     expect(reach.leases.has('s1')).toBe(false);
     expect(reach.sftpSessions.has('s1')).toBe(true);
+  });
+});
+
+describe('channel-open races', () => {
+  /**
+   * ssh2 invokes the sftp() callback whether or not anyone is still waiting,
+   * and withTimeout does not cancel the loser. Both of these used to install a
+   * live SSH channel for a session that no longer existed, with nothing left
+   * holding a reference that could ever end() it.
+   */
+  function sessionWithDeferredSftp() {
+    let fire: ((err: Error | null, sftp: unknown) => void) | null = null;
+    const end = vi.fn();
+    const sftp = { on: vi.fn(), end };
+    vi.mocked(sshManager.getSession).mockReturnValue({
+      client: {
+        sftp: (cb: (err: Error | null, s: unknown) => void) => {
+          fire = cb;
+        },
+      },
+    } as never);
+    return {
+      end,
+      complete: () => {
+        if (!fire) throw new Error('sftp() was never called');
+        fire(null, sftp);
+      },
+    };
+  }
+
+  it('ends a channel that arrives after the session was disconnected', async () => {
+    const reach = reachIn();
+    reach.sftpSessions.clear();
+    reach.opening.clear();
+
+    const deferred = sessionWithDeferredSftp();
+    const pending = reach.getSftp('races').catch(() => 'rejected');
+
+    // Session drops while the channel is still being established.
+    reach.closeSftp('races');
+
+    deferred.complete();
+
+    await expect(pending).resolves.toBe('rejected');
+    expect(deferred.end).toHaveBeenCalledTimes(1);
+    expect(reach.sftpSessions.has('races')).toBe(false);
+  });
+
+  it('does not strand the open reservation when a close races the open', async () => {
+    const reach = reachIn();
+    reach.sftpSessions.clear();
+    reach.opening.clear();
+
+    const deferred = sessionWithDeferredSftp();
+    const pending = reach.getSftp('stranded').catch(() => 'rejected');
+    expect(reach.opening.has('stranded')).toBe(true);
+
+    reach.closeSftp('stranded');
+    // The reservation must be gone immediately, or every later getSftp() for
+    // this session awaits a promise that will never install anything.
+    expect(reach.opening.has('stranded')).toBe(false);
+
+    deferred.complete();
+    await pending;
   });
 });

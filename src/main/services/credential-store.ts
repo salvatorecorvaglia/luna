@@ -16,7 +16,8 @@ function ensureTable(): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS credentials (
       connection_id TEXT PRIMARY KEY,
-      encrypted_data BLOB NOT NULL
+      encrypted_data BLOB NOT NULL,
+      aad_version INTEGER NOT NULL DEFAULT 0
     )
   `);
 }
@@ -285,9 +286,20 @@ const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12;
 const TAG_LENGTH = 16;
 
-function encrypt(text: string): Buffer {
+/**
+ * Current AAD scheme. `aad_version` on each row records which one produced it.
+ *
+ * v0 bound nothing to the row, so a valid GCM tag survived the blob being moved
+ * between rows — anyone able to write luna.db could give connection B
+ * connection A's password and no tamper check would notice, because both halves
+ * decrypt cleanly. v1 authenticates connection_id alongside the ciphertext.
+ */
+const AAD_VERSION_CURRENT = 1;
+
+function encrypt(text: string, aad?: string): Buffer {
   const iv = randomBytes(IV_LENGTH);
   const cipher = createCipheriv(ALGORITHM, getEncryptionKey(), iv);
+  if (aad !== undefined) cipher.setAAD(Buffer.from(aad, 'utf8'));
 
   const encrypted = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
 
@@ -297,7 +309,7 @@ function encrypt(text: string): Buffer {
   return Buffer.concat([iv, tag, encrypted]);
 }
 
-function decrypt(data: Buffer): string {
+function decrypt(data: Buffer, aad?: string): string {
   // Defensive length check: a truncated blob would otherwise hand
   // createDecipheriv a short IV (silently — IV length is asserted by the
   // backing OpenSSL call only on some platforms) or hand setAuthTag a tag
@@ -314,6 +326,8 @@ function decrypt(data: Buffer): string {
 
   const decipher = createDecipheriv(ALGORITHM, getEncryptionKey(), iv);
   decipher.setAuthTag(tag);
+  // Must be set before update()/final(), and must match what encrypt() bound.
+  if (aad !== undefined) decipher.setAAD(Buffer.from(aad, 'utf8'));
 
   const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
 
@@ -331,11 +345,11 @@ export function storeCredential(connectionId: string, secret: string): void {
   }
   ensureTable();
   const db = getDatabase();
-  const encrypted = encrypt(secret);
+  const encrypted = encrypt(secret, connectionId);
 
   db.prepare(
-    'INSERT OR REPLACE INTO credentials (connection_id, encrypted_data) VALUES (?, ?)',
-  ).run(connectionId, encrypted);
+    'INSERT OR REPLACE INTO credentials (connection_id, encrypted_data, aad_version) VALUES (?, ?, ?)',
+  ).run(connectionId, encrypted, AAD_VERSION_CURRENT);
 }
 
 export function retrieveCredential(connectionId: string): string | null {
@@ -344,8 +358,8 @@ export function retrieveCredential(connectionId: string): string | null {
   const db = getDatabase();
 
   const row = db
-    .prepare('SELECT encrypted_data FROM credentials WHERE connection_id = ?')
-    .get(connectionId) as { encrypted_data: Buffer } | undefined;
+    .prepare('SELECT encrypted_data, aad_version FROM credentials WHERE connection_id = ?')
+    .get(connectionId) as { encrypted_data: Buffer; aad_version?: number } | undefined;
 
   if (!row) return null;
 
@@ -358,7 +372,30 @@ export function retrieveCredential(connectionId: string): string | null {
   getEncryptionKey();
 
   try {
-    return decrypt(Buffer.from(row.encrypted_data));
+    // aad_version says which scheme produced this blob, so no guessing: a v0
+    // row decrypts without AAD, a v1 row with connection_id bound in. Deciding
+    // by decrypt-and-retry would mean a genuinely tampered v1 row got a second
+    // chance as "maybe it's just v0", which is exactly the check being added.
+    const version = row.aad_version ?? 0;
+    const secret =
+      version >= AAD_VERSION_CURRENT
+        ? decrypt(Buffer.from(row.encrypted_data), connectionId)
+        : decrypt(Buffer.from(row.encrypted_data));
+
+    // Opportunistic upgrade: a v0 row that just decrypted is genuine, so
+    // rewrite it bound to its connection_id. Best-effort — failing to upgrade
+    // must not fail the read, since the caller has a valid secret in hand.
+    if (version < AAD_VERSION_CURRENT) {
+      try {
+        db.prepare(
+          'UPDATE credentials SET encrypted_data = ?, aad_version = ? WHERE connection_id = ?',
+        ).run(encrypt(secret, connectionId), AAD_VERSION_CURRENT, connectionId);
+      } catch (upgradeErr) {
+        log.warn(`[Credentials] Could not upgrade AAD binding for ${connectionId}:`, upgradeErr);
+      }
+    }
+
+    return secret;
   } catch (err) {
     // Decryption can fail if the data is corrupt, tampered with (GCM tag mismatch),
     // or if it was encrypted with a different key/algorithm (e.g. previous CBC).

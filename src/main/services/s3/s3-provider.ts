@@ -62,6 +62,13 @@ class S3StorageProvider implements StorageProvider {
   private sessions = new Map<string, S3Session>();
 
   openSession(sessionId: string, opts: S3SessionOptions): void {
+    // Re-opening the same sessionId replaced the entry without destroying the
+    // client it displaced, leaking its socket pool and keep-alive agents. The
+    // 64-session cap in s3.ipc.ts only counts *new* ids, so a reconnect walked
+    // straight into this. ssh-manager.connect() handles the equivalent case;
+    // this is the same shape.
+    this.closeSession(sessionId);
+
     const client = new S3Client(
       buildS3ClientConfig({
         region: opts.region,
@@ -96,6 +103,17 @@ class S3StorageProvider implements StorageProvider {
 
   hasSession(sessionId: string): boolean {
     return this.sessions.has(sessionId);
+  }
+
+  /**
+   * Destroy every client. Called from `before-quit`: the shutdown sequence
+   * cancelled transfers, disposed SFTP timers, disconnected SSH and killed
+   * PTYs, but left S3 clients — and their sockets — open.
+   */
+  disposeAll(): void {
+    for (const sessionId of Array.from(this.sessions.keys())) {
+      this.closeSession(sessionId);
+    }
   }
 
   /** Number of open sessions — used to cap concurrent connects. */

@@ -8,6 +8,7 @@ import {
 } from '../lib/validate';
 import { folderSyncService } from '../services/folder-sync-service';
 import { storageRegistry } from '../services/storage/registry';
+import type { StorageProvider } from '../services/storage/types';
 import { transferQueue } from '../services/transfer-queue';
 
 export { __resetStorageRateLimiter } from '../lib/rate-limiter';
@@ -35,36 +36,50 @@ import { registerHandler } from '../lib/ipc-handler';
  * the session via the registry, so SFTP and S3 sessions go through the same
  * channels — the renderer doesn't have to branch on provider kind.
  */
+/**
+ * Resolve the provider for a session, then draw a rate-limit token.
+ *
+ * The order is the point. takeStorageToken() used to run first, so any
+ * renderer-supplied string allocated a bucket before anyone checked the session
+ * existed. Buckets are capped at 1024 with oldest-insertion eviction, which gave
+ * a renderer that had burnt its own budget a way to get a fresh one: spam 1024
+ * junk session ids, evict its own throttled bucket, carry on. Requiring the
+ * session first means only live sessions can ever create a bucket.
+ */
+function requireMeteredProvider(sessionId: string): StorageProvider {
+  const provider = storageRegistry.require(sessionId);
+  takeStorageToken(sessionId);
+  return provider;
+}
+
 export function registerStorageHandlers(): void {
   registerHandler(IPC.STORAGE_LIST, async (_event, params: StorageListParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
     assertValidPath(params.path, 'path');
-    takeStorageToken(params.sessionId);
-    return storageRegistry.require(params.sessionId).list(params.sessionId, params.path);
+    return requireMeteredProvider(params.sessionId).list(params.sessionId, params.path);
   });
 
   registerHandler(IPC.STORAGE_STAT, async (_event, params: StorageStatParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
     assertValidPath(params.path, 'path');
-    takeStorageToken(params.sessionId);
-    return storageRegistry.require(params.sessionId).stat(params.sessionId, params.path);
+    return requireMeteredProvider(params.sessionId).stat(params.sessionId, params.path);
   });
 
   registerHandler(IPC.STORAGE_MKDIR, async (_event, params: StorageMkdirParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
     assertValidPath(params.path, 'path');
-    takeStorageToken(params.sessionId);
-    return storageRegistry.require(params.sessionId).mkdir(params.sessionId, params.path);
+    return requireMeteredProvider(params.sessionId).mkdir(params.sessionId, params.path);
   });
 
   registerHandler(IPC.STORAGE_RENAME, async (_event, params: StorageRenameParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
     assertValidPath(params.oldPath, 'oldPath');
     assertValidPath(params.newPath, 'newPath');
-    takeStorageToken(params.sessionId);
-    return storageRegistry
-      .require(params.sessionId)
-      .rename(params.sessionId, params.oldPath, params.newPath);
+    return requireMeteredProvider(params.sessionId).rename(
+      params.sessionId,
+      params.oldPath,
+      params.newPath,
+    );
   });
 
   registerHandler(IPC.STORAGE_DELETE, async (_event, params: StorageDeleteParams) => {
@@ -73,10 +88,11 @@ export function registerStorageHandlers(): void {
     if (typeof params.isDirectory !== 'boolean') {
       throw new LunaError('isDirectory must be a boolean', ErrorCode.VALIDATION_ERROR);
     }
-    takeStorageToken(params.sessionId);
-    return storageRegistry
-      .require(params.sessionId)
-      .remove(params.sessionId, params.path, params.isDirectory);
+    return requireMeteredProvider(params.sessionId).remove(
+      params.sessionId,
+      params.path,
+      params.isDirectory,
+    );
   });
 
   registerHandler(IPC.STORAGE_READ_FILE, async (_event, params: StorageReadFileParams) => {
@@ -85,10 +101,11 @@ export function registerStorageHandlers(): void {
     if (params.maxSize !== undefined) {
       assertBoundedInt(params.maxSize, 'maxSize', 1, LIMITS.MAX_PREVIEW_BYTES);
     }
-    takeStorageToken(params.sessionId);
-    return storageRegistry
-      .require(params.sessionId)
-      .readFile(params.sessionId, params.path, params.maxSize);
+    return requireMeteredProvider(params.sessionId).readFile(
+      params.sessionId,
+      params.path,
+      params.maxSize,
+    );
   });
 
   registerHandler(
@@ -99,10 +116,11 @@ export function registerStorageHandlers(): void {
       if (typeof params.content !== 'string') {
         throw new LunaError('content must be a string', ErrorCode.VALIDATION_ERROR);
       }
-      takeStorageToken(params.sessionId);
-      return storageRegistry
-        .require(params.sessionId)
-        .writeFile(params.sessionId, params.path, params.content);
+      return requireMeteredProvider(params.sessionId).writeFile(
+        params.sessionId,
+        params.path,
+        params.content,
+      );
     },
   );
 

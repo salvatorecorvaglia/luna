@@ -145,11 +145,18 @@ export function runPipeTransfer(options: PipeTransferOptions): Promise<void> {
 
 /**
  * Suffix for the temp file a download writes to before being published at
- * its real destination. Stable (no random component) is fine — SFTP and S3
- * downloads to the same `localPath` are already serialized upstream by the
- * transfer queue's dedup-key reservation, and `fs.createWriteStream`
- * truncates on open, so a stale leftover from an earlier crash is just
- * overwritten by the next attempt rather than corrupting anything.
+ * its real destination.
+ *
+ * Stable (no random component) because the transfer queue guarantees at most
+ * one live download per `localPath` — see `downloadDestinations` in
+ * transfer-queue.ts — and `fs.createWriteStream` truncates on open, so a stale
+ * leftover from an earlier crash is overwritten by the next attempt rather
+ * than corrupting anything.
+ *
+ * That guarantee is load-bearing, and it did not hold when this comment was
+ * first written: the dedup key included `remotePath`, so two downloads of
+ * different remote files to the same local path ran concurrently, both wrote
+ * this one temp file, and both renamed it into place.
  */
 const PARTIAL_DOWNLOAD_SUFFIX = '.luna-partial';
 

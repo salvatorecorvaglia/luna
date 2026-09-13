@@ -10,6 +10,7 @@ import log from './lib/logger';
 import { isAllowedNavigation } from './lib/navigation-guard';
 import { initializeCredentialStore } from './services/credential-store';
 import { closeDatabase, getDatabase, MigrationError } from './services/database';
+import { s3StorageProvider } from './services/s3/s3-provider';
 import { sftpManager } from './services/sftp-manager';
 import { sshManager } from './services/ssh-manager';
 import { transferQueue } from './services/transfer-queue';
@@ -328,6 +329,7 @@ app.on('before-quit', (event) => {
       transferQueue.cancelAll();
       sftpManager.dispose();
       sshManager.disconnectAll();
+      s3StorageProvider.disposeAll();
       disposeLocalTerminals();
       // Give in-flight aborts a window to settle. SFTP/S3 abort handlers
       // run asynchronously after `controller.abort()`, so an immediate quit

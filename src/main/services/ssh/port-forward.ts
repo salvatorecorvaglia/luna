@@ -189,10 +189,21 @@ function startLocalForward(
     handle.error = err.message;
   });
 
-  return listenAsync(server, config.localPort, config.bindAddress).then(() => {
-    log.info(`[SSH] Local forward listening on ${config.bindAddress}:${config.localPort}`);
-    return handle;
-  });
+  return listenAsync(server, config.localPort, config.bindAddress).then(
+    () => {
+      log.info(`[SSH] Local forward listening on ${config.bindAddress}:${config.localPort}`);
+      return handle;
+    },
+    (err: unknown) => {
+      // Bind failed, so the caller never receives the handle and can never call
+      // close(). Without this the Server object stayed referenced by its own
+      // 'error' listener, holding whatever the failed bind had allocated.
+      closeServer(server, sockets).catch(() => {
+        // Already unusable — the bind is what failed.
+      });
+      throw err;
+    },
+  );
 }
 
 function startRemoteForward(
@@ -434,10 +445,20 @@ function startDynamicForward(
     handle.error = err.message;
   });
 
-  return listenAsync(server, config.localPort, config.bindAddress).then(() => {
-    log.info(`[SSH] SOCKS5 proxy listening on ${config.bindAddress}:${config.localPort}`);
-    return handle;
-  });
+  return listenAsync(server, config.localPort, config.bindAddress).then(
+    () => {
+      log.info(`[SSH] SOCKS5 proxy listening on ${config.bindAddress}:${config.localPort}`);
+      return handle;
+    },
+    (err: unknown) => {
+      // Same as the local-forward path: nobody can close a server whose handle
+      // was never handed out.
+      closeServer(server, sockets).catch(() => {
+        // Already unusable — the bind is what failed.
+      });
+      throw err;
+    },
+  );
 }
 
 /**

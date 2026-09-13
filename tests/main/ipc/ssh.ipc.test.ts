@@ -32,7 +32,7 @@ vi.mock('../../../src/main/services/ssh-manager', () => ({
   },
 }));
 
-import { registerSshHandlers } from '../../../src/main/ipc/ssh.ipc';
+import { __resetSshConnectLimiter, registerSshHandlers } from '../../../src/main/ipc/ssh.ipc';
 import { sshManager } from '../../../src/main/services/ssh-manager';
 import { storageRegistry } from '../../../src/main/services/storage/registry';
 import { sftpStorageProvider } from '../../../src/main/services/storage/sftp-storage-provider';
@@ -247,5 +247,43 @@ describe('ssh.ipc validation', () => {
       expect(sshManagerMock.testConnection).toHaveBeenCalledWith({ connectionId: 'abc' });
       expect(result).toEqual({ ok: true });
     });
+  });
+});
+
+describe('ssh.ipc outbound-connect metering', () => {
+  /**
+   * SSH_TEST_CONNECTION takes a renderer-supplied host and port and opens a TCP
+   * connection to it. It was unmetered and outside the session cap, so it was a
+   * port scanner reachable from any renderer compromise. Metered separately from
+   * real connects so probe bursts can't also starve session opens.
+   */
+  it('rate-limits connection tests', async () => {
+    __resetSshConnectLimiter();
+    const handler = handlers.get(IPC.SSH_TEST_CONNECTION)!;
+    const probe = () =>
+      handler(
+        {},
+        { config: { host: 'example.com', port: 22, username: 'u', authType: 'password' } },
+      );
+
+    for (let i = 0; i < 10; i++) {
+      await expect(probe()).resolves.toBeDefined();
+    }
+    await expect(probe()).rejects.toThrow(/SSH connection test/);
+  });
+
+  it('does not let test probes consume the real connect budget', async () => {
+    __resetSshConnectLimiter();
+    const test = handlers.get(IPC.SSH_TEST_CONNECTION)!;
+    for (let i = 0; i < 10; i++) {
+      await test({}, { config: { host: 'h', port: 22, username: 'u', authType: 'password' } });
+    }
+
+    // The connect limiter allows 20/min and must be untouched by the above.
+    const connect = handlers.get(IPC.SSH_CONNECT)!;
+    await expect(connect({}, { sessionId: 's-after-probes', connectionId: 'c1' })).resolves.toEqual(
+      { success: true },
+    );
+    storageRegistry.unregister('s-after-probes');
   });
 });

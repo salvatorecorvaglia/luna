@@ -50,6 +50,22 @@ class TransferQueue {
    */
   private dedupIndex = new Map<string, string>();
   /**
+   * Destination index for downloads: local path -> transfer id.
+   *
+   * `dedupIndex` keys on (type, session, localPath, remotePath), so two
+   * downloads of *different* remote files to the *same* local path are two
+   * distinct transfers and both were allowed to run at once. They then both
+   * wrote `${localPath}.luna-partial` and both renamed it over `localPath` —
+   * interleaved writes into one temp file, then a coin-flip over which content
+   * survived. The atomic rename that exists to prevent corruption was what hid
+   * it, since the result always looked like a complete file.
+   *
+   * pipe-transfer.ts documents the "already serialized upstream by the transfer
+   * queue" invariant that makes its stable temp-file name safe. This index is
+   * what actually makes that true.
+   */
+  private downloadDestinations = new Map<string, string>();
+  /**
    * Transfers that have reserved a dedup key and an AbortController but
    * haven't been pushed to `queue` yet (because enqueue() is awaiting stat()).
    * A concurrent enqueue() with the same key must treat these as live, not
@@ -98,6 +114,26 @@ class TransferQueue {
       this.dedupIndex.delete(key);
     }
 
+    // Checked *after* the dedup short-circuit above: an identical re-enqueue
+    // must still collapse onto the transfer already running, and only a
+    // genuinely different download competing for the same destination is a
+    // conflict.
+    //
+    // Two downloads of different remote files to the same local path used to be
+    // two distinct transfers — the dedup key includes remotePath — so both ran,
+    // both wrote `${localPath}.luna-partial`, and both renamed it into place.
+    if (type === 'download') {
+      const clashId = this.downloadDestinations.get(localPath);
+      if (clashId && this.isLive(clashId)) {
+        throw new LunaError(
+          `Another download is already writing to ${localPath}. Wait for it to finish or cancel it.`,
+          ErrorCode.VALIDATION_ERROR,
+          { reason: 'destination-busy', localPath },
+        );
+      }
+      if (clashId) this.downloadDestinations.delete(localPath);
+    }
+
     // Count reservations toward the cap, not just the settled queue.
     //
     // `storage:download` / `storage:upload` deliberately skip the storage rate
@@ -128,6 +164,7 @@ class TransferQueue {
     const controller = new AbortController();
     this.dedupIndex.set(key, transferId);
     this.reserved.set(transferId, { id: transferId, key, sessionId, controller });
+    if (type === 'download') this.downloadDestinations.set(localPath, transferId);
 
     try {
       let size = 0;
@@ -183,9 +220,25 @@ class TransferQueue {
       // Roll back the dedup reservation so a future enqueue with the same key
       // isn't permanently blocked by a ghost entry.
       if (this.dedupIndex.get(key) === transferId) this.dedupIndex.delete(key);
+      if (type === 'download') this.forgetDestination(transferId, localPath);
       throw err;
     } finally {
       this.reserved.delete(transferId);
+    }
+  }
+
+  /** True while a transfer is reserved, queued or active and not aborted. */
+  private isLive(transferId: string): boolean {
+    const reserved = this.reserved.get(transferId);
+    if (reserved) return !reserved.controller.signal.aborted;
+    const transfer = this.active.get(transferId) ?? this.queuedMap.get(transferId);
+    return Boolean(transfer) && !transfer!.controller.signal.aborted;
+  }
+
+  /** Release a download's claim on its destination path. */
+  private forgetDestination(transferId: string, localPath: string): void {
+    if (this.downloadDestinations.get(localPath) === transferId) {
+      this.downloadDestinations.delete(localPath);
     }
   }
 
@@ -194,6 +247,7 @@ class TransferQueue {
     // Only delete if it still points at this transfer — a later enqueue may
     // have already claimed the key after we marked this one aborted.
     if (this.dedupIndex.get(key) === t.id) this.dedupIndex.delete(key);
+    if (t.type === 'download') this.forgetDestination(t.id, t.localPath);
   }
 
   cancel(transferId: string): void {
@@ -386,6 +440,7 @@ class TransferQueue {
     this.queue = [];
     this.queuedMap.clear();
     this.dedupIndex.clear();
+    this.downloadDestinations.clear();
     this.reserved.clear();
   }
 

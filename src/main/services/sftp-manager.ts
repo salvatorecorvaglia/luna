@@ -45,6 +45,12 @@ class SftpManager {
    */
   private opening = new Map<string, Promise<SFTPWrapper>>();
   private lastAccess = new Map<string, number>();
+  /**
+   * Bumped whenever a session is torn down. An in-flight `client.sftp()`
+   * captures the value and refuses to install its wrapper if it has moved on —
+   * see getSftp().
+   */
+  private openGen = new Map<string, number>();
   /** Number of in-flight ops per session — idle sweep skips sessions with leases > 0. */
   private leases = new Map<string, number>();
   /**
@@ -57,6 +63,7 @@ class SftpManager {
 
   constructor() {
     sshManager.onSessionDisconnect((sessionId) => {
+      this.bumpOpenGen(sessionId);
       this.sftpSessions.delete(sessionId);
       this.opening.delete(sessionId);
       this.lastAccess.delete(sessionId);
@@ -127,6 +134,11 @@ class SftpManager {
     }
   }
 
+  /** Invalidate any in-flight channel open for this session. */
+  private bumpOpenGen(sessionId: string): void {
+    this.openGen.set(sessionId, (this.openGen.get(sessionId) ?? 0) + 1);
+  }
+
   private acquireLease(sessionId: string): void {
     if (this.closing.has(sessionId)) {
       throw new SshConnectionError('SFTP session is closing');
@@ -165,10 +177,32 @@ class SftpManager {
     // every subsequent SFTP op (list, stat, transfer) is queued behind a
     // promise that will never settle. The cap mirrors STORAGE_OP_TIMEOUT_MS
     // so the worst case for any SFTP op is one timeout window.
+    //
+    // withTimeout does not cancel the loser, and ssh2 will still invoke the
+    // callback afterwards. Two ways that used to leak a live SSH channel:
+    // the open timed out, or the session was disconnected while the channel
+    // was being established — either way the late callback ran
+    // `sftpSessions.set(...)` and installed a wrapper for a session that was
+    // already gone, with nothing left to ever call end() on it.
+    const gen = this.openGen.get(sessionId) ?? 0;
+    let abandoned = false;
+
     const open = withTimeout(
       new Promise<SFTPWrapper>((resolve, reject) => {
         session.client.sftp((err, sftp) => {
           if (err) return reject(err);
+
+          if (abandoned || (this.openGen.get(sessionId) ?? 0) !== gen) {
+            // Close the channel we just opened rather than stranding it.
+            try {
+              sftp.end();
+            } catch {
+              // already torn down
+            }
+            reject(new SshConnectionError('SFTP session closed while its channel was opening'));
+            return;
+          }
+
           this.sftpSessions.set(sessionId, sftp);
 
           sftp.on('close', () => {
@@ -184,12 +218,19 @@ class SftpManager {
       }),
       LIMITS.STORAGE_OP_TIMEOUT_MS,
       `sftp:open(${sessionId})`,
-    ).finally(() => {
-      // Clear the reservation once the open settles so a later disconnect →
-      // reconnect cycle can open a fresh subsystem. Equality check protects
-      // against an unrelated entry installed by a race.
-      if (this.opening.get(sessionId) === open) this.opening.delete(sessionId);
-    });
+    )
+      .catch((err: unknown) => {
+        // Covers the timeout: mark the open abandoned so a callback arriving
+        // later ends its channel instead of installing it.
+        abandoned = true;
+        throw err;
+      })
+      .finally(() => {
+        // Clear the reservation once the open settles so a later disconnect →
+        // reconnect cycle can open a fresh subsystem. Equality check protects
+        // against an unrelated entry installed by a race.
+        if (this.opening.get(sessionId) === open) this.opening.delete(sessionId);
+      });
     this.opening.set(sessionId, open);
     return open;
   }
@@ -667,6 +708,9 @@ class SftpManager {
   // The IPC layer now calls transferQueue.enqueue directly.
 
   closeSftp(sessionId: string): void {
+    // Invalidate any channel still being opened, so it ends itself rather than
+    // installing over the close we are performing here.
+    this.bumpOpenGen(sessionId);
     const sftp = this.sftpSessions.get(sessionId);
     if (sftp) {
       try {
@@ -676,6 +720,9 @@ class SftpManager {
       }
       this.sftpSessions.delete(sessionId);
     }
+    // The reservation was left behind, so a close racing an open stranded an
+    // entry in `opening` that every later getSftp() would await forever.
+    this.opening.delete(sessionId);
     this.lastAccess.delete(sessionId);
     this.leases.delete(sessionId);
   }

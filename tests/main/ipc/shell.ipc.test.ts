@@ -85,28 +85,25 @@ describe('shell IPC — checkFile', () => {
     expect(result).toEqual({ ok: false, reason: 'missing' });
   });
 
-  it('allows ~/../ traversal for checkFile if it resolves to a readable path', async () => {
-    const result = (await handlers.get(IPC.SHELL_CHECK_FILE)!({}, '~/../../../etc/hosts')) as {
-      ok: boolean;
-      reason?: string;
-    };
-    if (result.ok) {
-      expect(result.ok).toBe(true);
-    } else {
-      expect(['missing', 'permission']).toContain(result.reason);
-    }
+  /**
+   * These two used to assert the opposite — that checkFile happily probed
+   * /etc/hosts — and did so with an `if (result.ok) ... else ...` shape that
+   * accepted either outcome, so neither branch really pinned anything.
+   *
+   * checkFile reports missing / permission / not-a-file / ok for whatever path
+   * it is handed, and it was not home-confined, which made it an
+   * existence-and-readability oracle over the whole filesystem for a
+   * compromised renderer. It is now confined to the home subtree plus the
+   * standard SSH key directories.
+   */
+  it('refuses ~/../ traversal out of the home subtree', async () => {
+    const result = await handlers.get(IPC.SHELL_CHECK_FILE)!({}, '~/../../../etc/hosts');
+    expect(result).toEqual({ ok: false, reason: 'forbidden' });
   });
 
-  it('allows absolute path outside home for checkFile if it is readable', async () => {
-    const result = (await handlers.get(IPC.SHELL_CHECK_FILE)!({}, '/etc/hosts')) as {
-      ok: boolean;
-      reason?: string;
-    };
-    if (result.ok) {
-      expect(result.ok).toBe(true);
-    } else {
-      expect(['missing', 'permission']).toContain(result.reason);
-    }
+  it('refuses an absolute path outside home and the SSH key directories', async () => {
+    const result = await handlers.get(IPC.SHELL_CHECK_FILE)!({}, '/etc/hosts');
+    expect(result).toEqual({ ok: false, reason: 'forbidden' });
   });
 });
 
@@ -149,18 +146,14 @@ describe('shell IPC — symlink jail (TOCTOU & bypass)', () => {
     expect(entry!.isDirectory).toBe(false);
   });
 
-  it('checkFile allows a symlink whose target leaves the home jail if readable', async () => {
+  it('checkFile refuses a symlink whose target leaves the home jail', async () => {
+    // The location check runs twice, before and after realpath, precisely so a
+    // link sitting somewhere allowed cannot be used to probe somewhere that
+    // isn't. This previously resolved the link and reported on the target.
     const link = join(workdir, 'escape-key');
     await symlink('/etc/hosts', link);
-    const result = (await handlers.get(IPC.SHELL_CHECK_FILE)!({}, link)) as {
-      ok: boolean;
-      reason?: string;
-    };
-    if (result.ok) {
-      expect(result.ok).toBe(true);
-    } else {
-      expect(['missing', 'permission']).toContain(result.reason);
-    }
+    const result = await handlers.get(IPC.SHELL_CHECK_FILE)!({}, link);
+    expect(result).toEqual({ ok: false, reason: 'forbidden' });
   });
 
   it('readFile resolves the real target (TOCTOU-safe)', async () => {

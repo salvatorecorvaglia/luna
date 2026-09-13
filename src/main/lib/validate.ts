@@ -266,15 +266,48 @@ export async function assertSafeRealAbsolutePath(value: unknown, name: string): 
 }
 
 /**
- * Expand a leading `~` to the user's real home directory and validate that the
- * private key path is an absolute path that exists. Note: private keys are
- * intentionally exempt from home-confinement validation, allowing users to
- * target keys located in standard system directories (e.g., /etc/ssh/ or custom
- * secure mount points) outside their home subtree.
+ * Directories a private key may live in, beyond the user's home subtree.
+ *
+ * Keys legitimately live outside `$HOME` — a shared `/etc/ssh` key, or a key on
+ * a mounted secure volume — so this path is deliberately not home-confined. But
+ * "not home-confined" had become "anywhere at all": the resolved path was
+ * `realpath`'d and then opened and read, with the result fed to
+ * `utils.parseKey`. Combined with SHELL_CHECK_FILE, which returns
+ * missing/permission/not-a-file/ok for whatever it is handed, that gave a
+ * compromised renderer an existence-and-readability oracle over the entire
+ * filesystem, and a way to make main read arbitrary files into memory.
+ *
+ * An allowlist keeps the legitimate cases and closes the oracle. Extend it
+ * rather than removing the check.
+ */
+const PRIVATE_KEY_DIRS = ['/etc/ssh', '/usr/local/etc/ssh', '/opt/homebrew/etc/ssh'];
+
+/**
+ * Expand a leading `~`, resolve symlinks, and require the result to sit in the
+ * user's home subtree or one of PRIVATE_KEY_DIRS.
+ *
+ * Note the two-stage check: the pre-realpath path must be in an allowed
+ * location *and* so must its real target, so a symlink inside `~/.ssh` cannot
+ * be used to read `/etc/shadow`.
  */
 export async function expandAndValidatePrivateKeyPath(
   rawPath: string,
   name: string,
 ): Promise<string> {
-  return realpath(expandTilde(rawPath, name));
+  const expanded = expandTilde(rawPath, name);
+  assertPrivateKeyLocation(expanded, name);
+  const real = await realpath(expanded);
+  assertPrivateKeyLocation(real, name);
+  return real;
+}
+
+function assertPrivateKeyLocation(candidate: string, name: string): void {
+  if (isInsideDir(candidate, homedir())) return;
+  for (const dir of PRIVATE_KEY_DIRS) {
+    if (isInsideDir(candidate, dir)) return;
+  }
+  throw new LunaError(
+    `${name} must be inside the home directory or a standard SSH key directory`,
+    ErrorCode.FORBIDDEN,
+  );
 }

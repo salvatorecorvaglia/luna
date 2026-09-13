@@ -920,7 +920,18 @@ class SshManager {
 
     try {
       session.shell?.close();
+      // end() then destroy(), and drop listeners first.
+      //
+      // end() alone asks for a graceful close and waits for the peer; on a dead
+      // transport that never completes, so the socket lingered until a TCP
+      // timeout with its keepalive timer still armed. retireSession() already
+      // does removeAllListeners() + destroy() for the same reason — a manual
+      // disconnect deserves the same treatment, and removing the listeners
+      // first keeps destroy()'s synthetic 'close' from re-entering
+      // handleDisconnect for a session we are already tearing down.
+      session.client.removeAllListeners();
       session.client.end();
+      session.client.destroy();
     } catch (err) {
       log.error(`[SSH] Error closing session ${sessionId}:`, err);
     }

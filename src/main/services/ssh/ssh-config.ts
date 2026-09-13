@@ -288,8 +288,12 @@ export async function buildConnectConfig(
     }
     try {
       // Expand ~ via os.homedir() (not $HOME, which can be unset/empty and
-      // collapse "~/.." into "/.."), and confine the real (symlink-resolved)
-      // target to the home directory.
+      // collapse "~/.." into "/.."), then confine the real (symlink-resolved)
+      // target to the home subtree or one of the standard SSH key directories.
+      //
+      // This comment used to claim home-directory confinement while
+      // expandAndValidatePrivateKeyPath explicitly documented the opposite and
+      // accepted any absolute path. The confinement is now real.
       const keyPath = await expandAndValidatePrivateKeyPath(
         params.privateKeyPath,
         'privateKeyPath',

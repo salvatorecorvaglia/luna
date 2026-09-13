@@ -292,16 +292,52 @@ describe('assertSafeRealAbsolutePath (symlink-following)', () => {
 });
 
 describe('expandAndValidatePrivateKeyPath', () => {
-  it('expands a leading ~ and resolves/follows symlinks without home confinement', async () => {
-    const outsideTmp = mkdtempOutsideHome('luna-outside-key-');
-    const safeFile = join(outsideTmp, 'key.pem');
-    writeFileSync(safeFile, 'ok');
+  it('accepts a key inside the home subtree', async () => {
+    const dir = mkdtempSync(join(homedir(), '.luna-test-key-'));
+    const keyFile = join(dir, 'id_test');
+    writeFileSync(keyFile, 'ok');
     try {
-      const out = await expandAndValidatePrivateKeyPath(safeFile, 'p');
+      const out = await expandAndValidatePrivateKeyPath(keyFile, 'p');
       // fs.promises.realpath (what the validator uses) is the native resolver,
       // which expands Windows 8.3 short names; the JS realpathSync does not.
-      expect(out).toBe(realpathSync.native(safeFile));
+      expect(out).toBe(realpathSync.native(keyFile));
     } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a key outside the home subtree and the standard SSH directories', async () => {
+    // Keys legitimately live outside $HOME (/etc/ssh, a mounted volume), so this
+    // path is not home-confined — but it used to accept *any* absolute path, and
+    // the resolved file is then read and handed to utils.parseKey. Together with
+    // SHELL_CHECK_FILE that made it a whole-filesystem existence and
+    // readability oracle for a compromised renderer.
+    const outsideTmp = mkdtempOutsideHome('luna-outside-key-');
+    const unsafeFile = join(outsideTmp, 'key.pem');
+    writeFileSync(unsafeFile, 'ok');
+    try {
+      await expect(expandAndValidatePrivateKeyPath(unsafeFile, 'p')).rejects.toThrow(
+        /standard SSH key directory/,
+      );
+    } finally {
+      rmSync(outsideTmp, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a symlink inside home whose real target escapes the allowlist', async () => {
+    // The reason the check runs twice, before and after realpath.
+    const dir = mkdtempSync(join(homedir(), '.luna-test-key-link-'));
+    const outsideTmp = mkdtempOutsideHome('luna-outside-target-');
+    const target = join(outsideTmp, 'secret');
+    writeFileSync(target, 'ok');
+    const link = join(dir, 'id_link');
+    symlinkSync(target, link);
+    try {
+      await expect(expandAndValidatePrivateKeyPath(link, 'p')).rejects.toThrow(
+        /standard SSH key directory/,
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
       rmSync(outsideTmp, { recursive: true, force: true });
     }
   });

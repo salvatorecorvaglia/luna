@@ -32,9 +32,18 @@ const MAX_S3_SESSIONS = 64;
  */
 const s3ConnectLimiter = new SlidingWindowLimiter(20, 60_000, 'S3 connect');
 
-/** Test-only: reset the connect limiter between cases. */
+/**
+ * Test-connection takes a renderer-supplied `endpoint` and issues a request to
+ * it. Unmetered, that is a server-side request forgery primitive bounded only
+ * by the 10s fastFail — any URL the AWS SDK accepts, as many times as the
+ * renderer likes. Metered separately from real connects, as on the SSH side.
+ */
+const s3TestLimiter = new SlidingWindowLimiter(10, 60_000, 'S3 connection test');
+
+/** Test-only: reset the connect limiters between cases. */
 export function __resetS3ConnectLimiter(): void {
   s3ConnectLimiter.reset();
+  s3TestLimiter.reset();
 }
 
 /** AWS SigV4 refuses presigned URLs valid for more than 7 days. */
@@ -136,6 +145,7 @@ export function registerS3Handlers(): void {
       // Match the SSH semantics: don't accept transient secrets alongside a
       // saved connectionId — the renderer must pick one path explicitly.
       assertEitherConnectionOrConfig(params.connectionId, params.config);
+      s3TestLimiter.check();
       let opts: S3SessionOptions;
       if (params.config) {
         const c = params.config;

@@ -39,9 +39,20 @@ const MAX_SSH_SESSIONS = 64;
  */
 const sshConnectLimiter = new SlidingWindowLimiter(20, 60_000, 'SSH connect');
 
-/** Test-only: reset the connect limiter between cases. */
+/**
+ * Test-connection is a renderer-driven outbound TCP connect to an arbitrary
+ * host:port, with a connect timeout measured in tens of seconds and no session
+ * cap to bound it — the renderer supplies the target and nothing counted the
+ * attempts. That is a port scanner and an internal-host prober, reachable from
+ * any XSS in the renderer. Metered separately from real connects so a burst of
+ * probes cannot also exhaust the budget for opening actual sessions.
+ */
+const sshTestLimiter = new SlidingWindowLimiter(10, 60_000, 'SSH connection test');
+
+/** Test-only: reset the connect limiters between cases. */
 export function __resetSshConnectLimiter(): void {
   sshConnectLimiter.reset();
+  sshTestLimiter.reset();
 }
 
 import type { AuthType, PortForwardingConfig } from '@shared/types/connection';
@@ -177,6 +188,7 @@ export function registerSshHandlers(): void {
       // forces the renderer to choose one path explicitly so password material
       // can't be silently injected into a flow that should use stored creds.
       assertEitherConnectionOrConfig(params.connectionId, params.config);
+      sshTestLimiter.check();
       if (params.config) {
         const c = params.config;
         assertNonEmptyString(c.host, 'host');

@@ -384,3 +384,47 @@ describe('transferQueue', () => {
     expect(transferQueue.getQueuedCount()).toBe(0);
   });
 });
+
+describe('download destination exclusivity', () => {
+  /**
+   * The dedup key is (type, session, localPath, remotePath), so two downloads
+   * of *different* remote files to the *same* local path were two distinct
+   * transfers and both ran. They then both wrote `${localPath}.luna-partial`
+   * and both renamed it over the destination — interleaved writes into one
+   * temp file, then a coin flip over whose content survived. The atomic rename
+   * that exists to prevent corruption is what hid it: the result always looked
+   * like a complete file.
+   *
+   * pipe-transfer.ts documents this exclusivity as the reason its temp-file
+   * name can safely be a constant, so it has to actually hold.
+   */
+  it('refuses a second download heading for a local path already claimed', async () => {
+    await transferQueue.enqueue('download', 'sess', '/local/same', '/remote/one');
+
+    await expect(
+      transferQueue.enqueue('download', 'sess', '/local/same', '/remote/two'),
+    ).rejects.toThrow(/already writing to \/local\/same/);
+  });
+
+  it('allows the same local path once the first download is cancelled', async () => {
+    const first = await transferQueue.enqueue('download', 'sess', '/local/reuse', '/remote/one');
+    transferQueue.cancel(first);
+
+    await expect(
+      transferQueue.enqueue('download', 'sess', '/local/reuse', '/remote/two'),
+    ).resolves.toBeTruthy();
+  });
+
+  it('does not constrain uploads, which read the local path rather than write it', async () => {
+    await transferQueue.enqueue('upload', 'sess', '/local/src', '/remote/a');
+    await expect(
+      transferQueue.enqueue('upload', 'sess', '/local/src', '/remote/b'),
+    ).resolves.toBeTruthy();
+  });
+
+  it('still dedupes an identical download to one transfer', async () => {
+    const a = await transferQueue.enqueue('download', 'sess', '/local/dup', '/remote/dup');
+    const b = await transferQueue.enqueue('download', 'sess', '/local/dup', '/remote/dup');
+    expect(b).toBe(a);
+  });
+});
