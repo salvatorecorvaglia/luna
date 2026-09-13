@@ -55,6 +55,12 @@ jobs:
   test:
     name: Tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    # Gated on `quality` like e2e and package-smoke are. Without it, three
+    # runners spent 15 minutes each on a tree that had already failed lint or
+    # typecheck — and a lint failure on main went unnoticed precisely because
+    # this job kept going green while the jobs that do depend on quality were
+    # silently skipped.
+    needs: [quality]
     timeout-minutes: 15
     strategy:
       fail-fast: false

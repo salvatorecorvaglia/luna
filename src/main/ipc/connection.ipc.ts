@@ -5,7 +5,7 @@ import type {
   UpdateConnectionInput,
 } from '@shared/types/connection';
 import { registerHandler } from '../lib/ipc-handler';
-import { assertBoundedArray } from '../lib/validate';
+import { assertBoundedArray, assertNonEmptyString } from '../lib/validate';
 import { connectionService } from '../services/connection-service';
 
 export function registerConnectionHandlers(): void {
@@ -13,7 +13,13 @@ export function registerConnectionHandlers(): void {
     return connectionService.listConnections();
   });
 
+  // `id` reaches better-sqlite3 as a bound parameter, so there was no injection
+  // risk — but with no validation a non-string threw from the driver and decayed
+  // to INTERNAL_ERROR, and an id containing a null byte was simply looked up and
+  // reported as "not found". The E2E test that was supposed to prove this channel
+  // rejects a malformed id passed vacuously for exactly that reason.
   registerHandler(IPC.CONNECTION_GET, (_event, id: string) => {
+    assertNonEmptyString(id, 'id');
     return connectionService.getConnection(id);
   });
 
@@ -33,6 +39,7 @@ export function registerConnectionHandlers(): void {
   );
 
   registerHandler(IPC.CONNECTION_DELETE, (_event, id: string) => {
+    assertNonEmptyString(id, 'id');
     connectionService.deleteConnection(id);
   });
 

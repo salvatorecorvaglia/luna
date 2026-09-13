@@ -17,10 +17,68 @@ import { __setApiForTesting } from '../renderer/src/services/api';
  * overrides what it actually cares about.
  */
 
-/** Event-channel subscriptions resolve to a no-op unsubscribe by default. */
+/**
+ * Event-channel subscriptions resolve to a no-op unsubscribe by default, and
+ * never emit.
+ *
+ * That is a real limitation of this fake: nothing in the renderer's IPC event
+ * fan-out — ssh data/close/status, transfer progress, credential tamper,
+ * updater — can be driven through it, so every test that needs an event has to
+ * override the listener by hand. `emittableListener()` below is the escape
+ * hatch for tests that want to push one.
+ */
 const listener = () => vi.fn(() => vi.fn());
 
-export function createFakeApi(): LunaAPI {
+/**
+ * A listener stub that records its subscribers and can push a payload to them.
+ *
+ * Use it to override a specific `on*` method when a test needs to observe how a
+ * component reacts to a main-process event:
+ *
+ *   const onData = emittableListener<{ sessionId: string; data: string }>();
+ *   installFakeApi({ ssh: { ...createFakeApi().ssh, onData: onData.subscribe } });
+ *   onData.emit({ sessionId: 's1', data: 'hi' });
+ */
+export function emittableListener<T>(): {
+  subscribe: (cb: (payload: T) => void) => () => void;
+  emit: (payload: T) => void;
+  subscriberCount: () => number;
+} {
+  const callbacks = new Set<(payload: T) => void>();
+  return {
+    subscribe: (cb: (payload: T) => void) => {
+      callbacks.add(cb);
+      return () => callbacks.delete(cb);
+    },
+    emit: (payload: T) => {
+      for (const cb of Array.from(callbacks)) cb(payload);
+    },
+    subscriberCount: () => callbacks.size,
+  };
+}
+
+/**
+ * Structural, not cast.
+ *
+ * This used to end in `as unknown as LunaAPI`, and the double cast defeated the
+ * exact completeness check the file exists to provide: a namespace or method
+ * added to the preload did not fail typecheck here, so the fake went quietly
+ * stale and the component under test got `undefined is not a function` — the
+ * very failure the header comment above says this replaces.
+ *
+ * Typed as a deep-mocked LunaAPI instead, so the compiler requires every key
+ * the bridge exposes. Adding a bridge method now breaks this file, which is the
+ * point.
+ */
+type Mocked<T> = {
+  [K in keyof T]: T[K] extends (...args: infer A) => infer R
+    ? ReturnType<typeof vi.fn<(...args: A) => R>>
+    : T[K] extends object
+      ? Mocked<T[K]>
+      : T[K];
+};
+
+export function createFakeApi(): Mocked<LunaAPI> {
   return {
     window: {
       minimize: vi.fn().mockResolvedValue(undefined),
@@ -82,7 +140,15 @@ export function createFakeApi(): LunaAPI {
       homeDir: vi.fn().mockResolvedValue('/home/tester'),
       openFileDialog: vi.fn().mockResolvedValue(null),
       saveFileDialog: vi.fn().mockResolvedValue(null),
-      joinPath: vi.fn().mockImplementation((base: string, name: string) => `${base}/${name}`),
+      // Mirrors the real handler's platform behaviour rather than hardcoding
+      // POSIX: the CI matrix runs Windows, where a fake that always joins with
+      // '/' quietly diverges from what main would return. basename() on the leaf
+      // matches the handler, which refuses to let a path segment traverse.
+      joinPath: vi.fn().mockImplementation((base: string, name: string) => {
+        const sep = process.platform === 'win32' ? '\\' : '/';
+        const leaf = name.split(/[\\/]/).pop() ?? name;
+        return `${base.replace(/[\\/]+$/, '')}${sep}${leaf}`;
+      }),
       checkFile: vi.fn().mockResolvedValue({ ok: true }),
       readFile: vi.fn().mockResolvedValue({ content: '', encoding: 'utf-8', size: 0 }),
       writeFile: vi.fn().mockResolvedValue(undefined),
@@ -144,7 +210,7 @@ export function createFakeApi(): LunaAPI {
       create: vi.fn().mockResolvedValue({}),
       delete: vi.fn().mockResolvedValue(undefined),
     },
-  } as unknown as LunaAPI;
+  } satisfies Mocked<LunaAPI>;
 }
 
 /**
@@ -155,9 +221,9 @@ export function createFakeApi(): LunaAPI {
  * because a leaked override bleeds into unrelated suites, and that failure
  * mode is miserable to track down.
  */
-export function installFakeApi(overrides: Partial<LunaAPI> = {}): LunaAPI {
+export function installFakeApi(overrides: Partial<LunaAPI> = {}): Mocked<LunaAPI> {
   const api = Object.assign(createFakeApi(), overrides);
-  __setApiForTesting(api);
+  __setApiForTesting(api as unknown as LunaAPI);
   afterEach(() => __setApiForTesting(null));
   return api;
 }

@@ -34,47 +34,48 @@ export default defineConfig({
       ],
       // Floor, not a target — a ratchet that stops coverage regressing.
       //
-      // Raise these whenever a run reports higher. They were last left at
-      // lines 47 / functions 40 / branches 39 / statements 46, with a comment
-      // documenting actuals of "~48.6-48.7 lines". By the 2026-08-29 audit the
-      // real numbers had reached ~62 lines, so the gate sat ~14 points below
-      // reality and coverage could have regressed by a fifth before CI noticed.
-      // A stale ratchet is worse than none: it reads as enforcement while
-      // enforcing nothing.
+      // Raise these whenever a run reports higher. The policy matters: a stale
+      // floor reads as enforcement while enforcing nothing, which is how this
+      // gate once sat ~14 points under reality.
       //
-      // What the floor covers: IPC input validation (including the symlink
-      // jail and its O_NOFOLLOW anchoring), host-key TOFU with the changed-key
-      // MITM and weak-algorithm cases, OpenSSH-format fingerprints, credential
-      // AES-GCM round-trip and tamper detection, the locked-keyring path that
+      // What the floor covers: IPC input validation (including the symlink jail
+      // and its O_NOFOLLOW anchoring), host-key TOFU with the changed-key MITM
+      // and weak-algorithm cases, OpenSSH-format fingerprints, credential
+      // AES-GCM round-trip, tamper detection, and the connection_id AAD binding
+      // that stops a blob being moved between rows, the locked-keyring path that
       // must never regenerate the master key, file:// navigation allowlisting,
       // SOCKS5 request parsing under fragmentation, port-forward config
       // validation and the public-bind gate, password-manager reference grammar
       // and argument-injection refusal, sliding-window rate limiting, the
-      // transfer queue, emit redaction plus the RAW_CHANNELS allowlist, the IPC
-      // error shape (no stack or metadata across the bridge), local-terminal
-      // output batching and the session cap, connection create/update/import
-      // validation parity, db migrations, error-map classification, terminal
-      // output sanitisation, the command palette's selection ordering, the
-      // terminal key handler's "never swallow a plain Ctrl+C" invariant, and
-      // the guard asserting every focus-trapping dialog declares a modal role.
+      // transfer queue including download-destination exclusivity, emit
+      // redaction plus the RAW_CHANNELS allowlist, the IPC error shape (no stack
+      // or metadata across the bridge), local-terminal output batching and the
+      // session cap, connection create/update/import validation parity, db
+      // migrations, error-map classification, terminal output sanitisation, the
+      // command palette's selection ordering, the terminal key handler's "never
+      // swallow a plain Ctrl+C — or Ctrl+K" invariant, the SSH reconnect ladder
+      // end to end, the guard that importing a service must not open the
+      // database, the preload bridge's error translation and listener teardown,
+      // the runtime tunable clamps, the stacked focus-trap stack, and the guard
+      // asserting every focus-trapping dialog declares a modal role.
       //
-      // src/preload is in the coverage `include` above as of this pass. It is
-      // the entire renderer<->main bridge and was previously unmeasured, which
-      // flattered these numbers.
-      //
-      // Measured 2026-08-29 over three consecutive runs with zero variance:
-      // 61.05 statements / 53.34 branches / 53.56 functions / 62.45 lines.
-      // Floors sit ~1pt under that.
+      // src/preload is in the coverage `include` above. It sat at 0% for a long
+      // time because being included is not the same as being tested — nothing
+      // imported it until tests/main/preload.test.ts.
       //
       // These cover the vitest suite only. The Playwright suite under
       // tests/e2e/ is excluded above and is not measured here — it exists to
       // prove main/preload/renderer agree at runtime, which is not a
       // line-coverage question.
+      //
+      // Measured 2026-09-13 over three consecutive runs with zero variance:
+      // 62.32 statements / 55.28 branches / 55.94 functions / 63.69 lines.
+      // Floors sit ~1pt under that.
       thresholds: {
-        lines: 61,
-        functions: 52,
-        branches: 52,
-        statements: 60,
+        lines: 62,
+        functions: 54,
+        branches: 54,
+        statements: 61,
       },
     },
   },

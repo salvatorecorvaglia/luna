@@ -51,11 +51,81 @@ jobs:
             exit 1
           fi
 
+  # The release workflow ran no lint, no typecheck, no tests and no e2e, and had
+  # no dependency on CI. A tag push therefore published signed artifacts to
+  # GitHub Releases with "the tag version matches package.json" as the only gate
+  # — nothing established that the tagged commit had ever been green. That was
+  # not theoretical: main was failing `biome check --error-on-warnings` (and
+  # therefore skipping e2e and package-smoke, which need it) at the time this was
+  # written.
+  #
+  # Re-running the checks here rather than querying CI's status for the commit:
+  # it needs no extra token scope, it cannot be fooled by a tag pointing at a
+  # commit CI never saw, and it costs one ubuntu runner.
+  verify:
+    name: Lint, Typecheck & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: validate
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Fix node-gyp permissions
+        shell: bash
+        run: find /Users/runner /home/runner ~/.pnpm-store -name "gyp_main.py" -exec chmod +x {} + 2>/dev/null || true
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Biome
+        run: pnpm exec biome check . --error-on-warnings
+
+      - name: Run TypeScript type-checking
+        run: pnpm run typecheck
+
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level=high
+
+      - name: Run tests with coverage
+        run: pnpm run test:coverage
+
+      - name: Ensure Electron binary is installed with retry
+        shell: bash
+        run: |
+          for i in 1 2 3 4 5; do
+            echo "Attempt $i: Installing Electron binary..."
+            node node_modules/electron/install.js && break || sleep 5
+          done
+
+      - name: Build application
+        run: pnpm run build
+
+      - name: Run Playwright E2E
+        run: xvfb-run --auto-servernum pnpm exec playwright test
+
+      - name: Upload E2E report on failure
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-playwright-report
+          path: playwright-report/
+          retention-days: 14
+
   release:
     name: Release (${{ matrix.platform-name }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
-    needs: validate
+    needs: [validate, verify]
     permissions:
       contents: write
     strategy:
