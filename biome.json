@@ -1,0 +1,111 @@
+{
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
+  "files": {
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/out",
+      "!**/build",
+      "!**/coverage",
+      "!**/dist",
+      "!**/test-results",
+      "!**/playwright-report",
+      "!**/package-lock.json",
+      "!**/*.log",
+      "!**/.DS_Store"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "formatWithErrors": false,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100,
+    "lineEnding": "lf"
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "a11y": {
+        "useButtonType": "error",
+        "noStaticElementInteractions": "off",
+        "useSemanticElements": "off",
+        "useFocusableInteractive": "off",
+        "useKeyWithClickEvents": "error",
+        "noAutofocus": "off",
+        "useAriaPropsSupportedByRole": "error",
+        "noLabelWithoutControl": "error",
+        "useAriaPropsForRole": "error"
+      },
+      "complexity": {
+        "useLiteralKeys": "off",
+        "useOptionalChain": "off",
+        "noImportantStyles": "off"
+      },
+      "correctness": {
+        "noUnusedVariables": "error",
+        "useExhaustiveDependencies": {
+          "level": "error",
+          "options": { "reportUnnecessaryDependencies": false }
+        },
+        "useParseIntRadix": "off"
+      },
+      "style": {
+        "useConst": "error",
+        "noNonNullAssertion": "off",
+        "useNodejsImportProtocol": "error",
+        "useTemplate": "off",
+        "noDescendingSpecificity": "off"
+      },
+      "suspicious": {
+        "noExplicitAny": "error",
+        "noConsole": {
+          "level": "warn",
+          "options": {
+            "allow": ["warn", "error"]
+          }
+        },
+        "noDebugger": "error",
+        "noAlert": "error",
+        "noDoubleEquals": "error",
+        "noVar": "error",
+        "noArrayIndexKey": "off",
+        "noGlobalIsNan": "off",
+        "noConfusingVoidType": "off"
+      }
+    }
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "semicolons": "always",
+      "trailingCommas": "all",
+      "bracketSpacing": true,
+      "arrowParentheses": "always"
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["src/main/lib/logger.ts", "src/renderer/src/lib/logger.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
+      }
+    }
+  ]
+}

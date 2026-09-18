@@ -1,0 +1,119 @@
+import { motion } from 'framer-motion';
+import { ArrowRight, Command, FolderOpen, Plus } from 'lucide-react';
+import { isMac } from '@/lib/platform';
+import { useConnectionStore } from '@/stores/connection-store';
+import { useUIStore } from '@/stores/ui-store';
+import lunaLogo from '../../../../../resources/luna.png';
+
+const stagger = {
+  animate: { transition: { staggerChildren: 0.08 } },
+};
+
+const fadeUp = {
+  initial: { opacity: 0, y: 16 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] } },
+} as const;
+
+const actions = [
+  {
+    key: 'new',
+    icon: Plus,
+    color: 'text-brand-blue',
+    bg: 'bg-brand-blue/10 group-hover:bg-brand-blue/15',
+    title: 'New Connection',
+    desc: 'Set up an SSH connection to a server',
+  },
+  {
+    key: 'sftp',
+    icon: FolderOpen,
+    color: 'text-brand-violet',
+    bg: 'bg-brand-violet/10 group-hover:bg-brand-violet/15',
+    title: 'SFTP Browser',
+    desc: 'Browse and transfer files over SSH',
+  },
+] as const;
+
+export function WelcomeView() {
+  const openCreateForm = useConnectionStore((s) => s.openCreateForm);
+  const setActiveView = useUIStore((s) => s.setActiveView);
+
+  const handleAction = (key: string) => {
+    if (key === 'new') openCreateForm();
+    else if (key === 'sftp') setActiveView('sftp');
+  };
+
+  return (
+    <div className="flex h-full items-center justify-center bg-background">
+      {/* Subtle radial glow behind content */}
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <div className="h-[500px] w-[500px] rounded-full bg-gradient-to-br from-brand-blue/[0.07] to-brand-violet/[0.07] blur-3xl" />
+      </div>
+
+      <motion.div
+        initial="initial"
+        animate="animate"
+        variants={stagger}
+        className="relative max-w-md text-center"
+      >
+        {/* Logo */}
+        <motion.div variants={fadeUp} className="mx-auto mb-6">
+          <div className="mx-auto flex size-24 items-center justify-center">
+            <img
+              src={lunaLogo}
+              alt="Luna Logo"
+              className="h-full w-full object-contain drop-shadow-xl"
+            />
+          </div>
+        </motion.div>
+
+        <motion.h1 variants={fadeUp} className="text-2xl font-bold tracking-tight text-foreground">
+          Welcome to Luna
+        </motion.h1>
+        <motion.p variants={fadeUp} className="mt-2 text-sm text-muted-foreground">
+          Cross-platform remote & local workflow workstation
+        </motion.p>
+
+        {/* Quick Actions */}
+        <motion.div variants={fadeUp} className="mt-8 grid gap-2.5">
+          {actions.map((action) => (
+            <motion.button
+              key={action.key}
+              whileHover={{ x: 2 }}
+              whileTap={{ scale: 0.985 }}
+              onClick={() => handleAction(action.key)}
+              className="group flex w-full items-center gap-3.5 rounded-xl border border-border/80 bg-card/80 p-4 text-left hover:border-border hover:bg-accent/50 cursor-pointer"
+            >
+              <div
+                className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${action.bg}`}
+              >
+                <action.icon className={`size-5 ${action.color}`} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium text-foreground">{action.title}</div>
+                <div className="text-xs text-muted-foreground/80">{action.desc}</div>
+              </div>
+              <ArrowRight className="size-4 shrink-0 text-muted-foreground/30 group-hover:text-muted-foreground/70" />
+            </motion.button>
+          ))}
+        </motion.div>
+
+        {/* Keyboard shortcut hint */}
+        <motion.div
+          variants={fadeUp}
+          className="mt-6 flex items-center justify-center gap-1.5 text-xs text-muted-foreground/70"
+        >
+          <kbd className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/60 px-1.5 py-0.5 font-mono text-3xs text-muted-foreground">
+            {isMac ? (
+              <>
+                <Command className="size-2.5" />K
+              </>
+            ) : (
+              'Ctrl+K'
+            )}
+          </kbd>
+          <span>to open command palette</span>
+        </motion.div>
+      </motion.div>
+    </div>
+  );
+}

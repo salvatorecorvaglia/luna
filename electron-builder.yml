@@ -1,0 +1,129 @@
+appId: com.luna.app
+productName: Luna
+copyright: "Copyright © ${author}"
+
+directories:
+  buildResources: resources
+  output: dist
+
+icon: resources/luna.png
+
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.*'
+  - '!{biome.json,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json,tsconfig.test.json}'
+  - '!{.github,tests,coverage,vitest.config.*,playwright.config.*}'
+  - '!{build,pnpm-workspace.yaml,pnpm-lock.yaml}'
+  - '!{CONTRIBUTING.md,SECURITY.md,CONTRIBUTORS.md}'
+
+asarUnpack:
+  - '**/*.node'
+  - '**/better-sqlite3/**'
+  - '**/ssh2/**'
+  - '**/node-pty/**'
+
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableCookieEncryption: true
+  onlyLoadAppFromAsar: true
+  loadBrowserProcessSpecificV8Snapshot: false
+  grantFileProtocolExtraPrivileges: true
+
+# ─────────────────── macOS ───────────────────
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
+  artifactName: '${name}-${version}-mac-${arch}.${ext}'
+  category: public.app-category.developer-tools
+  identity: '-'
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  notarize: false
+
+dmg:
+  sign: false
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+# ─────────────────── Windows ───────────────────
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: '${name}-${version}-win-${arch}-setup.${ext}'
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: Luna
+  uninstallDisplayName: Luna
+
+# ─────────────────── Linux ───────────────────
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+        - arm64
+    - target: deb
+      arch:
+        - x64
+        - arm64
+  artifactName: '${name}-${version}-linux-${arch}.${ext}'
+  category: Development;Utility;Network
+  maintainer: Salvatore Corvaglia
+  synopsis: Cross-platform remote & local workflow workstation
+  description: >-
+    A high-performance, cross-platform desktop application designed to streamline
+    your remote server workflows. Combining a powerful terminal with an intuitive
+    dual-pane SFTP browser.
+  desktop:
+    entry:
+      Name: Luna
+      Comment: Cross-platform remote & local workflow workstation
+      Keywords: ssh;sftp;terminal;file-manager;remote
+
+appImage:
+  license: LICENSE
+
+deb:
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - libatspi2.0-0
+    - libuuid1
+
+# ─────────────────── Auto-update ───────────────────
+publish:
+  provider: github
+  owner: salvatorecorvaglia
+  repo: luna
+  releaseType: release
+
+generateUpdatesFilesForAllChannels: false

@@ -1,0 +1,350 @@
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
+import { isAbsolute, join, parse, relative, sep } from 'node:path';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import {
+  assertBoundedInt,
+  assertNonEmptyString,
+  assertSafeAbsolutePath,
+  assertSafeRealAbsolutePath,
+  assertValidPath,
+  expandAndConfineToHome,
+  expandAndConfineToHomeSync,
+  expandAndValidatePrivateKeyPath,
+} from '../../../src/main/lib/validate';
+
+const HOME = homedir();
+
+/**
+ * Create a scratch directory whose *real* path is genuinely outside HOME.
+ *
+ * `os.tmpdir()` is not that on Windows: it lives under the user profile
+ * (`C:\Users\<user>\AppData\Local\Temp`), so it is inside home, and its 8.3
+ * short form (`C:\Users\RUNNER~1\...`) only *looks* outside until realpath()
+ * expands it — which is exactly what the validators do. Try the plausible
+ * bases in order and keep the first that is both writable and really outside.
+ */
+function mkdtempOutsideHome(prefix: string): string {
+  const realHome = realpathSync.native(HOME);
+  const isOutsideHome = (p: string): boolean => {
+    const rel = relative(realHome, p);
+    return rel.length > 0 && (isAbsolute(rel) || rel === '..' || rel.startsWith(`..${sep}`));
+  };
+
+  // RUNNER_TEMP is the CI-provided scratch space (on Windows runners it sits on
+  // a different volume than the profile); the drive/filesystem root is the
+  // last resort when the profile swallows the temp directory.
+  const bases = [process.env['RUNNER_TEMP'], tmpdir(), parse(realHome).root].filter(
+    (b): b is string => Boolean(b),
+  );
+  for (const base of bases) {
+    let dir: string | undefined;
+    try {
+      dir = mkdtempSync(join(base, prefix));
+      if (isOutsideHome(realpathSync.native(dir))) return dir;
+    } catch {
+      // Not writable — try the next base.
+    }
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  }
+  throw new Error(`no writable directory outside ${realHome} to host "${prefix}"`);
+}
+
+describe('assertNonEmptyString', () => {
+  it('accepts a non-empty string', () => {
+    expect(() => assertNonEmptyString('hello', 'name')).not.toThrow();
+  });
+
+  it('rejects empty string', () => {
+    expect(() => assertNonEmptyString('', 'name')).toThrow(/non-empty string/);
+  });
+
+  it('rejects whitespace-only string', () => {
+    expect(() => assertNonEmptyString('   ', 'name')).toThrow(/non-empty string/);
+  });
+
+  it('rejects non-string values', () => {
+    expect(() => assertNonEmptyString(42, 'name')).toThrow(/non-empty string/);
+    expect(() => assertNonEmptyString(null, 'name')).toThrow(/non-empty string/);
+    expect(() => assertNonEmptyString(undefined, 'name')).toThrow(/non-empty string/);
+  });
+
+  it('rejects strings with null bytes', () => {
+    expect(() => assertNonEmptyString('hello\0world', 'name')).toThrow(/null bytes/);
+  });
+});
+
+describe('assertBoundedInt', () => {
+  it('accepts values within bounds', () => {
+    expect(() => assertBoundedInt(5, 'n', 1, 10)).not.toThrow();
+    expect(() => assertBoundedInt(1, 'n', 1, 10)).not.toThrow();
+    expect(() => assertBoundedInt(10, 'n', 1, 10)).not.toThrow();
+  });
+
+  it('rejects out-of-bound values', () => {
+    expect(() => assertBoundedInt(0, 'n', 1, 10)).toThrow(/integer between/);
+    expect(() => assertBoundedInt(11, 'n', 1, 10)).toThrow(/integer between/);
+  });
+
+  it('rejects non-integers', () => {
+    expect(() => assertBoundedInt(1.5, 'n', 1, 10)).toThrow(/integer between/);
+    expect(() => assertBoundedInt('5', 'n', 1, 10)).toThrow(/integer between/);
+  });
+});
+
+describe('assertValidPath', () => {
+  it('accepts valid paths', () => {
+    expect(() => assertValidPath('/home/user/file.txt', 'path')).not.toThrow();
+  });
+
+  it('rejects empty paths', () => {
+    expect(() => assertValidPath('', 'path')).toThrow();
+  });
+
+  it('rejects paths with null bytes', () => {
+    expect(() => assertValidPath('/home/\0/x', 'path')).toThrow(/null bytes/);
+  });
+});
+describe('assertSafeAbsolutePath', () => {
+  it('accepts an absolute, canonical path inside home', () => {
+    expect(() => assertSafeAbsolutePath(`${HOME}/file.txt`, 'p')).not.toThrow();
+    expect(() => assertSafeAbsolutePath(HOME, 'p')).not.toThrow();
+  });
+
+  it('accepts an absolute path with trailing slash', () => {
+    expect(() => assertSafeAbsolutePath(`${HOME}/sub/`, 'p')).not.toThrow();
+  });
+
+  it('rejects relative paths', () => {
+    expect(() => assertSafeAbsolutePath('./file.txt', 'p')).toThrow(/absolute/);
+    expect(() => assertSafeAbsolutePath('file.txt', 'p')).toThrow(/absolute/);
+  });
+
+  it('rejects paths with traversal segments', () => {
+    expect(() => assertSafeAbsolutePath(`${HOME}/../etc/passwd`, 'p')).toThrow(/canonical/);
+  });
+
+  it('rejects paths with redundant separators', () => {
+    expect(() => assertSafeAbsolutePath(`${HOME}//user`, 'p')).toThrow(/canonical/);
+  });
+
+  it('rejects paths with null bytes', () => {
+    expect(() => assertSafeAbsolutePath(`${HOME}/\0/x`, 'p')).toThrow(/null bytes/);
+  });
+
+  it('rejects paths outside the home directory', () => {
+    expect(() => assertSafeAbsolutePath('/etc/passwd', 'p')).toThrow(/home directory/);
+    expect(() => assertSafeAbsolutePath('/var/log', 'p')).toThrow(/home directory/);
+  });
+
+  it('rejects sibling-prefix paths (e.g. /home/foo-attacker when home is /home/foo)', () => {
+    // Regression: the previous startsWith(home + '/') check was correct on
+    // POSIX, but a future maintainer switching to backslash without the
+    // trailing-separator guard would let `<home>-attacker/...` slip through.
+    // path.relative-based check is structural, not lexical, so it covers both.
+    expect(() => assertSafeAbsolutePath(`${HOME}-attacker/secret`, 'p')).toThrow(/home directory/);
+  });
+});
+
+describe('expandAndConfineToHomeSync', () => {
+  it('expands ~/x to <home>/x', () => {
+    const out = expandAndConfineToHomeSync('~/keys/id_rsa', 'p');
+    expect(out).toBe(join(HOME, 'keys/id_rsa'));
+  });
+
+  it('expands a bare ~ to home', () => {
+    expect(expandAndConfineToHomeSync('~', 'p')).toBe(HOME);
+  });
+
+  it('rejects relative paths', () => {
+    expect(() => expandAndConfineToHomeSync('relative/path', 'p')).toThrow(
+      /absolute or start with ~/,
+    );
+  });
+
+  it('rejects ~/.. escapes', () => {
+    expect(() => expandAndConfineToHomeSync('~/../etc/passwd', 'p')).toThrow(/home directory/);
+  });
+
+  it('rejects sibling-prefix paths', () => {
+    expect(() => expandAndConfineToHomeSync(`${HOME}-attacker/secret`, 'p')).toThrow(
+      /home directory/,
+    );
+  });
+});
+
+describe('expandAndConfineToHome', () => {
+  it('expands a leading ~ to the home directory', async () => {
+    await expect(expandAndConfineToHome('~/keys/id_rsa', 'p')).resolves.toBe(
+      join(HOME, 'keys', 'id_rsa'),
+    );
+  });
+
+  it('expands a bare ~ to the home directory', async () => {
+    await expect(expandAndConfineToHome('~', 'p')).resolves.toBe(HOME);
+  });
+
+  it('rejects non-absolute, non-tilde paths', async () => {
+    await expect(expandAndConfineToHome('relative/path', 'p')).rejects.toThrow(
+      /absolute or start with ~/,
+    );
+  });
+
+  it('rejects paths that escape via .. after expansion', async () => {
+    await expect(expandAndConfineToHome('~/../etc/passwd', 'p')).rejects.toThrow(/home directory/);
+  });
+
+  it('rejects absolute paths outside home', async () => {
+    await expect(expandAndConfineToHome('/etc/passwd', 'p')).rejects.toThrow(/home directory/);
+  });
+  it('does not mistake ~user for the current user (treats it as a literal absolute requirement)', async () => {
+    await expect(expandAndConfineToHome('~root/foo', 'p')).rejects.toThrow(/absolute/);
+  });
+
+  it('requireExists: true returns realpath inside home', async () => {
+    const homeTmp = mkdtempSync(join(HOME, '.luna-test-expand-'));
+    const safeFile = join(homeTmp, 'safe.txt');
+    writeFileSync(safeFile, 'ok');
+    try {
+      await expect(expandAndConfineToHome(safeFile, 'p', { requireExists: true })).resolves.toBe(
+        safeFile,
+      );
+    } finally {
+      rmSync(homeTmp, { recursive: true, force: true });
+    }
+  });
+
+  it('requireExists: true rejects if target escapes home', async () => {
+    const homeTmp = mkdtempSync(join(HOME, '.luna-test-expand-escape-'));
+    const outsideTmp = mkdtempOutsideHome('luna-outside-expand-');
+    const escapeLink = join(homeTmp, 'escape');
+    symlinkSync(outsideTmp, escapeLink);
+    try {
+      await expect(
+        expandAndConfineToHome(escapeLink, 'p', { requireExists: true }),
+      ).rejects.toThrow(/resolves outside the home directory/);
+    } finally {
+      rmSync(homeTmp, { recursive: true, force: true });
+      rmSync(outsideTmp, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('assertSafeRealAbsolutePath (symlink-following)', () => {
+  // Symlinks rooted at a tmp dir we link from inside HOME, so the symlink
+  // itself lives in home but its target resolves outside.
+  let homeTmp: string;
+  let outsideTmp: string;
+  let escapeLink: string; // <home>/escape -> /tmp/<outside>
+  let safeFile: string;
+
+  beforeAll(() => {
+    homeTmp = mkdtempSync(join(HOME, '.luna-test-'));
+    outsideTmp = mkdtempOutsideHome('luna-outside-');
+    escapeLink = join(homeTmp, 'escape');
+    symlinkSync(outsideTmp, escapeLink);
+    safeFile = join(homeTmp, 'safe.txt');
+    writeFileSync(safeFile, 'ok');
+    mkdirSync(join(homeTmp, 'sub'));
+  });
+
+  afterAll(() => {
+    try {
+      rmSync(homeTmp, { recursive: true, force: true });
+    } catch {
+      /* best-effort */
+    }
+    try {
+      rmSync(outsideTmp, { recursive: true, force: true });
+    } catch {
+      /* best-effort */
+    }
+  });
+
+  it('returns the realpath when target is inside home', async () => {
+    await expect(assertSafeRealAbsolutePath(safeFile, 'p')).resolves.toBe(safeFile);
+  });
+
+  it('rejects an existing symlink whose target escapes home', async () => {
+    // Pretend the renderer is asking us to write into a file that already
+    // exists via a planted symlink. realpath() resolves it to /tmp/...
+    // which is outside home, so we must refuse.
+    const linkedFile = join(escapeLink, 'pwned');
+    writeFileSync(linkedFile, 'attack');
+    await expect(assertSafeRealAbsolutePath(linkedFile, 'p')).rejects.toThrow(
+      /resolves outside the home directory/,
+    );
+  });
+
+  it('uses parent realpath for non-existent targets', async () => {
+    // For downloads, the destination file may not exist yet. The validator
+    // should walk back to the parent and verify *its* real target is in home.
+    const newFile = join(homeTmp, 'sub', 'new-download.bin');
+    await expect(assertSafeRealAbsolutePath(newFile, 'p')).resolves.toBe(newFile);
+  });
+
+  it('rejects writing into a non-existent file under an escaping symlink parent', async () => {
+    const newFile = join(escapeLink, 'new.bin');
+    await expect(assertSafeRealAbsolutePath(newFile, 'p')).rejects.toThrow(
+      /resolves outside the home directory/,
+    );
+  });
+});
+
+describe('expandAndValidatePrivateKeyPath', () => {
+  it('accepts a key inside the home subtree', async () => {
+    const dir = mkdtempSync(join(homedir(), '.luna-test-key-'));
+    const keyFile = join(dir, 'id_test');
+    writeFileSync(keyFile, 'ok');
+    try {
+      const out = await expandAndValidatePrivateKeyPath(keyFile, 'p');
+      // fs.promises.realpath (what the validator uses) is the native resolver,
+      // which expands Windows 8.3 short names; the JS realpathSync does not.
+      expect(out).toBe(realpathSync.native(keyFile));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a key outside the home subtree and the standard SSH directories', async () => {
+    // Keys legitimately live outside $HOME (/etc/ssh, a mounted volume), so this
+    // path is not home-confined — but it used to accept *any* absolute path, and
+    // the resolved file is then read and handed to utils.parseKey. Together with
+    // SHELL_CHECK_FILE that made it a whole-filesystem existence and
+    // readability oracle for a compromised renderer.
+    const outsideTmp = mkdtempOutsideHome('luna-outside-key-');
+    const unsafeFile = join(outsideTmp, 'key.pem');
+    writeFileSync(unsafeFile, 'ok');
+    try {
+      await expect(expandAndValidatePrivateKeyPath(unsafeFile, 'p')).rejects.toThrow(
+        /standard SSH key directory/,
+      );
+    } finally {
+      rmSync(outsideTmp, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a symlink inside home whose real target escapes the allowlist', async () => {
+    // The reason the check runs twice, before and after realpath.
+    const dir = mkdtempSync(join(homedir(), '.luna-test-key-link-'));
+    const outsideTmp = mkdtempOutsideHome('luna-outside-target-');
+    const target = join(outsideTmp, 'secret');
+    writeFileSync(target, 'ok');
+    const link = join(dir, 'id_link');
+    symlinkSync(target, link);
+    try {
+      await expect(expandAndValidatePrivateKeyPath(link, 'p')).rejects.toThrow(
+        /standard SSH key directory/,
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+      rmSync(outsideTmp, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects relative paths', async () => {
+    await expect(expandAndValidatePrivateKeyPath('relative/path', 'p')).rejects.toThrow(
+      /absolute or start with ~/,
+    );
+  });
+});

@@ -1,0 +1,71 @@
+import { IPC, LIMITS } from '@shared/constants';
+import type {
+  CreateConnectionInput,
+  ExportedConnection,
+  UpdateConnectionInput,
+} from '@shared/types/connection';
+import { registerHandler } from '../lib/ipc-handler';
+import { assertBoundedArray, assertNonEmptyString } from '../lib/validate';
+import { connectionService } from '../services/connection-service';
+
+export function registerConnectionHandlers(): void {
+  registerHandler(IPC.CONNECTION_LIST, () => {
+    return connectionService.listConnections();
+  });
+
+  // `id` reaches better-sqlite3 as a bound parameter, so there was no injection
+  // risk — but with no validation a non-string threw from the driver and decayed
+  // to INTERNAL_ERROR, and an id containing a null byte was simply looked up and
+  // reported as "not found". The E2E test that was supposed to prove this channel
+  // rejects a malformed id passed vacuously for exactly that reason.
+  registerHandler(IPC.CONNECTION_GET, (_event, id: string) => {
+    assertNonEmptyString(id, 'id');
+    return connectionService.getConnection(id);
+  });
+
+  registerHandler(IPC.CONNECTION_CREATE, (_event, input: CreateConnectionInput) => {
+    return connectionService.createConnection(input);
+  });
+
+  registerHandler(IPC.CONNECTION_UPDATE, (_event, input: UpdateConnectionInput) => {
+    return connectionService.updateConnection(input);
+  });
+
+  registerHandler(
+    IPC.CONNECTION_RENAME_FOLDER,
+    (_event, params: { oldName: string; newName: string; provider: 'sftp' | 's3' }) => {
+      connectionService.renameFolder(params);
+    },
+  );
+
+  registerHandler(IPC.CONNECTION_DELETE, (_event, id: string) => {
+    assertNonEmptyString(id, 'id');
+    connectionService.deleteConnection(id);
+  });
+
+  registerHandler(IPC.CONNECTION_DELETE_ALL, () => {
+    connectionService.deleteAllConnections();
+  });
+
+  registerHandler(IPC.CONNECTION_REORDER, (_event, ids: string[]) => {
+    assertBoundedArray(ids, 'ids', LIMITS.MAX_BULK_CONNECTIONS);
+    connectionService.reorderConnections(ids);
+  });
+
+  registerHandler(IPC.CONNECTION_EXPORT, () => {
+    return connectionService.exportConnections();
+  });
+
+  registerHandler(IPC.CONNECTION_IMPORT, (_event, connections: ExportedConnection[]) => {
+    assertBoundedArray(connections, 'connections', LIMITS.MAX_BULK_CONNECTIONS);
+    return connectionService.importConnections(connections);
+  });
+
+  registerHandler(IPC.CONNECTION_IMPORT_FROM_FILE, () => {
+    return connectionService.importFromFile();
+  });
+
+  registerHandler(IPC.CONNECTION_IMPORT_SSH_CONFIG, () => {
+    return connectionService.importFromSshConfig();
+  });
+}

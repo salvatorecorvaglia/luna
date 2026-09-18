@@ -1,0 +1,251 @@
+import { IPC } from '@shared/constants';
+import { ErrorCode, LunaError } from '@shared/errors';
+import { registerHandler } from '../lib/ipc-handler';
+import { releaseStorageBucket } from '../lib/rate-limiter';
+import { SlidingWindowLimiter } from '../lib/sliding-window-limiter';
+import {
+  assertBoundedInt,
+  assertBoundedSecretFields,
+  assertEitherConnectionOrConfig,
+  assertNonEmptyString,
+} from '../lib/validate';
+import { sshManager } from '../services/ssh-manager';
+import { storageRegistry } from '../services/storage/registry';
+import { sftpStorageProvider } from '../services/storage/sftp-storage-provider';
+
+const VALID_AUTH_TYPES = new Set(['password', 'key', 'key+passphrase']);
+/**
+ * Cap on a single SSH_SEND_DATA payload. xterm typically emits a few bytes
+ * per keystroke and chunks pasted blobs; 64 KiB is comfortably above any
+ * realistic interactive write while preventing a buggy/compromised renderer
+ * from streaming hundreds of MB into the shell write buffer.
+ */
+const MAX_SSH_SEND_BYTES = 65536;
+
+/**
+ * Hard cap on concurrent SSH sessions, mirroring local-terminal:spawn's
+ * MAX_LOCAL_SESSIONS. Without it, a buggy or compromised renderer could open
+ * unbounded SSH sockets in a loop — each with its own connect timeout,
+ * keepalive timers, and (once connected) a shell — exhausting main-process
+ * file descriptors/memory. Well past any plausible tab count.
+ */
+const MAX_SSH_SESSIONS = 64;
+
+/**
+ * Sliding-window limit on connect *attempts*, independent of the session
+ * cap above. The cap alone doesn't stop a renderer from repeatedly
+ * connecting and disconnecting the same sessionId to hammer a host with
+ * handshake attempts without ever holding more than one session open.
+ */
+const sshConnectLimiter = new SlidingWindowLimiter(20, 60_000, 'SSH connect');
+
+/**
+ * Test-connection is a renderer-driven outbound TCP connect to an arbitrary
+ * host:port, with a connect timeout measured in tens of seconds and no session
+ * cap to bound it — the renderer supplies the target and nothing counted the
+ * attempts. That is a port scanner and an internal-host prober, reachable from
+ * any XSS in the renderer. Metered separately from real connects so a burst of
+ * probes cannot also exhaust the budget for opening actual sessions.
+ */
+const sshTestLimiter = new SlidingWindowLimiter(10, 60_000, 'SSH connection test');
+
+/** Test-only: reset the connect limiters between cases. */
+export function __resetSshConnectLimiter(): void {
+  sshConnectLimiter.reset();
+  sshTestLimiter.reset();
+}
+
+import type { AuthType, PortForwardingConfig } from '@shared/types/connection';
+import type { SshConnectParams, SshResizeParams, SshSendDataParams } from '@shared/types/terminal';
+
+export function registerSshHandlers(): void {
+  // Re-register the SFTP provider on every successful (re)connect.
+  //
+  // SSH_CONNECT below registers eagerly so a list() racing the handshake finds
+  // a provider. That covers the *first* connect only. An automatic reconnect
+  // never touches IPC: handleDisconnect fires onSessionDisconnect (which
+  // unregisters, just below), then attemptReconnect calls sshManager.connect()
+  // directly. Without this callback the session came back up with a working
+  // shell and no storage provider at all, so every SFTP operation failed with
+  // "No storage provider registered" until the user manually reconnected.
+  //
+  // register() is idempotent and clears the stale `closing` marker, so the
+  // eager registration and this one cannot conflict.
+  sshManager.onSessionConnect((sessionId) => {
+    storageRegistry.register(sessionId, sftpStorageProvider);
+  });
+
+  sshManager.onSessionDisconnect((sessionId) => {
+    // Mark first so any IPC call racing the unregister sees the closing state
+    // and fails fast with a clear error instead of receiving a provider whose
+    // SSH transport is already half-torn-down.
+    storageRegistry.markClosing(sessionId);
+    storageRegistry.unregister(sessionId);
+  });
+
+  registerHandler(IPC.SSH_CONNECT, async (_event, params: SshConnectParams) => {
+    assertNonEmptyString(params.sessionId, 'sessionId');
+    assertNonEmptyString(params.connectionId, 'connectionId');
+
+    sshConnectLimiter.check();
+    // Existing sessionId means this is a reconnect of an already-tracked
+    // session, not a new one — only a genuinely new session counts against
+    // the cap.
+    if (!sshManager.getSession(params.sessionId) && sshManager.sessionCount() >= MAX_SSH_SESSIONS) {
+      throw new LunaError(
+        `Too many SSH sessions open (max ${MAX_SSH_SESSIONS}). Disconnect one and try again.`,
+        ErrorCode.FORBIDDEN,
+        { reason: 'session-limit', limit: MAX_SSH_SESSIONS },
+      );
+    }
+
+    // Register the storage provider as soon as we start connecting. This ensures
+    // that if the renderer (e.g. the SFTP view) tries to list files while the
+    // connection is still in progress, the registry won't throw "No storage
+    // provider registered". The subsequent list() call will either wait for the
+    // connection or fail with a more descriptive SSH error.
+    storageRegistry.register(params.sessionId, sftpStorageProvider);
+
+    const result = await sshManager.connect(
+      params.sessionId,
+      params.connectionId,
+      params.cols,
+      params.rows,
+    );
+
+    if (!result.success) {
+      // Roll the eager registration back. Every failure path in connect()
+      // deletes the session *without* firing onSessionDisconnect, so the
+      // registration above would otherwise outlive the session forever —
+      // leaving `require()` handing out a provider for a session that does not
+      // exist, and stranding its rate-limiter bucket. markClosing first for the
+      // same reason the disconnect handler does: a storage IPC racing this gets
+      // a clear "closing" error rather than a provider with no transport.
+      storageRegistry.markClosing(params.sessionId);
+      storageRegistry.unregister(params.sessionId);
+      releaseStorageBucket(params.sessionId);
+    }
+
+    return result;
+  });
+
+  registerHandler(IPC.SSH_DISCONNECT, (_event, sessionId: string) => {
+    assertNonEmptyString(sessionId, 'sessionId');
+    // Mark the storage session as closing *before* tearing the SSH transport
+    // down so a concurrent storage IPC can't grab the provider during the
+    // gap between disconnect start and the unregister fired by the
+    // onSessionDisconnect callback.
+    storageRegistry.markClosing(sessionId);
+    sshManager.disconnect(sessionId);
+    // Unregistration happens centrally via onSessionDisconnect
+  });
+
+  registerHandler(IPC.SSH_SEND_DATA, (_event, params: SshSendDataParams) => {
+    assertNonEmptyString(params.sessionId, 'sessionId');
+    if (typeof params.data !== 'string') {
+      throw new LunaError('data must be a string', ErrorCode.VALIDATION_ERROR);
+    }
+    // Bound by UTF-8 byte length, not character count: a 2-byte char would
+    // otherwise let a renderer ship 2× the intended payload.
+    const byteLength = Buffer.byteLength(params.data, 'utf8');
+    if (byteLength > MAX_SSH_SEND_BYTES) {
+      throw new LunaError(
+        `SSH input exceeds ${MAX_SSH_SEND_BYTES}-byte cap (got ${byteLength})`,
+        ErrorCode.VALIDATION_ERROR,
+      );
+    }
+    // A silent no-op here reads to the user as "my keyboard stopped working".
+    // Surface the dead-session case so the terminal can show why.
+    if (!sshManager.sendData(params.sessionId, params.data)) {
+      throw new LunaError(
+        `Session ${params.sessionId} is not connected — input was not delivered`,
+        ErrorCode.NOT_FOUND,
+        { sessionId: params.sessionId, reason: 'shell-not-writable' },
+      );
+    }
+  });
+
+  registerHandler(
+    IPC.SSH_TEST_CONNECTION,
+    async (
+      _event,
+      params: {
+        connectionId?: string;
+        config?: {
+          host: string;
+          port: number;
+          username: string;
+          authType: AuthType;
+          privateKeyPath?: string;
+          password?: string;
+          passphrase?: string;
+          keepaliveInterval?: number;
+          keepaliveCountMax?: number;
+        };
+      },
+    ) => {
+      // Never accept transient secrets alongside a saved connectionId —
+      // forces the renderer to choose one path explicitly so password material
+      // can't be silently injected into a flow that should use stored creds.
+      assertEitherConnectionOrConfig(params.connectionId, params.config);
+      sshTestLimiter.check();
+      if (params.config) {
+        const c = params.config;
+        assertNonEmptyString(c.host, 'host');
+        assertBoundedInt(c.port, 'port', 1, 65535);
+        assertNonEmptyString(c.username, 'username');
+        if (!VALID_AUTH_TYPES.has(c.authType)) {
+          throw new LunaError(`Unsupported authType "${c.authType}"`, ErrorCode.VALIDATION_ERROR);
+        }
+        assertBoundedSecretFields({ password: c.password, passphrase: c.passphrase });
+      } else {
+        assertNonEmptyString(params.connectionId, 'connectionId');
+      }
+      return sshManager.testConnection(params);
+    },
+  );
+
+  registerHandler(IPC.SSH_RESIZE, (_event, params: SshResizeParams) => {
+    assertNonEmptyString(params.sessionId, 'sessionId');
+    assertBoundedInt(params.cols, 'cols', 1, 500);
+    assertBoundedInt(params.rows, 'rows', 1, 500);
+    sshManager.resize(params.sessionId, params.cols, params.rows);
+  });
+
+  registerHandler(
+    IPC.SSH_TRUST_HOST_KEY,
+    (
+      _event,
+      params: { host: string; port: number },
+    ): { trusted: boolean; fingerprint?: string } => {
+      assertNonEmptyString(params.host, 'host');
+      assertBoundedInt(params.port, 'port', 1, 65535);
+      const fp = sshManager.trustPendingHostKey(params.host, params.port);
+      return fp ? { trusted: true, fingerprint: fp } : { trusted: false };
+    },
+  );
+
+  registerHandler(IPC.SSH_LIST_ACTIVE_PORT_FORWARDS, (_event, params: { sessionId?: string }) => {
+    return sshManager.listActivePortForwards(params?.sessionId);
+  });
+
+  registerHandler(
+    IPC.SSH_START_PORT_FORWARD,
+    (_event, params: { sessionId: string; config: PortForwardingConfig }) => {
+      assertNonEmptyString(params.sessionId, 'sessionId');
+      // `config` is validated inside startSinglePortForward via
+      // validatePortForwardConfig — keeping it there means the stored-row path
+      // and the interactive path cannot drift apart.
+      return sshManager.startSinglePortForward(params.sessionId, params.config);
+    },
+  );
+
+  registerHandler(
+    IPC.SSH_STOP_PORT_FORWARD,
+    async (_event, params: { sessionId: string; forwardId: string }) => {
+      assertNonEmptyString(params.sessionId, 'sessionId');
+      assertNonEmptyString(params.forwardId, 'forwardId');
+      await sshManager.stopSinglePortForward(params.sessionId, params.forwardId);
+    },
+  );
+}
