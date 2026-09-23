@@ -1,0 +1,499 @@
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
+import { appendFileSync, existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { ErrorCode, LunaError } from '@shared/errors';
+import { app, safeStorage } from 'electron';
+import log from '../lib/logger';
+import { getDatabase } from './database';
+
+// The credentials table is created by migration 004_known_hosts_and_credentials.
+// A fallback CREATE IF NOT EXISTS is kept for databases initialized before that
+// migration. We don't cache the result by a simple boolean: a future code path
+// (tests, multi-profile) could swap the SQLite handle, and a stale cache would
+// skip the create and crash. The CREATE statement is cheap to re-run.
+function ensureTable(): void {
+  const db = getDatabase();
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS credentials (
+      connection_id TEXT PRIMARY KEY,
+      encrypted_data BLOB NOT NULL,
+      aad_version INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+}
+
+let encryptionKey: Buffer | null = null;
+/**
+ * Tracks whether the credential store is currently using a plaintext on-disk
+ * key (Linux without libsecret, with a pre-existing key file). The renderer
+ * reads this via getCredentialBackendStatus() to surface a security banner.
+ */
+let usingPlaintextKey = false;
+/**
+ * Tracks whether the credential store had to fall back to an in-memory random
+ * key because OS-level secret storage was unavailable (fresh Linux install).
+ */
+let usingInMemoryKey = false;
+/**
+ * Set when a wrapped key file exists on disk but could not be unwrapped.
+ *
+ * This is the difference between "there is no key yet" and "there is a key and
+ * we cannot read it right now", and conflating the two used to be catastrophic:
+ * `safeStorage.decryptString` fails *transiently* in entirely ordinary
+ * situations — a locked macOS Keychain, the user clicking "Deny" on the ACL
+ * prompt, Windows DPAPI after a profile move, a Linux keyring not yet unlocked
+ * at login. The old code caught that, set the key to null, fell through to the
+ * "no key file" branch, and overwrote the still-perfectly-good `.storage_key.enc`
+ * with a fresh random key. Every stored SSH password, passphrase and S3 access
+ * key became undecryptable, and `retrieveCredential` then deleted them.
+ *
+ * A key we cannot read is recoverable — unlock the keyring and restart. A key
+ * we have overwritten is not. So we fail loudly and leave the file alone.
+ */
+let keyUnwrapError: LunaError | null = null;
+
+/** Owner-only file/directory modes: the key file and the DB hold secrets. */
+const SECRET_FILE_MODE = 0o600;
+
+/**
+ * Load the per-user encryption key. When Electron's safeStorage is available
+ * (macOS Keychain, Windows DPAPI, libsecret on Linux), the on-disk key file
+ * is wrapped in OS-protected encryption. On platforms where safeStorage is
+ * unavailable we fall back to the raw random key on disk.
+ */
+function getEncryptionKey(): Buffer {
+  if (encryptionKey) return encryptionKey;
+  // A previous call already found an unreadable key file. Re-throw rather than
+  // re-running the load, which would reach the regeneration branch.
+  if (keyUnwrapError) throw keyUnwrapError;
+
+  const keyPath = join(app.getPath('userData'), '.storage_key');
+  const wrappedPath = `${keyPath}.enc`;
+  const canWrap = (() => {
+    try {
+      if (!safeStorage.isEncryptionAvailable()) return false;
+      // On Linux `isEncryptionAvailable()` returns true even when the selected
+      // backend is `basic_text`, which "encrypts" with the hardcoded key
+      // "peanuts" — trivially reversible by anyone who can read the file. That
+      // is not OS protection, and reporting it as safeStorage told the user
+      // their credentials were protected when they were not. Treat it as
+      // unavailable so the plaintext/in-memory paths (and their banners) apply.
+      if (process.platform === 'linux') {
+        const backend = safeStorage.getSelectedStorageBackend?.();
+        if (backend === 'basic_text' || backend === 'unknown') return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+
+  if (canWrap && existsSync(wrappedPath)) {
+    try {
+      const decoded = safeStorage.decryptString(readFileSync(wrappedPath));
+      // safeStorage.decryptString returns a string. The wrapper round-trips
+      // 32 random bytes as base64 — UTF-8 safe, and immune to any future
+      // Electron tightening that rejects non-UTF-8 input. A latin1-encoded
+      // legacy file would not start with valid base64 chars; fall back to
+      // latin1 in that case so existing installs keep working.
+      const fromBase64 = Buffer.from(decoded, 'base64');
+      const candidate = fromBase64.length === 32 ? fromBase64 : Buffer.from(decoded, 'latin1');
+      // Both decodings are guesses about how an older build wrote this file, and
+      // a wrong guess yields a buffer of the wrong length that would blow up
+      // later inside createCipheriv with an opaque "Invalid key length". Worse,
+      // a latin1 blob that happens to be 32 bytes would silently become the
+      // wrong key and mis-decrypt every credential. Validate here instead.
+      if (candidate.length !== 32) {
+        throw new Error(`unwrapped key has ${candidate.length} bytes, expected 32`);
+      }
+      encryptionKey = candidate;
+    } catch (err) {
+      // Deliberately fatal, and deliberately non-destructive — see the comment
+      // on `keyUnwrapError`. Do NOT null the key and fall through: the branch
+      // below would regenerate and overwrite the file we just failed to read.
+      keyUnwrapError = new LunaError(
+        'Could not unlock the stored credential key. This usually means the OS keyring ' +
+          'is locked or access was denied — unlock it and restart Luna. Your saved ' +
+          'credentials have been left untouched.',
+        ErrorCode.FORBIDDEN,
+        {
+          reason: 'key-unwrap-failed',
+          cause: err instanceof Error ? err.message : String(err),
+        },
+      );
+      log.error(
+        '[Credentials] Failed to unwrap stored key. Refusing to regenerate — the existing ' +
+          'key file is left intact so credentials stay recoverable.',
+        err,
+      );
+      throw keyUnwrapError;
+    }
+  }
+
+  if (!encryptionKey) {
+    if (existsSync(keyPath)) {
+      // Existing install with a plaintext key file: keep reading it so we don't
+      // strand stored credentials, but migrate into safeStorage if available
+      // and warn loudly otherwise so the operator knows to fix their keyring.
+      // Operators can opt out of plaintext-key fallback entirely by setting
+      // LUNA_REQUIRE_OS_KEYRING=1 — credentials become unreadable until
+      // libsecret is installed, which is the safer default for shared hosts.
+      if (!canWrap && process.env.LUNA_REQUIRE_OS_KEYRING === '1') {
+        throw new LunaError(
+          'LUNA_REQUIRE_OS_KEYRING=1 is set and OS-level secret storage is unavailable. ' +
+            'Install gnome-keyring or libsecret-1-0 and restart, or unset the variable to ' +
+            'allow the existing plaintext key file.',
+          ErrorCode.FORBIDDEN,
+          { reason: 'os-keyring-required' },
+        );
+      }
+      encryptionKey = readFileSync(keyPath);
+      if (canWrap) {
+        try {
+          writeFileSync(wrappedPath, safeStorage.encryptString(encryptionKey.toString('base64')), {
+            mode: SECRET_FILE_MODE,
+          });
+          // Remove the plaintext key file now that the wrapped version is
+          // persisted. Leaving it on disk would let anyone with read access
+          // to the data directory recover the master encryption key.
+          try {
+            unlinkSync(keyPath);
+          } catch (unlinkErr) {
+            log.warn('[Credentials] Could not remove plaintext key file after wrapping', unlinkErr);
+          }
+        } catch (err) {
+          // safeStorage was available but wrap failed. We keep using the
+          // plaintext key (so existing creds remain accessible) but flip the
+          // backend flag so the renderer banner exposes the downgrade — a
+          // silent fallback would hide the security regression from the user.
+          usingPlaintextKey = true;
+          log.warn('[Credentials] Could not wrap existing key with safeStorage', err);
+        }
+      } else {
+        usingPlaintextKey = true;
+        log.warn(
+          '[Credentials] Using plaintext key file because safeStorage is unavailable. ' +
+            'Install gnome-keyring or libsecret-1-0 and restart to migrate to OS-protected storage.',
+        );
+      }
+    } else if (canWrap) {
+      encryptionKey = randomBytes(32);
+      try {
+        writeFileSync(wrappedPath, safeStorage.encryptString(encryptionKey.toString('base64')), {
+          mode: SECRET_FILE_MODE,
+        });
+      } catch (err) {
+        // safeStorage said it was available but encryption still failed. Don't
+        // silently fall back to plaintext on disk: credentials would be
+        // recoverable by anyone with read access to the user's data dir.
+        encryptionKey = null;
+        throw new LunaError(
+          `Failed to write OS-protected encryption key: ${err instanceof Error ? err.message : String(err)}`,
+          ErrorCode.INTERNAL_ERROR,
+          {
+            reason: 'safe-storage-write-failed',
+            cause: err instanceof Error ? err.message : String(err),
+          },
+        );
+      }
+    } else {
+      // Fresh install on a platform without safeStorage (e.g. Linux without
+      // libsecret). Relax the startup check: log a warning, fall back to an
+      // in-memory key, and track this so we can throw a clear error when saving
+      // connections/credentials.
+      log.warn(
+        '[Credentials] OS-level secret storage (safeStorage) is unavailable. ' +
+          'Falling back to in-memory credential encryption for the current session. ' +
+          'Saving credentials to disk is disabled.',
+      );
+      usingInMemoryKey = true;
+      encryptionKey = randomBytes(32);
+    }
+  }
+  return encryptionKey;
+}
+
+/**
+ * Dedup window for tamper-log entries. Repeated decrypt failures for the
+ * same connection (e.g. UI retrying retrieval in a loop) would otherwise
+ * append identical lines forever.
+ */
+const TAMPER_LOG_DEDUP_MS = 60_000;
+const TAMPER_LOG_DEDUP_MAX = 1_024;
+const tamperLogSeen = new Map<string, number>();
+
+export interface CredentialTamperEvent {
+  connectionId: string;
+  reason: string;
+  at: number;
+}
+
+type TamperListener = (event: CredentialTamperEvent) => void;
+const tamperListeners = new Set<TamperListener>();
+
+/**
+ * Subscribe to credential-tamper events. The main process wires this to a
+ * webContents.send() so the renderer can show a security banner.
+ */
+export function onCredentialTamper(listener: TamperListener): () => void {
+  tamperListeners.add(listener);
+  return () => tamperListeners.delete(listener);
+}
+
+function emitTamper(event: CredentialTamperEvent): void {
+  for (const listener of tamperListeners) {
+    try {
+      listener(event);
+    } catch (err) {
+      log.warn('[Credentials] tamper listener threw', err);
+    }
+  }
+}
+
+function appendTamperLog(message: string): void {
+  const now = Date.now();
+  const last = tamperLogSeen.get(message);
+  if (last !== undefined && now - last < TAMPER_LOG_DEDUP_MS) return;
+  tamperLogSeen.set(message, now);
+  // Opportunistic GC of the dedup map so it doesn't grow unbounded across
+  // long sessions with many distinct failures.
+  if (tamperLogSeen.size > 256) {
+    for (const [key, ts] of tamperLogSeen) {
+      if (now - ts >= TAMPER_LOG_DEDUP_MS) tamperLogSeen.delete(key);
+    }
+  }
+  // Hard cap: even if every message is fresh (e.g. attacker-controlled
+  // distinct failure messages), the map cannot grow without bound. Drop the
+  // oldest insertion-order entries to keep memory predictable.
+  while (tamperLogSeen.size > TAMPER_LOG_DEDUP_MAX) {
+    const oldest = tamperLogSeen.keys().next();
+    if (oldest.done) break;
+    tamperLogSeen.delete(oldest.value);
+  }
+  try {
+    const path = join(app.getPath('userData'), 'credential-tamper.log');
+    appendFileSync(path, `${new Date().toISOString()} ${message}\n`, { mode: SECRET_FILE_MODE });
+  } catch {
+    // Best-effort: if we can't even write the audit log, don't crash the caller.
+  }
+}
+
+/**
+ * AES-256-GCM Implementation
+ * GCM provides Authenticated Encryption, ensuring both confidentiality and integrity.
+ */
+const ALGORITHM = 'aes-256-gcm';
+const IV_LENGTH = 12;
+const TAG_LENGTH = 16;
+
+/**
+ * Current AAD scheme. `aad_version` on each row records which one produced it.
+ *
+ * v0 bound nothing to the row, so a valid GCM tag survived the blob being moved
+ * between rows — anyone able to write luna.db could give connection B
+ * connection A's password and no tamper check would notice, because both halves
+ * decrypt cleanly. v1 authenticates connection_id alongside the ciphertext.
+ */
+const AAD_VERSION_CURRENT = 1;
+
+function encrypt(text: string, aad?: string): Buffer {
+  const iv = randomBytes(IV_LENGTH);
+  const cipher = createCipheriv(ALGORITHM, getEncryptionKey(), iv);
+  if (aad !== undefined) cipher.setAAD(Buffer.from(aad, 'utf8'));
+
+  const encrypted = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
+
+  const tag = cipher.getAuthTag();
+
+  // Store as [IV (12 bytes)][Tag (16 bytes)][Encrypted Data]
+  return Buffer.concat([iv, tag, encrypted]);
+}
+
+function decrypt(data: Buffer, aad?: string): string {
+  // Defensive length check: a truncated blob would otherwise hand
+  // createDecipheriv a short IV (silently — IV length is asserted by the
+  // backing OpenSSL call only on some platforms) or hand setAuthTag a tag
+  // that's not exactly 16 bytes. Failing fast here yields a clear error in
+  // the tamper log instead of an opaque "Unsupported state" from OpenSSL.
+  if (data.length < IV_LENGTH + TAG_LENGTH) {
+    throw new Error(
+      `ciphertext too short: ${data.length} bytes (need ≥ ${IV_LENGTH + TAG_LENGTH})`,
+    );
+  }
+  const iv = data.subarray(0, IV_LENGTH);
+  const tag = data.subarray(IV_LENGTH, IV_LENGTH + TAG_LENGTH);
+  const ciphertext = data.subarray(IV_LENGTH + TAG_LENGTH);
+
+  const decipher = createDecipheriv(ALGORITHM, getEncryptionKey(), iv);
+  decipher.setAuthTag(tag);
+  // Must be set before update()/final(), and must match what encrypt() bound.
+  if (aad !== undefined) decipher.setAAD(Buffer.from(aad, 'utf8'));
+
+  const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+
+  return decrypted.toString('utf8');
+}
+
+export function storeCredential(connectionId: string, secret: string): void {
+  if (usingInMemoryKey) {
+    throw new LunaError(
+      'Cannot save connection credentials: OS-level secret storage (safeStorage) is unavailable. ' +
+        'On Linux, install gnome-keyring or libsecret-1-0 and restart, or connect on-demand without saving credentials.',
+      ErrorCode.FORBIDDEN,
+      { reason: 'safe-storage-unavailable' },
+    );
+  }
+  ensureTable();
+  const db = getDatabase();
+  const encrypted = encrypt(secret, connectionId);
+
+  db.prepare(
+    'INSERT OR REPLACE INTO credentials (connection_id, encrypted_data, aad_version) VALUES (?, ?, ?)',
+  ).run(connectionId, encrypted, AAD_VERSION_CURRENT);
+}
+
+export function retrieveCredential(connectionId: string): string | null {
+  if (usingInMemoryKey) return null;
+  ensureTable();
+  const db = getDatabase();
+
+  const row = db
+    .prepare('SELECT encrypted_data, aad_version FROM credentials WHERE connection_id = ?')
+    .get(connectionId) as { encrypted_data: Buffer; aad_version?: number } | undefined;
+
+  if (!row) return null;
+
+  // Resolve the key *outside* the try below. A locked keyring makes
+  // getEncryptionKey() throw, and inside the catch that failure would be
+  // indistinguishable from a GCM tag mismatch — i.e. every credential would be
+  // reported as tampered the moment the OS keyring happened to be locked.
+  // Let a key error propagate to the caller instead; it is transient and the
+  // user can fix it by unlocking the keyring.
+  getEncryptionKey();
+
+  try {
+    // aad_version says which scheme produced this blob, so no guessing: a v0
+    // row decrypts without AAD, a v1 row with connection_id bound in. Deciding
+    // by decrypt-and-retry would mean a genuinely tampered v1 row got a second
+    // chance as "maybe it's just v0", which is exactly the check being added.
+    const version = row.aad_version ?? 0;
+    const secret =
+      version >= AAD_VERSION_CURRENT
+        ? decrypt(Buffer.from(row.encrypted_data), connectionId)
+        : decrypt(Buffer.from(row.encrypted_data));
+
+    // Opportunistic upgrade: a v0 row that just decrypted is genuine, so
+    // rewrite it bound to its connection_id. Best-effort — failing to upgrade
+    // must not fail the read, since the caller has a valid secret in hand.
+    if (version < AAD_VERSION_CURRENT) {
+      try {
+        db.prepare(
+          'UPDATE credentials SET encrypted_data = ?, aad_version = ? WHERE connection_id = ?',
+        ).run(encrypt(secret, connectionId), AAD_VERSION_CURRENT, connectionId);
+      } catch (upgradeErr) {
+        log.warn(`[Credentials] Could not upgrade AAD binding for ${connectionId}:`, upgradeErr);
+      }
+    }
+
+    return secret;
+  } catch (err) {
+    // Decryption can fail if the data is corrupt, tampered with (GCM tag mismatch),
+    // or if it was encrypted with a different key/algorithm (e.g. previous CBC).
+    // Log loudly to a dedicated audit file so the operator can detect tampering.
+    //
+    // The row is deliberately *kept*. Deleting it turned a possibly-recoverable
+    // situation into permanent data loss, and it bought nothing: the caller is
+    // already prompted to re-enter the credential by the null return, and
+    // `storeCredential` uses INSERT OR REPLACE, so re-entering overwrites the
+    // bad row anyway. Keeping it also preserves the evidence of the tamper.
+    const message = err instanceof Error ? err.message : String(err);
+    log.error(`[Credentials] Failed to decrypt credential for ${connectionId}: ${message}`);
+    appendTamperLog(`decrypt-failure connectionId=${connectionId} reason="${message}"`);
+    emitTamper({ connectionId, reason: message, at: Date.now() });
+    return null;
+  }
+}
+
+export function deleteCredential(connectionId: string): void {
+  ensureTable();
+  const db = getDatabase();
+  db.prepare('DELETE FROM credentials WHERE connection_id = ?').run(connectionId);
+}
+
+/** Shape of an S3 credential blob serialised through `storeCredential`. */
+export interface S3CredentialBlob {
+  accessKeyId: string;
+  secretAccessKey: string;
+  sessionToken?: string;
+}
+
+/**
+ * Retrieve an S3 credential. Returns null if no credential is stored or the
+ * blob isn't valid JSON / is missing required fields. Consumers should treat
+ * a null return as "credential missing or corrupt — re-enter".
+ */
+export function retrieveS3Credential(connectionId: string): S3CredentialBlob | null {
+  const raw = retrieveCredential(connectionId);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<S3CredentialBlob>;
+    if (
+      typeof parsed.accessKeyId !== 'string' ||
+      typeof parsed.secretAccessKey !== 'string' ||
+      !parsed.accessKeyId ||
+      !parsed.secretAccessKey
+    ) {
+      return null;
+    }
+    const out: S3CredentialBlob = {
+      accessKeyId: parsed.accessKeyId,
+      secretAccessKey: parsed.secretAccessKey,
+    };
+    if (typeof parsed.sessionToken === 'string' && parsed.sessionToken) {
+      out.sessionToken = parsed.sessionToken;
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Reports the credential-store backend in use. The renderer surfaces a
+ * security banner when `backend === 'plaintext'` so operators know their
+ * stored credentials are not OS-protected.
+ */
+export function getCredentialBackendStatus(): {
+  backend: 'safeStorage' | 'plaintext' | 'inMemory' | 'uninitialized' | 'locked';
+} {
+  // 'locked' is distinct from 'uninitialized': the key exists on disk and the
+  // credentials are intact, we just cannot read them this session. The renderer
+  // needs to say "unlock your keyring", not "credentials unavailable".
+  if (keyUnwrapError) return { backend: 'locked' };
+  if (!encryptionKey) return { backend: 'uninitialized' };
+  if (usingInMemoryKey) return { backend: 'inMemory' };
+  return { backend: usingPlaintextKey ? 'plaintext' : 'safeStorage' };
+}
+
+/**
+ * Force-initializes the encryption key. Should be called at startup so the
+ * renderer correctly identifies the backend (especially plaintext fallbacks
+ * on Linux) before the first credential access.
+ */
+export function initializeCredentialStore(): void {
+  try {
+    getEncryptionKey();
+  } catch (err) {
+    // Initialization failure (e.g. fresh install on Linux without libsecret)
+    // is logged but not re-thrown here; the specific error will propagate
+    // when a store/retrieve operation is actually attempted.
+    log.warn('[Credentials] Eager initialization failed:', err);
+  }
+}
+
+/**
+ * Test-only: exposes the AES-GCM helpers so the round-trip and tamper-detection
+ * paths can be exercised without a database. Production callers should always
+ * go through store/retrieve so the SQLite layer stays authoritative.
+ */
+export const __test__ = { encrypt, decrypt };

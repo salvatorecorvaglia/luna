@@ -1,0 +1,277 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
+  ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.cache/electron-builder
+
+jobs:
+  quality:
+    name: Lint & Typecheck
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Fix node-gyp permissions
+        shell: bash
+        run: find /Users/runner /home/runner ~/.pnpm-store -name "gyp_main.py" -exec chmod +x {} + 2>/dev/null || true
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Biome
+        run: pnpm exec biome check . --error-on-warnings
+
+      - name: Run TypeScript type-checking
+        run: pnpm run typecheck
+
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level=high
+        continue-on-error: false
+
+  test:
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    # Gated on `quality` like e2e and package-smoke are. Without it, three
+    # runners spent 15 minutes each on a tree that had already failed lint or
+    # typecheck — and a lint failure on main went unnoticed precisely because
+    # this job kept going green while the jobs that do depend on quality were
+    # silently skipped.
+    needs: [quality]
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-latest, windows-latest]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Fix node-gyp permissions
+        shell: bash
+        run: find /Users/runner /home/runner ~/.pnpm-store -name "gyp_main.py" -exec chmod +x {} + 2>/dev/null || true
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests with coverage
+        run: pnpm run test:coverage
+
+      - name: Upload coverage report
+        if: matrix.os == 'ubuntu-24.04'
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 14
+
+  e2e:
+    name: E2E (Electron)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    needs: [quality]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Cache Electron Binaries
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ github.workspace }}/.cache/electron
+            ${{ github.workspace }}/.cache/electron-builder
+          key: ${{ runner.os }}-electron-cache-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-electron-cache-
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Fix node-gyp permissions
+        shell: bash
+        run: find /Users/runner /home/runner ~/.pnpm-store -name "gyp_main.py" -exec chmod +x {} + 2>/dev/null || true
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Ensure Electron binary is installed with retry
+        shell: bash
+        run: |
+          for i in 1 2 3 4 5; do
+            echo "Attempt $i: Installing Electron binary..."
+            node node_modules/electron/install.js && break || sleep 5
+          done
+
+      - name: Build application
+        run: pnpm run build
+
+      - name: Run Playwright E2E
+        run: xvfb-run --auto-servernum pnpm exec playwright test
+
+      - name: Upload E2E report on failure
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+
+  package-smoke:
+    name: Packaging smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    needs: [quality]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-latest, windows-latest]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Fix node-gyp permissions
+        shell: bash
+        run: find /Users/runner /home/runner ~/.pnpm-store -name "gyp_main.py" -exec chmod +x {} + 2>/dev/null || true
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Package (unpacked)
+        run: pnpm run package:dir
+
+      - name: Assert native helpers are unpacked from the asar
+        shell: bash
+        run: |
+          set -euo pipefail
+          unpacked=$(find dist -type d -name 'app.asar.unpacked' -print -quit)
+          if [ -z "$unpacked" ]; then
+            echo "::error::no app.asar.unpacked directory was produced"
+            exit 1
+          fi
+          echo "Found: $unpacked"
+          echo "--- native artifacts outside the asar ---"
+          find "$unpacked" -type f \( -name '*.node' -o -name 'spawn-helper' \
+            -o -name '*.dll' -o -name '*.exe' \) | sed "s|^$unpacked/||" | sort
+
+          fail=0
+
+          # better-sqlite3: layout differs between a prebuild (prebuilds/*.node)
+          # and a source build (build/Release/*.node), so match either.
+          if ! find "$unpacked" -path '*better-sqlite3*' -name '*.node' | grep -q .; then
+            echo "::error::no better-sqlite3 .node addon outside the asar"
+            fail=1
+          fi
+
+          # node-pty: assert against the one directory it actually loads from at
+          # runtime. lib/utils.js tries build/Release, build/Debug, then
+          # prebuilds/<platform>-<arch>, and unixTerminal.js exec's spawn-helper
+          # out of whichever of those won. node-pty also ships prebuilds for the
+          # *other* platforms — unused, and non-executable in the npm tarball —
+          # so matching on path substrings picked the wrong copy and failed a
+          # build that was in fact correct (a darwin prebuild nested under
+          # dist/linux-unpacked/ matches '*linux*').
+          ptyroot=$(find "$unpacked" -type d -path '*node_modules/node-pty' -print -quit)
+          if [ -z "$ptyroot" ]; then
+            echo "::error::node-pty is not unpacked from the asar"
+            exit 1
+          fi
+          native="$ptyroot/build/Release"
+          if [ ! -f "$native/pty.node" ]; then
+            native="$ptyroot/prebuilds/$(node -p 'process.platform + "-" + process.arch')"
+          fi
+          echo "node-pty loads native artifacts from: ${native#"$unpacked"/}"
+
+          if [ ! -f "$native/pty.node" ]; then
+            echo "::error::node-pty pty.node is not unpacked"
+            fail=1
+          fi
+
+          # Per-platform helpers. spawn-helper is macOS-only: node-pty's
+          # binding.gyp declares that target under 'OS=="mac"', and pty.cc only
+          # reads helper_path inside '#if defined(__APPLE__)' — Linux forks the
+          # pty directly and ships no such file. Windows uses conpty/winpty and
+          # has no executable bit to lose.
+          case "$RUNNER_OS" in
+            Windows)
+              if ! find "$ptyroot" -name 'conpty*.node' | grep -q .; then
+                echo "::error::node-pty conpty addon is not unpacked"
+                fail=1
+              fi
+              ;;
+            macOS)
+              # The regression this job exists for: spawn-helper has no
+              # extension, so the '**/*.node' unpack rule never matched it, and
+              # a local terminal cannot spawn when the helper is trapped inside
+              # the asar or lands without its executable bit.
+              helper="$native/spawn-helper"
+              if [ ! -f "$helper" ]; then
+                echo "::error::node-pty spawn-helper is not unpacked — local terminals will not start"
+                fail=1
+              elif [ ! -x "$helper" ]; then
+                echo "::error::spawn-helper is not executable: $helper"
+                fail=1
+              else
+                echo "ok: $helper (executable)"
+              fi
+              ;;
+          esac
+
+          exit $fail
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4

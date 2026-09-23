@@ -1,0 +1,306 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v1.0.0)'
+        required: false
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
+  ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.cache/electron-builder
+
+jobs:
+  validate:
+    name: Validate Tag Ref & Package Version
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Check if tag ref and validate package version
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          TAG="$INPUT_TAG"
+          if [ -z "$TAG" ] && [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          if [ -n "$TAG" ]; then
+            TAG_VERSION="${TAG#v}"
+            PKG_VERSION=$(jq -r .version package.json)
+            echo "Tag version: $TAG_VERSION | package.json version: $PKG_VERSION"
+            if [[ "$TAG_VERSION" != "$PKG_VERSION" ]]; then
+              echo "::error::Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
+              exit 1
+            fi
+          elif [[ "${{ github.event_name }}" != "workflow_dispatch" && "$GITHUB_REF" != refs/tags/* ]]; then
+            echo "::error::Release workflow must be run on a tag ref (e.g. refs/tags/v1.0.0) or triggered with a tag input"
+            exit 1
+          fi
+
+  # The release workflow ran no lint, no typecheck, no tests and no e2e, and had
+  # no dependency on CI. A tag push therefore published signed artifacts to
+  # GitHub Releases with "the tag version matches package.json" as the only gate
+  # — nothing established that the tagged commit had ever been green. That was
+  # not theoretical: main was failing `biome check --error-on-warnings` (and
+  # therefore skipping e2e and package-smoke, which need it) at the time this was
+  # written.
+  #
+  # Re-running the checks here rather than querying CI's status for the commit:
+  # it needs no extra token scope, it cannot be fooled by a tag pointing at a
+  # commit CI never saw, and it costs one ubuntu runner.
+  verify:
+    name: Lint, Typecheck & Test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    needs: validate
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Fix node-gyp permissions
+        shell: bash
+        run: find /Users/runner /home/runner ~/.pnpm-store -name "gyp_main.py" -exec chmod +x {} + 2>/dev/null || true
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Biome
+        run: pnpm exec biome check . --error-on-warnings
+
+      - name: Run TypeScript type-checking
+        run: pnpm run typecheck
+
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level=high
+
+      - name: Run tests with coverage
+        run: pnpm run test:coverage
+
+      - name: Ensure Electron binary is installed with retry
+        shell: bash
+        run: |
+          for i in 1 2 3 4 5; do
+            echo "Attempt $i: Installing Electron binary..."
+            node node_modules/electron/install.js && break || sleep 5
+          done
+
+      - name: Build application
+        run: pnpm run build
+
+      - name: Run Playwright E2E
+        run: xvfb-run --auto-servernum pnpm exec playwright test
+
+      - name: Upload E2E report on failure
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-playwright-report
+          path: playwright-report/
+          retention-days: 14
+
+  release:
+    name: Release (${{ matrix.platform-name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    needs: [validate, verify]
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: mac
+            platform-name: macOS
+            artifact-name: release-mac
+            path: |
+              dist/*.dmg
+              dist/*.zip
+              dist/*.yml
+          - os: windows-latest
+            platform: win
+            platform-name: Windows
+            artifact-name: release-win
+            path: |
+              dist/*.exe
+              dist/*.yml
+          - os: ubuntu-24.04
+            platform: linux
+            platform-name: Linux
+            artifact-name: release-linux
+            path: |
+              dist/*.AppImage
+              dist/*.deb
+              dist/*.yml
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Cache Electron Binaries
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ github.workspace }}/.cache/electron
+            ${{ github.workspace }}/.cache/electron-builder
+          key: ${{ runner.os }}-electron-cache-v2-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-electron-cache-v2-
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Fix node-gyp permissions
+        shell: bash
+        run: find /Users/runner /home/runner ~/.pnpm-store -name "gyp_main.py" -exec chmod +x {} + 2>/dev/null || true
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Electron app
+        run: pnpm run build
+
+      # electron-builder's deb target shells out to fpm. Rather than expecting it
+      # on PATH it downloads a portable Ruby bundle into the electron-builder
+      # cache and unpacks it with 7za, and that unpack is what keeps failing the
+      # release:
+      #
+      #   ENOENT: no such file or directory, open
+      #   '.cache/electron-builder/fpm@2.1.4/fpm-1.17.0-ruby-3.4.3-linux-amd64-<hash>.tmp/ruby-3.4.3-portable/bin/bundle'
+      #
+      # The `.tmp` in that path is extractArchive()'s staging dir, so the tree is
+      # being read while it is still half-extracted — and because the cache dir is
+      # restored across runs by actions/cache, a partial extract from a failed run
+      # is carried into the next one. Installing fpm ourselves and setting
+      # USE_SYSTEM_FPM makes app-builder-lib's getFpmPath() return a bare "fpm"
+      # from PATH, so the portable-Ruby download/extract path is never taken.
+      - name: Install fpm (Linux deb target)
+        if: matrix.platform == 'linux'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ruby ruby-dev build-essential
+          sudo gem install --no-document fpm
+          fpm --version
+
+      - name: Package & Publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          USE_SYSTEM_FPM: ${{ matrix.platform == 'linux' }}
+        run: |
+          if [ "${{ matrix.platform }}" = "linux" ]; then
+            # Build each arch in its own electron-builder run so the deb and
+            # AppImage targets of the two architectures never contend on the
+            # shared toolset cache.
+            #
+            # The explicit `<target>:<arch>` list is required — bare `--x64` /
+            # `--arm64` does NOT restrict the build here. computeArchToTargetNamesMap()
+            # only honours the CLI arch once at least one target name is given on
+            # the command line; with none it falls through and expands the per-target
+            # `arch:` arrays in electron-builder.yml, so `--linux --x64` still built
+            # (and published) both architectures, twice over.
+            npx electron-builder --linux AppImage:x64 deb:x64 --publish always
+            npx electron-builder --linux AppImage:arm64 deb:arm64 --publish always
+          else
+            npx electron-builder --${{ matrix.platform }} --publish always
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: ${{ matrix.path }}
+          retention-days: 30
+          if-no-files-found: error
+
+  finalize:
+    name: Finalize Release
+    runs-on: ubuntu-24.04
+    needs: release
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Extract Release Notes
+        id: extract_notes
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          TAG="$INPUT_TAG"
+          if [ -z "$TAG" ]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          VERSION="${TAG#v}"
+          NOTES=""
+          if [ -f CHANGELOG.md ]; then
+            NOTES=$(sed -e "1,/## \[$VERSION\]/d" -e '/## \[/,$d' CHANGELOG.md || true)
+          fi
+          {
+            echo "tag=$TAG"
+            echo "version=$VERSION"
+            echo 'notes<<EOF'
+            echo "$NOTES"
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+
+      - name: Update Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.extract_notes.outputs.tag }}
+          VERSION: ${{ steps.extract_notes.outputs.version }}
+          RELEASE_NOTES: ${{ steps.extract_notes.outputs.notes }}
+        run: |
+          if [ -n "$RELEASE_NOTES" ]; then
+            gh release edit "$TAG" \
+              --draft=false \
+              --title "Luna v$VERSION" \
+              --notes "$RELEASE_NOTES" \
+              --repo "$GITHUB_REPOSITORY" || \
+            gh release create "$TAG" \
+              --title "Luna v$VERSION" \
+              --notes "$RELEASE_NOTES" \
+              --repo "$GITHUB_REPOSITORY"
+          else
+            gh release edit "$TAG" \
+              --draft=false \
+              --title "Luna v$VERSION" \
+              --generate-notes \
+              --repo "$GITHUB_REPOSITORY" || \
+            gh release create "$TAG" \
+              --title "Luna v$VERSION" \
+              --generate-notes \
+              --repo "$GITHUB_REPOSITORY"
+          fi

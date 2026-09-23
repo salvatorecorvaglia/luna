@@ -1,0 +1,313 @@
+import { lstat, readlink, realpath } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { dirname, isAbsolute, normalize, relative, resolve as resolvePath, sep } from 'node:path';
+import { ErrorCode, LunaError } from '@shared/errors';
+
+/**
+ * Validation throws a `LunaError(VALIDATION_ERROR)` so the renderer receives
+ * a structured code instead of the catch-all INTERNAL_ERROR that `new Error`
+ * decays to inside `registerHandler`. Callers that pre-date this change
+ * already caught the same message text, so the upgrade is backwards-
+ * compatible.
+ */
+export function validationError(message: string): LunaError {
+  return new LunaError(message, ErrorCode.VALIDATION_ERROR);
+}
+
+export function assertNonEmptyString(value: unknown, name: string): asserts value is string {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw validationError(`${name} must be a non-empty string`);
+  }
+  if (value.includes('\0')) {
+    throw validationError(`${name} must not contain null bytes`);
+  }
+}
+
+export function assertBoundedInt(
+  value: unknown,
+  name: string,
+  min: number,
+  max: number,
+): asserts value is number {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > max) {
+    throw validationError(`${name} must be an integer between ${min} and ${max}`);
+  }
+}
+
+export function assertValidPath(value: unknown, name: string): asserts value is string {
+  assertNonEmptyString(value, name);
+  // Note: null-byte check is already handled by assertNonEmptyString
+}
+
+/**
+ * Enforce that testConnection-style handlers receive exactly one of a saved
+ * `connectionId` or a transient `config` — never both, never neither. Both
+ * accepting both would let a compromised renderer smuggle transient secrets
+ * alongside a saved connection into a code path meant to use only stored
+ * credentials.
+ */
+export function assertEitherConnectionOrConfig(connectionId: unknown, config: unknown): void {
+  if (connectionId && config) {
+    throw validationError('testConnection accepts either connectionId or config, not both');
+  }
+  if (!connectionId && !config) {
+    throw validationError('testConnection requires connectionId or config');
+  }
+}
+
+/**
+ * Reject an oversized array before it reaches a handler that does per-element
+ * synchronous work. The IPC payload ceiling (4 MiB) is far too loose a bound
+ * for anything that runs one sqlite statement per element on the main thread.
+ */
+export function assertBoundedArray(
+  value: unknown,
+  name: string,
+  max: number,
+): asserts value is unknown[] {
+  if (!Array.isArray(value)) {
+    throw validationError(`${name} must be an array`);
+  }
+  if (value.length > max) {
+    throw validationError(`${name} must contain at most ${max} items (got ${value.length})`);
+  }
+}
+
+/** Shared cap on transient secret fields (passwords, keys, tokens) accepted over IPC. */
+export const MAX_SECRET_LEN = 4096;
+
+/**
+ * Validate that each named optional secret field, when present, is a string
+ * within MAX_SECRET_LEN characters. Skips fields that are `undefined` so
+ * callers can pass a mix of required/optional secrets in one call.
+ */
+export function assertBoundedSecretFields(fields: Record<string, string | undefined>): void {
+  for (const [name, value] of Object.entries(fields)) {
+    if (value === undefined) continue;
+    if (typeof value !== 'string' || value.length > MAX_SECRET_LEN) {
+      throw validationError(`${name} must be a string up to ${MAX_SECRET_LEN} characters`);
+    }
+  }
+}
+
+/**
+ * True if `child` is `parent` or a descendant of it. Uses path.relative so the
+ * check is correct on both POSIX (`/`) and Windows (`\`, plus drive letters)
+ * — naive `startsWith(parent + '/')` checks miss Windows separators and let
+ * sibling-prefix paths like `/home/foo-attacker` slip through.
+ */
+export function isInsideDir(child: string, parent: string): boolean {
+  if (child === parent) return true;
+  const rel = relative(parent, child);
+  if (rel.length === 0) return true;
+  if (isAbsolute(rel)) return false;
+  if (rel === '..' || rel.startsWith(`..${sep}`)) return false;
+  return true;
+}
+
+/**
+ * Strip a trailing separator (POSIX `/` or Windows `\`). Used so callers can
+ * supply `~/sub/` interchangeably with `~/sub` without the canonicalisation
+ * check rejecting them.
+ */
+function stripTrailingSep(p: string): string {
+  if (p.length <= 1) return p;
+  return p.replace(/[\\/]+$/, '');
+}
+
+/**
+ * Validate a local filesystem path supplied by the renderer.
+ * Requires absolute, canonical (no `..` segments after resolve), no null bytes,
+ * and confined to the user's home subtree so a compromised renderer can't
+ * download to (or upload from) /etc, /var, or sibling user directories.
+ */
+export function assertSafeAbsolutePath(value: unknown, name: string): asserts value is string {
+  assertNonEmptyString(value, name);
+  if (!isAbsolute(value)) {
+    throw validationError(`${name} must be an absolute path`);
+  }
+  // Compare to path.normalize (cross-platform) rather than resolve(), which
+  // would silently rewrite a non-canonical input into a valid-looking one.
+  // On Windows, forward slashes are valid but normalize() converts them to
+  // backslashes. Unify separator direction on the input side so the comparison
+  // doesn't false-positive on mixed separators, while still catching '..' and
+  // redundant separators that normalize() collapses.
+  const unifySep = (p: string): string => (sep === '\\' ? p.replace(/\//g, sep) : p);
+  if (stripTrailingSep(unifySep(value)) !== stripTrailingSep(normalize(value))) {
+    throw validationError(`${name} must be canonical (no '..' or redundant separators)`);
+  }
+  const resolved = resolvePath(value);
+  const home = homedir();
+  if (!isInsideDir(resolved, home)) {
+    throw new LunaError(`${name} must be inside the home directory`, ErrorCode.FORBIDDEN);
+  }
+}
+
+/**
+ * Expand a leading `~` to the user's real home directory and resolve to an
+ * absolute, canonical path.
+ *
+ * Uses `os.homedir()` rather than `$HOME`, which can be unset or empty — in
+ * which case naive string expansion turns `~/..` into `/..`.
+ *
+ * This block was copy-pasted verbatim into four exported functions below.
+ * Sharing it means a fix to the expansion rules (a new prefix form, a
+ * platform quirk) lands in one place instead of three-and-a-half.
+ */
+function expandTilde(rawPath: string, name: string): string {
+  assertNonEmptyString(rawPath, name);
+  const home = homedir();
+  const expanded =
+    rawPath === '~'
+      ? home
+      : rawPath.startsWith('~/') || rawPath.startsWith('~\\')
+        ? `${home}${sep}${rawPath.slice(2)}`
+        : rawPath;
+  if (!isAbsolute(expanded)) {
+    throw validationError(`${name} must be absolute or start with ~`);
+  }
+  return resolvePath(expanded);
+}
+
+/** Expand `~`, then require the result to sit inside the home subtree. */
+function expandTildeInHome(rawPath: string, name: string): string {
+  const resolved = expandTilde(rawPath, name);
+  if (!isInsideDir(resolved, homedir())) {
+    throw new LunaError(`${name} must be inside the home directory`, ErrorCode.FORBIDDEN);
+  }
+  return resolved;
+}
+
+/**
+ * Expand a leading `~` to the user's real home directory and confine the
+ * resolved path to that subtree. Falls back to lstat-based realpath only when
+ * the file already exists, so callers can validate intent before opening.
+ *
+ * Pass `requireExists: true` to also require the resolved path's real (symlink-
+ * resolved) target stays inside home — used by SFTP transfer paths.
+ */
+export async function expandAndConfineToHome(
+  rawPath: string,
+  name: string,
+  options: { requireExists?: boolean } = {},
+): Promise<string> {
+  const home = homedir();
+  const resolved = expandTildeInHome(rawPath, name);
+  if (options.requireExists) {
+    const real = await realpath(resolved);
+    if (!isInsideDir(real, home)) {
+      throw new LunaError(
+        `${name} resolves outside the home directory via symlink`,
+        ErrorCode.FORBIDDEN,
+      );
+    }
+    return real;
+  }
+  return resolved;
+}
+
+/**
+ * Synchronous expansion + home-confinement (no symlink follow).
+ * Used inside synchronous code paths (e.g. SQLite transactions during connection
+ * import) where async `realpath` isn't an option. The returned path is the
+ * resolved (canonical) absolute path; callers should still validate the actual
+ * file exists when they open it.
+ */
+export function expandAndConfineToHomeSync(rawPath: string, name: string): string {
+  return expandTildeInHome(rawPath, name);
+}
+
+/**
+ * Async variant of assertSafeAbsolutePath that also follows symlinks.
+ * For paths that already exist (uploads) we realpath the file. For paths that
+ * do not yet exist (downloads), we realpath the *parent* directory so a symlink
+ * inside the home dir pointing at /etc cannot be used to escape.
+ */
+export async function assertSafeRealAbsolutePath(value: unknown, name: string): Promise<string> {
+  assertSafeAbsolutePath(value, name);
+  const home = homedir();
+  try {
+    const ls = await lstat(value);
+    if (ls.isSymbolicLink()) {
+      const linkTarget = await readlink(value);
+      const targetPath = isAbsolute(linkTarget)
+        ? linkTarget
+        : resolvePath(dirname(value), linkTarget);
+      if (!isInsideDir(targetPath, home)) {
+        throw new LunaError(
+          `${name} resolves outside the home directory via symlink`,
+          ErrorCode.FORBIDDEN,
+        );
+      }
+    }
+    const real = await realpath(value);
+    if (!isInsideDir(real, home)) {
+      throw new LunaError(
+        `${name} resolves outside the home directory via symlink`,
+        ErrorCode.FORBIDDEN,
+      );
+    }
+    return real;
+  } catch (err: unknown) {
+    if (err instanceof LunaError) throw err;
+    if ((err as NodeJS.ErrnoException | undefined)?.code !== 'ENOENT') throw err;
+    // Path does not exist yet — validate the parent directory's real target.
+    const parent = dirname(value);
+    const realParent = await realpath(parent);
+    if (!isInsideDir(realParent, home)) {
+      throw new LunaError(
+        `${name} resolves outside the home directory via symlink`,
+        ErrorCode.FORBIDDEN,
+        { cause: String(err) },
+      );
+    }
+    return value;
+  }
+}
+
+/**
+ * Directories a private key may live in, beyond the user's home subtree.
+ *
+ * Keys legitimately live outside `$HOME` — a shared `/etc/ssh` key, or a key on
+ * a mounted secure volume — so this path is deliberately not home-confined. But
+ * "not home-confined" had become "anywhere at all": the resolved path was
+ * `realpath`'d and then opened and read, with the result fed to
+ * `utils.parseKey`. Combined with SHELL_CHECK_FILE, which returns
+ * missing/permission/not-a-file/ok for whatever it is handed, that gave a
+ * compromised renderer an existence-and-readability oracle over the entire
+ * filesystem, and a way to make main read arbitrary files into memory.
+ *
+ * An allowlist keeps the legitimate cases and closes the oracle. Extend it
+ * rather than removing the check.
+ */
+const PRIVATE_KEY_DIRS = ['/etc/ssh', '/usr/local/etc/ssh', '/opt/homebrew/etc/ssh'];
+
+/**
+ * Expand a leading `~`, resolve symlinks, and require the result to sit in the
+ * user's home subtree or one of PRIVATE_KEY_DIRS.
+ *
+ * Note the two-stage check: the pre-realpath path must be in an allowed
+ * location *and* so must its real target, so a symlink inside `~/.ssh` cannot
+ * be used to read `/etc/shadow`.
+ */
+export async function expandAndValidatePrivateKeyPath(
+  rawPath: string,
+  name: string,
+): Promise<string> {
+  const expanded = expandTilde(rawPath, name);
+  assertPrivateKeyLocation(expanded, name);
+  const real = await realpath(expanded);
+  assertPrivateKeyLocation(real, name);
+  return real;
+}
+
+function assertPrivateKeyLocation(candidate: string, name: string): void {
+  if (isInsideDir(candidate, homedir())) return;
+  for (const dir of PRIVATE_KEY_DIRS) {
+    if (isInsideDir(candidate, dir)) return;
+  }
+  throw new LunaError(
+    `${name} must be inside the home directory or a standard SSH key directory`,
+    ErrorCode.FORBIDDEN,
+  );
+}

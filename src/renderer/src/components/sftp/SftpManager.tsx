@@ -1,0 +1,779 @@
+import { BINARY_PREVIEW_EXTENSIONS } from '@shared/constants';
+import { isCancellation, toastArgs } from '@shared/error-messages';
+import { Plus, RefreshCcw, Unplug, WifiOff } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
+import { useShallow } from 'zustand/react/shallow';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { PromptDialog } from '@/components/common/PromptDialog';
+import { Button } from '@/components/ui';
+import {
+  useInvalidateLocalDir,
+  useInvalidateSftp,
+  useLocalDirectory,
+  useSftpDirectory,
+} from '@/hooks/use-sftp';
+import { useSftpDnd } from '@/hooks/use-sftp-dnd';
+import { Z } from '@/lib/z-layers';
+import { getApi } from '@/services/api';
+import { useConnectionStore } from '@/stores/connection-store';
+import { useStorageStore } from '@/stores/storage-store';
+import { useTerminalStore } from '@/stores/terminal-store';
+import { useTransferStore } from '@/stores/transfer-store';
+import { type FileEntry, FilePane } from './FilePane';
+import { FilePreview } from './FilePreview';
+import { FolderSyncDialog } from './FolderSyncDialog';
+import { PresignedUrlDialog } from './PresignedUrlDialog';
+import { resolveSftpSession } from './sftp-session-fallback';
+import { TransferQueue } from './TransferQueue';
+
+// Pulled to module scope so they're allocated once at module load instead of
+// rebuilt on every preview-open render. Both lists are immutable and shared
+// between the remote and local file-preview handlers.
+// Derived from the shared binary-preview list (minus 'pdf', handled separately
+// via `isPdf`) so the two lists can't drift apart.
+const IMAGE_EXTS = [...BINARY_PREVIEW_EXTENSIONS].filter((ext) => ext !== 'pdf');
+const TEXT_EXTS = [
+  'txt',
+  'md',
+  'json',
+  'yaml',
+  'yml',
+  'xml',
+  'csv',
+  'log',
+  'sh',
+  'bash',
+  'zsh',
+  'py',
+  'js',
+  'ts',
+  'tsx',
+  'jsx',
+  'html',
+  'css',
+  'scss',
+  'conf',
+  'cfg',
+  'ini',
+  'toml',
+  'env',
+  'gitignore',
+  'editorconfig',
+  'makefile',
+  'dockerfile',
+  'rs',
+  'go',
+  'rb',
+  'php',
+  'java',
+  'c',
+  'h',
+  'cpp',
+] as const;
+
+function mimeForExt(ext: string, isPdf: boolean): string {
+  if (IMAGE_EXTS.includes(ext)) {
+    return `image/${ext === 'jpg' ? 'jpeg' : ext === 'svg' ? 'svg+xml' : ext}`;
+  }
+  if (isPdf) return 'application/pdf';
+  return 'text/plain';
+}
+
+export function SftpManager() {
+  // Collapse 13 separate selectors into a single shallow-equality
+  // subscription. Each `useStorageStore(s => s.X)` call previously installed
+  // its own subscription and ran a separate Object.is check on every store
+  // change. With useShallow, we have one subscription and one shallow
+  // comparison over the slice we actually consume.
+  const {
+    localPath,
+    remotePath,
+    localSelection,
+    remoteSelection,
+    activeSessionId,
+    storageSessions,
+    setLocalPath,
+    setRemotePath,
+    setActiveSessionId,
+    setLocalSelection,
+    setRemoteSelection,
+    showHiddenFiles,
+    toggleHiddenFiles,
+  } = useStorageStore(
+    useShallow((s) => ({
+      localPath: s.localPath,
+      remotePath: s.remotePath,
+      localSelection: s.localSelection,
+      remoteSelection: s.remoteSelection,
+      activeSessionId: s.activeSessionId,
+      storageSessions: s.storageSessions,
+      setLocalPath: s.setLocalPath,
+      setRemotePath: s.setRemotePath,
+      setActiveSessionId: s.setActiveSessionId,
+      setLocalSelection: s.setLocalSelection,
+      setRemoteSelection: s.setRemoteSelection,
+      showHiddenFiles: s.showHiddenFiles,
+      toggleHiddenFiles: s.toggleHiddenFiles,
+    })),
+  );
+
+  // Narrowed to the single SSH session this view is attached to, keyed off the
+  // file browser's own activeSessionId (which is a storage-store concern, and
+  // may be an S3 id, in which case there is no terminal session).
+  //
+  // This used to subscribe to the whole `sessions` Map. The store swaps that Map
+  // for a new one on every status change and every tab rename, so any unrelated
+  // SSH tick re-rendered this 750-line component — and with it both file panes
+  // and every virtualised row's context menu, none of which are memoized.
+  const sshSessionForActive = useTerminalStore((s) =>
+    activeSessionId ? (s.sessions.get(activeSessionId) ?? null) : null,
+  );
+
+  /**
+   * Signature over exactly the fields resolveSftpSession() reads — id,
+   * connectionId, status, type.
+   *
+   * The routing effect below legitimately needs the whole Map, but depending on
+   * the Map's identity meant it re-ran (and this component re-rendered) on every
+   * scrollback-unrelated session change. A string reduces to an Object.is
+   * comparison, so the effect re-runs only when something it would actually
+   * route on has moved.
+   */
+  const sessionRoutingKey = useTerminalStore((s) => {
+    let key = '';
+    for (const session of s.sessions.values()) {
+      key += `${session.id}\u0000${session.connectionId}\u0000${session.status}\u0000${session.type ?? 'ssh'};`;
+    }
+    return key;
+  });
+  const activeConnectionId = useConnectionStore((s) => s.activeConnectionId);
+  const invalidateSftp = useInvalidateSftp();
+  const invalidateLocal = useInvalidateLocalDir();
+  const [splitRatio, setSplitRatio] = useState(0.5);
+  const [resizing, setResizing] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  // Detaches the resize-drag `document` listeners on unmount even if no
+  // mouseup ever arrives (e.g. the view switches away from SFTP mid-drag) —
+  // without this, the listeners leaked and could leave the drag cursor/
+  // user-select styles stuck on `document.body`.
+  const resizeDragCleanupRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    return () => {
+      resizeDragCleanupRef.current?.();
+      resizeDragCleanupRef.current = null;
+    };
+  }, []);
+
+  // Sync activeSessionId with the active connection if it changes. Resolution
+  // logic lives in sftp-session-fallback.ts so it can be unit-tested in
+  // isolation from this component's other state.
+  useEffect(() => {
+    const targetSessionId = resolveSftpSession(
+      // Read through getState(): the effect is gated on sessionRoutingKey, so it
+      // does not need the Map's identity in its dependency list.
+      useTerminalStore.getState().sessions,
+      storageSessions,
+      activeConnectionId,
+      activeSessionId,
+    );
+    if (targetSessionId && targetSessionId !== activeSessionId) {
+      setActiveSessionId(targetSessionId);
+      // Reset path when switching sessions to avoid "No such file" errors
+      // if the previous session's path doesn't exist on the new one.
+      const storageSess = storageSessions.get(targetSessionId);
+      setRemotePath(storageSess?.initialPath || '/');
+    }
+  }, [
+    activeConnectionId,
+    sessionRoutingKey,
+    storageSessions,
+    activeSessionId,
+    setActiveSessionId,
+    setRemotePath,
+  ]);
+
+  /**
+   * The local pane's root. `shell:readdir` refuses to list outside the home
+   * subtree, so this is both the seed path and the boundary the pane clamps
+   * navigation to.
+   *
+   * Resolved unconditionally rather than behind an `if (localPath) return`
+   * early-out: with a persisted `localPath` that guard skipped the lookup
+   * entirely, leaving the pane with no idea where its root was.
+   */
+  const [localHome, setLocalHome] = useState('/');
+
+  useEffect(() => {
+    // Guard the resolution: without it, unmounting (view switch) before the
+    // IPC round-trip settles sets state on a dead component. Every sibling
+    // effect in this codebase already uses this pattern.
+    let cancelled = false;
+    getApi()
+      .shell.homeDir()
+      .then((home) => {
+        if (cancelled) return;
+        setLocalHome(home);
+        // Read through getState() rather than the render closure so this
+        // effect doesn't have to depend on `localPath` — and therefore doesn't
+        // re-run on every directory change.
+        if (!useStorageStore.getState().localPath) setLocalPath(home);
+      })
+      .catch(() => {
+        if (!cancelled && !useStorageStore.getState().localPath) setLocalPath('/');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [setLocalPath]);
+
+  const currentSession = activeSessionId
+    ? sshSessionForActive || storageSessions.get(activeSessionId)
+    : null;
+  const isSessionActive = currentSession?.status === 'connected';
+
+  // Provider kind for the currently-displayed remote pane. SSH terminal
+  // sessions always back SFTP; an entry in storageSessions carries its own
+  // kind (s3 today, more later).
+  const remoteKind: 'sftp' | 's3' = activeSessionId
+    ? (storageSessions.get(activeSessionId)?.provider ?? 'sftp')
+    : 'sftp';
+
+  const {
+    data: remoteEntries = [],
+    isLoading: remoteLoading,
+    error: remoteError,
+  } = useSftpDirectory(activeSessionId, remotePath, { enabled: isSessionActive });
+
+  const {
+    data: localEntries = [],
+    isLoading: localLoading,
+    error: localError,
+  } = useLocalDirectory(localPath);
+
+  // No toast for a failed listing.
+  //
+  // FilePane already renders an inline role="alert" panel carrying the same
+  // message plus a "Try again" button, so every failed `ls` produced two
+  // reports of one problem — a toast that cannot be acted on and vanishes, and
+  // a scoped, actionable panel. The inline state is the better one, and it is
+  // the one the user is already looking at. The errors are still passed down
+  // to the panes below.
+
+  const addTransfer = useTransferStore((s) => s.addTransfer);
+
+  // Drag-and-drop transfer handlers live in their own hook so this component
+  // can stay focused on layout, sessions, and dialog state.
+  const { handleLocalDragStart, handleRemoteDragStart, handleLocalDrop, handleRemoteDrop } =
+    useSftpDnd({ activeSessionId, localPath, remotePath });
+
+  // Context menu download: remote -> local
+  const handleRemoteDownload = useCallback(
+    async (entry: FileEntry) => {
+      if (!activeSessionId || entry.isDirectory) return;
+
+      const localDest = await getApi().shell.joinPath(localPath, entry.name);
+      try {
+        const transferId = await getApi().storage.download({
+          sessionId: activeSessionId,
+          remotePath: entry.path,
+          localPath: localDest,
+        });
+        addTransfer({
+          id: transferId,
+          type: 'download',
+          localPath: localDest,
+          remotePath: entry.path,
+          fileName: entry.name,
+          size: entry.size || 0,
+          transferred: 0,
+          status: 'queued',
+          bytesPerSec: 0,
+          sessionId: activeSessionId,
+        });
+        toast.success(`Download started: ${entry.name}`);
+      } catch (err: unknown) {
+        // Cancelled during setup (user action / disconnect) — not a failure.
+        if (isCancellation(err)) return;
+        toast.error(...toastArgs(err, 'Download failed'));
+      }
+    },
+    [activeSessionId, localPath, addTransfer],
+  );
+
+  // Context menu upload: local -> remote
+  const handleLocalUpload = useCallback(
+    async (entry: FileEntry) => {
+      if (!activeSessionId || entry.isDirectory) return;
+
+      const remoteDest = remotePath === '/' ? `/${entry.name}` : `${remotePath}/${entry.name}`;
+      try {
+        const transferId = await getApi().storage.upload({
+          sessionId: activeSessionId,
+          localPath: entry.path,
+          remotePath: remoteDest,
+        });
+        addTransfer({
+          id: transferId,
+          type: 'upload',
+          localPath: entry.path,
+          remotePath: remoteDest,
+          fileName: entry.name,
+          size: entry.size || 0,
+          transferred: 0,
+          status: 'queued',
+          bytesPerSec: 0,
+          sessionId: activeSessionId,
+        });
+        toast.success(`Upload started: ${entry.name}`);
+      } catch (err: unknown) {
+        if (isCancellation(err)) return;
+        toast.error(...toastArgs(err, 'Upload failed'));
+      }
+    },
+    [activeSessionId, remotePath, addTransfer],
+  );
+
+  // Dialog state for rename, delete, mkdir, presigned url, folder sync
+  const [renameTarget, setRenameTarget] = useState<FileEntry | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<FileEntry | null>(null);
+  const [mkdirOpen, setMkdirOpen] = useState(false);
+  const [presignedTarget, setPresignedTarget] = useState<FileEntry | null>(null);
+  const [folderSyncOpen, setFolderSyncOpen] = useState(false);
+
+  const setPreviewFile = useStorageStore((s) => s.setPreviewFile);
+
+  // Preview remote file on double-click
+  const handleRemoteFileOpen = useCallback(
+    async (entry: FileEntry) => {
+      if (!activeSessionId) return;
+      try {
+        const ext = entry.name.split('.').pop()?.toLowerCase() || '';
+        const isPdf = ext === 'pdf';
+
+        if (
+          !(TEXT_EXTS as readonly string[]).includes(ext) &&
+          !IMAGE_EXTS.includes(ext) &&
+          !isPdf
+        ) {
+          toast.info(`Cannot preview .${ext} files. Use download to open.`);
+          return;
+        }
+
+        const { content } = await getApi().storage.readFile({
+          sessionId: activeSessionId,
+          path: entry.path,
+        });
+        const type = mimeForExt(ext, isPdf);
+        setPreviewFile({
+          name: entry.name,
+          content,
+          type,
+          path: entry.path,
+          isLocal: false,
+          sessionId: activeSessionId,
+        });
+      } catch (err: unknown) {
+        toast.error(...toastArgs(err, 'Preview failed'));
+      }
+    },
+    [activeSessionId, setPreviewFile],
+  );
+
+  // Preview local file on double-click
+  const handleLocalFileOpen = useCallback(
+    async (entry: FileEntry) => {
+      try {
+        const ext = entry.name.split('.').pop()?.toLowerCase() || '';
+        const isPdf = ext === 'pdf';
+
+        if (
+          !(TEXT_EXTS as readonly string[]).includes(ext) &&
+          !IMAGE_EXTS.includes(ext) &&
+          !isPdf
+        ) {
+          toast.info(`Cannot preview .${ext} files. Use your system file manager to open.`);
+          return;
+        }
+
+        const { content } = (await getApi().shell.readFile(entry.path)) as {
+          content: string;
+        };
+        const type = mimeForExt(ext, isPdf);
+
+        setPreviewFile({
+          name: entry.name,
+          content,
+          type,
+          path: entry.path,
+          isLocal: true,
+        });
+      } catch (err: unknown) {
+        toast.error(...toastArgs(err, 'Preview failed'));
+      }
+    },
+    [setPreviewFile],
+  );
+
+  // Rename remote file/directory
+  const handleRemoteRename = useCallback((entry: FileEntry) => {
+    setRenameTarget(entry);
+  }, []);
+
+  const handleRenameConfirm = useCallback(
+    async (newName: string) => {
+      if (!activeSessionId || !renameTarget) return;
+      setRenameTarget(null);
+      if (newName === renameTarget.name) return;
+
+      const parentPath = renameTarget.path.substring(0, renameTarget.path.lastIndexOf('/')) || '/';
+      const newPath = parentPath === '/' ? `/${newName}` : `${parentPath}/${newName}`;
+      try {
+        await getApi().storage.rename({
+          sessionId: activeSessionId,
+          oldPath: renameTarget.path,
+          newPath,
+        });
+        toast.success(`Renamed to ${newName}`);
+        invalidateSftp(activeSessionId, remotePath);
+      } catch (err: unknown) {
+        toast.error(...toastArgs(err, 'Rename failed'));
+      }
+    },
+    [activeSessionId, remotePath, invalidateSftp, renameTarget],
+  );
+
+  // Delete remote file/directory
+  const handleRemoteDelete = useCallback((entry: FileEntry) => {
+    setDeleteTarget(entry);
+  }, []);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!activeSessionId || !deleteTarget) return;
+    const entry = deleteTarget;
+    setDeleteTarget(null);
+
+    try {
+      await getApi().storage.delete({
+        sessionId: activeSessionId,
+        path: entry.path,
+        isDirectory: entry.isDirectory,
+      });
+      toast.success(`Deleted ${entry.name}`);
+      invalidateSftp(activeSessionId, remotePath);
+    } catch (err: unknown) {
+      toast.error(...toastArgs(err, 'Delete failed'));
+    }
+  }, [activeSessionId, remotePath, invalidateSftp, deleteTarget]);
+
+  // Copy path to clipboard — same behaviour on both sides.
+  const handleCopyPath = useCallback((entry: FileEntry) => {
+    void navigator.clipboard.writeText(entry.path);
+    toast.success('Path copied to clipboard');
+  }, []);
+
+  // Create directory on remote
+  const handleRemoteMkdir = useCallback(() => {
+    setMkdirOpen(true);
+  }, []);
+
+  const handleMkdirConfirm = useCallback(
+    async (name: string) => {
+      if (!activeSessionId) return;
+      setMkdirOpen(false);
+
+      const newPath = remotePath === '/' ? `/${name}` : `${remotePath}/${name}`;
+      try {
+        await getApi().storage.mkdir({ sessionId: activeSessionId, path: newPath });
+        toast.success(`Created folder "${name}"`);
+        invalidateSftp(activeSessionId, remotePath);
+      } catch (err: unknown) {
+        toast.error(...toastArgs(err, 'Failed to create folder'));
+      }
+    },
+    [activeSessionId, remotePath, invalidateSftp],
+  );
+
+  // Resize handle
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setResizing(true);
+    let rafId: number | null = null;
+    let pending: number | null = null;
+    const flush = (): void => {
+      rafId = null;
+      if (pending !== null) {
+        setSplitRatio(pending);
+        pending = null;
+      }
+    };
+    const onMouseMove = (e: MouseEvent): void => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const ratio = (e.clientX - rect.left) / rect.width;
+      pending = Math.max(0.2, Math.min(0.8, ratio));
+      if (rafId === null) rafId = requestAnimationFrame(flush);
+    };
+    const detach = (): void => {
+      setResizing(false);
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        flush();
+      }
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      resizeDragCleanupRef.current = null;
+    };
+    const onMouseUp = (): void => detach();
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    resizeDragCleanupRef.current = detach;
+  }, []);
+
+  if (!activeSessionId || (!sshSessionForActive && !storageSessions.get(activeSessionId))) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-4 text-muted-foreground">
+        <div className="flex size-14 items-center justify-center rounded-2xl bg-muted/50">
+          <Unplug className="size-7 text-muted-foreground/30" />
+        </div>
+        <div className="text-center">
+          <p className="text-sm font-medium text-foreground/60">No active connection</p>
+          <p className="mt-1 text-xs text-muted-foreground/60">
+            Connect to a server first, then switch to SFTP view
+          </p>
+        </div>
+
+        <Button
+          variant="outline"
+          onClick={() => useConnectionStore.getState().openCreateForm()}
+          className="mt-1"
+        >
+          <Plus className="size-3.5" />
+          New Connection
+        </Button>
+      </div>
+    );
+  }
+
+  // Show warning overlay when session disconnects mid-use. S3 sessions don't
+  // disconnect mid-use the way SSH does, so we only check the SSH side.
+  // The overlay auto-dismisses when status flips back to 'connected' because
+  // the derived flag flips with it — no imperative dismiss needed.
+  const activeSession = sshSessionForActive;
+  const isDisconnected = activeSession && activeSession.status !== 'connected';
+  const overlayMessage =
+    activeSession?.status === 'reconnecting'
+      ? 'Reconnecting…'
+      : activeSession?.status === 'connecting'
+        ? 'Connecting…'
+        : activeSession?.status === 'error'
+          ? 'Reconnect attempts exhausted. Reopen the connection to retry.'
+          : 'The SSH session disconnected.';
+
+  return (
+    <div className="flex h-full flex-col relative">
+      {/* Disconnected overlay — surfaces the live status (connecting / reconnecting
+          / error) so the user can tell whether to wait or take action. */}
+      {isDisconnected && (
+        <div
+          className={`absolute inset-0 ${Z.paneOverlay} flex items-center justify-center bg-background/80 backdrop-blur-sm`}
+          role="status"
+          aria-live="polite"
+        >
+          <div className="text-center">
+            <WifiOff className="size-8 mx-auto text-destructive-fg/60 mb-2" aria-hidden="true" />
+            <p className="text-sm font-medium text-foreground/80">Connection lost</p>
+            <p className="mt-1 text-xs text-muted-foreground/60">{overlayMessage}</p>
+            {activeSession &&
+              (activeSession.status === 'disconnected' || activeSession.status === 'error') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (activeSession.connectionId) {
+                      // Revert to the pre-attempt status on failure — otherwise a
+                      // rejected connect (e.g. host unreachable) left the UI
+                      // optimistically stuck showing "Connecting…" forever, with
+                      // no toast and no way to tell the attempt had failed.
+                      const previousStatus = activeSession.status;
+                      useTerminalStore
+                        .getState()
+                        .updateSessionStatus(activeSessionId, 'connecting');
+                      getApi()
+                        .ssh.connect({
+                          connectionId: activeSession.connectionId,
+                          sessionId: activeSessionId,
+                        })
+                        .catch(() => {
+                          useTerminalStore
+                            .getState()
+                            .updateSessionStatus(activeSessionId, previousStatus);
+                          toast.error('Failed to reconnect');
+                        });
+                    }
+                  }}
+                  className="mt-4 flex items-center gap-2 mx-auto rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 cursor-pointer"
+                >
+                  <RefreshCcw className="size-4" />
+                  Reconnect
+                </button>
+              )}
+          </div>
+        </div>
+      )}
+      {/* Dual pane */}
+      <div ref={containerRef} className="flex flex-1 overflow-hidden">
+        {/* Local pane */}
+        <div style={{ width: `${splitRatio * 100}%` }} className="overflow-hidden">
+          <FilePane
+            title="Local"
+            path={localPath}
+            entries={localEntries}
+            isLoading={localLoading}
+            error={localError}
+            selection={localSelection}
+            onPathChange={setLocalPath}
+            onSelect={(selection) => setLocalSelection(selection)}
+            onRefresh={() => invalidateLocal(localPath)}
+            onDragStart={handleLocalDragStart}
+            onDrop={handleLocalDrop}
+            onFileOpen={handleLocalFileOpen}
+            onPreview={handleLocalFileOpen}
+            onCopyPath={handleCopyPath}
+            onDownload={handleLocalUpload}
+            downloadLabel="Upload"
+            showHidden={showHiddenFiles}
+            onToggleHidden={toggleHiddenFiles}
+            onSelectAll={(names) => setLocalSelection(new Set(names))}
+            side="local"
+            rootPath={localHome}
+          />
+        </div>
+
+        {/* Resize handle */}
+
+        <div
+          className="relative w-px flex-shrink-0 cursor-col-resize"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize panes"
+          aria-valuenow={Math.round(splitRatio * 100)}
+          aria-valuemin={20}
+          aria-valuemax={80}
+          tabIndex={0}
+          onKeyDown={(e) => {
+            // Keyboard-driven resize for non-mouse users.
+            if (e.key === 'ArrowLeft') {
+              e.preventDefault();
+              setSplitRatio((r) => Math.max(0.2, r - 0.02));
+            } else if (e.key === 'ArrowRight') {
+              e.preventDefault();
+              setSplitRatio((r) => Math.min(0.8, r + 0.02));
+            }
+          }}
+        >
+          <div
+            className={`absolute inset-0 bg-border ${resizing ? 'bg-primary/60' : 'hover:bg-primary/40'}`}
+            style={{ transition: 'background-color 150ms' }}
+          />
+
+          <div
+            onMouseDown={handleResizeMouseDown}
+            className="absolute -left-1.5 -right-1.5 inset-y-0 cursor-col-resize"
+          />
+        </div>
+
+        {/* Remote pane */}
+        <div style={{ width: `${(1 - splitRatio) * 100}%` }} className="overflow-hidden">
+          <FilePane
+            title="Remote"
+            path={remotePath}
+            entries={remoteEntries}
+            isLoading={remoteLoading}
+            error={remoteError}
+            selection={remoteSelection}
+            onPathChange={setRemotePath}
+            onSelect={(selection) => setRemoteSelection(selection)}
+            onRefresh={() => invalidateSftp(activeSessionId!, remotePath)}
+            onDragStart={handleRemoteDragStart}
+            onDrop={handleRemoteDrop}
+            onFileOpen={handleRemoteFileOpen}
+            onRename={handleRemoteRename}
+            onDelete={handleRemoteDelete}
+            onCopyPath={handleCopyPath}
+            onPreview={handleRemoteFileOpen}
+            onDownload={handleRemoteDownload}
+            onGeneratePresignedUrl={setPresignedTarget}
+            downloadLabel="Download"
+            showHidden={showHiddenFiles}
+            onToggleHidden={toggleHiddenFiles}
+            onMkdir={handleRemoteMkdir}
+            onFolderSync={() => setFolderSyncOpen(true)}
+            onSelectAll={(names) => setRemoteSelection(new Set(names))}
+            side="remote"
+            remoteKind={remoteKind}
+          />
+        </div>
+      </div>
+
+      {/* Transfer queue */}
+      <TransferQueue />
+
+      {/* File preview modal */}
+      <FilePreview />
+
+      {/* Rename dialog */}
+      <PromptDialog
+        open={!!renameTarget}
+        title="Rename"
+        message={`Rename "${renameTarget?.name ?? ''}"`}
+        placeholder="New name"
+        defaultValue={renameTarget?.name ?? ''}
+        confirmLabel="Rename"
+        onConfirm={handleRenameConfirm}
+        onCancel={() => setRenameTarget(null)}
+      />
+
+      {/* Delete confirmation */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete file?"
+        message={`"${deleteTarget?.name ?? ''}" will be permanently deleted${deleteTarget?.isDirectory ? ' along with all its contents' : ''}. This cannot be undone.`}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteTarget(null)}
+      />
+
+      {/* New folder dialog */}
+      <PromptDialog
+        open={mkdirOpen}
+        title="New folder"
+        placeholder="Folder name"
+        confirmLabel="Create"
+        onConfirm={handleMkdirConfirm}
+        onCancel={() => setMkdirOpen(false)}
+      />
+
+      {/* Presigned URL generation */}
+      <PresignedUrlDialog
+        open={!!presignedTarget}
+        entry={presignedTarget}
+        sessionId={activeSessionId || ''}
+        onClose={() => setPresignedTarget(null)}
+      />
+
+      {/* Differential Folder Sync */}
+      <FolderSyncDialog
+        open={folderSyncOpen}
+        onClose={() => setFolderSyncOpen(false)}
+        localPath={localPath}
+        remotePath={remotePath}
+        sessionId={activeSessionId || ''}
+      />
+    </div>
+  );
+}

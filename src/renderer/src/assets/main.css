@@ -1,0 +1,501 @@
+@import "tailwindcss";
+/* Self-hosted Inter + JetBrains Mono. Replaces the Google Fonts <link> that
+   used to sit in index.html — see fonts.css for the rationale. */
+@import "./fonts.css";
+
+/* ──────────────────────────────────────────────────
+   Design Tokens
+   ────────────────────────────────────────────────── */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /*
+   * Small-end type scale.
+   *
+   * Tailwind's scale bottoms out at text-xs (0.75rem/12px), so the dense chrome
+   * in this app — status bar, table headers, keyboard hint badges, file
+   * metadata — reached for arbitrary values instead: 49 uses of text-2xs,
+   * 48 of text-3xs and 4 of text-sm-plus across the renderer, none of them
+   * checkable and none of them adjustable in one place. These three tokens make
+   * those first-class, and design-tokens.test.ts now fails the build on new
+   * arbitrary px font sizes.
+   */
+  --text-2xs: 0.6875rem; /* 11px */
+  --text-3xs: 0.625rem; /* 10px */
+  --text-sm-plus: 0.8125rem; /* 13px */
+
+  --radius-lg: 0.5rem;
+  --radius-md: calc(var(--radius-lg) - 2px);
+  --radius-sm: calc(var(--radius-lg) - 4px);
+  --radius-xl: 0.75rem;
+
+  /* Elevation / Shadows */
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.15);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.2), 0 1px 2px -1px rgb(0 0 0 / 0.15);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.25), 0 2px 4px -2px rgb(0 0 0 / 0.15);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.35), 0 8px 10px -6px rgb(0 0 0 / 0.2);
+  --shadow-glow: 0 0 24px rgb(99 102 241 / 0.25);
+
+  /* Animation durations */
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --duration-slow: 350ms;
+
+  /* Colors */
+  --color-background: hsl(240 10% 3.9%);
+  --color-foreground: hsl(0 0% 98%);
+  --color-card: hsl(240 6% 6%);
+  --color-card-foreground: hsl(0 0% 98%);
+  --color-popover: hsl(240 6% 6%);
+  --color-popover-foreground: hsl(0 0% 98%);
+  --color-primary: hsl(0 0% 98%);
+  --color-primary-foreground: hsl(240 5.9% 10%);
+  --color-secondary: hsl(240 3.7% 15.9%);
+  --color-secondary-foreground: hsl(0 0% 98%);
+  --color-muted: hsl(240 3.7% 15.9%);
+  /* Bumped from 64.9% → 72% for ≥ 4.5:1 contrast against bg (WCAG AA). */
+  --color-muted-foreground: hsl(240 5% 72%);
+  --color-accent: hsl(240 3.7% 15.9%);
+  --color-accent-foreground: hsl(0 0% 98%);
+  /* Surface fill for destructive buttons. Dark enough that
+     --color-destructive-foreground (near-white) sits at ~7:1 on top of it. */
+  --color-destructive: hsl(0 62.8% 30.6%);
+  --color-destructive-foreground: hsl(0 0% 98%);
+  /*
+   * Destructive *text* on the app background.
+   *
+   * --color-destructive is a fill, not an ink: at 30.6% lightness it scores
+   * roughly 1.8:1 against --color-background, far under the 4.5:1 WCAG AA
+   * floor. It was nonetheless used as a text color in ~30 places, including
+   * .form-error, .required-mark, and — worst — the "previously trusted
+   * fingerprint" and MITM warning in the host-key dialog. The single most
+   * safety-critical string in the app was rendered nearly invisible.
+   *
+   * This token is the ink counterpart: ~7:1 on --color-background. Same
+   * treatment --color-muted-foreground already got above.
+   */
+  --color-destructive-fg: hsl(0 91% 71%);
+  --color-border: hsl(240 3.7% 15.9%);
+  --color-input: hsl(240 3.7% 15.9%);
+  --color-ring: hsl(240 4.9% 83.9%);
+  --color-success: hsl(142 71% 45%);
+  --color-warning: hsl(38 92% 50%);
+  --color-info: hsl(217 91% 60%);
+
+  --color-sidebar: hsl(240 6% 6%);
+  --color-sidebar-foreground: hsl(240 4.8% 95.9%);
+  --color-sidebar-primary: hsl(224.3 76.3% 48%);
+  --color-sidebar-primary-foreground: hsl(0 0% 100%);
+  --color-sidebar-accent: hsl(240 3.7% 15.9%);
+  --color-sidebar-accent-foreground: hsl(240 4.8% 95.9%);
+  --color-sidebar-border: hsl(240 3.7% 15.9%);
+  --color-sidebar-ring: hsl(217.2 91.2% 59.8%);
+
+  /* Brand / accent colors — used for decorative chips, icon swatches,
+     direction indicators (upload/download), and file-type glyphs.
+     Distinct from semantic tokens (info/success/warning/destructive) so
+     intent stays readable at call sites. */
+  --color-brand-blue: hsl(217 91% 60%);
+  --color-brand-violet: hsl(258 90% 66%);
+  --color-brand-cyan: hsl(189 94% 43%);
+  --color-brand-pink: hsl(330 81% 60%);
+  --color-brand-emerald: hsl(160 84% 39%);
+}
+
+/* ──────────────────────────────────────────────────
+   Scrollbar (theme-aware)
+   ────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-muted-foreground);
+}
+
+/* ──────────────────────────────────────────────────
+   Selection
+   ────────────────────────────────────────────────── */
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* ──────────────────────────────────────────────────
+   Window Drag
+   ────────────────────────────────────────────────── */
+.drag-region {
+  -webkit-app-region: drag;
+}
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* ──────────────────────────────────────────────────
+   Interaction Transitions (scoped, not global *)
+   ────────────────────────────────────────────────── */
+button,
+a,
+input,
+select,
+[role="button"],
+[data-interactive] {
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+  transition-duration: var(--duration-normal);
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Theme transitions only on containers */
+.theme-transition {
+  transition:
+    background-color var(--duration-slow) ease,
+    border-color var(--duration-slow) ease,
+    color var(--duration-slow) ease;
+}
+
+/* Terminal: no transitions at all */
+.xterm,
+.xterm * {
+  transition: none !important;
+}
+
+/* ──────────────────────────────────────────────────
+   Focus States — single bright ring everywhere so
+   keyboard focus is unmistakable on dark surfaces.
+   ────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 4px rgb(59 130 246 / 0.25);
+}
+
+button:focus-visible,
+[role="button"]:focus-visible,
+[role="tab"]:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgb(59 130 246 / 0.25);
+}
+
+/* ──────────────────────────────────────────────────
+   Form Inputs
+   ────────────────────────────────────────────────── */
+.form-input {
+  width: 100%;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--color-border);
+  background-color: var(--color-background);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--color-foreground);
+  outline: none;
+  transition:
+    border-color var(--duration-fast) ease,
+    box-shadow var(--duration-fast) ease;
+}
+
+.form-input::placeholder {
+  /* Was opacity 0.6 → ~2.2:1. Full muted-foreground gives ≥ 4.5:1. */
+  color: var(--color-muted-foreground);
+  opacity: 1;
+}
+
+.form-input:focus {
+  border-color: var(--color-sidebar-ring);
+  box-shadow: 0 0 0 3px rgb(99 102 241 / 0.12);
+}
+
+.form-input:disabled {
+  /* Distinct visual state — not just opacity — so disabled fields are
+     unmistakable from filled-but-active ones. */
+  opacity: 0.7;
+  background-color: var(--color-muted);
+  border-color: var(--color-border);
+  color: var(--color-muted-foreground);
+  cursor: not-allowed;
+}
+
+/* ──────────────────────────────────────────────────
+   Interactive Button Base
+   ────────────────────────────────────────────────── */
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  padding: 0.375rem;
+  /* Enforce a hit area regardless of inline padding overrides like
+     !p-1 (used in toolbars). The icon itself stays visually small. */
+  min-width: 2rem;
+  min-height: 2rem;
+  color: var(--color-muted-foreground);
+  cursor: pointer;
+}
+.btn-icon:hover {
+  background-color: var(--color-accent);
+  color: var(--color-foreground);
+}
+.btn-icon:active {
+  transform: scale(0.92);
+}
+.btn-icon:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: transparent;
+  color: var(--color-muted-foreground);
+}
+
+/* ──────────────────────────────────────────────────
+   Button Variants
+   ────────────────────────────────────────────────── */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--radius-lg);
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  background-color: var(--color-primary);
+  color: var(--color-primary-foreground);
+}
+.btn-primary:hover {
+  opacity: 0.9;
+}
+.btn-primary:disabled {
+  /* Distinct color, not just opacity — disabled must be unmistakable
+     against an otherwise high-contrast primary background. */
+  background-color: var(--color-muted);
+  color: var(--color-muted-foreground);
+  opacity: 0.8;
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--radius-lg);
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--color-muted-foreground);
+}
+.btn-ghost:hover {
+  background-color: var(--color-accent);
+  color: var(--color-foreground);
+}
+
+.btn-destructive {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--radius-lg);
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  background-color: var(--color-destructive);
+  color: var(--color-destructive-foreground);
+}
+.btn-destructive:hover {
+  opacity: 0.9;
+}
+
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background-color: var(--color-background);
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--color-muted-foreground);
+}
+.btn-outline:hover {
+  background-color: var(--color-accent);
+  color: var(--color-foreground);
+}
+.btn-outline:disabled {
+  background-color: var(--color-muted);
+  color: var(--color-muted-foreground);
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* ──────────────────────────────────────────────────
+   Inline form validation
+   ────────────────────────────────────────────────── */
+.form-input[aria-invalid="true"],
+.form-input.invalid {
+  border-color: var(--color-destructive);
+}
+.form-input[aria-invalid="true"]:focus,
+.form-input.invalid:focus {
+  border-color: var(--color-destructive);
+  box-shadow: 0 0 0 3px rgb(239 68 68 / 0.15);
+}
+.form-error {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+  font-size: 0.6875rem;
+  /* Ink token, not the fill token — see the note in @theme. */
+  color: var(--color-destructive-fg);
+}
+.required-mark {
+  color: var(--color-destructive-fg);
+  margin-left: 0.125rem;
+}
+
+/* Shared style for the "clear" affordance inside small inputs
+   (Sidebar search, FilePane filter). Keeps appearance and hit area
+   identical across surfaces. */
+.input-clear-btn {
+  position: absolute;
+  right: 0.375rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.25rem;
+  width: 1.25rem;
+  border-radius: var(--radius-sm);
+  color: var(--color-muted-foreground);
+  cursor: pointer;
+}
+.input-clear-btn:hover {
+  color: var(--color-foreground);
+  background-color: var(--color-accent);
+}
+
+/* ──────────────────────────────────────────────────
+   Reduced motion
+   ────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+
+    animation-iteration-count: 1 !important;
+
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ──────────────────────────────────────────────────
+   Keyframes
+   ────────────────────────────────────────────────── */
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-muted) 25%,
+    var(--color-accent) 50%,
+    var(--color-muted) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+
+/* ──────────────────────────────────────────────────
+   Sonner Toast Notification Styling
+   Ensures toast title, description, buttons, and icons
+   use high-contrast theme tokens instead of Sonner's
+   default light-theme colors.
+   ────────────────────────────────────────────────── */
+[data-sonner-toast] {
+  background-color: var(--color-card) !important;
+  color: var(--color-foreground) !important;
+  border: 1px solid var(--color-border) !important;
+  font-family: var(--font-sans);
+}
+
+[data-sonner-toast] [data-title] {
+  color: var(--color-foreground) !important;
+}
+
+[data-sonner-toast] [data-description] {
+  color: var(--color-muted-foreground) !important;
+}
+
+[data-sonner-toast] [data-button] {
+  background-color: var(--color-primary) !important;
+  color: var(--color-primary-foreground) !important;
+  border-radius: var(--radius-md) !important;
+  font-weight: 500 !important;
+}
+
+[data-sonner-toast] [data-cancel-button] {
+  background-color: var(--color-secondary) !important;
+  color: var(--color-secondary-foreground) !important;
+  border-radius: var(--radius-md) !important;
+}
+
+[data-sonner-toast] [data-close-button] {
+  background-color: var(--color-card) !important;
+  color: var(--color-muted-foreground) !important;
+  border: 1px solid var(--color-border) !important;
+}
+
+[data-sonner-toast] [data-close-button]:hover {
+  color: var(--color-foreground) !important;
+  background-color: var(--color-accent) !important;
+}

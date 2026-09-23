@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Luna</title>
+    <!--
+      Kept in sync with the production CSP emitted by src/main/index.ts. See
+      the comment there for the rationale on each directive (notably why
+      'unsafe-inline' is required for style-src, and why frame-src allows
+      data: but not 'self').
+
+      No external origins: the fonts are self-hosted (see assets/fonts.css), so
+      fonts.googleapis.com and fonts.gstatic.com have been dropped from
+      style-src/style-src-elem/font-src. Every directive here is now 'self',
+      data: or blob:.
+
+      `frame-ancestors` is deliberately absent here: it is ignored when
+      delivered via <meta> and the browser logs an error for it on every load.
+      The directive only has effect as a response header, which is where
+      main/index.ts sets it for packaged builds. Listing it here bought
+      nothing and produced a console error that masked real ones.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; style-src-elem 'self' 'unsafe-inline'; style-src-attr 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; frame-src data:; base-uri 'self'; form-action 'none'; worker-src 'self' blob:; media-src 'self' blob: data:; upgrade-insecure-requests;"
+    />
+  </head>
+  <body class="bg-background text-foreground antialiased">
+    <div id="root"></div>
+    <script type="module" src="./src/main.tsx"></script>
+  </body>
+</html>
