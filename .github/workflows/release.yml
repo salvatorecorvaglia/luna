@@ -51,17 +51,6 @@ jobs:
             exit 1
           fi
 
-  # The release workflow ran no lint, no typecheck, no tests and no e2e, and had
-  # no dependency on CI. A tag push therefore published signed artifacts to
-  # GitHub Releases with "the tag version matches package.json" as the only gate
-  # — nothing established that the tagged commit had ever been green. That was
-  # not theoretical: main was failing `biome check --error-on-warnings` (and
-  # therefore skipping e2e and package-smoke, which need it) at the time this was
-  # written.
-  #
-  # Re-running the checks here rather than querying CI's status for the commit:
-  # it needs no extra token scope, it cannot be fooled by a tag pointing at a
-  # commit CI never saw, and it costs one ubuntu runner.
   verify:
     name: Lint, Typecheck & Test
     runs-on: ubuntu-24.04
@@ -188,20 +177,6 @@ jobs:
       - name: Build Electron app
         run: pnpm run build
 
-      # electron-builder's deb target shells out to fpm. Rather than expecting it
-      # on PATH it downloads a portable Ruby bundle into the electron-builder
-      # cache and unpacks it with 7za, and that unpack is what keeps failing the
-      # release:
-      #
-      #   ENOENT: no such file or directory, open
-      #   '.cache/electron-builder/fpm@2.1.4/fpm-1.17.0-ruby-3.4.3-linux-amd64-<hash>.tmp/ruby-3.4.3-portable/bin/bundle'
-      #
-      # The `.tmp` in that path is extractArchive()'s staging dir, so the tree is
-      # being read while it is still half-extracted — and because the cache dir is
-      # restored across runs by actions/cache, a partial extract from a failed run
-      # is carried into the next one. Installing fpm ourselves and setting
-      # USE_SYSTEM_FPM makes app-builder-lib's getFpmPath() return a bare "fpm"
-      # from PATH, so the portable-Ruby download/extract path is never taken.
       - name: Install fpm (Linux deb target)
         if: matrix.platform == 'linux'
         run: |
