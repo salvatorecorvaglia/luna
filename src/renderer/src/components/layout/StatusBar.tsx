@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { getApi } from '@/services/api';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { useTransferStore } from '@/stores/transfer-store';
+import { useUIStore } from '@/stores/ui-store';
 
 export function StatusBar() {
   // Every selector here reduces to a primitive or to the one session object
@@ -39,7 +40,7 @@ export function StatusBar() {
    * by default), dedupes against any other consumer, and gets an error state
    * instead of a silently swallowed catch.
    */
-  const { data: tunnels = [] } = useQuery<ActivePortForwardInfo[]>({
+  const { data: polledTunnels = [] } = useQuery<ActivePortForwardInfo[]>({
     queryKey: ['port-forwards'],
     queryFn: () => getApi().ssh.listActivePortForwards(),
     refetchInterval: 3000,
@@ -48,6 +49,10 @@ export function StatusBar() {
     placeholderData: (prev) => prev,
     staleTime: 0,
   });
+  // A disabled query keeps its last data, so with every SSH session closed the
+  // indicator went on showing the tunnels those sessions had. No SSH session
+  // means no tunnels.
+  const tunnels = hasSshSessions ? polledTunnels : [];
 
   const activeSessions = useTerminalStore((s) => {
     let count = 0;
@@ -129,7 +134,17 @@ export function StatusBar() {
           {activeTransferCount > 0 ? (
             <button
               type="button"
-              onClick={toggleQueueExpanded}
+              onClick={() => {
+                // The queue panel lives in the SFTP view; toggling it from
+                // anywhere else changed invisible state and appeared to do
+                // nothing. Show the view with the queue open.
+                if (useUIStore.getState().activeView !== 'sftp') {
+                  useUIStore.getState().setActiveView('sftp');
+                  useTransferStore.getState().setQueueExpanded(true);
+                } else {
+                  toggleQueueExpanded();
+                }
+              }}
               className="flex items-center gap-1.5 rounded px-1.5 py-0.5 hover:bg-accent hover:text-foreground cursor-pointer"
             >
               <Upload className="size-3" />

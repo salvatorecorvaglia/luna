@@ -1,9 +1,11 @@
+import { toastArgs } from '@shared/error-messages';
 import type { WorkspacePreset } from '@shared/types/workspace';
-import { LayoutGrid, Play, Save, Trash2, X } from 'lucide-react';
+import { AlertTriangle, LayoutGrid, Play, Save, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { DialogShell } from '@/components/common/DialogShell';
-import { EmptyState, Spinner } from '@/components/ui';
+import { Button, EmptyState, IconButton, Spinner } from '@/components/ui';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
 import { useTerminalStore } from '@/stores/terminal-store';
@@ -19,20 +21,23 @@ export function WorkspacePresetsDialog({
   onClose,
   onRestoreWorkspace,
 }: WorkspacePresetsDialogProps) {
+  // Deletion is permanent; confirm first (the trash button used to act on one click).
+  /** A failed load, shown instead of the empty state it used to masquerade as. */
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [pendingDeleteWorkspaceId, setPendingDeleteWorkspaceId] = useState<string | null>(null);
   const [workspaces, setWorkspaces] = useState<WorkspacePreset[]>([]);
   const [loading, setLoading] = useState(false);
   const [showSaveForm, setShowSaveForm] = useState(false);
   const [newPresetName, setNewPresetName] = useState('');
 
-  const sessions = useTerminalStore((s) => s.sessions);
-  const activeSessionId = useTerminalStore((s) => s.activeSessionId);
-
   const fetchWorkspaces = useCallback(async () => {
     try {
       const list = await getApi().workspaces.list();
       setWorkspaces(list);
+      setLoadError(null);
     } catch (err) {
       console.error('Failed to load workspaces:', err);
+      setLoadError(err instanceof Error ? err.message : String(err));
     }
   }, []);
 
@@ -49,8 +54,20 @@ export function WorkspacePresetsDialog({
       return;
     }
 
+    // Read at save time rather than subscribing to the whole session Map,
+    // which re-rendered this dialog on every status tick of every session.
+    const { sessions, activeSessionId } = useTerminalStore.getState();
+    // SSH sessions that are live. Local shells carry the pseudo connection id
+    // 'local', which restore then tried to connectToHost() — an error tab —
+    // and dead sessions aren't part of the workspace the user is looking at.
     const connectedConnectionIds = Array.from(sessions.values())
-      .filter((s) => s.connectionId)
+      .filter(
+        (s) =>
+          s.type !== 'local' &&
+          s.connectionId &&
+          s.connectionId !== 'local' &&
+          (s.status === 'connected' || s.status === 'connecting' || s.status === 'reconnecting'),
+      )
       .map((s) => s.connectionId);
 
     if (connectedConnectionIds.length === 0) {
@@ -76,7 +93,7 @@ export function WorkspacePresetsDialog({
       setShowSaveForm(false);
       fetchWorkspaces();
     } catch (err) {
-      toast.error(`Failed to save workspace: ${(err as Error).message}`);
+      toast.error(...toastArgs(err, 'Failed to save workspace'));
     }
   };
 
@@ -86,7 +103,7 @@ export function WorkspacePresetsDialog({
       toast.success('Workspace preset deleted');
       fetchWorkspaces();
     } catch (err) {
-      toast.error(`Failed to delete workspace: ${(err as Error).message}`);
+      toast.error(...toastArgs(err, 'Failed to delete workspace'));
     }
   };
 
@@ -127,13 +144,13 @@ export function WorkspacePresetsDialog({
           </div>
         </div>
 
-        <button
-          type="button"
+        <IconButton
           onClick={onClose}
-          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
-        >
-          <X className="size-4" />
-        </button>
+          aria-label="Close dialog"
+          title="Close"
+          size="md"
+          icon={<X className="size-4" />}
+        />
       </div>
 
       {/* Content */}
@@ -207,6 +224,18 @@ export function WorkspacePresetsDialog({
           <div className="flex justify-center py-8">
             <Spinner size="md" label="Loading saved workspace presets…" />
           </div>
+        ) : loadError && workspaces.length === 0 ? (
+          <EmptyState
+            icon={<AlertTriangle />}
+            title="Couldn't load workspace presets"
+            description={loadError}
+            action={
+              <Button variant="outline" onClick={() => void fetchWorkspaces()}>
+                Retry
+              </Button>
+            }
+            className="rounded-xl border border-dashed border-border bg-accent/10 py-10"
+          />
         ) : workspaces.length === 0 ? (
           <EmptyState
             icon={<LayoutGrid />}
@@ -241,8 +270,9 @@ export function WorkspacePresetsDialog({
 
                   <button
                     type="button"
-                    onClick={() => handleDeleteWorkspace(w.id)}
+                    onClick={() => setPendingDeleteWorkspaceId(w.id)}
                     title="Delete preset"
+                    aria-label="Delete preset"
                     className="rounded-md border border-destructive/20 bg-destructive/10 p-1.5 text-destructive-fg hover:bg-destructive/20 transition-colors cursor-pointer"
                   >
                     <Trash2 className="size-3.5" />
@@ -253,6 +283,18 @@ export function WorkspacePresetsDialog({
           </div>
         )}
       </div>
+      <ConfirmDialog
+        open={pendingDeleteWorkspaceId !== null}
+        title="Delete workspace preset?"
+        message="This preset will be permanently removed."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => {
+          if (pendingDeleteWorkspaceId) void handleDeleteWorkspace(pendingDeleteWorkspaceId);
+          setPendingDeleteWorkspaceId(null);
+        }}
+        onCancel={() => setPendingDeleteWorkspaceId(null)}
+      />
     </DialogShell>
   );
 }

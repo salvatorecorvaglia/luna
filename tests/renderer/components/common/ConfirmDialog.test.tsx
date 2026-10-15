@@ -28,8 +28,8 @@ describe('ConfirmDialog', () => {
       />,
     );
     const dialog = screen.getByRole('dialog');
-    expect(screen.getByText('Delete?')).toBeTruthy();
-    expect(screen.getByText('This cannot be undone.')).toBeTruthy();
+    expect(screen.getByText('Delete?')).toBeInTheDocument();
+    expect(screen.getByText('This cannot be undone.')).toBeInTheDocument();
     expect(dialog).toHaveAttribute('aria-labelledby', 'confirm-dialog-title');
     expect(dialog).toHaveAttribute('aria-describedby', 'confirm-dialog-message');
   });

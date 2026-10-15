@@ -94,7 +94,7 @@ describe('host-key TOFU flow via hostVerifier', () => {
       isFirst: true,
     });
     // After verifier rejects, the candidate is in pending and trust() commits it.
-    const fp = pending.trust('host.example', 22);
+    const fp = pending.trust('host.example', 22, `SHA256:${key.toString('hex').slice(0, 12)}`);
     expect(fp).toMatch(/^SHA256:/);
     expect(stored).toHaveLength(1);
     expect(stored[0]).toMatchObject({
@@ -131,7 +131,7 @@ describe('host-key TOFU flow via hostVerifier', () => {
     // No host-key-change prompt — refusing weak algos is policy, not a TOFU choice.
     expect(emits.find((e) => e.channel.includes('host-key-change'))).toBeUndefined();
     // pending registry stays empty so trust() can't paper over the rejection.
-    expect(pending.trust('h', 22)).toBeNull();
+    expect(pending.trust('h', 22, 'SHA256:any')).toBeNull();
   });
 
   it('trusted: verifier returns true and emits nothing', async () => {
@@ -144,5 +144,56 @@ describe('host-key TOFU flow via hostVerifier', () => {
     const verifier = config.hostVerifier as (key: Buffer) => boolean;
     expect(verifier(makeKey('ssh-ed25519', 'yy'))).toBe(true);
     expect(emits).toEqual([]);
+  });
+
+  it('never offers SHA-1 RSA or DSA signatures, which the ssh-rsa key-type allowlist relies on', async () => {
+    // host-key-store allows the `ssh-rsa` *key type* because RSA blobs are
+    // always typed that way. That is only safe while negotiation refuses the
+    // SHA-1 `ssh-rsa` signature scheme — pin it.
+    const { config } = await buildConnectConfig(
+      { host: 'h', port: 22, username: 'u', authType: 'password', password: 'p' },
+      { pendingHostKeys: new PendingHostKeyRegistry() },
+    );
+    const offered = (config.algorithms?.serverHostKey ?? []) as string[];
+    expect(offered).toContain('rsa-sha2-256');
+    expect(offered).not.toContain('ssh-rsa');
+    expect(offered).not.toContain('ssh-dss');
+  });
+
+  it('treats a stored keepalive of 0 as unset and falls back to the global interval', async () => {
+    // Migration 016 defaults keepalive_interval to 0. Passing that through
+    // disabled ssh2 keepalive for every saved connection.
+    const { config } = await buildConnectConfig(
+      {
+        host: 'h',
+        port: 22,
+        username: 'u',
+        authType: 'password',
+        password: 'p',
+        keepaliveInterval: 0,
+        keepaliveCountMax: 0,
+      },
+      { pendingHostKeys: new PendingHostKeyRegistry() },
+    );
+    // getSetting is mocked to return its default here.
+    expect(config.keepaliveInterval).toBe(10000);
+    expect(config.keepaliveCountMax).toBe(3);
+  });
+
+  it('keeps an explicit per-connection keepalive', async () => {
+    const { config } = await buildConnectConfig(
+      {
+        host: 'h',
+        port: 22,
+        username: 'u',
+        authType: 'password',
+        password: 'p',
+        keepaliveInterval: 30000,
+        keepaliveCountMax: 5,
+      },
+      { pendingHostKeys: new PendingHostKeyRegistry() },
+    );
+    expect(config.keepaliveInterval).toBe(30000);
+    expect(config.keepaliveCountMax).toBe(5);
   });
 });

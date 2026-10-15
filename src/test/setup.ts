@@ -1,11 +1,12 @@
 import '@testing-library/jest-dom/vitest';
-import { vi } from 'vitest';
+import { afterEach, vi } from 'vitest';
+import { __setApiForTesting } from '../renderer/src/services/api';
 
 vi.mock('electron', () => ({
   app: {
     getPath: (name: string) => `/tmp/luna-test-${name}`,
     isPackaged: false,
-    getVersion: () => '1.0.0',
+    getVersion: () => '1.1.0',
   },
   safeStorage: {
     isEncryptionAvailable: () => false,
@@ -53,3 +54,12 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
     disconnect(): void {}
   } as unknown as typeof ResizeObserver;
 }
+
+// Clear any fake API installed by `installFakeApi()`. Registered once here
+// rather than inside installFakeApi itself: that helper is called from a
+// test's `beforeEach`, and registering an `afterEach` while hooks are already
+// running is unsupported — it either never fires or stacks one extra hook per
+// test.
+afterEach(() => {
+  __setApiForTesting(null);
+});

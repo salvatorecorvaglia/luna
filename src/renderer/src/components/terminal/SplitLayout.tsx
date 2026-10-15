@@ -4,7 +4,7 @@ import type React from 'react';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Z } from '@/lib/z-layers';
-import { getFirstLeafSessionId, useTerminalStore } from '@/stores/terminal-store';
+import { useTerminalStore } from '@/stores/terminal-store';
 import { LocalTerminalPane } from './LocalTerminalPane';
 import { TerminalPane } from './TerminalPane';
 
@@ -63,19 +63,32 @@ function SplitLayoutInner({ node, tabId, activeSessionId }: SplitLayoutProps) {
       setIsResizing(true);
       const rect = containerRef.current.getBoundingClientRect();
 
+      // One store write per animation frame, as SftpManager's splitter does.
+      // pointermove fires far faster than the display refreshes, and each
+      // write replaced `layouts`, re-rendered the tab's tree and kicked every
+      // pane's ResizeObserver.
+      let frame: number | null = null;
+      let pendingRatio = 0;
       const handlePointerMove = (moveEvent: PointerEvent) => {
-        let ratio: number;
-        if (node.direction === 'vertical') {
-          ratio = (moveEvent.clientX - rect.left) / rect.width;
-        } else {
-          ratio = (moveEvent.clientY - rect.top) / rect.height;
-        }
-        ratio = Math.max(0.1, Math.min(0.9, ratio));
-        const leftKey = getFirstLeafSessionId(node.children[0]);
-        updateSplitRatio(tabId, leftKey, ratio);
+        const raw =
+          node.direction === 'vertical'
+            ? (moveEvent.clientX - rect.left) / rect.width
+            : (moveEvent.clientY - rect.top) / rect.height;
+        pendingRatio = Math.max(MIN_RATIO, Math.min(1 - MIN_RATIO, raw));
+        if (frame !== null) return;
+        frame = requestAnimationFrame(() => {
+          frame = null;
+          updateSplitRatio(tabId, node.id, pendingRatio);
+        });
       };
 
       const detach = (): void => {
+        if (frame !== null) {
+          // Land the last position rather than dropping it.
+          cancelAnimationFrame(frame);
+          frame = null;
+          updateSplitRatio(tabId, node.id, pendingRatio);
+        }
         setIsResizing(false);
         window.removeEventListener('pointermove', handlePointerMove);
         window.removeEventListener('pointerup', handlePointerUp);
@@ -103,6 +116,7 @@ function SplitLayoutInner({ node, tabId, activeSessionId }: SplitLayoutProps) {
     // descendant), not a keydown on this div.
     return (
       // biome-ignore lint/a11y/useKeyWithClickEvents: activation via onFocus bubbling, see comment above
+      // biome-ignore lint/a11y/noStaticElementInteractions: pane container; the focusable xterm input inside is the interactive element
       <div
         onClick={() => {
           if (!isActive) setActiveSession(node.sessionId);
@@ -124,7 +138,7 @@ function SplitLayoutInner({ node, tabId, activeSessionId }: SplitLayoutProps) {
       >
         {/* Floating action bar */}
         <div
-          className={`absolute right-2 top-2 ${Z.paneChrome} flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-card/90 backdrop-blur border border-border/80 rounded-md p-1 shadow-md`}
+          className={`absolute right-2 top-2 ${Z.paneChrome} flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity bg-card/90 backdrop-blur border border-border/80 rounded-md p-1 shadow-md`}
         >
           <button
             type="button"
@@ -134,6 +148,7 @@ function SplitLayoutInner({ node, tabId, activeSessionId }: SplitLayoutProps) {
             }}
             className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground cursor-pointer"
             title="Split Vertically"
+            aria-label="Split pane vertically"
           >
             <Columns className="size-3.5" />
           </button>
@@ -145,6 +160,7 @@ function SplitLayoutInner({ node, tabId, activeSessionId }: SplitLayoutProps) {
             }}
             className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground cursor-pointer"
             title="Split Horizontally"
+            aria-label="Split pane horizontally"
           >
             <Rows className="size-3.5" />
           </button>
@@ -156,6 +172,7 @@ function SplitLayoutInner({ node, tabId, activeSessionId }: SplitLayoutProps) {
             }}
             className="p-1 hover:bg-destructive/20 hover:text-destructive-fg rounded text-muted-foreground cursor-pointer"
             title="Close Pane"
+            aria-label="Close pane"
           >
             <X className="size-3.5" />
           </button>
@@ -204,7 +221,7 @@ function SplitLayoutInner({ node, tabId, activeSessionId }: SplitLayoutProps) {
           const delta = e.key === increase ? RATIO_STEP : -RATIO_STEP;
           updateSplitRatio(
             tabId,
-            getFirstLeafSessionId(node.children[0]),
+            node.id,
             Math.min(1 - MIN_RATIO, Math.max(MIN_RATIO, ratio + delta)),
           );
         }}

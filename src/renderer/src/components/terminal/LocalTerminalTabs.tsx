@@ -1,38 +1,35 @@
 import { Reorder } from 'framer-motion';
 import { Monitor, Pencil, Plus, X, XCircle } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
-import { v4 as uuidv4 } from 'uuid';
+import { useShallow } from 'zustand/react/shallow';
 import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
 import { PromptDialog } from '@/components/common/PromptDialog';
+import { handleTabKeyDown, handleTablistKeyDown } from '@/lib/roving-tabs';
 import { cn } from '@/lib/utils';
 import {
   getAllSessionIdsFromTree,
   getFirstLeafSessionId,
+  getTabSession,
   hasSessionInTree,
+  selectTabsByKind,
   useActiveSessionId,
   useTerminalStore,
-  useTerminalTabOrder,
 } from '@/stores/terminal-store';
 
 export function LocalTerminalTabs() {
   // Individual selectors instead of a whole-store destructure — see the same
   // change in TerminalTabs.tsx for why.
-  const sessions = useTerminalStore((s) => s.sessions);
-  const tabOrder = useTerminalTabOrder();
   const activeSessionId = useActiveSessionId();
   const setActiveSession = useTerminalStore((s) => s.setActiveSession);
   const setTabOrder = useTerminalStore((s) => s.setTabOrder);
   const closeTab = useTerminalStore((s) => s.closeTab);
   const renameTab = useTerminalStore((s) => s.renameTab);
-  const addSession = useTerminalStore((s) => s.addSession);
   const layouts = useTerminalStore((s) => s.layouts);
 
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
 
-  const localTabs = useMemo(
-    () => tabOrder.filter((id) => sessions.get(id)?.type === 'local'),
-    [tabOrder, sessions],
-  );
+  // Shallow-compared tab list instead of the session Map; see TerminalTabs.
+  const localTabs = useTerminalStore(useShallow((s) => selectTabsByKind(s, 'local')));
 
   const activeLocalTabId = useMemo(() => {
     if (!activeSessionId) return null;
@@ -61,28 +58,15 @@ export function LocalTerminalTabs() {
   }, []);
 
   const handleNewLocalTab = useCallback(() => {
-    const sessionId = uuidv4();
-    addSession({
-      id: sessionId,
-      connectionId: 'local',
-      connectionName: 'Local Terminal',
-      status: 'connected',
-      title: 'Local',
-      type: 'local',
-    });
-    setActiveSession(sessionId);
-  }, [addSession, setActiveSession]);
+    useTerminalStore.getState().openLocalSession();
+  }, []);
 
   const handleReorder = useCallback(
     (newOrder: string[]) => {
-      const sshTabs = tabOrder.filter((id) => {
-        const s = sessions.get(id);
-
-        return !s || !s.type || s.type === 'ssh';
-      });
+      const sshTabs = selectTabsByKind(useTerminalStore.getState(), 'ssh');
       setTabOrder([...sshTabs, ...newOrder]);
     },
-    [tabOrder, sessions, setTabOrder],
+    [setTabOrder],
   );
 
   const handleActivateTab = useCallback(
@@ -97,11 +81,16 @@ export function LocalTerminalTabs() {
     [layouts, setActiveSession],
   );
 
+  const renamingSession = renamingTabId
+    ? getTabSession(useTerminalStore.getState(), renamingTabId)
+    : undefined;
+
   return (
     <div
       className="flex h-9 items-center border-b border-border/60 bg-card/60 no-select"
       role="tablist"
       aria-label="Local terminal tabs"
+      onKeyDown={(e) => handleTablistKeyDown(e, handleActivateTab)}
     >
       <Reorder.Group
         transition={{ duration: 0 }}
@@ -111,7 +100,7 @@ export function LocalTerminalTabs() {
         className="flex items-center overflow-x-auto"
         as="div"
       >
-        {localTabs.map((tabId) => {
+        {localTabs.map((tabId, index) => {
           const root = layouts.get(tabId);
           if (!root) return null;
           return (
@@ -119,6 +108,7 @@ export function LocalTerminalTabs() {
               key={tabId}
               tabId={tabId}
               isActive={tabId === activeLocalTabId}
+              tabbable={tabId === activeLocalTabId || (activeLocalTabId === null && index === 0)}
               onActivate={handleActivateTab}
               onClose={handleCloseTab}
               onRename={handleRename}
@@ -130,6 +120,7 @@ export function LocalTerminalTabs() {
       <button
         type="button"
         onClick={handleNewLocalTab}
+        aria-label="New local terminal"
         className="flex size-9 items-center justify-center border-l border-border/40 text-muted-foreground hover:bg-background/50 hover:text-foreground transition-colors cursor-pointer"
         title="New Local Terminal"
       >
@@ -140,10 +131,10 @@ export function LocalTerminalTabs() {
         open={!!renamingTabId}
         title="Rename tab"
         placeholder="Tab name"
-        defaultValue={renamingTabId ? sessions.get(renamingTabId)?.title || 'Local' : ''}
+        defaultValue={renamingSession?.title || 'Local'}
         confirmLabel="Rename"
         onConfirm={(newTitle) => {
-          if (renamingTabId) renameTab(renamingTabId, newTitle);
+          if (renamingSession) renameTab(renamingSession.id, newTitle);
           setRenamingTabId(null);
         }}
         onCancel={() => setRenamingTabId(null)}
@@ -155,13 +146,22 @@ export function LocalTerminalTabs() {
 interface TabProps {
   tabId: string;
   isActive: boolean;
+  /** The strip's single Tab stop (roving tabIndex). */
+  tabbable: boolean;
   onActivate: (tabId: string) => void;
   onClose: (tabId: string) => void;
   onRename: (tabId: string) => void;
 }
 
-const Tab = memo(function Tab({ tabId, isActive, onActivate, onClose, onRename }: TabProps) {
-  const session = useTerminalStore((s) => s.sessions.get(tabId));
+const Tab = memo(function Tab({
+  tabId,
+  isActive,
+  tabbable,
+  onActivate,
+  onClose,
+  onRename,
+}: TabProps) {
+  const session = useTerminalStore((s) => getTabSession(s, tabId));
 
   const contextItems: ContextMenuItem[] = useMemo(
     () => [
@@ -191,6 +191,9 @@ const Tab = memo(function Tab({ tabId, isActive, onActivate, onClose, onRename }
       as="div"
       role="tab"
       aria-selected={isActive}
+      data-tab-id={tabId}
+      tabIndex={tabbable ? 0 : -1}
+      onKeyDown={(e) => handleTabKeyDown(e, () => onActivate(tabId))}
       className={cn(
         'group relative flex h-9 min-w-[90px] max-w-[200px] items-center gap-2 border-r border-border/40 px-3 text-xs cursor-grab active:cursor-grabbing',
         isActive

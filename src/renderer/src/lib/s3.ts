@@ -1,6 +1,5 @@
 import { toastArgs } from '@shared/error-messages';
 import { toast } from 'sonner';
-import { v4 as uuidv4 } from 'uuid';
 import { getApi } from '@/services/api';
 import { useStorageStore } from '@/stores/storage-store';
 import { useUIStore } from '@/stores/ui-store';
@@ -11,7 +10,24 @@ import { useUIStore } from '@/stores/ui-store';
  *
  * Mirrors `connectToHost` (lib/ssh.ts) for symmetry.
  */
-export async function connectToS3(connectionId: string): Promise<string | null> {
+/**
+ * Connects in flight, per connection. The existing-session checks below all
+ * pass for a double-click (nothing is connected yet), so each click opened its
+ * own S3 session; concurrent calls now share one attempt.
+ */
+const inFlight = new Map<string, Promise<string | null>>();
+
+export function connectToS3(connectionId: string): Promise<string | null> {
+  const pending = inFlight.get(connectionId);
+  if (pending) return pending;
+  const attempt = connectToS3Once(connectionId).finally(() => {
+    if (inFlight.get(connectionId) === attempt) inFlight.delete(connectionId);
+  });
+  inFlight.set(connectionId, attempt);
+  return attempt;
+}
+
+async function connectToS3Once(connectionId: string): Promise<string | null> {
   const {
     storageSessions,
     addStorageSession,
@@ -54,7 +70,7 @@ export async function connectToS3(connectionId: string): Promise<string | null> 
     return existing.id;
   }
 
-  const sessionId = uuidv4();
+  const sessionId = crypto.randomUUID();
 
   let connectionName = 'S3';
   let initialPath = '/';
@@ -81,6 +97,9 @@ export async function connectToS3(connectionId: string): Promise<string | null> 
     await getApi().s3.connect({ sessionId, connectionId });
     updateStorageSessionStatus(sessionId, 'connected');
     setActiveSessionId(sessionId);
+    // Like the two existing-session branches above; this one alone left the
+    // user on whatever view they were in.
+    useUIStore.getState().setActiveView('sftp');
     return sessionId;
   } catch (err: unknown) {
     toast.error(...toastArgs(err, 'S3 connection failed'));

@@ -12,7 +12,6 @@ import type { FolderDiffResult } from './folder-sync';
 import type { AuditExportOptions } from './session-audit';
 import type { AppSettings } from './settings';
 import type { LocalFileEntry } from './sftp';
-import type { HistoryMatch } from './shell-history';
 import type { CreateSnippetInput, Snippet, UpdateSnippetInput } from './snippet';
 import type {
   S3ConnectParams,
@@ -38,6 +37,7 @@ import type {
   SshResizeParams,
   SshSendDataParams,
   SshStatusEvent,
+  TerminalAckParams,
 } from './terminal';
 import type { TransferCompleteEvent, TransferErrorEvent, TransferProgressEvent } from './transfer';
 import type { CreateWorkspaceInput, WorkspacePreset } from './workspace';
@@ -82,6 +82,7 @@ export interface IpcHandlerMap {
   'ssh:disconnect': { request: string; response: void };
   'ssh:send-data': { request: SshSendDataParams; response: void };
   'ssh:resize': { request: SshResizeParams; response: void };
+  'ssh:ack-data': { request: TerminalAckParams; response: void };
   'ssh:test-connection': {
     request: {
       connectionId?: string;
@@ -100,7 +101,8 @@ export interface IpcHandlerMap {
     response: { ok: boolean; error?: string };
   };
   'ssh:trust-host-key': {
-    request: { host: string; port: number };
+    /** `fingerprint` is the one the user was shown; see PendingHostKeyRegistry.trust. */
+    request: { host: string; port: number; fingerprint: string };
     response: { trusted: boolean; fingerprint?: string };
   };
   'ssh:list-active-port-forwards': {
@@ -170,10 +172,12 @@ export interface IpcHandlerMap {
           reason: 'empty' | 'missing' | 'permission' | 'not-a-file' | 'forbidden' | 'unknown';
         };
   };
-  'shell:read-file': { request: string; response: { content: string; size: number } };
+  'shell:read-file': {
+    request: string;
+    response: { content: string; encoding: 'utf-8' | 'base64'; size: number };
+  };
   'shell:write-file': { request: { filePath: string; content: string }; response: void };
   'shell:cli-reference': { request: string; response: CliCommandDoc[] };
-  'shell:search-history': { request: { query: string; limit?: number }; response: HistoryMatch[] };
   'shell:export-audit-log': {
     request: AuditExportOptions;
     response: { success: boolean; path: string };
@@ -190,18 +194,17 @@ export interface IpcHandlerMap {
     request: { sessionId: string; cols: number; rows: number };
     response: void;
   };
+  'local-terminal:ack-data': { request: TerminalAckParams; response: void };
 
   // Transfers
   'transfer:cancel': { request: string; response: void };
   'transfer:cancel-by-session': { request: string; response: void };
 
   // Credentials
-  'credential:store': { request: { connectionId: string; secret: string }; response: void };
-  'credential:retrieve': { request: string; response: string | null };
-  'credential:delete': { request: string; response: void };
-  'credential:resolve-external': { request: string; response: string | null };
   'storage:compare-directories': {
     request: {
+      /** Draws from this session's rate bucket; must be a live storage session. */
+      sessionId: string;
       localEntries: { relativePath: string; size: number; mtime: number }[];
       remoteEntries: StorageEntry[];
       direction?: 'sync-to-remote' | 'sync-to-local' | 'bi-directional';
@@ -233,6 +236,8 @@ export interface IpcHandlerMap {
   };
   'app:install-update': { request: void; response: void };
   'app:open-release-page': { request: void; response: void };
+  /** https URLs only; anything else is refused in main. */
+  'app:open-external': { request: string; response: void };
   'app:get-log-path': { request: void; response: string };
   'app:open-log-file': { request: void; response: void };
   'app:get-active-sessions': {

@@ -83,9 +83,19 @@ let db: Database.Database | null = null;
  * a migration triggers re-entry *before* the assignment.
  */
 let initializing = false;
+/**
+ * Set once the app has closed the database for good (quit). getDatabase()
+ * used to reopen it on demand, so any late caller during shutdown — a timer, a
+ * transfer's final history write — silently opened a *second* connection and
+ * ran migrations after closeDatabase() had flushed the WAL.
+ */
+let closedForShutdown = false;
 
 export function getDatabase(): Database.Database {
   if (db) return db;
+  if (closedForShutdown) {
+    throw new Error('[database] getDatabase() called after the database was closed for shutdown.');
+  }
   if (initializing) {
     // We're inside the first call's initialization (a migration helper called
     // getDatabase()) and the db handle isn't installed yet. Refuse rather
@@ -258,6 +268,7 @@ export function getSetting<T>(key: string, defaultValue: T): T {
 }
 
 export function closeDatabase(): void {
+  closedForShutdown = true;
   if (db) {
     db.close();
     db = null;

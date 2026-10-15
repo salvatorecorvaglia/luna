@@ -1,9 +1,12 @@
+import { toastArgs } from '@shared/error-messages';
 import type { FolderDiffItem, FolderDiffResult } from '@shared/types/folder-sync';
 import { ArrowRightLeft, Download, FolderSync, RefreshCw, Upload, X } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { DialogShell } from '@/components/common/DialogShell';
-import { EmptyState, Spinner } from '@/components/ui';
+import { EmptyState, IconButton, Spinner } from '@/components/ui';
+import { formatBytes } from '@/lib/format';
+import { enqueueTransfer } from '@/lib/transfers';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
 
@@ -13,14 +16,6 @@ interface FolderSyncDialogProps {
   localPath: string;
   remotePath: string;
   sessionId: string;
-}
-
-function formatBytes(bytes?: number): string {
-  if (bytes === undefined || bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`;
 }
 
 export function FolderSyncDialog({
@@ -37,9 +32,18 @@ export function FolderSyncDialog({
     'sync-to-remote',
   );
 
+  // Only the latest comparison may publish its result. Switching direction
+  // re-runs the comparison, and an older response landing last used to leave a
+  // diff for the *previous* direction on screen — which Execute would then run,
+  // uploading over remote files the user had asked to download.
+  const requestIdRef = useRef(0);
+
   const runFolderComparison = useCallback(async () => {
     if (!localPath || !remotePath || !sessionId) return;
+    const requestId = ++requestIdRef.current;
     setLoading(true);
+    // Drop the previous diff at once so it can't be executed while the new one loads.
+    setDiffResult(null);
     try {
       // List local files
       const localFiles = await getApi().shell.readdir(localPath);
@@ -58,11 +62,13 @@ export function FolderSyncDialog({
         direction,
       });
 
+      if (requestId !== requestIdRef.current) return;
       setDiffResult(res);
     } catch (err) {
-      toast.error(`Folder comparison failed: ${(err as Error).message}`);
+      if (requestId !== requestIdRef.current) return;
+      toast.error(...toastArgs(err, 'Folder comparison failed'));
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
   }, [localPath, remotePath, sessionId, direction]);
 
@@ -72,7 +78,7 @@ export function FolderSyncDialog({
   }, [open, runFolderComparison]);
 
   const handleExecuteSync = async () => {
-    if (!diffResult || diffResult.items.length === 0) return;
+    if (loading || !diffResult || diffResult.items.length === 0) return;
     setSyncing(true);
 
     // Each file is enqueued independently. The loop used to abort on the first
@@ -98,10 +104,13 @@ export function FolderSyncDialog({
             ? `${remotePath}${item.relativePath}`
             : `${remotePath}/${item.relativePath}`;
 
-          await getApi().storage[direction]({
+          await enqueueTransfer({
+            type: direction,
             sessionId,
             localPath: lPath,
             remotePath: rPath,
+            fileName: item.relativePath,
+            size: (direction === 'upload' ? item.localSize : item.remoteSize) ?? 0,
           });
           enqueued++;
         } catch (err) {
@@ -168,13 +177,13 @@ export function FolderSyncDialog({
           </div>
         </div>
 
-        <button
-          type="button"
+        <IconButton
           onClick={onClose}
-          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
-        >
-          <X className="size-4" />
-        </button>
+          aria-label="Close dialog"
+          title="Close"
+          size="md"
+          icon={<X className="size-4" />}
+        />
       </div>
 
       {/* Content */}
@@ -353,6 +362,7 @@ export function FolderSyncDialog({
             onClick={handleExecuteSync}
             disabled={
               syncing ||
+              loading ||
               !diffResult ||
               diffResult.items.every((i: FolderDiffItem) => i.recommendedAction === 'skip')
             }

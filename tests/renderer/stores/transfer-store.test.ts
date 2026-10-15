@@ -1,5 +1,5 @@
 import type { TransferItem } from '@shared/types/transfer';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useTransferStore } from '../../../src/renderer/src/stores/transfer-store';
 
 function makeTransfer(overrides: Partial<TransferItem> = {}): TransferItem {
@@ -139,5 +139,22 @@ describe('transfer-store', () => {
     expect(useTransferStore.getState().queueExpanded).toBe(true);
     useTransferStore.getState().toggleQueueExpanded();
     expect(useTransferStore.getState().queueExpanded).toBe(false);
+  });
+});
+
+describe('transfer-store — events for unknown rows', () => {
+  it('does not replace the Map or arm a reaper for a transfer it does not have', () => {
+    vi.useFakeTimers();
+    try {
+      useTransferStore.setState({ transfers: new Map() });
+      const before = useTransferStore.getState().transfers;
+      useTransferStore.getState().completeTransfer('ghost');
+      useTransferStore.getState().cancelTransfer('ghost');
+      useTransferStore.getState().errorTransfer('ghost', 'x');
+      expect(useTransferStore.getState().transfers).toBe(before);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

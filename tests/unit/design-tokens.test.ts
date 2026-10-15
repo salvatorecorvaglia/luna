@@ -60,8 +60,6 @@ const FOCUS_TRAP_ALLOWLIST = new Set<string>([
   // Top-aligned combobox with its own sizing and keyboard model; not a
   // centered card, so DialogShell's layouts don't express it.
   normPath('src/renderer/src/components/command-palette/CommandPalette.tsx'),
-  // Not a portal dialog: an in-pane overlay covering a single terminal.
-  normPath('src/renderer/src/components/terminal/TerminalPane.tsx'),
 ]);
 
 /** Files where arbitrary z-[N] values are intentionally allowed. */
@@ -521,5 +519,30 @@ describe('design-token coverage', () => {
       );
     }
     expect(offenders).toHaveLength(0);
+  });
+
+  it('non-component renderer code also goes through getApi() and lib/platform', () => {
+    // The scans above only walk components/, so the window.api ban and the
+    // platform-sniff ban did not reach hooks/, stores/ or lib/ — even though
+    // services/api.ts says *all* renderer code goes through getApi().
+    const rendererSrc = join(__dirname, '..', '..', 'src', 'renderer', 'src');
+    const owners = new Set([
+      join(rendererSrc, 'services', 'api.ts'),
+      join(rendererSrc, 'lib', 'platform.ts'),
+    ]);
+    const offenders: string[] = [];
+    for (const dir of ['hooks', 'stores', 'lib']) {
+      for (const file of walk(join(rendererSrc, dir))) {
+        if (owners.has(file)) continue;
+        const lines = readFileSync(file, 'utf-8').split('\n');
+        lines.forEach((line, i) => {
+          if (/^\s*(\/\/|\*)/.test(line)) return;
+          if (WINDOW_API_RE.test(line) || NAVIGATOR_PLATFORM_RE.test(line)) {
+            offenders.push(`  ${relative(rendererSrc, file)}:${i + 1}  ${line.trim()}`);
+          }
+        });
+      }
+    }
+    expect(offenders, offenders.join('\n')).toEqual([]);
   });
 });

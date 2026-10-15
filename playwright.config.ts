@@ -1,14 +1,17 @@
 import { defineConfig } from '@playwright/test';
 
 /**
- * End-to-end tests drive the packaged Electron main process.
+ * End-to-end tests drive the real Electron app: by default the unpackaged
+ * build in `out/` (`pnpm build` first), or a packaged electron-builder binary
+ * when `LUNA_E2E_EXECUTABLE` points at one — see tests/e2e/fixtures.ts for
+ * what differs between the two.
  *
  * These cover the one thing the vitest suite structurally cannot: that main,
  * preload and renderer actually agree at runtime. Everything below the
  * contextBridge is mocked in unit tests, so a channel renamed on one side of
- * `shared/types/ipc.ts` and not the other still passes 684 tests — the types
- * line up because both sides import the same map, but nothing proves a handler
- * is registered for every channel the preload exposes.
+ * `shared/types/ipc.ts` and not the other still passes every unit test — the
+ * types line up because both sides import the same map, but nothing proves a
+ * handler is registered for every channel the preload exposes.
  *
  * Deliberately kept small. E2E here is a contract check and a smoke test, not
  * a place to re-test business logic that has cheaper coverage elsewhere.

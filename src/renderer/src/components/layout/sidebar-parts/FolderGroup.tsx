@@ -63,7 +63,7 @@ export function FolderGroup({
               />
               <FolderClosed className="size-3 text-muted-foreground/40 group-hover/folder:text-muted-foreground/70" />
               <span className="truncate">{name}</span>
-              <span className="ml-auto text-3xs text-muted-foreground/20 group-hover/folder:text-muted-foreground/50 tabular-nums">
+              <span className="ml-auto text-3xs text-muted-foreground/60 group-hover/folder:text-muted-foreground/80 tabular-nums">
                 {connections.length}
               </span>
             </button>

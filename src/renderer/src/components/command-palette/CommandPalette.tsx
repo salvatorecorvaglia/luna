@@ -27,13 +27,18 @@ import { IconButton } from '@/components/ui';
 import { useConnections } from '@/hooks/use-connections';
 import { attachFocusTrap } from '@/lib/focus-trap';
 import { MOD_KEY } from '@/lib/platform';
+import { connectToS3 } from '@/lib/s3';
 import { connectToHost } from '@/lib/ssh';
 import { cn } from '@/lib/utils';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
 import { useConnectionStore } from '@/stores/connection-store';
 import { useStorageStore } from '@/stores/storage-store';
-import { useTerminalStore } from '@/stores/terminal-store';
+import {
+  findTabIdForSession,
+  getFirstLeafSessionId,
+  useTerminalStore,
+} from '@/stores/terminal-store';
 import { useUIStore } from '@/stores/ui-store';
 
 interface Command {
@@ -87,6 +92,7 @@ export function CommandPalette() {
   const setTerminalTheme = useTerminalStore((s) => s.setTerminalTheme);
   const activeSessionId = useTerminalStore((s) => s.activeSessionId);
   const tabOrder = useTerminalStore((s) => s.tabOrder);
+  const layouts = useTerminalStore((s) => s.layouts);
   const setActiveSession = useTerminalStore((s) => s.setActiveSession);
   const closeTab = useTerminalStore((s) => s.closeTab);
   const openCreateForm = useConnectionStore((s) => s.openCreateForm);
@@ -253,21 +259,32 @@ export function CommandPalette() {
         category: 'Storage',
         action: () => {
           setActiveView('sftp');
-          // FilePane re-fetches via useSftp hook keyed by path; nudge by re-setting same path
-          const { remotePath, setRemotePath, localPath, setLocalPath } = useStorageStore.getState();
-          setRemotePath(remotePath);
-          setLocalPath(localPath);
+          // Re-setting the same path (what this did before) leaves the query
+          // key unchanged, so nothing refetched — it only cleared the
+          // selection. Invalidate the listing queries instead.
+          void queryClient.invalidateQueries({ queryKey: ['storage'] });
+          void queryClient.invalidateQueries({ queryKey: ['local-dir'] });
         },
         keywords: ['reload', 'sftp'],
       },
     ];
 
     if (activeSessionId && tabOrder.length > 0) {
-      const idx = tabOrder.indexOf(activeSessionId);
+      // The active session may be any pane of a split, not the tab id itself —
+      // indexOf() returned -1 for it and "next" always jumped to the first tab.
+      const idx = tabOrder.indexOf(
+        findTabIdForSession(layouts, activeSessionId) ?? activeSessionId,
+      );
+      // Tabs are activated through their first pane: a tab id is not
+      // necessarily a live session id once its original pane was closed.
+      const leafOf = (tabId: string): string => {
+        const root = layouts.get(tabId);
+        return root ? getFirstLeafSessionId(root) : tabId;
+      };
       // Non-null: `% tabOrder.length` always yields a valid index since
       // tabOrder.length > 0 is guaranteed by the outer condition.
-      const next = tabOrder[(idx + 1) % tabOrder.length]!;
-      const prev = tabOrder[(idx - 1 + tabOrder.length) % tabOrder.length]!;
+      const next = leafOf(tabOrder[(idx + 1) % tabOrder.length]!);
+      const prev = leafOf(tabOrder[(idx - 1 + tabOrder.length) % tabOrder.length]!);
       cmds.push(
         {
           id: 'terminal-close-tab',
@@ -308,25 +325,46 @@ export function CommandPalette() {
     showHiddenFiles,
     activeSessionId,
     tabOrder,
+    layouts,
     setActiveSession,
     closeTab,
     setShortcutsHelpOpen,
+    queryClient,
   ]);
 
   const connectionCommands: Command[] = useMemo(
     () =>
-      connections.map((conn) => ({
-        id: `connect-${conn.id}`,
-        label: `Connect: ${conn.name}`,
-        description: `${conn.username}@${conn.host}:${conn.port}`,
-        icon: <Server className="size-4" aria-hidden="true" />,
-        category: 'Connections',
-        action: () => {
-          setActiveView('terminal');
-          void connectToHost(conn.id);
-        },
-        keywords: ['ssh', conn.host, conn.username],
-      })),
+      connections.map((conn) =>
+        conn.provider === 's3'
+          ? {
+              // S3 connections open in the storage browser. These ran an SSH
+              // connect before, which could only fail, and described
+              // themselves as "@:port".
+              id: `connect-${conn.id}`,
+              label: `Open: ${conn.name}`,
+              description: conn.defaultBucket
+                ? `s3://${conn.defaultBucket}`
+                : (conn.endpoint ?? 'Amazon S3'),
+              icon: <Server className="size-4" aria-hidden="true" />,
+              category: 'Connections',
+              action: () => {
+                void connectToS3(conn.id);
+              },
+              keywords: ['s3', 'bucket', conn.defaultBucket ?? '', conn.endpoint ?? ''],
+            }
+          : {
+              id: `connect-${conn.id}`,
+              label: `Connect: ${conn.name}`,
+              description: `${conn.username}@${conn.host}:${conn.port}`,
+              icon: <Server className="size-4" aria-hidden="true" />,
+              category: 'Connections',
+              action: () => {
+                setActiveView('terminal');
+                void connectToHost(conn.id);
+              },
+              keywords: ['ssh', conn.host, conn.username],
+            },
+      ),
     [connections, setActiveView],
   );
 
@@ -520,6 +558,7 @@ export function CommandPalette() {
                           const isSelected = index === selectedIndex;
                           return (
                             // biome-ignore lint/a11y/useKeyWithClickEvents: combobox option — keyboard handled by the input's onKeyDown, not per-row
+                            // biome-ignore lint/a11y/useFocusableInteractive: combobox options stay unfocusable; focus remains in the input (aria-activedescendant)
                             <div
                               key={cmd.id}
                               id={`command-option-${cmd.id}`}

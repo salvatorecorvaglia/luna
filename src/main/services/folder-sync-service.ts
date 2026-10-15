@@ -35,6 +35,9 @@ export class FolderSyncService {
       localMap.set(item.relativePath, { size: item.size, mtime: item.mtime });
     }
 
+    // Keyed by leaf name, matching the local side: the comparison covers one
+    // directory level (the dialog lists a single folder on each side), where a
+    // local `relativePath` *is* the file name.
     const remoteMap = new Map<string, StorageEntry>();
     for (const item of remoteEntries) {
       if (!item.isDirectory) {
@@ -74,8 +77,20 @@ export class FolderSyncService {
         });
       } else if (local && remote) {
         const sizeMatch = local.size === remote.size;
-        const timeDiffSec = Math.abs((local.mtime || 0) - (remote.modifiedAt || 0));
-        const modified = !sizeMatch || timeDiffSec > MTIME_TOLERANCE_SEC;
+        const localMtime = local.mtime || 0;
+        const remoteMtime = remote.modifiedAt || 0;
+        // One-way syncs only care whether the *source* side changed. A copy is
+        // routinely newer than its source — S3 cannot set LastModified at all,
+        // and not every SFTP server honours setstat — so the old symmetric
+        // `|Δt| > tolerance` test re-sent every previously synced file on every
+        // run. Bi-directional genuinely needs either side's change.
+        const modified =
+          !sizeMatch ||
+          (direction === 'sync-to-remote'
+            ? localMtime - remoteMtime > MTIME_TOLERANCE_SEC
+            : direction === 'sync-to-local'
+              ? remoteMtime - localMtime > MTIME_TOLERANCE_SEC
+              : Math.abs(localMtime - remoteMtime) > MTIME_TOLERANCE_SEC);
 
         if (modified) {
           modifiedCount++;

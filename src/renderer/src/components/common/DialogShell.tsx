@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { attachFocusTrap } from '@/lib/focus-trap';
+import { attachFocusTrap, getFocusable } from '@/lib/focus-trap';
 
 /**
  * Shared overlay/animation/focus-trap chrome for the app's modal dialogs.
@@ -70,8 +70,10 @@ export interface DialogShellProps {
   panelClassName?: string;
   /**
    * Run once per open, after the first paint, to place initial focus.
-   * Receives the dialog element. If omitted, the focus trap's own default
-   * "first focusable descendant" behavior applies.
+   * Receives the dialog element. If omitted, focus goes to a
+   * `[data-autofocus]` descendant, else the first form field, else the first
+   * focusable element — unless something inside the dialog (an `autoFocus`
+   * field) already holds it.
    */
   onOpenFocus?: (dialog: HTMLDivElement) => void;
 }
@@ -122,9 +124,25 @@ export function DialogShell({
     const dialog = dialogRef.current;
     if (!dialog) return;
 
-    if (onOpenFocusRef.current) {
-      requestAnimationFrame(() => onOpenFocusRef.current?.(dialog));
-    }
+    // Always place initial focus. The trap only reacts to Tab, so a dialog
+    // opened from the terminal (Cmd+N, Cmd+,) left focus in xterm's hidden
+    // textarea — and whatever the user typed into the "form" went to the
+    // remote shell behind it, Enter included.
+    requestAnimationFrame(() => {
+      if (onOpenFocusRef.current) {
+        onOpenFocusRef.current(dialog);
+        return;
+      }
+      if (dialog.contains(document.activeElement)) return;
+      const target =
+        dialog.querySelector<HTMLElement>('[data-autofocus]') ??
+        dialog.querySelector<HTMLElement>(
+          'input:not([disabled]):not([type="hidden"]), textarea:not([disabled]), select:not([disabled])',
+        ) ??
+        getFocusable(dialog)[0] ??
+        dialog;
+      target.focus({ preventScroll: true });
+    });
 
     return attachFocusTrap(dialog, { onEscape: () => onCloseRef.current() });
   }, [open]);
@@ -175,6 +193,9 @@ export function DialogShell({
                 ref={dialogRef}
                 role="alertdialog"
                 aria-modal="true"
+                // Focusable programmatically (last-resort initial focus), not
+                // a Tab stop.
+                tabIndex={-1}
                 aria-labelledby={ariaLabelledBy}
                 aria-describedby={ariaDescribedBy}
                 className={panelClassName}
@@ -188,6 +209,9 @@ export function DialogShell({
                 ref={dialogRef}
                 role="dialog"
                 aria-modal="true"
+                // Focusable programmatically (last-resort initial focus), not
+                // a Tab stop.
+                tabIndex={-1}
                 aria-labelledby={ariaLabelledBy}
                 aria-describedby={ariaDescribedBy}
                 className={panelClassName}

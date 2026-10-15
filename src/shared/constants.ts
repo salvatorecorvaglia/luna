@@ -18,6 +18,7 @@ export const IPC = {
   SSH_DISCONNECT: 'ssh:disconnect',
   SSH_SEND_DATA: 'ssh:send-data',
   SSH_RESIZE: 'ssh:resize',
+  SSH_ACK_DATA: 'ssh:ack-data',
 
   // SSH Events (main -> renderer)
   SSH_ON_DATA: 'ssh:on-data',
@@ -52,7 +53,6 @@ export const IPC = {
   // Shell & Local PTY
   SHELL_JOIN_PATH: 'shell:join-path',
   SHELL_CLI_REFERENCE: 'shell:cli-reference',
-  SHELL_SEARCH_HISTORY: 'shell:search-history',
   SHELL_EXPORT_AUDIT_LOG: 'shell:export-audit-log',
   SHELL_READDIR: 'shell:readdir',
   SHELL_HOME_DIR: 'shell:home-dir',
@@ -67,6 +67,7 @@ export const IPC = {
   LOCAL_TERMINAL_KILL: 'local-terminal:kill',
   LOCAL_TERMINAL_SEND_DATA: 'local-terminal:send-data',
   LOCAL_TERMINAL_RESIZE: 'local-terminal:resize',
+  LOCAL_TERMINAL_ACK_DATA: 'local-terminal:ack-data',
 
   // Local terminal events (main -> renderer)
   LOCAL_TERMINAL_ON_DATA: 'local-terminal:on-data',
@@ -80,11 +81,7 @@ export const IPC = {
   TRANSFER_CANCEL_BY_SESSION: 'transfer:cancel-by-session',
 
   // Credentials
-  CREDENTIAL_STORE: 'credential:store',
-  CREDENTIAL_RETRIEVE: 'credential:retrieve',
-  CREDENTIAL_DELETE: 'credential:delete',
   CREDENTIAL_ON_TAMPER: 'credential:on-tamper',
-  CREDENTIAL_RESOLVE_EXTERNAL: 'credential:resolve-external',
   STORAGE_COMPARE_DIRECTORIES: 'storage:compare-directories',
 
   // Settings
@@ -101,6 +98,7 @@ export const IPC = {
   APP_GET_ACTIVE_SESSIONS: 'app:get-active-sessions',
   APP_GET_CREDENTIAL_BACKEND: 'app:get-credential-backend',
   APP_OPEN_RELEASE_PAGE: 'app:open-release-page',
+  APP_OPEN_EXTERNAL: 'app:open-external',
 
   // App update events (main -> renderer)
   APP_UPDATE_AVAILABLE: 'app:update-available',
@@ -135,6 +133,12 @@ export const IPC = {
 export const LIMITS = {
   /** Maximum file preview size (bytes). Larger files are refused at the storage layer (SFTP/S3). */
   MAX_PREVIEW_BYTES: 5 * 1024 * 1024,
+  /**
+   * Ceiling on any single local-file read or write main does on the renderer's
+   * behalf (read/write file, save dialog, audit export, connection import).
+   * Was restated as a bare `50 * 1024 * 1024` in five places.
+   */
+  MAX_LOCAL_FILE_BYTES: 50 * 1024 * 1024,
   /** Hard cap on terminal scrollback lines (settings UI clamps to this). */
   MAX_SCROLLBACK: 100_000,
   /** Minimum terminal scrollback lines. Must match the clamp in SETTINGS_SET. */
@@ -171,14 +175,4 @@ export const LIMITS = {
  * File extensions treated as binary for preview purposes. Shared between
  * SFTP and S3 readFile implementations to avoid drift.
  */
-export const BINARY_PREVIEW_EXTENSIONS = new Set([
-  'png',
-  'jpg',
-  'jpeg',
-  'gif',
-  'svg',
-  'webp',
-  'ico',
-  'bmp',
-  'pdf',
-]);
+export { BINARY_PREVIEW_EXTENSIONS } from './file-types';

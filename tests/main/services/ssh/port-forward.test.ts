@@ -1,5 +1,11 @@
 import { EventEmitter } from 'node:events';
-import { type AddressInfo, createServer, connect as netConnect, type Socket } from 'node:net';
+import {
+  type AddressInfo,
+  createServer,
+  connect as netConnect,
+  Server,
+  type Socket,
+} from 'node:net';
 import { PassThrough } from 'node:stream';
 import type { PortForwardingConfig } from '@shared/types/connection';
 import type { Client } from 'ssh2';
@@ -22,6 +28,8 @@ import {
  * really tear down a live connection, does a byte-at-a-time SOCKS handshake
  * still work) only exists at the socket layer.
  */
+
+const EventEmitterEmit = EventEmitter.prototype.emit;
 
 /** Channels are PassThroughs, so anything written comes straight back — an echo peer. */
 class FakeClient extends EventEmitter {
@@ -265,6 +273,46 @@ describe('local forward', () => {
     const { socket } = await open(port);
     await new Promise<void>((resolve) => socket.once('close', () => resolve()));
     expect(socket.destroyed).toBe(true);
+  });
+
+  it('survives a client socket error while the SSH channel is still opening', async () => {
+    // Regression: the accepted socket had only a 'close' listener until
+    // bridge() ran in forwardOut's callback. A client that reset the
+    // connection in that window (a port scanner, an aborted browser request)
+    // emitted ECONNRESET with no listener — an uncaught exception, which main
+    // turns into process.exit(1), killing every session.
+    const client = new FakeClient();
+    // Never complete forwardOut, holding the socket in the pre-bridge window.
+    client.forwardOut = (_s: string, _p: number, destHost: string, destPort: number) => {
+      client.forwardOutCalls.push({ destHost, destPort });
+    };
+    const accepted: Socket[] = [];
+    const emitSpy = vi.spyOn(Server.prototype, 'emit').mockImplementation(function (
+      this: Server,
+      event: string | symbol,
+      ...args: unknown[]
+    ) {
+      if (event === 'connection') accepted.push(args[0] as Socket);
+      return EventEmitterEmit.apply(this, [event, ...args]);
+    });
+    try {
+      const port = await freePort();
+      const handle = await start(client, {
+        type: 'local',
+        bindAddress: '127.0.0.1',
+        localPort: port,
+        remoteHost: '127.0.0.1',
+        remotePort: 80,
+      });
+      await open(port);
+      await vi.waitFor(() => expect(client.forwardOutCalls).toHaveLength(1));
+
+      const serverSide = accepted.at(-1)!;
+      expect(() => serverSide.emit('error', new Error('read ECONNRESET'))).not.toThrow();
+      await vi.waitFor(() => expect(handle.activeConnections).toBe(0));
+    } finally {
+      emitSpy.mockRestore();
+    }
   });
 
   it('rejects with an actionable error when the port is already bound', async () => {
@@ -530,6 +578,56 @@ describe('remote forward', () => {
       for (const socket of sinkConnections) socket.destroy();
       await new Promise<void>((resolve) => sink.close(() => resolve()));
     }
+  });
+
+  it('routes each inbound channel to its own forward when several share a client', async () => {
+    // Regression: every remote forward added its own 'tcp connection'
+    // listener that reject()ed ports it did not own. ssh2 calls every
+    // listener, so a connection for forward B was first rejected by A's
+    // listener and then accepted by B's — CHANNEL_OPEN_FAILURE and
+    // CHANNEL_OPEN_CONFIRMATION for the same channel.
+    const client = new FakeClient();
+    await start(client, {
+      id: 'pf-a',
+      type: 'remote',
+      bindAddress: '127.0.0.1',
+      localPort: 9101,
+      remoteHost: '127.0.0.1',
+      remotePort: 1,
+    });
+    await start(client, {
+      id: 'pf-b',
+      type: 'remote',
+      bindAddress: '127.0.0.1',
+      localPort: 9102,
+      remoteHost: '127.0.0.1',
+      remotePort: 1,
+    });
+
+    const reject = vi.fn();
+    const accept = vi.fn(() => new PassThrough());
+    client.emit('tcp connection', { destPort: 9102 }, accept, reject);
+    // Port 1 on loopback refuses, so the forward rejects once on its own; what
+    // must never happen is a rejection from the *other* forward's listener.
+    await vi.waitFor(() => expect(reject).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(reject).toHaveBeenCalledTimes(1);
+    expect(accept).not.toHaveBeenCalled();
+    expect(client.listenerCount('tcp connection')).toBe(1);
+  });
+
+  it('declines inbound channels that match no forward', async () => {
+    const client = new FakeClient();
+    await start(client, {
+      type: 'remote',
+      bindAddress: '127.0.0.1',
+      localPort: 9103,
+      remoteHost: '127.0.0.1',
+      remotePort: 3000,
+    });
+    const reject = vi.fn();
+    client.emit('tcp connection', { destPort: 4444 }, vi.fn(), reject);
+    expect(reject).toHaveBeenCalledTimes(1);
   });
 
   it('ignores inbound channels for a different port', async () => {

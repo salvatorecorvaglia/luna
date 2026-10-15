@@ -34,6 +34,12 @@ import { SftpFields } from './SftpFields';
 import { useConnectionFormState } from './use-connection-form-state';
 import { useConnectionTest } from './use-connection-test';
 
+/** Parse a positive integer from a form field, or fall back. */
+function positiveIntOr(raw: string, fallback: number): number {
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
 export function ConnectionForm() {
   // Individual selectors: a whole-store subscription re-rendered this 790-line
   // form on unrelated connection-store changes.
@@ -250,7 +256,11 @@ export function ConnectionForm() {
       (sftp.authType === 'key' || sftp.authType === 'key+passphrase') &&
       sftp.privateKeyPath.trim().length > 0
     ) {
-      const probe = await getApi().shell.checkFile(sftp.privateKeyPath.trim());
+      // A rejected probe (bridge error) used to escape as an unhandled
+      // rejection and leave the submit silently doing nothing.
+      const probe = await getApi()
+        .shell.checkFile(sftp.privateKeyPath.trim())
+        .catch(() => ({ ok: false as const, reason: 'unknown' as const }));
       if (!probe.ok) {
         const reason =
           probe.reason === 'missing'
@@ -275,11 +285,14 @@ export function ConnectionForm() {
             port: parseInt(sftp.port) || 22,
             username: sftp.username.trim(),
             authType: sftp.authType,
-            privateKeyPath: sftp.privateKeyPath || undefined,
+            // Trimmed like the probe above; the untrimmed value was saved, so a
+            // path that probed fine failed to open at connect time.
+            privateKeyPath: sftp.privateKeyPath.trim() || undefined,
             password: sftp.password || undefined,
             passphrase: sftp.passphrase || undefined,
-            keepaliveInterval: (parseInt(sftp.keepaliveInterval) || 10) * 1000,
-            keepaliveCountMax: parseInt(sftp.keepaliveCountMax) || 3,
+            // `parseInt(x) || 10` let a negative through (-5 is truthy).
+            keepaliveInterval: positiveIntOr(sftp.keepaliveInterval, 10) * 1000,
+            keepaliveCountMax: positiveIntOr(sftp.keepaliveCountMax, 3),
             portForwards: sftp.portForwards,
             folder: common.folder.trim() || 'default',
             colorTag: common.colorTag,
@@ -561,7 +574,7 @@ export function ConnectionForm() {
                     <button
                       type="button"
                       onClick={() => setFolder('default')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-foreground transition-colors cursor-pointer"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 hover:text-foreground transition-colors cursor-pointer"
                       title="Clear group"
                     >
                       <X className="size-3.5" />
@@ -606,7 +619,7 @@ export function ConnectionForm() {
                 {uniqueFolders.length > 0 && (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-3xs font-semibold text-muted-foreground/40 uppercase tracking-widest">
+                      <span className="text-3xs font-semibold text-muted-foreground/70 uppercase tracking-widest">
                         Existing Groups
                       </span>
                       <div className="h-px flex-1 bg-border/30" />
@@ -622,7 +635,7 @@ export function ConnectionForm() {
                           className={cn(
                             'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-2xs font-medium transition-all cursor-pointer border shadow-xs',
                             common.folder === f || (f === 'default' && common.folder === 'default')
-                              ? 'bg-primary/5 border-primary/40 text-primary shadow-[0_0_12px_-3px_rgba(99,102,241,0.2)] ring-1 ring-primary/20'
+                              ? 'bg-primary/5 border-primary/40 text-primary shadow-[0_0_12px_-3px_color-mix(in_srgb,var(--color-primary)_20%,transparent)] ring-1 ring-primary/20'
                               : 'bg-muted/10 border-border/40 text-muted-foreground hover:bg-muted/20 hover:border-border/60 hover:text-foreground',
                           )}
                         >

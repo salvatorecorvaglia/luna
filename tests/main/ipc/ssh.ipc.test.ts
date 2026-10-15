@@ -22,6 +22,7 @@ vi.mock('../../../src/main/services/ssh-manager', () => ({
     sendData: vi.fn().mockReturnValue(true),
     testConnection: vi.fn().mockResolvedValue({ ok: true }),
     resize: vi.fn(),
+    ackOutput: vi.fn(),
     trustPendingHostKey: vi.fn().mockReturnValue('SHA256:fp'),
     // sftp-manager is loaded transitively via the storage provider adapter;
     // its constructor wires up a disconnect listener.
@@ -106,6 +107,26 @@ describe('ssh.ipc storage-provider lifecycle', () => {
     expect(result).toEqual({ success: false, error: 'auth failed' });
     expect(storageRegistry.get('sess-failed')).toBeUndefined();
     expect(() => storageRegistry.require('sess-failed')).toThrow(/No storage provider/);
+  });
+
+  it('keeps the registration when a newer attempt now owns the session id', async () => {
+    // A connect superseded by a second connect for the same sessionId fails,
+    // but the live replacement still needs its provider.
+    sshManagerMock.connect!.mockResolvedValueOnce({
+      success: false,
+      error: 'Superseded by a newer connection attempt',
+    });
+    // First lookup is the session-cap check before connecting; the second is
+    // the post-failure ownership check.
+    sshManagerMock
+      .getSession!.mockReturnValueOnce(undefined)
+      .mockReturnValueOnce({ id: 'sess-superseded' });
+
+    const handler = handlers.get(IPC.SSH_CONNECT)!;
+    await handler({}, { sessionId: 'sess-superseded', connectionId: 'conn-1' });
+
+    expect(storageRegistry.get('sess-superseded')).toBe(sftpStorageProvider);
+    storageRegistry.unregister('sess-superseded');
   });
 
   it('keeps the registration when the connect succeeds', async () => {
@@ -285,5 +306,29 @@ describe('ssh.ipc outbound-connect metering', () => {
       { success: true },
     );
     storageRegistry.unregister('s-after-probes');
+  });
+});
+
+describe('ssh.ipc connect geometry', () => {
+  it.each([
+    ['cols', { cols: 100_000, rows: 24 }],
+    ['rows', { cols: 80, rows: 0 }],
+    ['fractional cols', { cols: 80.5, rows: 24 }],
+  ])('rejects out-of-range %s like SSH_RESIZE does', async (_label, geometry) => {
+    const handler = handlers.get(IPC.SSH_CONNECT)!;
+    await expect(
+      handler({}, { sessionId: 's-geo', connectionId: 'c1', ...geometry }),
+    ).rejects.toThrow(/must be an integer between 1 and 500/);
+  });
+});
+
+describe('ssh.ipc output acknowledgements', () => {
+  it('forwards a valid ack and rejects a malformed one', async () => {
+    const ack = handlers.get(IPC.SSH_ACK_DATA)!;
+    await ack({}, { sessionId: 's1', chars: 65536 });
+    expect(sshManagerMock.ackOutput).toHaveBeenCalledWith('s1', 65536, false);
+    await ack({}, { sessionId: 's1', chars: 0, reset: true });
+    expect(sshManagerMock.ackOutput).toHaveBeenLastCalledWith('s1', 0, true);
+    await expect(ack({}, { sessionId: 's1', chars: 1.5 })).rejects.toThrow(/chars/);
   });
 });

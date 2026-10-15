@@ -51,6 +51,17 @@ export interface SshResizeParams {
   rows: number;
 }
 
+/**
+ * Output flow control: the renderer reports how many characters of a
+ * session's output xterm has parsed. `reset` marks a freshly attached
+ * terminal — see OutputFlow.reset in main/lib/output-flow.ts.
+ */
+export interface TerminalAckParams {
+  sessionId: string;
+  chars: number;
+  reset?: boolean;
+}
+
 export interface SshSendDataParams {
   sessionId: string;
   data: string;
@@ -60,7 +71,19 @@ export type SplitDirection = 'horizontal' | 'vertical';
 
 export type PaneNode =
   | { type: 'terminal'; sessionId: string }
-  | { type: 'split'; direction: SplitDirection; children: [PaneNode, PaneNode]; ratio: number };
+  | {
+      type: 'split';
+      /**
+       * Stable identity for this split. Splits used to be addressed by the
+       * first leaf of their left child, which an outer split and the split
+       * nested on its left side share — dragging the inner divider moved the
+       * outer one.
+       */
+      id: string;
+      direction: SplitDirection;
+      children: [PaneNode, PaneNode];
+      ratio: number;
+    };
 
 export type TerminalThemeName =
   | 'dracula'

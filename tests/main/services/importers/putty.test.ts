@@ -57,3 +57,40 @@ HostName="127.0.0.1"
     expect(result[1]!.name).toBe('good_session');
   });
 });
+
+describe('importFromPuTTY — registry export', () => {
+  it('parses the quoted keys and escaped values regedit writes', () => {
+    // Regression: only unquoted `HostName=` was recognised, so a real .reg
+    // export imported nothing.
+    const reg = [
+      'Windows Registry Editor Version 5.00',
+      '',
+      '[HKEY_CURRENT_USER\\Software\\SimonTatham\\PuTTY\\Sessions\\prod%20box]',
+      '"HostName"="prod.example.com"',
+      '"UserName"="deploy"',
+      '"PortNumber"=dword:00000016',
+      '"PublicKeyFile"="C:\\\\Users\\\\me\\\\.ssh\\\\id.ppk"',
+    ].join('\r\n');
+
+    const [conn] = importFromPuTTY(reg);
+
+    expect(conn).toMatchObject({
+      name: 'prod box',
+      host: 'prod.example.com',
+      username: 'deploy',
+      port: 22,
+      authType: 'key',
+      privateKeyPath: 'C:\\Users\\me\\.ssh\\id.ppk',
+    });
+  });
+});
+
+describe('decodeImportFile', () => {
+  it('decodes UTF-16LE with a BOM, as regedit exports', async () => {
+    const { decodeImportFile } = await import('../../../../src/main/services/connection-service');
+    const text = '[x]\r\n"HostName"="h"';
+    const bytes = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(text, 'utf16le')]);
+    expect(decodeImportFile(bytes)).toBe(text);
+    expect(decodeImportFile(Buffer.from(text, 'utf-8'))).toBe(text);
+  });
+});

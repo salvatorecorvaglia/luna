@@ -337,3 +337,56 @@ describe('S3StorageProvider — op timeout', () => {
     }
   });
 });
+
+describe('S3StorageProvider — timeouts', () => {
+  it('aborts the in-flight SDK request when an operation times out', async () => {
+    // Regression: withTimeout stopped waiting but the request kept running, so
+    // a "timed out" prefix delete went on deleting in the background.
+    vi.useFakeTimers();
+    let signal: AbortSignal | undefined;
+    s3Send.mockImplementation((_cmd: unknown, opts?: { abortSignal?: AbortSignal }) => {
+      signal = opts?.abortSignal;
+      return new Promise(() => {}); // never settles
+    });
+    try {
+      const pending = s3StorageProvider.list('sess', '/bucket/prefix/').catch((e: unknown) => e);
+      await vi.advanceTimersByTimeAsync(31_000);
+      const err = await pending;
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).message).toMatch(/timed out/);
+      expect(signal).toBeDefined();
+      expect(signal?.aborted).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('S3StorageProvider — readFile', () => {
+  it('previews an empty object without sending an unsatisfiable Range request', async () => {
+    s3Send.mockImplementation((cmd: unknown) => {
+      if (commandName(cmd) === 'HeadObjectCommand') return Promise.resolve({ ContentLength: 0 });
+      return Promise.reject(Object.assign(new Error('InvalidRange'), { name: 'InvalidRange' }));
+    });
+    await expect(s3StorageProvider.readFile('sess', '/bucket/empty.txt')).resolves.toEqual({
+      content: '',
+      encoding: 'utf-8',
+    });
+    expect(s3Send.mock.calls.map((c) => commandName(c[0]))).toEqual(['HeadObjectCommand']);
+  });
+});
+
+describe('S3StorageProvider — rename guards', () => {
+  it('refuses a folder (prefix) rename with a clear message', async () => {
+    await expect(
+      s3StorageProvider.rename('sess', '/bucket/photos/', '/bucket/pictures'),
+    ).rejects.toThrow(/Renaming folders is not supported/);
+    expect(s3Send).not.toHaveBeenCalled();
+  });
+
+  it('refuses a rename between a bucket and a key', async () => {
+    await expect(s3StorageProvider.rename('sess', '/bucket/a.txt', '/other')).rejects.toThrow(
+      /between a bucket and an object key/,
+    );
+  });
+});

@@ -158,7 +158,10 @@ export function Sidebar() {
           initial={{ width: 0, opacity: 0 }}
           animate={{ width: sidebarWidth, opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
-          transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+          // Instant while dragging the edge: a 0.2 s tween re-targeted on every
+          // mousemove made the sidebar trail behind the cursor like rubber.
+          // Open/close keeps the animation.
+          transition={resizing ? { duration: 0 } : { duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
           className="relative flex h-full flex-col border-r border-border/60 bg-sidebar overflow-hidden no-select"
           style={{ willChange: 'width' }}
         >
@@ -177,7 +180,16 @@ export function Sidebar() {
             {isLoading ? (
               <SidebarSkeleton />
             ) : filteredConnections.length === 0 ? (
-              <SidebarEmptyState hasQuery={!!debouncedSearchQuery} onCreate={openCreateForm} />
+              <SidebarEmptyState
+                hasQuery={!!debouncedSearchQuery}
+                onCreate={openCreateForm}
+                allHidden={
+                  !showHiddenConnections &&
+                  connectionList.length > 0 &&
+                  connectionList.every((c) => c.isHidden)
+                }
+                onShowHidden={toggleShowHiddenConnections}
+              />
             ) : (
               <Reorder.Group
                 axis="y"

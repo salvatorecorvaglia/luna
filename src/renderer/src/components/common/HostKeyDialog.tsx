@@ -6,19 +6,59 @@ import { toast } from 'sonner';
 import { DialogShell } from '@/components/common/DialogShell';
 import { Button, IconButton } from '@/components/ui';
 import { useCopiedFlag } from '@/hooks/use-copied-flag';
+import { copyToClipboard } from '@/lib/clipboard';
 import { connectToHost } from '@/lib/ssh';
 import { cn } from '@/lib/utils';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
+import { useTerminalStore } from '@/stores/terminal-store';
+
+/**
+ * Retry the connection that hit the unknown key. The session that raised the
+ * prompt is reconnected in place — calling connectToHost() opened a second tab
+ * and left the original (or its split pane) stuck in `error`.
+ */
+function reconnectAfterTrust(event: SshHostKeyChangeEvent): void {
+  if (!event.connectionId) return;
+  const session = event.sessionId
+    ? useTerminalStore.getState().sessions.get(event.sessionId)
+    : undefined;
+  if (!session) {
+    void connectToHost(event.connectionId);
+    return;
+  }
+  const previousStatus = session.status;
+  useTerminalStore.getState().updateSessionStatus(session.id, 'connecting');
+  getApi()
+    .ssh.connect({ connectionId: event.connectionId, sessionId: session.id })
+    .catch((err: unknown) => {
+      useTerminalStore.getState().updateSessionStatus(session.id, previousStatus);
+      toast.error(...toastArgs(err, 'Reconnect failed'));
+    });
+}
 
 export function HostKeyDialog() {
-  const [event, setEvent] = useState<SshHostKeyChangeEvent | null>(null);
+  // A queue, not a single slot: two hosts prompting at once (restoring a
+  // workspace, reconnecting after sleep) used to overwrite each other, and the
+  // first host's prompt was lost until it was retried. One entry per host:port
+  // — a newer prompt for the same host replaces its older one.
+  const [queue, setQueue] = useState<SshHostKeyChangeEvent[]>([]);
+  const event = queue[0] ?? null;
+  const dismissCurrent = useCallback(() => setQueue((q) => q.slice(1)), []);
   const [loading, setLoading] = useState(false);
   const { copied, markCopied } = useCopiedFlag();
 
   useEffect(() => {
     const cleanup = getApi().ssh.onHostKeyChange((payload: SshHostKeyChangeEvent) => {
-      setEvent(payload);
+      setQueue((q) => {
+        const sameHost = (e: SshHostKeyChangeEvent) =>
+          e.host === payload.host && e.port === payload.port;
+        const index = q.findIndex(sameHost);
+        if (index === -1) return [...q, payload];
+        const next = [...q];
+        next[index] = payload;
+        return next;
+      });
       setLoading(false);
       // The copied indicator is self-resetting (useCopiedFlag), so a new
       // host-key event no longer needs to clear it explicitly.
@@ -33,33 +73,34 @@ export function HostKeyDialog() {
       const result = await getApi().ssh.trustHostKey({
         host: event.host,
         port: event.port,
+        // Binds the trust to the key the user is looking at.
+        fingerprint: event.newFingerprint,
       });
       if (result.trusted) {
         toast.success(`Host key trusted for ${event.host}:${event.port}`);
-        setEvent(null);
-        // Auto-reconnect after trusting
-        if (event.connectionId) {
-          void connectToHost(event.connectionId);
-        }
+        dismissCurrent();
+        reconnectAfterTrust(event);
       } else {
-        toast.error('Failed to trust host key');
+        toast.error('Host key could not be trusted', {
+          description:
+            'The server presented a different key since this prompt opened. Reconnect to review it.',
+        });
       }
     } catch (err) {
       toast.error(...toastArgs(err, 'Trust failed'));
     } finally {
       setLoading(false);
     }
-  }, [event]);
+  }, [event, dismissCurrent]);
 
   const handleReject = useCallback(() => {
-    setEvent(null);
+    dismissCurrent();
     toast.info('Host key rejected — connection was not established');
-  }, []);
+  }, [dismissCurrent]);
 
   const handleCopyFingerprint = useCallback(async () => {
     if (!event) return;
-    await navigator.clipboard.writeText(event.newFingerprint);
-    markCopied();
+    if (await copyToClipboard(event.newFingerprint)) markCopied();
   }, [event, markCopied]);
 
   return (

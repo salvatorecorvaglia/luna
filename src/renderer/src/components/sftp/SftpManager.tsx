@@ -1,5 +1,5 @@
-import { BINARY_PREVIEW_EXTENSIONS } from '@shared/constants';
 import { isCancellation, toastArgs } from '@shared/error-messages';
+import { fileExtension, previewMimeForExt } from '@shared/file-types';
 import { Plus, RefreshCcw, Unplug, WifiOff } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -14,71 +14,21 @@ import {
   useSftpDirectory,
 } from '@/hooks/use-sftp';
 import { useSftpDnd } from '@/hooks/use-sftp-dnd';
+import { copyToClipboard } from '@/lib/clipboard';
+import { invalidEntryNameReason } from '@/lib/entry-names';
+import { joinRemotePath } from '@/lib/remote-path';
+import { enqueueTransfer } from '@/lib/transfers';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
 import { useConnectionStore } from '@/stores/connection-store';
 import { useStorageStore } from '@/stores/storage-store';
 import { useTerminalStore } from '@/stores/terminal-store';
-import { useTransferStore } from '@/stores/transfer-store';
 import { type FileEntry, FilePane } from './FilePane';
 import { FilePreview } from './FilePreview';
 import { FolderSyncDialog } from './FolderSyncDialog';
 import { PresignedUrlDialog } from './PresignedUrlDialog';
 import { resolveSftpSession } from './sftp-session-fallback';
 import { TransferQueue } from './TransferQueue';
-
-// Pulled to module scope so they're allocated once at module load instead of
-// rebuilt on every preview-open render. Both lists are immutable and shared
-// between the remote and local file-preview handlers.
-// Derived from the shared binary-preview list (minus 'pdf', handled separately
-// via `isPdf`) so the two lists can't drift apart.
-const IMAGE_EXTS = [...BINARY_PREVIEW_EXTENSIONS].filter((ext) => ext !== 'pdf');
-const TEXT_EXTS = [
-  'txt',
-  'md',
-  'json',
-  'yaml',
-  'yml',
-  'xml',
-  'csv',
-  'log',
-  'sh',
-  'bash',
-  'zsh',
-  'py',
-  'js',
-  'ts',
-  'tsx',
-  'jsx',
-  'html',
-  'css',
-  'scss',
-  'conf',
-  'cfg',
-  'ini',
-  'toml',
-  'env',
-  'gitignore',
-  'editorconfig',
-  'makefile',
-  'dockerfile',
-  'rs',
-  'go',
-  'rb',
-  'php',
-  'java',
-  'c',
-  'h',
-  'cpp',
-] as const;
-
-function mimeForExt(ext: string, isPdf: boolean): string {
-  if (IMAGE_EXTS.includes(ext)) {
-    return `image/${ext === 'jpg' ? 'jpeg' : ext === 'svg' ? 'svg+xml' : ext}`;
-  }
-  if (isPdf) return 'application/pdf';
-  return 'text/plain';
-}
 
 export function SftpManager() {
   // Collapse 13 separate selectors into a single shallow-equality
@@ -260,8 +210,6 @@ export function SftpManager() {
   // the one the user is already looking at. The errors are still passed down
   // to the panes below.
 
-  const addTransfer = useTransferStore((s) => s.addTransfer);
-
   // Drag-and-drop transfer handlers live in their own hook so this component
   // can stay focused on layout, sessions, and dialog state.
   const { handleLocalDragStart, handleRemoteDragStart, handleLocalDrop, handleRemoteDrop } =
@@ -272,24 +220,16 @@ export function SftpManager() {
     async (entry: FileEntry) => {
       if (!activeSessionId || entry.isDirectory) return;
 
-      const localDest = await getApi().shell.joinPath(localPath, entry.name);
       try {
-        const transferId = await getApi().storage.download({
-          sessionId: activeSessionId,
-          remotePath: entry.path,
-          localPath: localDest,
-        });
-        addTransfer({
-          id: transferId,
+        // Inside the try, like the rest: a rejected joinPath was unhandled.
+        const localDest = await getApi().shell.joinPath(localPath, entry.name);
+        await enqueueTransfer({
           type: 'download',
+          sessionId: activeSessionId,
           localPath: localDest,
           remotePath: entry.path,
           fileName: entry.name,
           size: entry.size || 0,
-          transferred: 0,
-          status: 'queued',
-          bytesPerSec: 0,
-          sessionId: activeSessionId,
         });
         toast.success(`Download started: ${entry.name}`);
       } catch (err: unknown) {
@@ -298,7 +238,7 @@ export function SftpManager() {
         toast.error(...toastArgs(err, 'Download failed'));
       }
     },
-    [activeSessionId, localPath, addTransfer],
+    [activeSessionId, localPath],
   );
 
   // Context menu upload: local -> remote
@@ -306,24 +246,15 @@ export function SftpManager() {
     async (entry: FileEntry) => {
       if (!activeSessionId || entry.isDirectory) return;
 
-      const remoteDest = remotePath === '/' ? `/${entry.name}` : `${remotePath}/${entry.name}`;
+      const remoteDest = joinRemotePath(remotePath, entry.name);
       try {
-        const transferId = await getApi().storage.upload({
-          sessionId: activeSessionId,
-          localPath: entry.path,
-          remotePath: remoteDest,
-        });
-        addTransfer({
-          id: transferId,
+        await enqueueTransfer({
           type: 'upload',
+          sessionId: activeSessionId,
           localPath: entry.path,
           remotePath: remoteDest,
           fileName: entry.name,
           size: entry.size || 0,
-          transferred: 0,
-          status: 'queued',
-          bytesPerSec: 0,
-          sessionId: activeSessionId,
         });
         toast.success(`Upload started: ${entry.name}`);
       } catch (err: unknown) {
@@ -331,7 +262,7 @@ export function SftpManager() {
         toast.error(...toastArgs(err, 'Upload failed'));
       }
     },
-    [activeSessionId, remotePath, addTransfer],
+    [activeSessionId, remotePath],
   );
 
   // Dialog state for rename, delete, mkdir, presigned url, folder sync
@@ -344,18 +275,21 @@ export function SftpManager() {
   const setPreviewFile = useStorageStore((s) => s.setPreviewFile);
 
   // Preview remote file on double-click
+  /**
+   * Latest preview request. Opening A then B quickly used to show whichever
+   * read finished *last* — often A — and the same after switching session or
+   * directory mid-read. Only the newest request may open the previewer.
+   */
+  const previewRequestRef = useRef(0);
+
   const handleRemoteFileOpen = useCallback(
     async (entry: FileEntry) => {
       if (!activeSessionId) return;
+      const requestId = ++previewRequestRef.current;
       try {
-        const ext = entry.name.split('.').pop()?.toLowerCase() || '';
-        const isPdf = ext === 'pdf';
-
-        if (
-          !(TEXT_EXTS as readonly string[]).includes(ext) &&
-          !IMAGE_EXTS.includes(ext) &&
-          !isPdf
-        ) {
+        const ext = fileExtension(entry.name);
+        const type = previewMimeForExt(ext);
+        if (!type) {
           toast.info(`Cannot preview .${ext} files. Use download to open.`);
           return;
         }
@@ -364,7 +298,7 @@ export function SftpManager() {
           sessionId: activeSessionId,
           path: entry.path,
         });
-        const type = mimeForExt(ext, isPdf);
+        if (requestId !== previewRequestRef.current) return;
         setPreviewFile({
           name: entry.name,
           content,
@@ -374,6 +308,7 @@ export function SftpManager() {
           sessionId: activeSessionId,
         });
       } catch (err: unknown) {
+        if (requestId !== previewRequestRef.current) return;
         toast.error(...toastArgs(err, 'Preview failed'));
       }
     },
@@ -383,24 +318,17 @@ export function SftpManager() {
   // Preview local file on double-click
   const handleLocalFileOpen = useCallback(
     async (entry: FileEntry) => {
+      const requestId = ++previewRequestRef.current;
       try {
-        const ext = entry.name.split('.').pop()?.toLowerCase() || '';
-        const isPdf = ext === 'pdf';
-
-        if (
-          !(TEXT_EXTS as readonly string[]).includes(ext) &&
-          !IMAGE_EXTS.includes(ext) &&
-          !isPdf
-        ) {
+        const ext = fileExtension(entry.name);
+        const type = previewMimeForExt(ext);
+        if (!type) {
           toast.info(`Cannot preview .${ext} files. Use your system file manager to open.`);
           return;
         }
 
-        const { content } = (await getApi().shell.readFile(entry.path)) as {
-          content: string;
-        };
-        const type = mimeForExt(ext, isPdf);
-
+        const { content } = await getApi().shell.readFile(entry.path);
+        if (requestId !== previewRequestRef.current) return;
         setPreviewFile({
           name: entry.name,
           content,
@@ -409,6 +337,7 @@ export function SftpManager() {
           isLocal: true,
         });
       } catch (err: unknown) {
+        if (requestId !== previewRequestRef.current) return;
         toast.error(...toastArgs(err, 'Preview failed'));
       }
     },
@@ -421,13 +350,19 @@ export function SftpManager() {
   }, []);
 
   const handleRenameConfirm = useCallback(
-    async (newName: string) => {
+    async (rawName: string) => {
       if (!activeSessionId || !renameTarget) return;
       setRenameTarget(null);
+      const invalid = invalidEntryNameReason(rawName);
+      if (invalid) {
+        toast.error(invalid);
+        return;
+      }
+      const newName = rawName.trim();
       if (newName === renameTarget.name) return;
 
       const parentPath = renameTarget.path.substring(0, renameTarget.path.lastIndexOf('/')) || '/';
-      const newPath = parentPath === '/' ? `/${newName}` : `${parentPath}/${newName}`;
+      const newPath = joinRemotePath(parentPath, newName);
       try {
         await getApi().storage.rename({
           sessionId: activeSessionId,
@@ -468,8 +403,7 @@ export function SftpManager() {
 
   // Copy path to clipboard — same behaviour on both sides.
   const handleCopyPath = useCallback((entry: FileEntry) => {
-    void navigator.clipboard.writeText(entry.path);
-    toast.success('Path copied to clipboard');
+    void copyToClipboard(entry.path, 'Path copied to clipboard');
   }, []);
 
   // Create directory on remote
@@ -478,11 +412,17 @@ export function SftpManager() {
   }, []);
 
   const handleMkdirConfirm = useCallback(
-    async (name: string) => {
+    async (rawName: string) => {
       if (!activeSessionId) return;
       setMkdirOpen(false);
+      const invalid = invalidEntryNameReason(rawName);
+      if (invalid) {
+        toast.error(invalid);
+        return;
+      }
+      const name = rawName.trim();
 
-      const newPath = remotePath === '/' ? `/${name}` : `${remotePath}/${name}`;
+      const newPath = joinRemotePath(remotePath, name);
       try {
         await getApi().storage.mkdir({ sessionId: activeSessionId, path: newPath });
         toast.success(`Created folder "${name}"`);
@@ -586,7 +526,16 @@ export function SftpManager() {
         >
           <div className="text-center">
             <WifiOff className="size-8 mx-auto text-destructive-fg/60 mb-2" aria-hidden="true" />
-            <p className="text-sm font-medium text-foreground/80">Connection lost</p>
+            {/* Status-specific heading: "Connection lost" was shown during the
+                very first connect too, which read as a failure before any
+                attempt had finished. */}
+            <p className="text-sm font-medium text-foreground/80">
+              {activeSession?.status === 'connecting'
+                ? 'Connecting'
+                : activeSession?.status === 'reconnecting'
+                  ? 'Reconnecting'
+                  : 'Connection lost'}
+            </p>
             <p className="mt-1 text-xs text-muted-foreground/60">{overlayMessage}</p>
             {activeSession &&
               (activeSession.status === 'disconnected' || activeSession.status === 'error') && (
@@ -680,6 +629,7 @@ export function SftpManager() {
             style={{ transition: 'background-color 150ms' }}
           />
 
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: mouse grab strip; the focusable separator beside it handles the keyboard */}
           <div
             onMouseDown={handleResizeMouseDown}
             className="absolute -left-1.5 -right-1.5 inset-y-0 cursor-col-resize"

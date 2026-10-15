@@ -1,7 +1,7 @@
 import { join, resolve as resolvePath } from 'node:path';
 import { is } from '@electron-toolkit/utils';
 import { ErrorCode, LunaError } from '@shared/errors';
-import { app, BrowserWindow, dialog, session, shell } from 'electron';
+import { app, BrowserWindow, dialog, Menu, session, shell } from 'electron';
 import icon from '../../resources/luna.png?asset';
 import { registerAllHandlers } from './ipc';
 import { setMainWindow } from './ipc/app.ipc';
@@ -9,7 +9,7 @@ import { disposeLocalTerminals } from './ipc/local-terminal.ipc';
 import log from './lib/logger';
 import { isAllowedNavigation } from './lib/navigation-guard';
 import { initializeCredentialStore } from './services/credential-store';
-import { closeDatabase, getDatabase, MigrationError } from './services/database';
+import { closeDatabase, getDatabase, getSetting, MigrationError } from './services/database';
 import { s3StorageProvider } from './services/s3/s3-provider';
 import { sftpManager } from './services/sftp-manager';
 import { sshManager } from './services/ssh-manager';
@@ -34,7 +34,12 @@ if (!gotSingleInstanceLock) {
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
+      return;
     }
+    // macOS keeps the app running with no window; launching it again must
+    // bring one back rather than doing nothing. Only once init has finished —
+    // before that, whenReady() creates the window itself.
+    if (app.isReady() && gotSingleInstanceLock) createWindow();
   });
 }
 
@@ -80,6 +85,37 @@ const RENDERER_ENTRY = resolvePath(join(__dirname, '../renderer/index.html'));
 
 let mainWindow: BrowserWindow | null = null;
 
+/**
+ * macOS application menu.
+ *
+ * With no menu set, Electron installs its default one, whose File menu binds
+ * Cmd+W to "Close Window". Menu accelerators win over the page, so Cmd+W —
+ * which Luna uses to close a terminal *tab*, behind a confirmation for live
+ * SSH sessions — closed the whole window instead. This keeps the standard app
+ * and Edit roles (Edit is what makes Cmd+C/V/X/A work in text fields on macOS)
+ * and deliberately binds nothing to Cmd+W.
+ */
+function installMacMenu(): void {
+  const template: Electron.MenuItemConstructorOptions[] = [
+    { role: 'appMenu' },
+    { role: 'editMenu' },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'togglefullscreen' },
+        ...(app.isPackaged
+          ? []
+          : ([
+              { role: 'reload' },
+              { role: 'toggleDevTools' },
+            ] as Electron.MenuItemConstructorOptions[])),
+      ],
+    },
+    { label: 'Window', submenu: [{ role: 'minimize' }, { role: 'zoom' }, { role: 'front' }] },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -110,6 +146,17 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show();
+  });
+
+  // Local shells belong to the page that spawned them. Session recovery
+  // reattaches SSH and S3 sessions after a reload, but a PTY has no such path,
+  // so every Cmd+R (or renderer crash) orphaned every local shell — invisible,
+  // still running, and counting against MAX_LOCAL_SESSIONS until spawn refused.
+  mainWindow.webContents.on('did-start-navigation', (details) => {
+    if (details.isMainFrame && !details.isSameDocument) disposeLocalTerminals();
+  });
+  mainWindow.webContents.on('render-process-gone', () => {
+    disposeLocalTerminals();
   });
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -147,6 +194,7 @@ void app.whenReady().then(() => {
   if (process.platform === 'darwin' && !app.isPackaged) {
     app.dock?.setIcon(icon);
   }
+  if (process.platform === 'darwin') installMacMenu();
 
   // Deny renderer permission requests by default. Luna is a desktop tool for
   // SSH/SFTP/S3 and never needs camera, microphone, geolocation, MIDI,
@@ -165,12 +213,12 @@ void app.whenReady().then(() => {
   // them toasted "Copied to clipboard" over an empty clipboard because they
   // never awaited the promise.
   //
-  // Allowing clipboard access is not an escalation worth refusing: the renderer
-  // is already handed decrypted credentials over the bridge by design
-  // (`credential:retrieve`), so a compromised renderer has strictly better
-  // things to do than read the clipboard. Routing clipboard through a
-  // main-process IPC channel instead — the other option — would grant the
-  // renderer the same capability through a wider door, so it buys nothing.
+  // Allowing clipboard access is the right trade: terminal copy/paste is core
+  // to the app, and routing clipboard through a main-process IPC channel
+  // instead — the other option — would grant the renderer the same capability
+  // through a wider door, so it buys nothing. It is *not* justified by the
+  // renderer already holding secrets: it doesn't. Saved credentials never
+  // cross the bridge (see ipc/credentials.ipc.ts).
   //
   // `clipboard-sanitized-write` rather than raw write: it is the permission
   // Chromium checks for `writeText`, and it strips non-text payloads.
@@ -216,9 +264,9 @@ void app.whenReady().then(() => {
   // strict `script-src 'self'` directive — no 'unsafe-inline' or
   // 'unsafe-eval' for scripts.
   //
-  // `frame-src 'self' data:` is required by FilePreview.tsx, which renders
-  // PDF previews inside an <iframe> backed by a data: URL. Removing it
-  // would silently break PDF preview without affecting non-PDF flows.
+  // `frame-src data:` is required by FilePreview.tsx, which renders PDF
+  // previews inside an <iframe> backed by a data: URL. Removing it would
+  // silently break PDF preview without affecting non-PDF flows.
   if (!is.dev) {
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
       callback({
@@ -277,6 +325,9 @@ void app.whenReady().then(() => {
   }
 
   registerAllHandlers();
+  // The saved limit was only ever applied by SETTINGS_SET, so every launch ran
+  // with the hard-coded default of 3 whatever the user had chosen.
+  transferQueue.setMaxConcurrent(getSetting('transfer.concurrency', 3));
   // Paired with sftpManager.dispose() in `before-quit`. Deliberately started
   // here rather than in the manager's constructor: the constructor runs at
   // import time, and the timer's period comes from a setting, so reading it

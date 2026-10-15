@@ -10,6 +10,14 @@ export interface PortForwardingConfig {
   localPort: number;
   remoteHost?: string;
   remotePort?: number;
+  /**
+   * Start this forward automatically when the connection opens. Absent means
+   * true (every forward saved before this flag existed). Imported forwards are
+   * written with `false`: a connection file from elsewhere must not be able to
+   * open a tunnel into the user's network on first connect without them ever
+   * looking at it.
+   */
+  autoStart?: boolean;
 }
 
 export interface ActivePortForwardInfo {

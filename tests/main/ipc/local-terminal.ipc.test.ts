@@ -44,6 +44,8 @@ type FakePty = {
   write: ReturnType<typeof vi.fn>;
   resize: ReturnType<typeof vi.fn>;
   kill: ReturnType<typeof vi.fn>;
+  pause: ReturnType<typeof vi.fn>;
+  resume: ReturnType<typeof vi.fn>;
   __dataCb?: (s: string) => void;
   __exitCb?: (e: { exitCode: number }) => void;
 };
@@ -59,6 +61,8 @@ const spawn = vi.fn((_shell: string, _args: string[], _opts: unknown): FakePty =
     write: vi.fn(),
     resize: vi.fn(),
     kill: vi.fn(),
+    pause: vi.fn(),
+    resume: vi.fn(),
   };
   ptyInstances.push(inst);
   return inst;
@@ -264,5 +268,63 @@ describe('local-terminal IPC — send/resize/kill', () => {
     expect(() =>
       handlers.get(IPC.LOCAL_TERMINAL_SEND_DATA)!({}, { sessionId: 'unknown', data: 'x' }),
     ).not.toThrow();
+  });
+});
+
+describe('local terminal — id reuse', () => {
+  it("ignores a killed PTY's late exit once the id has been respawned", async () => {
+    // Regression: kill + respawn under the same id installed a new record
+    // before the old PTY's exit fired, and that exit deleted the new record —
+    // leaving an unkillable shell — and told the renderer the new tab exited.
+    const spawnHandler = handlers.get(IPC.LOCAL_TERMINAL_SPAWN)!;
+    const kill = handlers.get(IPC.LOCAL_TERMINAL_KILL)!;
+    const write = handlers.get(IPC.LOCAL_TERMINAL_SEND_DATA)!;
+
+    await spawnHandler({}, { sessionId: 'reuse', cols: 80, rows: 24 });
+    const oldPty = ptyInstances.at(-1)!;
+    await kill({}, 'reuse');
+    await spawnHandler({}, { sessionId: 'reuse', cols: 80, rows: 24 });
+    const newPty = ptyInstances.at(-1)!;
+    expect(newPty).not.toBe(oldPty);
+    send.mockClear();
+
+    oldPty.__exitCb?.({ exitCode: 0 });
+
+    expect(send).not.toHaveBeenCalledWith(IPC.LOCAL_TERMINAL_ON_EXIT, expect.anything());
+    await write({}, { sessionId: 'reuse', data: 'ls\n' });
+    expect(newPty.write).toHaveBeenCalledWith('ls\n');
+    await kill({}, 'reuse');
+    expect(newPty.kill).toHaveBeenCalled();
+  });
+});
+
+describe('local terminal — output flow control', () => {
+  it('pauses a PTY that outruns the renderer and resumes it once acknowledged', async () => {
+    vi.useFakeTimers();
+    try {
+      await handlers.get(IPC.LOCAL_TERMINAL_SPAWN)!({}, { sessionId: 'flood', cols: 80, rows: 24 });
+      const p = ptyInstances.at(-1)!;
+      // `yes`-style flood: well past the 4 MiB high-water mark, unacknowledged.
+      for (let i = 0; i < 5; i++) {
+        p.__dataCb?.('y'.repeat(1024 * 1024));
+        vi.advanceTimersByTime(16);
+      }
+      expect(p.pause).toHaveBeenCalled();
+
+      await handlers.get(IPC.LOCAL_TERMINAL_ACK_DATA)!(
+        {},
+        { sessionId: 'flood', chars: 5 * 1024 * 1024 },
+      );
+      expect(p.resume).toHaveBeenCalled();
+      await handlers.get(IPC.LOCAL_TERMINAL_KILL)!({}, 'flood');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('validates the acknowledgement payload', async () => {
+    await expect(
+      handlers.get(IPC.LOCAL_TERMINAL_ACK_DATA)!({}, { sessionId: 'x', chars: -1 }),
+    ).rejects.toThrow(/chars/);
   });
 });

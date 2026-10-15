@@ -8,6 +8,11 @@ import { promisify } from 'node:util';
 import { app, net } from 'electron';
 import log from '../lib/logger';
 import { RELEASE_ASSET_ORIGIN, releaseAssetUrl } from './release';
+import {
+  isUpdateSigningConfigured,
+  updateSignatureMessage,
+  verifyUpdateSignature,
+} from './update-signature';
 
 const execFileAsync = promisify(execFile);
 
@@ -30,7 +35,12 @@ const execFileAsync = promisify(execFile);
  * unpacked and moved over the installed bundle by a small detached script that
  * waits for this process to exit.
  *
- * This is deliberately *not* a substitute for signing. It closes the gap for a
+ * The digest alone only proves the zip matches a feed from the same release, so
+ * the digest is also checked against an Ed25519 signature made in CI with a
+ * key the release publisher alone does not hold (see update-signature.ts).
+ * Without a compiled-in verification key, this path is disabled entirely.
+ *
+ * This is deliberately *not* a substitute for code signing. It closes the gap for a
  * development build the user already had to `xattr -cr` by hand; a build with
  * a real certificate goes back through Squirrel automatically (see
  * `detectAutoInstallSupport` in `updater.ts`).
@@ -104,6 +114,13 @@ export function getBundlePath(): string | null {
 function detectSelfInstallSupport(): Promise<boolean> {
   const bundlePath = getBundlePath();
   if (!app.isPackaged || !bundlePath) return Promise.resolve(false);
+
+  if (!isUpdateSigningConfigured()) {
+    // Fail closed: without a key there is nothing to prove who built the
+    // update, so users are sent to the release page instead.
+    log.warn('[SelfUpdate] No update-signing key compiled in; in-place update off.');
+    return Promise.resolve(false);
+  }
 
   if (bundlePath.includes('/AppTranslocation/')) {
     log.warn('[SelfUpdate] Running translocated; in-place update is not possible.');
@@ -240,6 +257,50 @@ function downloadAsset(
   });
 }
 
+/** A detached Ed25519 signature is 64 bytes, i.e. 88 base64 chars; allow for a newline. */
+const MAX_SIGNATURE_BYTES = 256;
+
+/** Fetch the small `.sig` file published next to the zip. */
+function downloadSignature(url: string): Promise<string> {
+  if (!url.startsWith(`${RELEASE_ASSET_ORIGIN}/`)) {
+    return Promise.reject(new Error('Refusing to download an update from an unexpected host.'));
+  }
+  return new Promise<string>((resolvePromise, rejectPromise) => {
+    const request = net.request({ method: 'GET', url, redirect: 'follow' });
+    const chunks: Buffer[] = [];
+    let received = 0;
+    let settled = false;
+    const fail = (err: Error): void => {
+      if (settled) return;
+      settled = true;
+      request.abort();
+      rejectPromise(err);
+    };
+    request.on('error', (err) => fail(err));
+    request.on('response', (response) => {
+      if (response.statusCode !== 200) {
+        fail(new Error('The update package is not signed (no signature was published).'));
+        return;
+      }
+      response.on('data', (chunk: Buffer) => {
+        received += chunk.length;
+        if (received > MAX_SIGNATURE_BYTES) {
+          fail(new Error('The update signature is malformed.'));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      response.on('error', (err: Error) => fail(err));
+      response.on('end', () => {
+        if (settled) return;
+        settled = true;
+        resolvePromise(Buffer.concat(chunks).toString('utf-8'));
+      });
+    });
+    request.end();
+  });
+}
+
 /** Reads one key out of an Info.plist. Returns null if the key is absent. */
 async function readPlistValue(bundlePath: string, key: string): Promise<string | null> {
   try {
@@ -306,6 +367,15 @@ export async function stageUpdate(
 
     if (digest !== asset.sha512) {
       throw new Error('The update package failed its checksum check and was discarded.');
+    }
+
+    // Authenticity, not just integrity: the digest must be signed by the
+    // release key. Checked before anything is unpacked.
+    const signature = await downloadSignature(releaseAssetUrl(info.version, `${asset.url}.sig`));
+    if (
+      !verifyUpdateSignature(updateSignatureMessage(info.version, asset.url, digest), signature)
+    ) {
+      throw new Error('The update package signature is invalid; the download was discarded.');
     }
 
     const unpackDir = join(stageDir, 'unpacked');

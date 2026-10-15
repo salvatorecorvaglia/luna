@@ -6,6 +6,11 @@ import type { TerminalSession } from '@/stores/terminal-store';
  * current set of SSH/storage sessions and which connection is active.
  *
  * Priority:
+ *   0. Keep the current session while it still belongs to the active
+ *      connection and is connected (or coming back). Without this, a *sibling*
+ *      session for the same connection changing state re-ran the search, the
+ *      first match won, and the pane jumped to the sibling — resetting the
+ *      remote path to `/` — then jumped back.
  *   1. A connected SSH session for the active connection.
  *   2. If an SSH session for the active connection is *connecting* or
  *      *reconnecting*, return null and wait — don't silently swap to
@@ -24,6 +29,15 @@ export function resolveSftpSession(
   activeConnectionId: string | null,
   currentSftpSessionId: string | null,
 ): string | null {
+  if (activeConnectionId && currentSftpSessionId) {
+    const current = sessions.get(currentSftpSessionId) ?? storageSessions.get(currentSftpSessionId);
+    if (current && current.connectionId === activeConnectionId) {
+      if (current.status === 'connected') return currentSftpSessionId;
+      // Mid-reconnect: wait for it rather than hopping to a sibling.
+      if (current.status === 'connecting' || current.status === 'reconnecting') return null;
+    }
+  }
+
   if (activeConnectionId) {
     for (const s of sessions.values()) {
       if (

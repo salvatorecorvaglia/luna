@@ -263,9 +263,29 @@ describe('unsigned macOS builds', () => {
     const { installUpdate } = await freshUpdater();
 
     await installUpdate();
-
     expect(downloadUpdate).toHaveBeenCalled();
+    listeners.get('update-downloaded')?.({});
+    await installUpdate();
+
     expect(quitAndInstall).toHaveBeenCalledWith(false, true);
+  });
+
+  it('downloads on the first press and only restarts on the second', async () => {
+    // Regression: download and quitAndInstall ran back to back, so on
+    // Windows/Linux pressing "Download" quit the app — SSH sessions and
+    // transfers included — the moment the package landed.
+    const { installUpdate } = await freshUpdater();
+
+    await installUpdate();
+    expect(downloadUpdate).toHaveBeenCalledTimes(1);
+    expect(quitAndInstall).not.toHaveBeenCalled();
+
+    listeners.get('update-downloaded')?.({});
+    expect(emitToRenderer).toHaveBeenCalledWith(expect.stringContaining('downloaded'), {});
+
+    await installUpdate();
+    expect(quitAndInstall).toHaveBeenCalledWith(false, true);
+    expect(downloadUpdate).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -386,5 +406,44 @@ describe('in-place updates for ad-hoc macOS builds', () => {
     await installUpdate();
     expect(stageUpdate).not.toHaveBeenCalled();
     expect(downloadUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('update error messages', () => {
+  const MANUAL = /cannot install updates itself/;
+
+  it.each([
+    'Code signature at URL file:///x/Luna.app did not pass validation',
+    'code signature at URL file:///Applications/Luna.app/ is invalid',
+  ])('turns a Squirrel.Mac signature failure into the GitHub message: %s', async (raw) => {
+    await freshUpdater();
+    listeners.get('error')?.(new Error(raw));
+    expect(emitToRenderer).toHaveBeenCalledWith(
+      'app:update-error',
+      expect.objectContaining({ error: expect.stringMatching(MANUAL) }),
+    );
+  });
+
+  it('passes any other updater error through unchanged', async () => {
+    await freshUpdater();
+    listeners.get('error')?.(new Error('net::ERR_INTERNET_DISCONNECTED'));
+    expect(emitToRenderer).toHaveBeenCalledWith('app:update-error', {
+      error: 'net::ERR_INTERNET_DISCONNECTED',
+    });
+  });
+
+  it('maps a failed download the same way as an updater error event', async () => {
+    const { installUpdate } = await freshUpdater();
+    downloadUpdate.mockRejectedValueOnce(new Error('did not pass validation'));
+    await installUpdate();
+    expect(emitToRenderer).toHaveBeenCalledWith(
+      'app:update-error',
+      expect.objectContaining({ error: expect.stringMatching(MANUAL) }),
+    );
+
+    // A non-Error rejection still produces a readable message.
+    downloadUpdate.mockRejectedValueOnce('ENOSPC');
+    await installUpdate();
+    expect(emitToRenderer).toHaveBeenLastCalledWith('app:update-error', { error: 'ENOSPC' });
   });
 });

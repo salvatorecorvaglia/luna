@@ -53,6 +53,20 @@ describe('log IPC', () => {
     expect(warn).toHaveBeenCalledWith('[Renderer Error] boom');
   });
 
+  it('escapes newlines so a message cannot forge extra log lines', async () => {
+    await call('info', 'ok\n[12:00:00.000] [info] [Main] credentials exported');
+    expect(info).toHaveBeenCalledWith(
+      '[Renderer] ok\\n[12:00:00.000] [info] [Main] credentials exported',
+    );
+  });
+
+  it('truncates oversized messages', async () => {
+    await call('info', 'x'.repeat(20_000));
+    const logged = info.mock.calls[0]![0] as string;
+    expect(logged.length).toBeLessThan(8300);
+    expect(logged).toMatch(/\[truncated\]$/);
+  });
+
   it('routes debug to log.debug', async () => {
     await call('debug', 'trace');
     expect(debug).toHaveBeenCalledWith('[Renderer] trace');

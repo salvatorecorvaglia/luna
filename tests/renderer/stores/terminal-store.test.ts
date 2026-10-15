@@ -199,7 +199,9 @@ describe('terminal-store-splits', () => {
     });
 
     useTerminalStore.getState().splitSession('session-1', 'vertical');
-    useTerminalStore.getState().updateSplitRatio('session-1', 'session-1', 0.7);
+    const split = useTerminalStore.getState().layouts.get('session-1');
+    if (split?.type !== 'split') throw new Error('expected a split');
+    useTerminalStore.getState().updateSplitRatio('session-1', split.id, 0.7);
 
     const state = useTerminalStore.getState();
     const root = state.layouts.get('session-1');
@@ -423,5 +425,128 @@ describe('terminal-store — settings persistence failure', () => {
     await vi.waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith('Failed to save terminal scrollback setting'),
     );
+  });
+});
+
+describe('terminal-store — tab identity after splits', () => {
+  beforeEach(() => {
+    installFakeApi();
+    useTerminalStore.setState({
+      sessions: new Map(),
+      tabOrder: [],
+      activeSessionId: null,
+      layouts: new Map(),
+    });
+  });
+
+  it('keeps a local tab classified as local after its original pane is closed', async () => {
+    // Regression: the tab id is the id of the session it was opened with. After
+    // splitting L1 into L1|L2 and closing L1, every classifier looked up 'L1' in
+    // `sessions`, found nothing, and defaulted to SSH — the tab jumped to the SSH
+    // view and the Local view auto-spawned a fresh shell.
+    const { getTabKind, getTabSession, selectTabsByKind } = await import(
+      '../../../src/renderer/src/stores/terminal-store'
+    );
+    const store = useTerminalStore.getState();
+    store.addSession({
+      id: 'L1',
+      connectionId: 'local',
+      connectionName: 'Local Terminal',
+      status: 'connected',
+      title: 'Local',
+      type: 'local',
+    });
+    store.splitSession('L1', 'vertical');
+    useTerminalStore.getState().closeTab('L1');
+
+    const state = useTerminalStore.getState();
+    expect(state.tabOrder).toEqual(['L1']);
+    expect(state.sessions.has('L1')).toBe(false);
+    expect(getTabKind(state, 'L1')).toBe('local');
+    expect(selectTabsByKind(state, 'local')).toEqual(['L1']);
+    expect(selectTabsByKind(state, 'ssh')).toEqual([]);
+    // And the tab strip can still render a header for it.
+    expect(getTabSession(state, 'L1')?.type).toBe('local');
+  });
+
+  it('resizes only the dragged split when splits are nested on the left', () => {
+    // Regression: splits were addressed by the first leaf of their left child,
+    // which split(split(A, A2), B) shares between the outer and inner split —
+    // dragging the inner divider moved the outer one.
+    const store = useTerminalStore.getState();
+    store.addSession({
+      id: 'A',
+      connectionId: 'local',
+      connectionName: 'Local Terminal',
+      status: 'connected',
+      title: 'Local',
+      type: 'local',
+    });
+    store.splitSession('A', 'vertical'); // split(A, B)
+    useTerminalStore.getState().splitSession('A', 'horizontal'); // split(split(A, A2), B)
+
+    const root = useTerminalStore.getState().layouts.get('A')!;
+    if (root.type !== 'split' || root.children[0].type !== 'split') {
+      throw new Error('expected a nested split on the left');
+    }
+    const inner = root.children[0];
+    expect(inner.id).not.toBe(root.id);
+
+    useTerminalStore.getState().updateSplitRatio('A', inner.id, 0.3);
+
+    const after = useTerminalStore.getState().layouts.get('A')!;
+    if (after.type !== 'split' || after.children[0].type !== 'split') throw new Error('shape');
+    expect(after.ratio).toBe(0.5);
+    expect(after.children[0].ratio).toBe(0.3);
+  });
+});
+
+describe('selectViewSessionId', () => {
+  it("returns the view's own session when the global active one belongs to the other view", async () => {
+    // Regression: SSH toolbar actions (snippets, macros, CLI run) targeted the
+    // global active session, which after using the Local view was a hidden
+    // local shell.
+    const { selectViewSessionId } = await import('../../../src/renderer/src/stores/terminal-store');
+    const ssh = { connectionId: 'c', connectionName: 'prod', status: 'connected' as const };
+    const state = {
+      sessions: new Map([
+        ['S1', { id: 'S1', title: 'prod', type: 'ssh' as const, ...ssh }],
+        ['L1', { id: 'L1', title: 'Local', type: 'local' as const, ...ssh, connectionId: 'local' }],
+      ]),
+      tabOrder: ['S1', 'L1'],
+      layouts: new Map([
+        ['S1', { type: 'terminal' as const, sessionId: 'S1' }],
+        ['L1', { type: 'terminal' as const, sessionId: 'L1' }],
+      ]),
+      activeSessionId: 'L1',
+    };
+    expect(selectViewSessionId(state, 'ssh')).toBe('S1');
+    expect(selectViewSessionId(state, 'local')).toBe('L1');
+    expect(selectViewSessionId({ ...state, activeSessionId: 'S1' }, 'ssh')).toBe('S1');
+  });
+});
+
+describe('terminal-store — no-op updates', () => {
+  it('keeps the sessions Map identity when a status or title does not change', () => {
+    useTerminalStore.setState({
+      sessions: new Map([
+        [
+          's',
+          {
+            id: 's',
+            connectionId: 'c',
+            connectionName: 'x',
+            status: 'connected',
+            title: 't',
+            type: 'ssh',
+          },
+        ],
+      ]),
+    });
+    const before = useTerminalStore.getState().sessions;
+    useTerminalStore.getState().updateSessionStatus('s', 'connected');
+    useTerminalStore.getState().renameTab('s', 't');
+    useTerminalStore.getState().updateSessionStatus('unknown', 'error');
+    expect(useTerminalStore.getState().sessions).toBe(before);
   });
 });

@@ -50,7 +50,6 @@ export function __resetS3ConnectLimiter(): void {
 const MAX_PRESIGN_EXPIRY_SEC = 7 * 24 * 60 * 60;
 /** Below a minute the URL is unusable by the time it reaches the clipboard. */
 const MIN_PRESIGN_EXPIRY_SEC = 60;
-const DEFAULT_PRESIGN_EXPIRY_SEC = 3600;
 
 /**
  * Presigned URLs are bearer credentials, so minting them is rate-limited
@@ -221,9 +220,13 @@ export function registerS3Handlers(): void {
       // valid for years — or hand the SDK a value it rejects with an opaque
       // signing error. SigV4 caps validity at 7 days; enforce that, and
       // require an explicit value rather than silently defaulting.
-      const expiresSec = params.expiresSec ?? DEFAULT_PRESIGN_EXPIRY_SEC;
-      assertBoundedInt(expiresSec, 'expiresSec', MIN_PRESIGN_EXPIRY_SEC, MAX_PRESIGN_EXPIRY_SEC);
-      return s3StorageProvider.getPresignedUrl(params.sessionId, params.path, expiresSec);
+      assertBoundedInt(
+        params.expiresSec,
+        'expiresSec',
+        MIN_PRESIGN_EXPIRY_SEC,
+        MAX_PRESIGN_EXPIRY_SEC,
+      );
+      return s3StorageProvider.getPresignedUrl(params.sessionId, params.path, params.expiresSec);
     },
   );
 }

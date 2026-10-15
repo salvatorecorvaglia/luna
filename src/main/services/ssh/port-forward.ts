@@ -1,8 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import { createServer, connect as netConnect, type Server, type Socket } from 'node:net';
 import { ErrorCode, LunaError } from '@shared/errors';
 import type { PortForwardingConfig } from '@shared/types/connection';
 import type { Client, ClientChannel } from 'ssh2';
-import { v4 as uuidv4 } from 'uuid';
 import log from '../../lib/logger';
 
 /**
@@ -14,6 +14,7 @@ const UNFORWARD_TIMEOUT_MS = 5_000;
 
 import {
   buildGreetingResponse,
+  buildNoAcceptableMethodResponse,
   buildReply,
   MAX_HANDSHAKE_BYTES,
   parseGreeting,
@@ -75,7 +76,15 @@ function bridge(socket: Socket, stream: ClientChannel, counters: Counters): void
   stream.on('close', () => socket.destroy());
 }
 
-/** Track every accepted socket so `close()` can actually end them. */
+/**
+ * Track every accepted socket so `close()` can actually end them.
+ *
+ * Also installs the socket's baseline 'error' listener. bridge() adds its own
+ * later, but a local-forward socket waits for forwardOut's callback before
+ * bridging; a client reset in that window (port scanners, aborted browser
+ * requests) emitted ECONNRESET with no listener — an uncaught exception that
+ * main answers with process.exit(1), taking every session down with it.
+ */
 function trackSocket(sockets: Set<Socket>, socket: Socket, counters: Counters): void {
   sockets.add(socket);
   counters.activeConnections++;
@@ -85,6 +94,61 @@ function trackSocket(sockets: Set<Socket>, socket: Socket, counters: Counters): 
     }
   };
   socket.on('close', release);
+  socket.on('error', (err) => {
+    log.debug(`[PortForward] client socket error: ${err.message}`);
+    socket.destroy();
+  });
+}
+
+// biome-ignore lint/suspicious/noExplicitAny: ssh2 does not type its tcp-connection info payload
+type TcpConnectionHandler = (info: any, accept: () => ClientChannel, reject: () => void) => void;
+
+/**
+ * One 'tcp connection' listener per SSH client, dispatching by bound port.
+ *
+ * ssh2 delivers every inbound forwarded-tcpip channel to *every* listener, and
+ * its accept()/reject() have no guard against both being called. With one
+ * listener per remote forward, each rejecting ports it did not own, a
+ * connection for forward B was rejected by A's listener and then accepted by
+ * B's — a protocol violation that left B unusable whenever two remote forwards
+ * shared a session. A single dispatcher answers each channel exactly once, and
+ * still declines channels no forward owns so they don't sit pending
+ * server-side.
+ */
+const remoteDispatchers = new WeakMap<
+  Client,
+  { routes: Map<number, TcpConnectionHandler>; listener: TcpConnectionHandler }
+>();
+
+function addRemoteRoute(client: Client, port: number, handler: TcpConnectionHandler): void {
+  let dispatcher = remoteDispatchers.get(client);
+  if (!dispatcher) {
+    const routes = new Map<number, TcpConnectionHandler>();
+    const listener: TcpConnectionHandler = (info, accept, reject) => {
+      const route = routes.get(info?.destPort);
+      if (route) {
+        route(info, accept, reject);
+        return;
+      }
+      // Decline explicitly. Simply returning left the channel pending on the
+      // server side for the rest of the session.
+      reject();
+    };
+    dispatcher = { routes, listener };
+    remoteDispatchers.set(client, dispatcher);
+    client.on('tcp connection', listener);
+  }
+  dispatcher.routes.set(port, handler);
+}
+
+function removeRemoteRoute(client: Client, port: number, handler: TcpConnectionHandler): void {
+  const dispatcher = remoteDispatchers.get(client);
+  if (!dispatcher || dispatcher.routes.get(port) !== handler) return;
+  dispatcher.routes.delete(port);
+  if (dispatcher.routes.size === 0) {
+    client.off('tcp connection', dispatcher.listener);
+    remoteDispatchers.delete(client);
+  }
 }
 
 /** Resolve once the server is listening; reject if binding fails. */
@@ -167,7 +231,7 @@ function startLocalForward(
   });
 
   const handle: PortForwardHandle = {
-    id: config.id || uuidv4(),
+    id: config.id || randomUUID(),
     config,
     status: 'active',
     get bytesRead() {
@@ -217,14 +281,9 @@ function startRemoteForward(
   const localDestHost = config.remoteHost ?? '127.0.0.1';
   const localDestPort = config.remotePort ?? 80;
 
-  // biome-ignore lint/suspicious/noExplicitAny: ssh2 does not type its tcp-connection info payload
-  const tcpListener = (info: any, accept: () => ClientChannel, reject: () => void): void => {
-    if (info?.destPort !== remotePort) {
-      // Decline explicitly. Simply returning left the channel pending on the
-      // server side for the rest of the session.
-      reject();
-      return;
-    }
+  // Only ever called for channels addressed to `remotePort` — the per-client
+  // dispatcher routes by port and declines the rest.
+  const tcpListener: TcpConnectionHandler = (_info, accept, reject): void => {
     const localSocket = netConnect(localDestPort, localDestHost, () => {
       const stream = accept();
       trackSocket(sockets, localSocket, counters);
@@ -262,10 +321,10 @@ function startRemoteForward(
         );
         return;
       }
-      client.on('tcp connection', tcpListener);
+      addRemoteRoute(client, remotePort, tcpListener);
       log.info(`[SSH] Remote forward established on remote ${remoteBind}:${remotePort}`);
       resolve({
-        id: config.id || uuidv4(),
+        id: config.id || randomUUID(),
         config,
         status: 'active',
         get bytesRead() {
@@ -279,7 +338,7 @@ function startRemoteForward(
         },
         close: () =>
           new Promise<void>((resolveClose) => {
-            client.off('tcp connection', tcpListener);
+            removeRemoteRoute(client, remotePort, tcpListener);
             for (const socket of sockets) socket.destroy();
             sockets.clear();
             // The try/catch only covers a *synchronous* throw. On an already-dead
@@ -348,8 +407,12 @@ function handleSocksConnection(
       const greeting = parseGreeting(pending);
       if (greeting.status === 'need-more') return;
       if (greeting.status === 'error') {
-        // A bad version byte means the peer isn't speaking SOCKS at all;
-        // there is no meaningful reply frame to send.
+        // A SOCKS5 client with no acceptable method gets the 0xFF selection
+        // reply so it can report why. A bad version byte means the peer isn't
+        // speaking SOCKS at all; there is no meaningful reply frame to send.
+        if (greeting.noAcceptableMethod && socket.writable) {
+          socket.write(buildNoAcceptableMethodResponse());
+        }
         fail(greeting.reason);
         return;
       }
@@ -424,7 +487,7 @@ function startDynamicForward(
   });
 
   const handle: PortForwardHandle = {
-    id: config.id || uuidv4(),
+    id: config.id || randomUUID(),
     config,
     status: 'active',
     get bytesRead() {

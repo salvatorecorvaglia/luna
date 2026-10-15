@@ -37,11 +37,31 @@ export function TitleBar() {
   );
 
   useEffect(() => {
-    const check = async () => setIsMaximized(await getApi().window.isMaximized());
-    void check();
+    let frame: number | null = null;
+    const check = (): void => {
+      getApi()
+        .window.isMaximized()
+        .then(setIsMaximized)
+        .catch(() => {
+          // Cosmetic only (which icon to show); a failed probe keeps the last one.
+        });
+    };
     // Re-check on resize so the icon stays correct after OS window management
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
+    // — coalesced to one IPC call per frame. A window drag fires `resize`
+    // continuously, and each one used to cost a round-trip to main.
+    const onResize = (): void => {
+      if (frame !== null) return;
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        check();
+      });
+    };
+    check();
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      if (frame !== null) cancelAnimationFrame(frame);
+    };
   }, []);
 
   /**

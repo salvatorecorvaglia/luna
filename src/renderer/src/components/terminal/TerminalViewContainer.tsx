@@ -1,19 +1,23 @@
 import type { PaneNode } from '@shared/types/terminal';
 import { Monitor, Plus, Terminal as TerminalIcon } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { v4 as uuidv4 } from 'uuid';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { Button } from '@/components/ui';
+import { isModalOpen } from '@/lib/shortcut-guard';
 import { openNewSession } from '@/lib/ssh';
 import { useConnectionStore } from '@/stores/connection-store';
 import {
   hasSessionInTree,
+  selectTabsByKind,
   useActiveSessionId,
   useTerminalStore,
-  useTerminalTabOrder,
   useTerminalTheme,
 } from '@/stores/terminal-store';
+
 import { useUIStore } from '@/stores/ui-store';
 import { terminalThemes } from '@/themes/terminal';
+import { BroadcastInputBar } from './BroadcastInputBar';
 import { LocalTerminalTabs } from './LocalTerminalTabs';
 import { SplitLayout } from './SplitLayout';
 import { TerminalTabs } from './TerminalTabs';
@@ -32,21 +36,13 @@ export function TerminalViewContainer({ type }: TerminalViewContainerProps) {
   // no-selector `useTerminalStore()` re-rendered this component — and every
   // mounted tab's SplitLayout tree beneath it — on every single store
   // change, including fields this component never reads (fontSize, etc.).
-  const sessions = useTerminalStore((s) => s.sessions);
-  const tabOrder = useTerminalTabOrder();
   const activeSessionId = useActiveSessionId();
   const terminalTheme = useTerminalTheme();
   const layouts = useTerminalStore((s) => s.layouts);
-  const addSession = useTerminalStore((s) => s.addSession);
-  const setActiveSession = useTerminalStore((s) => s.setActiveSession);
+  const broadcastBarOpen = useUIStore((s) => s.broadcastBarOpen);
 
-  const filteredTabs = useMemo(() => {
-    return tabOrder.filter((id) => {
-      const s = sessions.get(id);
-      if (type === 'local') return s?.type === 'local';
-      return !s || !s.type || s.type === 'ssh';
-    });
-  }, [tabOrder, sessions, type]);
+  // Shallow-compared tab list instead of the session Map; see TerminalTabs.
+  const filteredTabs = useTerminalStore(useShallow((s) => selectTabsByKind(s, type)));
 
   const activeFilteredTabId = useMemo(() => {
     if (!activeSessionId) return filteredTabs[0] || null;
@@ -62,16 +58,7 @@ export function TerminalViewContainer({ type }: TerminalViewContainerProps) {
 
   const handleNewTab = useCallback(() => {
     if (type === 'local') {
-      const sessionId = uuidv4();
-      addSession({
-        id: sessionId,
-        connectionId: 'local',
-        connectionName: 'Local Terminal',
-        status: 'connected',
-        title: 'Local',
-        type: 'local',
-      });
-      setActiveSession(sessionId);
+      useTerminalStore.getState().openLocalSession();
     } else {
       const { activeConnectionId } = useConnectionStore.getState();
       if (activeConnectionId) {
@@ -82,7 +69,10 @@ export function TerminalViewContainer({ type }: TerminalViewContainerProps) {
         useConnectionStore.getState().openCreateForm();
       }
     }
-  }, [type, addSession, setActiveSession]);
+  }, [type]);
+
+  /** SSH pane awaiting confirmation before Cmd+W disconnects it. */
+  const [closingPaneId, setClosingPaneId] = useState<string | null>(null);
 
   const autoSpawnRef = useRef(false);
 
@@ -102,6 +92,8 @@ export function TerminalViewContainer({ type }: TerminalViewContainerProps) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!e.metaKey && !e.ctrlKey) return;
+      // A modal owns the keyboard: these shortcuts act on the terminal behind it.
+      if (isModalOpen()) return;
 
       // Both the SSH and Local containers stay mounted once visited (App keeps
       // them in the DOM, hidden), so both have this listener attached. Without
@@ -113,17 +105,13 @@ export function TerminalViewContainer({ type }: TerminalViewContainerProps) {
       const activeView = useUIStore.getState().activeView;
       if (type === 'local' ? activeView !== 'local' : activeView !== 'terminal') return;
 
-      const { sessions, tabOrder, setActiveSession, activeSessionId, closeTab, layouts } =
-        useTerminalStore.getState();
-      const modeTabs = tabOrder.filter((id) => {
-        const s = sessions.get(id);
-        if (type === 'local') return s?.type === 'local';
-        return !s || !s.type || s.type === 'ssh';
-      });
+      const state = useTerminalStore.getState();
+      const { sessions, setActiveSession, activeSessionId, closeTab, layouts } = state;
+      const modeTabs = selectTabsByKind(state, type);
       if (modeTabs.length === 0) return;
 
-      // Cmd+W
-      if (e.key === 'w' && !e.shiftKey) {
+      // Cmd+W. Matched on `code` so Caps Lock (key 'W') doesn't disable it.
+      if (e.code === 'KeyW' && !e.shiftKey) {
         if (
           activeSessionId &&
           modeTabs.some((tabId) => {
@@ -132,7 +120,14 @@ export function TerminalViewContainer({ type }: TerminalViewContainerProps) {
           })
         ) {
           e.preventDefault();
-          closeTab(activeSessionId);
+          // Same rule as the tab's X button: a live SSH session is only
+          // disconnected after confirmation. Cmd+W used to skip it.
+          const status = sessions.get(activeSessionId)?.status;
+          if (type === 'ssh' && (status === 'connected' || status === 'connecting')) {
+            setClosingPaneId(activeSessionId);
+          } else {
+            closeTab(activeSessionId);
+          }
           return;
         }
       }
@@ -190,11 +185,30 @@ export function TerminalViewContainer({ type }: TerminalViewContainerProps) {
     return () => window.removeEventListener('keydown', handler);
   }, [type, handleNewTab]);
 
-  const themeBg = terminalThemes[terminalTheme]?.background || '#282a36';
+  const themeBg =
+    terminalThemes[terminalTheme]?.background ?? terminalThemes.dracula.background ?? 'black';
 
   return (
     <div className="flex h-full flex-col">
       {type === 'ssh' ? <TerminalTabs /> : <LocalTerminalTabs />}
+      {/* Its own row under the tab strip. It used to render *inside* the 36px
+          tab row (TerminalToolbar returned it as a sibling fragment), where it
+          fought the tabs for width. */}
+      {type === 'ssh' && broadcastBarOpen && (
+        <BroadcastInputBar open onClose={() => useUIStore.getState().setBroadcastBarOpen(false)} />
+      )}
+      <ConfirmDialog
+        open={closingPaneId !== null}
+        title="Close this session?"
+        message="This will disconnect the SSH session in the focused pane."
+        confirmLabel="Disconnect"
+        destructive
+        onConfirm={() => {
+          if (closingPaneId) useTerminalStore.getState().closeTab(closingPaneId);
+          setClosingPaneId(null);
+        }}
+        onCancel={() => setClosingPaneId(null)}
+      />
       <div className="flex-1 relative overflow-hidden" style={{ backgroundColor: themeBg }}>
         {filteredTabs.map((tabId) => {
           const rootNode = layouts.get(tabId);

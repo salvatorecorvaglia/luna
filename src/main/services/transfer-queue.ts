@@ -1,9 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import { stat } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { IPC, LIMITS } from '@shared/constants';
 import { ErrorCode, LunaError } from '@shared/errors';
 import type { TransferType } from '@shared/types/transfer';
-import { v4 as uuidv4 } from 'uuid';
 import { classifyTransferError } from '../lib/error-map';
 import { AbortError } from '../lib/errors';
 import log from '../lib/logger';
@@ -88,7 +88,8 @@ class TransferQueue {
   }
 
   setMaxConcurrent(max: number): void {
-    this.maxConcurrent = Math.max(1, Math.min(LIMITS.MAX_CONCURRENT_TRANSFERS, max));
+    const n = Number.isFinite(max) ? Math.round(max) : 3;
+    this.maxConcurrent = Math.max(1, Math.min(LIMITS.MAX_CONCURRENT_TRANSFERS, n));
     this.processQueue();
   }
 
@@ -160,7 +161,7 @@ class TransferQueue {
     // racing through the stat() window can abort it instead of being dropped
     // (the controller used to be created after the await — leaving cancel()
     // with nothing to find in queue/active and silently no-op'ing).
-    const transferId = uuidv4();
+    const transferId = randomUUID();
     const controller = new AbortController();
     this.dedupIndex.set(key, transferId);
     this.reserved.set(transferId, { id: transferId, key, sessionId, controller });

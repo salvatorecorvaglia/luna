@@ -52,7 +52,7 @@ describe('AuditExportDialog', () => {
 
   it('shows the active session title and defaults to the HTML format', () => {
     render(<AuditExportDialog open onClose={vi.fn()} sessionId="s1" sessionTitle="Prod Box" />);
-    expect(screen.getByText('Prod Box')).toBeTruthy();
+    expect(screen.getByText('Prod Box')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /HTML/ })).toHaveClass('border-primary');
   });
 

@@ -1,5 +1,5 @@
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { lstat, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { platform, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough, Writable } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
@@ -306,6 +306,56 @@ describe('runPipeDownloadToFile', () => {
 
     await expect(promise).rejects.toBeInstanceOf(AbortError);
     expect((await readFile(localPath)).toString()).toBe('original content');
+    await expect(stat(`${localPath}.luna-partial`)).rejects.toThrow();
+  });
+
+  it.skipIf(platform() === 'win32')(
+    'does not write through a symlink planted at the temp path',
+    async () => {
+      // Regression: only localPath was validated; `<name>.luna-partial` was
+      // opened with a plain truncating open that followed a symlink to anywhere.
+      const localPath = join(dir, 'dest.bin');
+      const victim = join(dir, 'victim.txt');
+      await writeFile(victim, 'keep me');
+      await symlink(victim, `${localPath}.luna-partial`);
+      const source = new PassThrough();
+
+      const promise = runPipeDownloadToFile({
+        source,
+        localPath,
+        signal: new AbortController().signal,
+        total: 5,
+        onStep: vi.fn(),
+        abortCleanupDelayMs: 1,
+      });
+      source.end(Buffer.from('hello'));
+      await promise;
+
+      expect(await readFile(victim, 'utf-8')).toBe('keep me');
+      expect(await readFile(localPath, 'utf-8')).toBe('hello');
+      expect((await lstat(localPath)).isSymbolicLink()).toBe(false);
+    },
+  );
+
+  it('leaves no temp file behind when a finished download is cancelled', async () => {
+    // Regression: a size-based "already complete, keep it" guard kept the
+    // temp file, but the transfer still rejected as cancelled, so the rename
+    // never ran and the full-size file was orphaned.
+    const localPath = join(dir, 'late-cancel.bin');
+    const source = new PassThrough();
+    const controller = new AbortController();
+    const promise = runPipeDownloadToFile({
+      source,
+      localPath,
+      signal: controller.signal,
+      total: 4,
+      onStep: vi.fn(),
+      abortCleanupDelayMs: 1,
+    });
+    source.write(Buffer.from('data'));
+    controller.abort();
+    await promise.catch(() => {});
+
     await expect(stat(`${localPath}.luna-partial`)).rejects.toThrow();
   });
 

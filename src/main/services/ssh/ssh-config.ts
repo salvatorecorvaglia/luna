@@ -99,7 +99,18 @@ const keyCache = new Map<string, Buffer>();
  */
 const keyReadInFlight = new Map<string, Promise<Buffer>>();
 
+/**
+ * Returns a private *copy* of the cached key bytes. The cache scrubs buffers
+ * it evicts, and it used to hand out the cached buffer itself — so a
+ * concurrent read that evicted it between this promise resolving and the
+ * caller's parseKey() zeroed the key mid-use and the connect failed with a
+ * bogus "invalid key". The caller owns (and scrubs) its copy.
+ */
 async function loadPrivateKeyCached(absPath: string): Promise<Buffer> {
+  return Buffer.from(await loadPrivateKeyShared(absPath));
+}
+
+async function loadPrivateKeyShared(absPath: string): Promise<Buffer> {
   const st = await stat(absPath);
   const key = `${absPath}|${st.mtimeMs}|${st.size}`;
   const hit = keyCache.get(key);
@@ -148,11 +159,17 @@ export async function buildConnectConfig(
     host: params.host,
     port: params.port,
     username: params.username,
+    // 0 means "not set", not "disabled": it is the column default from
+    // migration 016, and the connection form can't produce it (it coerces a
+    // blank or 0 field to 10 s). Passing it through turned ssh2 keepalive off
+    // for every saved connection and ignored the global setting, so idle
+    // sessions behind NAT dropped silently.
     keepaliveInterval:
-      params.keepaliveInterval !== undefined
+      params.keepaliveInterval && params.keepaliveInterval > 0
         ? params.keepaliveInterval
         : getSetting('ssh.keepAliveInterval', 10000),
-    keepaliveCountMax: params.keepaliveCountMax !== undefined ? params.keepaliveCountMax : 3,
+    keepaliveCountMax:
+      params.keepaliveCountMax && params.keepaliveCountMax > 0 ? params.keepaliveCountMax : 3,
     readyTimeout: getSetting('ssh.readyTimeout', 30000),
     // Restrict negotiation to modern primitives. ssh2's defaults still include
     // some legacy options (e.g. sha1 HMACs, diffie-hellman-group14-sha1).
@@ -299,17 +316,21 @@ export async function buildConnectConfig(
         'privateKeyPath',
       );
       const keyBuf = await loadPrivateKeyCached(keyPath);
-      const parsedKey = utils.parseKey(keyBuf, passphrase || undefined);
+      let parsedKey: ReturnType<typeof utils.parseKey>;
+      let isPuttyKey = false;
+      try {
+        parsedKey = utils.parseKey(keyBuf, passphrase || undefined);
+        isPuttyKey = keyBuf.toString('utf-8').includes('PuTTY-User-Key-File');
+      } finally {
+        keyBuf.fill(0);
+      }
 
       if (parsedKey instanceof Error) {
         log.warn(`[SSH] Failed to parse private key: ${parsedKey.message}`);
         // If it's a PuTTY key and we got an unsupported format error, it might
         // be an encrypted key where the user didn't provide a passphrase, or
         // a version we truly don't support.
-        if (
-          parsedKey.message.includes('Unsupported key format') &&
-          keyBuf.toString('utf-8').includes('PuTTY-User-Key-File')
-        ) {
+        if (parsedKey.message.includes('Unsupported key format') && isPuttyKey) {
           return {
             config,
             error:

@@ -19,10 +19,6 @@ vi.mock('@xterm/addon-webgl', async () => {
   const { FakeWebglAddon } = await import('../../../../src/test/fake-xterm');
   return { WebglAddon: FakeWebglAddon };
 });
-vi.mock('@xterm/addon-canvas', async () => {
-  const { FakeCanvasAddon } = await import('../../../../src/test/fake-xterm');
-  return { CanvasAddon: FakeCanvasAddon };
-});
 vi.mock('@xterm/addon-unicode11', async () => {
   const { FakeUnicode11Addon } = await import('../../../../src/test/fake-xterm');
   return { Unicode11Addon: FakeUnicode11Addon };
@@ -42,6 +38,7 @@ vi.mock('sonner', () => ({
 }));
 
 import { TerminalPane } from '../../../../src/renderer/src/components/terminal/TerminalPane';
+import { __disposeAllTerminals } from '../../../../src/renderer/src/components/terminal/use-terminal-session';
 import { useTerminalStore } from '../../../../src/renderer/src/stores/terminal-store';
 import { createFakeApi, installFakeApi } from '../../../../src/test/fake-api';
 import { FakeTerminal, resetFakeXterm } from '../../../../src/test/fake-xterm';
@@ -78,6 +75,9 @@ let onStatus: ReturnType<typeof capturingListener<{ sessionId: string; status: S
 let sshConnect: ReturnType<typeof vi.fn<(params: SshConnectParams) => Promise<SshConnectResult>>>;
 
 beforeEach(() => {
+  // Cached terminals outlive unmount by one macrotask (see liveTerminals);
+  // drop them so each test constructs its own.
+  __disposeAllTerminals();
   resetFakeXterm();
   toastError.mockClear();
 
@@ -158,7 +158,7 @@ describe('TerminalPane — reconnect overlay', () => {
     render(<TerminalPane sessionId="sess-1" />);
     await flush();
 
-    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(screen.queryByRole('group', { name: /disconnected|connection error/i })).toBeNull();
   });
 
   it('is shown with a reconnect action when the session errors', async () => {
@@ -168,8 +168,37 @@ describe('TerminalPane — reconnect overlay', () => {
     render(<TerminalPane sessionId="sess-1" />);
     await flush();
 
-    expect(screen.getByRole('alertdialog')).toBeTruthy();
-    expect(screen.getByRole('button', { name: /reconnect/i })).toBeTruthy();
+    expect(screen.getByRole('group', { name: /connection error/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /reconnect/i })).toBeInTheDocument();
+  });
+
+  it('does not trap the keyboard or take focus when the pane is not active', async () => {
+    // Regression: every disconnected pane — hidden tabs included — installed a
+    // window-level focus trap, so Tab anywhere in the app was redirected to an
+    // invisible Reconnect button and open dialogs lost Escape.
+    useTerminalStore.setState({
+      sessions: new Map([['sess-1', { ...SESSION, status: 'disconnected' }]]),
+    });
+    const outside = document.createElement('button');
+    document.body.appendChild(outside);
+    outside.focus();
+    render(<TerminalPane sessionId="sess-1" isActive={false} />);
+    await flush();
+
+    expect(document.activeElement).toBe(outside);
+    const tab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    window.dispatchEvent(tab);
+    expect(tab.defaultPrevented).toBe(false);
+    outside.remove();
+  });
+
+  it('moves focus to Reconnect when the disconnected pane is the active one', async () => {
+    useTerminalStore.setState({
+      sessions: new Map([['sess-1', { ...SESSION, status: 'disconnected' }]]),
+    });
+    render(<TerminalPane sessionId="sess-1" isActive />);
+    await flush();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /reconnect/i }));
   });
 
   it('reverts to the previous status and toasts on a failed reconnect', async () => {

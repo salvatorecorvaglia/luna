@@ -37,8 +37,15 @@ export function isAllowedNavigation(
     return false;
   }
 
-  if (devRendererUrl && devRendererUrl.startsWith(`${u.protocol}//${u.host}`)) {
-    return true;
+  // Exact origin match. The previous `devRendererUrl.startsWith(scheme//host)`
+  // was backwards: `http://localhost/` (any port) and even `http://l/` are
+  // prefixes of `http://localhost:5173`, so they were allowed.
+  if (devRendererUrl) {
+    try {
+      if (new URL(devRendererUrl).origin === u.origin) return true;
+    } catch {
+      // Malformed dev URL: fall through to the file:// rule.
+    }
   }
 
   if (u.protocol !== 'file:') return false;

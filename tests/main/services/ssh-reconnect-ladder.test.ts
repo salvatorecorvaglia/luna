@@ -38,6 +38,7 @@ type Reach = {
   /** Ladder bookkeeping; outlives `sessions` by design, so tests must reset it. */
   reconnects: Map<string, { timer: ReturnType<typeof setTimeout> | null; attempts: number }>;
   handleDisconnect(id: string): void;
+  handleShellExit(id: string, code: number): void;
   connect(id: string, connectionId: string, cols?: number, rows?: number): Promise<unknown>;
 };
 
@@ -230,5 +231,26 @@ describe('reconnect ladder', () => {
       await vi.advanceTimersByTimeAsync(60_000);
     }
     expect(stub.calls()).toBe(2 + 3);
+  });
+});
+
+describe('clean shell exit', () => {
+  it('retires the session instead of reconnecting when the remote shell exits', async () => {
+    // Regression: typing `exit` closed the shell channel, which went through
+    // handleDisconnect() and started the reconnect ladder — the tab came back
+    // on its own. Against a host whose shell exits immediately (ForceCommand,
+    // git hosts) that looped forever, because every successful handshake
+    // reset the attempt budget.
+    const stub = stubConnect();
+    restoreConnect = stub.restore;
+    seedConnectedSession();
+
+    reach().handleShellExit(SESSION_ID, 0);
+    await vi.advanceTimersByTimeAsync(300_000);
+
+    expect(stub.calls()).toBe(0);
+    expect(reach().sessions.has(SESSION_ID)).toBe(false);
+    expect(reach().reconnects.has(SESSION_ID)).toBe(false);
+    expect(emitToRenderer).toHaveBeenCalledWith(IPC.SSH_ON_CLOSE, { sessionId: SESSION_ID });
   });
 });

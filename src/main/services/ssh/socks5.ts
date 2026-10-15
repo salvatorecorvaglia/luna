@@ -49,7 +49,11 @@ export const MAX_HANDSHAKE_BYTES = 4096;
 export type GreetingResult =
   | { status: 'need-more' }
   | { status: 'ok'; consumed: number }
-  | { status: 'error'; reason: string };
+  /** `noAcceptableMethod`: reply with METHOD 0xFF before closing (RFC 1928 §3). */
+  | { status: 'error'; reason: string; noAcceptableMethod?: true };
+
+/** "No authentication required" — the only method Luna offers. */
+const METHOD_NO_AUTH = 0x00;
 
 export type RequestResult =
   | { status: 'need-more' }
@@ -59,9 +63,12 @@ export type RequestResult =
 /**
  * Parse the client greeting: VER | NMETHODS | METHODS[NMETHODS].
  *
- * Luna only offers "no authentication" (the proxy is bound to loopback and
- * inherits the SSH session's authority), so the method list is validated for
- * length but its contents are not inspected.
+ * Luna only offers "no authentication" (the proxy inherits the SSH session's
+ * authority). The method list used to be ignored and "no auth" chosen
+ * regardless — so a client that offered only username/password, expecting to
+ * be challenged, was silently let through, which on a publicly bound forward
+ * is an open proxy the client believes is protected. Now "no auth" is chosen
+ * only when offered; otherwise the reply is 0xFF, as RFC 1928 requires.
  */
 export function parseGreeting(buf: Buffer): GreetingResult {
   if (buf.length < 2) return { status: 'need-more' };
@@ -76,6 +83,13 @@ export function parseGreeting(buf: Buffer): GreetingResult {
   }
   const needed = 2 + nMethods;
   if (buf.length < needed) return { status: 'need-more' };
+  if (!buf.subarray(2, needed).includes(METHOD_NO_AUTH)) {
+    return {
+      status: 'error',
+      reason: 'client offered no acceptable auth method (only "no auth" is supported)',
+      noAcceptableMethod: true,
+    };
+  }
   return { status: 'ok', consumed: needed };
 }
 
@@ -160,7 +174,12 @@ export function parseRequest(buf: Buffer): RequestResult {
 
 /** Server method-selection response: "version 5, no authentication required". */
 export function buildGreetingResponse(): Buffer {
-  return Buffer.from([SOCKS_VERSION, 0x00]);
+  return Buffer.from([SOCKS_VERSION, METHOD_NO_AUTH]);
+}
+
+/** METHOD selection reply meaning "none of your methods are acceptable". */
+export function buildNoAcceptableMethodResponse(): Buffer {
+  return Buffer.from([SOCKS_VERSION, 0xff]);
 }
 
 /**

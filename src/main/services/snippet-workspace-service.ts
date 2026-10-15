@@ -1,7 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import { ErrorCode, LunaError } from '@shared/errors';
 import type { CreateSnippetInput, Snippet, UpdateSnippetInput } from '@shared/types/snippet';
 import type { CreateWorkspaceInput, WorkspacePreset } from '@shared/types/workspace';
-import { v4 as uuidv4 } from 'uuid';
 import log from '../lib/logger';
 import { getDatabase } from './database';
 
@@ -101,7 +101,7 @@ export class SnippetWorkspaceService {
     const db = getDatabase();
     const now = Date.now();
     const snippet: Snippet = {
-      id: uuidv4(),
+      id: randomUUID(),
       title: input.title,
       command: input.command,
       tags: input.tags || [],
@@ -175,7 +175,7 @@ export class SnippetWorkspaceService {
     const db = getDatabase();
     const now = Date.now();
     const preset: WorkspacePreset = {
-      id: uuidv4(),
+      id: randomUUID(),
       name: input.name,
       layout: input.layout,
       createdAt: now,

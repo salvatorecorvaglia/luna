@@ -26,6 +26,8 @@ interface UIState {
   sidebarSectionOrder: string[];
   shortcutsHelpOpen: boolean;
   showHiddenConnections: boolean;
+  /** Broadcast input bar visibility (SSH terminal view); not persisted. */
+  broadcastBarOpen: boolean;
 
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
@@ -37,6 +39,7 @@ interface UIState {
   setSidebarSectionOrder: (order: string[]) => void;
   setShortcutsHelpOpen: (open: boolean) => void;
   toggleShowHiddenConnections: () => void;
+  setBroadcastBarOpen: (open: boolean) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -53,6 +56,7 @@ export const useUIStore = create<UIState>()(
       sidebarSectionOrder: ['ssh', 's3'],
       shortcutsHelpOpen: false,
       showHiddenConnections: false,
+      broadcastBarOpen: false,
 
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
@@ -68,6 +72,7 @@ export const useUIStore = create<UIState>()(
       setShortcutsHelpOpen: (open) => set({ shortcutsHelpOpen: open }),
       toggleShowHiddenConnections: () =>
         set((s) => ({ showHiddenConnections: !s.showHiddenConnections })),
+      setBroadcastBarOpen: (open) => set({ broadcastBarOpen: open }),
     }),
     {
       name: 'luna-ui-storage',

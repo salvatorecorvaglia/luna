@@ -62,6 +62,14 @@ describe('isAllowedNavigation', () => {
       expect(isAllowedNavigation('http://localhost:9999/', ENTRY, DEV)).toBe(false);
     });
 
+    it('blocks a URL that is merely a prefix of the dev origin', () => {
+      // Regression: the prefix test ran the wrong way round.
+      const dev = 'http://localhost:5173';
+      expect(isAllowedNavigation('http://localhost/', ENTRY, dev)).toBe(false);
+      expect(isAllowedNavigation('http://l/', ENTRY, dev)).toBe(false);
+      expect(isAllowedNavigation('http://localhost:5173/any/path', ENTRY, dev)).toBe(true);
+    });
+
     it('blocks the dev origin in production, where it is undefined', () => {
       expect(isAllowedNavigation(`${DEV}/index.html`, ENTRY)).toBe(false);
     });

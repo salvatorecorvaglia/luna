@@ -79,6 +79,23 @@ describe('SOCKS5 greeting', () => {
     expect(parseGreeting(input)).toEqual({ status: 'need-more' });
   });
 
+  it('refuses a client that does not offer "no authentication"', () => {
+    // Regression: "no auth" was chosen whatever the client offered, silently
+    // admitting a client that expected to be challenged for credentials.
+    const userPassOnly = Buffer.from([0x05, 0x01, 0x02]);
+    expect(parseGreeting(userPassOnly)).toMatchObject({
+      status: 'error',
+      noAcceptableMethod: true,
+    });
+  });
+
+  it('accepts "no authentication" when offered alongside other methods', () => {
+    expect(parseGreeting(Buffer.from([0x05, 0x02, 0x02, 0x00]))).toEqual({
+      status: 'ok',
+      consumed: 4,
+    });
+  });
+
   it('rejects a non-SOCKS5 version', () => {
     const result = parseGreeting(Buffer.from([0x04, 0x01, 0x00]));
     expect(result.status).toBe('error');

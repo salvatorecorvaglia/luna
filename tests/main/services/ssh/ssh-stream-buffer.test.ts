@@ -1,7 +1,16 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SshStreamBuffer } from '../../../../src/main/services/ssh/ssh-stream-buffer';
 
 describe('SshStreamBuffer', () => {
+  // Fake timers: the flush is a 16 ms setTimeout, and waiting on it in real
+  // time (30 ms) flaked on loaded CI runners.
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('batches chunks and flushes via onEmit callback after throttle window', async () => {
     const buffer = new SshStreamBuffer();
     const emitFn = vi.fn();
@@ -11,8 +20,7 @@ describe('SshStreamBuffer', () => {
 
     expect(emitFn).not.toHaveBeenCalled();
 
-    // Wait for the 16ms throttle window to fire
-    await new Promise((r) => setTimeout(r, 30));
+    vi.advanceTimersByTime(16);
 
     expect(emitFn).toHaveBeenCalledOnce();
     expect(emitFn).toHaveBeenCalledWith('hello world');
@@ -22,18 +30,45 @@ describe('SshStreamBuffer', () => {
     expect(buffer.size).toBe(0);
   });
 
-  it('cancels scheduled timers and clears buffers on disposeSession', async () => {
+  it('delivers buffered output on disposeSession instead of dropping it', () => {
+    // Regression: dispose cleared the timer and discarded up to a frame of
+    // output — usually the error printed just before the connection dropped.
     const buffer = new SshStreamBuffer();
     const emitFn = vi.fn();
 
-    buffer.queueData('sess-2', Buffer.from('test'), emitFn);
-    expect(buffer.size).toBe(1);
-
+    buffer.queueData('sess-2', Buffer.from('last words'), emitFn);
     buffer.disposeSession('sess-2');
-    expect(buffer.size).toBe(0);
 
-    await new Promise((r) => setTimeout(r, 30));
+    expect(emitFn).toHaveBeenCalledWith('last words');
+    expect(buffer.size).toBe(0);
+    vi.advanceTimersByTime(100);
+    expect(emitFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('can discard instead when asked', () => {
+    const buffer = new SshStreamBuffer();
+    const emitFn = vi.fn();
+    buffer.queueData('sess-3', Buffer.from('x'), emitFn);
+    buffer.disposeSession('sess-3', { flush: false });
+    vi.advanceTimersByTime(100);
     expect(emitFn).not.toHaveBeenCalled();
+  });
+
+  it('keeps a multi-byte character intact across a frame boundary', () => {
+    // Regression: each 16 ms frame was decoded on its own, so an emoji split
+    // between two frames rendered as two U+FFFD replacement characters.
+    const buffer = new SshStreamBuffer();
+    const emitFn = vi.fn();
+    const smile = Buffer.from('a😀b', 'utf-8'); // 'a' + 4 bytes + 'b'
+
+    buffer.queueData('sess-4', smile.subarray(0, 3), emitFn); // 'a' + 2 of 4 bytes
+    vi.advanceTimersByTime(16);
+    buffer.queueData('sess-4', smile.subarray(3), emitFn);
+    vi.advanceTimersByTime(16);
+
+    const text = emitFn.mock.calls.map((c) => c[0]).join('');
+    expect(text).toBe('a😀b');
+    expect(text).not.toContain('\uFFFD');
   });
 
   it('clears all session buffers on disposeAll', () => {

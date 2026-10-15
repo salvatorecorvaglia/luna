@@ -186,12 +186,12 @@ export function registerStorageHandlers(): void {
           ErrorCode.VALIDATION_ERROR,
         );
       }
-      // Comparison is per-session work like every other storage op, so it
-      // draws from the same bucket when a session id is supplied.
-      if (params.sessionId) {
-        assertNonEmptyString(params.sessionId, 'sessionId');
-        takeStorageToken(params.sessionId);
-      }
+      // Per-session work like every other storage op, metered the same way.
+      // It used to be optional and to take a token for any string, so an
+      // omitted id skipped metering and junk ids created buckets — exactly the
+      // eviction trick requireMeteredProvider exists to close.
+      assertNonEmptyString(params.sessionId, 'sessionId');
+      requireMeteredProvider(params.sessionId);
       return folderSyncService.compareDirectories(localEntries, remoteEntries, params.direction);
     },
   );

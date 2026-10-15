@@ -1,6 +1,5 @@
 import { toastArgs } from '@shared/error-messages';
 import { toast } from 'sonner';
-import { v4 as uuidv4 } from 'uuid';
 import { getApi } from '@/services/api';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { useUIStore } from '@/stores/ui-store';
@@ -89,7 +88,7 @@ async function connectToHostImpl(connectionId: string): Promise<void> {
 /** Create a brand-new session for `connectionId` and start connecting it. */
 async function spawnSession(connectionId: string): Promise<void> {
   const { addSession, updateSessionStatus } = useTerminalStore.getState();
-  const sessionId = uuidv4();
+  const sessionId = crypto.randomUUID();
 
   let connectionName = 'Unknown';
   try {

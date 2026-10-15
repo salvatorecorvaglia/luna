@@ -30,6 +30,9 @@ electronFuses:
   enableNodeCliInspectArguments: false
   enableCookieEncryption: true
   onlyLoadAppFromAsar: true
+  # onlyLoadAppFromAsar is only watertight together with this: without it the
+  # app.asar the app refuses to leave can still be edited in place.
+  enableEmbeddedAsarIntegrityValidation: true
   loadBrowserProcessSpecificV8Snapshot: false
   grantFileProtocolExtraPrivileges: true
 
@@ -110,7 +113,14 @@ appImage:
   license: LICENSE
 
 deb:
+  # This list *replaces* electron-builder's defaults, so anything the app needs
+  # from them must be restated. libsecret-1-0 backs Electron safeStorage on
+  # Linux — without it minimal installs fall back to 'basic_text' and the
+  # credential store is effectively plaintext. xdg-utils backs
+  # shell.openExternal / showItemInFolder.
   depends:
+    - libsecret-1-0
+    - xdg-utils
     - libgtk-3-0
     - libnotify4
     - libnss3
@@ -124,6 +134,10 @@ publish:
   provider: github
   owner: salvatorecorvaglia
   repo: luna
-  releaseType: release
+  # Each platform job uploads into a *draft*; the workflow's `finalize` job
+  # publishes it once every platform has succeeded. With `release` here, each
+  # job published on its own, so one failed platform left a partial public
+  # release that auto-updaters could already see.
+  releaseType: draft
 
 generateUpdatesFilesForAllChannels: false

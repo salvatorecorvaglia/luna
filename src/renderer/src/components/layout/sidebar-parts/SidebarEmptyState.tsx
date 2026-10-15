@@ -3,9 +3,37 @@ import { Plus, Server } from 'lucide-react';
 interface SidebarEmptyStateProps {
   hasQuery: boolean;
   onCreate: () => void;
+  /**
+   * Connections exist but every one is hidden. "No connections — add your
+   * first" was wrong in that case and gave no way back to them.
+   */
+  allHidden?: boolean;
+  onShowHidden?: () => void;
 }
 
-export function SidebarEmptyState({ hasQuery, onCreate }: SidebarEmptyStateProps) {
+export function SidebarEmptyState({
+  hasQuery,
+  onCreate,
+  allHidden = false,
+  onShowHidden,
+}: SidebarEmptyStateProps) {
+  if (allHidden && !hasQuery) {
+    return (
+      <div className="px-3 py-10 text-center">
+        <Server className="mx-auto size-8 text-muted-foreground/30" />
+        <p className="mt-3 text-xs font-medium text-muted-foreground/70">
+          All connections are hidden
+        </p>
+        <button
+          type="button"
+          onClick={onShowHidden}
+          className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-sidebar-primary hover:underline cursor-pointer"
+        >
+          Show hidden connections
+        </button>
+      </div>
+    );
+  }
   return (
     <div className="px-3 py-10 text-center">
       <Server className="mx-auto size-8 text-muted-foreground/30" />
@@ -33,7 +61,7 @@ export function SidebarSkeleton() {
         <div key={i} className="flex items-center gap-2.5">
           <div className="skeleton size-2.5 rounded-full" />
           <div className="flex-1 space-y-1.5">
-            <div className="skeleton size-3/4" />
+            <div className="skeleton h-3 w-3/4" />
             <div className="skeleton h-2.5 w-1/2" />
           </div>
         </div>

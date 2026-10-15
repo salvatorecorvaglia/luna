@@ -36,6 +36,10 @@
     "src/main/**/*.ts",
     "src/preload/**/*.ts",
     "src/shared/**/*.ts",
-    "electron.vite.config.ts"
+    "electron.vite.config.ts",
+    // Tooling configs: typos here (a misspelt threshold key, a wrong option
+    // name) used to surface only as a silently ignored setting.
+    "vitest.config.mts",
+    "playwright.config.ts"
   ]
 }

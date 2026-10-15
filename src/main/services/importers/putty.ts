@@ -1,6 +1,21 @@
 import type { ExportedConnection } from '@shared/types/connection';
 import { parseIni } from './ini-parser';
 
+/**
+ * Read a field from a PuTTY session section, whichever export it came from.
+ *
+ * A registry export (`reg export … putty.reg`) quotes every key and string
+ * value — `"HostName"="example.com"` — and escapes backslashes in paths as
+ * `\\`. Only the unquoted `HostName=` form was recognised, so real `.reg`
+ * files imported nothing at all.
+ */
+function field(section: Record<string, string>, key: string): string | undefined {
+  const raw = section[key] ?? section[`"${key}"`];
+  if (raw === undefined) return undefined;
+  const quoted = raw.match(/^"(.*)"$/s);
+  return quoted ? quoted[1]!.replace(/\\(["\\])/g, '$1') : raw;
+}
+
 export function importFromPuTTY(content: string): ExportedConnection[] {
   const ini = parseIni(content);
   const connections: ExportedConnection[] = [];
@@ -15,21 +30,22 @@ export function importFromPuTTY(content: string): ExportedConnection[] {
       name = sectionName.split('PuTTY\\Sessions\\').pop() || sectionName;
     }
 
-    const host = section['HostName'];
+    const host = field(section, 'HostName');
     if (!host) continue;
 
-    const username = section['UserName'] || '';
+    const username = field(section, 'UserName') || '';
     let port = 22;
-    if (section['PortNumber']) {
+    const portField = field(section, 'PortNumber');
+    if (portField) {
       // Handle dword:00000016 format
-      if (section['PortNumber'].startsWith('dword:')) {
-        port = parseInt(section['PortNumber'].replace('dword:', ''), 16);
+      if (portField.startsWith('dword:')) {
+        port = parseInt(portField.replace('dword:', ''), 16);
       } else {
-        port = parseInt(section['PortNumber'], 10) || 22;
+        port = parseInt(portField, 10) || 22;
       }
     }
 
-    const privateKeyPath = section['PublicKeyFile'] || undefined;
+    const privateKeyPath = field(section, 'PublicKeyFile') || undefined;
 
     let decodedName = name;
     try {
@@ -41,11 +57,11 @@ export function importFromPuTTY(content: string): ExportedConnection[] {
     connections.push({
       name: decodedName, // PuTTY registry keys are often URL-encoded
       provider: 'sftp',
-      host: host.replace(/^"(.*)"$/, '$1'), // Remove quotes if present
+      host,
       port,
-      username: username.replace(/^"(.*)"$/, '$1'),
+      username,
       authType: privateKeyPath ? 'key' : 'password',
-      privateKeyPath: privateKeyPath ? privateKeyPath.replace(/^"(.*)"$/, '$1') : undefined,
+      privateKeyPath,
       folder: 'PuTTY',
     });
   }

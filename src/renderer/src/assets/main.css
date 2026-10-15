@@ -187,7 +187,7 @@ select,
   outline: 2px solid var(--color-info);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
-  box-shadow: 0 0 0 4px rgb(59 130 246 / 0.25);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-info) 25%, transparent);
 }
 
 button:focus-visible,
@@ -195,7 +195,7 @@ button:focus-visible,
 [role="tab"]:focus-visible {
   outline: 2px solid var(--color-info);
   outline-offset: 2px;
-  box-shadow: 0 0 0 4px rgb(59 130 246 / 0.25);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-info) 25%, transparent);
 }
 
 /* ──────────────────────────────────────────────────

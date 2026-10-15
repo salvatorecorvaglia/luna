@@ -76,16 +76,30 @@ describe('host-key-store TOFU', () => {
   it('refuses to persist weak/deprecated algorithms via updateHostKey', () => {
     // The trust path must never store a weak algorithm — even if a future
     // prompt-side regression surfaces one. Hard policy in the store itself.
-    expect(() => updateHostKey('host', 22, Buffer.from('key-1'), 'ssh-rsa')).toThrow(/ssh-rsa/);
+    expect(() => updateHostKey('host', 22, Buffer.from('key-1'), 'ssh-dss')).toThrow(/ssh-dss/);
     // And verify() still rejects the weak algo on the wire, regardless of
     // whether anything is stored.
-    const result = verifyHostKey('host', 22, Buffer.from('key-1'), 'ssh-rsa');
+    const result = verifyHostKey('host', 22, Buffer.from('key-1'), 'ssh-dss');
     expect(result).toEqual({
       trusted: false,
       changed: false,
       isFirst: false,
       weakAlgorithm: true,
     });
+  });
+
+  it('accepts RSA host keys, whose blob type is always ssh-rsa', () => {
+    // Regression: the allowlist held only the negotiated signature names
+    // (rsa-sha2-*), but the verifier sees the key-blob type, which is ssh-rsa
+    // for every RSA key. Every RSA-only server was refused as "weak".
+    const first = verifyHostKey('rsa-host', 22, Buffer.from('rsa-key'), 'ssh-rsa');
+    expect(first).toEqual({ trusted: false, changed: false, isFirst: true });
+    updateHostKey('rsa-host', 22, Buffer.from('rsa-key'), 'ssh-rsa');
+    expect(verifyHostKey('rsa-host', 22, Buffer.from('rsa-key'), 'ssh-rsa').trusted).toBe(true);
+  });
+
+  it('rejects unknown key types', () => {
+    expect(verifyHostKey('host', 22, Buffer.from('k'), 'unknown').weakAlgorithm).toBe(true);
   });
 
   it('rejects ssh-dss as weak', () => {

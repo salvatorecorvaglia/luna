@@ -13,7 +13,7 @@
 *   **Advanced Layouts & Presets:** Supports vertical and horizontal split panes, dynamic resizing, and saving/restoring workspace layout presets.
 *   **Broadcast Input:** Broadcast commands to multiple active terminal tabs simultaneously.
 *   **Automation & Snippet Vault:** Store reusable command snippets in a searchable Snippet Vault and record automated terminal keypress sequences with the Macro Recorder.
-*   **Session Audit & Shell History:** Index command history for fast search and export detailed session audit logs in JSON, HTML, or plain text formats.
+*   **Session Audit:** Export detailed session audit logs in JSON, HTML, or plain text formats.
 *   **Built-in CLI Reference:** Access interactive, searchable CLI command reference documentation directly inside the terminal workstation.
 *   **Session Recovery:** Long-lived session management in the main process preserves scrollback buffers, cursor states, and tab setups through renderer reloads or window refreshes (e.g., `Cmd+R`).
 *   **Reliable Reconnection:** Automatically re-establishes dropped SSH sessions according to your `ssh.autoReconnect` preference, with clear status feedback if a manual reconnect attempt fails.
@@ -40,11 +40,11 @@
 ### 🔒 Enterprise-Grade Security & Credential Tools
 *   **IPC Payload Validation:** Enforces strict payload validation and input sanitization across all main-process IPC service handlers to protect internal services.
 *   **IPC Resource Limits:** Rate limiters and session caps on S3, SSH, and credential IPC channels bound resource usage from a chatty or compromised renderer, and a single-instance lock prevents concurrent processes from racing database or credential writes.
-*   **Built-in Password Manager:** Generate strong passwords with configurable complexity and securely manage stored credentials, with optional 1Password and Bitwarden CLI lookups on macOS, Windows, and Linux.
+*   **Secrets Stay in the Main Process:** Passwords and key passphrases are encrypted at rest by the main process and resolved there at connect time; no IPC channel returns a decrypted secret to the renderer.
 *   **OS-Protected Credentials:** Integrates with system keychains (Keychain Services on macOS, Credential Manager on Windows, Gnome Keyring/libsecret on Linux) to prevent credential leakage. On Linux the backend actually in use is inspected: a `basic_text` keyring encrypts with a hardcoded key and is reported as unprotected rather than counted as OS-backed.
 *   **Non-Destructive Key Handling:** A locked or access-denied keyring is a hard, recoverable error — Luna reports a `locked` state, leaves the encrypted master key byte-for-byte intact instead of regenerating it, and asks you to unlock and restart. Credential rows that cannot be decrypted are retained for re-entry, never deleted.
 *   **Tamper Protection:** Actively audits and alerts the operator of corrupted or unauthorized credential modifications on disk.
-*   **Hardened Desktop Runtime:** Electron fuses disable `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS`, and `--inspect`, and the app loads only from the asar; top-level navigation is allowlisted to the bundled renderer; the database (with its WAL/SHM siblings) and the encrypted key file are created owner-only; and file writes open with `O_NOFOLLOW` so the path cannot be swapped for a symlink after validation.
+*   **Hardened Desktop Runtime:** Electron fuses disable `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS`, and `--inspect`, and the app loads only from the asar, whose integrity is validated at launch; top-level navigation is allowlisted to the bundled renderer; the database (with its WAL/SHM siblings) and the encrypted key file are created owner-only; and file writes open with `O_NOFOLLOW` so the path cannot be swapped for a symlink after validation.
 *   **No Third-Party Assets At Runtime:** Inter and JetBrains Mono ship inside the app as `woff2` subsets, so both Content-Security-Policy definitions are `'self'`-only and no launch makes a CDN request.
 *   **Clear Visibility:** Alerts the user immediately via toast notifications if the workspace falls back to unencrypted plaintext or memory-only keys due to missing OS libraries.
 
@@ -122,7 +122,7 @@ We use **Vitest** for unit and component testing (organized under the top-level 
 
 Shared test helpers live in `src/test/`: `fake-api.ts` exposes `installFakeApi()`, a fully-stubbed `LunaAPI` that registers its own cleanup — use it rather than stubbing the `window.api` global. `fake-xterm.ts` and `setup.ts` cover the terminal and jsdom polyfills.
 
-Coverage thresholds in `vitest.config.ts` are a hard gate: a change that drops coverage below the floor fails the build.
+Coverage thresholds in `vitest.config.mts` are a hard gate: a change that drops coverage below the floor fails the build.
 
 ```bash
 # Run tests once

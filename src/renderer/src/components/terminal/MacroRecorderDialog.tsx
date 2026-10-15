@@ -1,7 +1,9 @@
 import { Circle, Play, Square, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { DialogShell } from '@/components/common/DialogShell';
+import { IconButton } from '@/components/ui';
 import { Z } from '@/lib/z-layers';
 
 interface MacroItem {
@@ -19,7 +21,28 @@ interface MacroRecorderDialogProps {
 
 const STORAGE_KEY = 'luna_terminal_macros';
 
+/**
+ * Keep only well-formed macros from storage. The parsed JSON was used as-is,
+ * so one malformed entry (hand-edited storage, an older shape) crashed the
+ * dialog's render at `m.sequence.join`.
+ */
+export function parseStoredMacros(raw: string): MacroItem[] {
+  const parsed: unknown = JSON.parse(raw);
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter(
+    (m): m is MacroItem =>
+      typeof m === 'object' &&
+      m !== null &&
+      typeof (m as MacroItem).id === 'string' &&
+      typeof (m as MacroItem).name === 'string' &&
+      Array.isArray((m as MacroItem).sequence) &&
+      (m as MacroItem).sequence.every((step) => typeof step === 'string'),
+  );
+}
+
 export function MacroRecorderDialog({ open, onClose, onRunMacro }: MacroRecorderDialogProps) {
+  // Deletion is permanent; confirm first (the trash button used to act on one click).
+  const [pendingDeleteMacroId, setPendingDeleteMacroId] = useState<string | null>(null);
   const [macros, setMacros] = useState<MacroItem[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [recordedSteps, setRecordedSteps] = useState<string[]>([]);
@@ -29,9 +52,9 @@ export function MacroRecorderDialog({ open, onClose, onRunMacro }: MacroRecorder
   const loadMacros = useCallback(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setMacros(JSON.parse(raw));
+      if (raw) setMacros(parseStoredMacros(raw));
     } catch {
-      // Ignored
+      // localStorage unavailable or not JSON — start empty.
     }
   }, []);
 
@@ -42,7 +65,12 @@ export function MacroRecorderDialog({ open, onClose, onRunMacro }: MacroRecorder
 
   const saveMacros = (newMacros: MacroItem[]) => {
     setMacros(newMacros);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newMacros));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newMacros));
+    } catch {
+      // Quota exceeded or storage disabled: keep them for this session at least.
+      toast.error('Could not save macros; they will be lost when the app closes.');
+    }
   };
 
   const handleStartRecording = () => {
@@ -121,13 +149,13 @@ export function MacroRecorderDialog({ open, onClose, onRunMacro }: MacroRecorder
           </div>
         </div>
 
-        <button
-          type="button"
+        <IconButton
           onClick={onClose}
-          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
-        >
-          <X className="size-4" />
-        </button>
+          aria-label="Close dialog"
+          title="Close"
+          size="md"
+          icon={<X className="size-4" />}
+        />
       </div>
 
       {/* Content */}
@@ -249,8 +277,9 @@ export function MacroRecorderDialog({ open, onClose, onRunMacro }: MacroRecorder
 
                     <button
                       type="button"
-                      onClick={() => handleDeleteMacro(m.id)}
+                      onClick={() => setPendingDeleteMacroId(m.id)}
                       title="Delete Macro"
+                      aria-label="Delete Macro"
                       className="rounded-md border border-destructive/20 bg-destructive/10 p-1.5 text-destructive-fg hover:bg-destructive/20 transition-colors cursor-pointer"
                     >
                       <Trash2 className="size-3.5" />
@@ -261,6 +290,18 @@ export function MacroRecorderDialog({ open, onClose, onRunMacro }: MacroRecorder
             </div>
           ))}
       </div>
+      <ConfirmDialog
+        open={pendingDeleteMacroId !== null}
+        title="Delete macro?"
+        message="This macro will be permanently removed."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => {
+          if (pendingDeleteMacroId) void handleDeleteMacro(pendingDeleteMacroId);
+          setPendingDeleteMacroId(null);
+        }}
+        onCancel={() => setPendingDeleteMacroId(null)}
+      />
     </DialogShell>
   );
 }

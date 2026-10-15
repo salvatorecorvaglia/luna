@@ -164,8 +164,11 @@ export class PasswordManagerService {
         // Don't let a CLI inherit a shell that might prompt interactively.
         windowsHide: true,
       });
-      const secret = stdout.trim();
-      return secret.length > 0 ? secret : null;
+      // Strip only the line terminator the CLI appends. trim() also removed
+      // leading/trailing spaces that are part of the secret itself, producing
+      // a password that silently failed to authenticate.
+      const secret = stdout.replace(/\r?\n$/, '');
+      return secret.trim().length > 0 ? secret : null;
     } catch (err) {
       const code = (err as NodeJS.ErrnoException | undefined)?.code;
       if (code === 'ENOENT') {

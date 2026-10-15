@@ -33,7 +33,7 @@ vi.mock('../../../src/main/services/storage/registry', () => ({
   },
 }));
 
-vi.mock('fs/promises', () => ({
+vi.mock('node:fs/promises', () => ({
   stat: vi.fn().mockResolvedValue({ size: 0 }),
 }));
 

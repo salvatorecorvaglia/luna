@@ -32,7 +32,7 @@ describe('WorkspacePresetsDialog', () => {
     (api.workspaces.list as ReturnType<typeof vi.fn>).mockResolvedValue([PRESET]);
     render(<WorkspacePresetsDialog open onClose={vi.fn()} />);
     await screen.findByText('Prod Cluster');
-    expect(screen.getByText('2 target connection(s) saved')).toBeTruthy();
+    expect(screen.getByText('2 target connection(s) saved')).toBeInTheDocument();
   });
 
   it('shows the empty state with no saved presets', async () => {
@@ -79,6 +79,31 @@ describe('WorkspacePresetsDialog', () => {
     );
   });
 
+  it('saves only live SSH connections — never local shells or dead sessions', async () => {
+    // Regression: local shells were saved under the pseudo id 'local', which
+    // restore then tried to connect to, producing an error tab.
+    const base = { connectionName: 'x', title: 'x' };
+    useTerminalStore.setState({
+      sessions: new Map([
+        ['a', { id: 'a', connectionId: 'conn-a', status: 'connected', type: 'ssh', ...base }],
+        ['l', { id: 'l', connectionId: 'local', status: 'connected', type: 'local', ...base }],
+        ['d', { id: 'd', connectionId: 'conn-d', status: 'disconnected', type: 'ssh', ...base }],
+      ]),
+      activeSessionId: 'a',
+    });
+    render(<WorkspacePresetsDialog open onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /Save Current Layout/ }));
+    fireEvent.change(screen.getByLabelText('Preset Name'), { target: { value: 'Mixed' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save Preset' }));
+
+    await vi.waitFor(() =>
+      expect(api.workspaces.create).toHaveBeenCalledWith({
+        name: 'Mixed',
+        layout: { connectionIds: ['conn-a'], activeTabId: 'a' },
+      }),
+    );
+  });
+
   it('restores a preset via onRestoreWorkspace and closes', async () => {
     (api.workspaces.list as ReturnType<typeof vi.fn>).mockResolvedValue([PRESET]);
     const onRestoreWorkspace = vi.fn();
@@ -99,5 +124,22 @@ describe('WorkspacePresetsDialog', () => {
     render(<WorkspacePresetsDialog open onClose={onClose} />);
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('WorkspacePresetsDialog — load failure', () => {
+  it('shows the error with a retry instead of an empty list', async () => {
+    // Regression: a failed load was logged and rendered as "No workspace
+    // presets saved", indistinguishable from having none.
+    (api.workspaces.list as ReturnType<typeof vi.fn>)
+      .mockRejectedValueOnce(new Error('database is locked'))
+      .mockResolvedValueOnce([]);
+    render(<WorkspacePresetsDialog open onClose={vi.fn()} />);
+
+    expect(await screen.findByText("Couldn't load workspace presets")).toBeInTheDocument();
+    expect(screen.getByText('database is locked')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('No workspace presets saved')).toBeInTheDocument();
   });
 });

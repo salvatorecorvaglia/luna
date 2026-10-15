@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { Profiler, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { StatusBar } from '../../../../src/renderer/src/components/layout/StatusBar';
 import { useTerminalStore } from '../../../../src/renderer/src/stores/terminal-store';
 import { useTransferStore } from '../../../../src/renderer/src/stores/transfer-store';
+import { useUIStore } from '../../../../src/renderer/src/stores/ui-store';
 import { installFakeApi } from '../../../../src/test/fake-api';
 
 vi.mock('sonner', () => ({
@@ -57,7 +58,7 @@ describe('StatusBar', () => {
 
     render(wrap(<StatusBar />));
 
-    expect(screen.getByTitle('Host a')).toBeTruthy();
+    expect(screen.getByTitle('Host a')).toBeInTheDocument();
     // Rendered on both sides of the bar (session count, and the idle-state
     // counter opposite the transfer indicator), hence getAllByText.
     expect(screen.getAllByText('2 sessions').length).toBeGreaterThan(0);
@@ -132,5 +133,39 @@ describe('StatusBar', () => {
 
     expect(renders).toBeGreaterThan(initial);
     expect(screen.getAllByText('2 sessions').length).toBeGreaterThan(0);
+  });
+});
+
+describe('StatusBar — transfers button', () => {
+  it('opens the SFTP view with the queue expanded when used from another view', () => {
+    // Regression: it toggled `queueExpanded`, but the queue only renders in
+    // the SFTP view — from the terminal the click did nothing visible.
+    useUIStore.setState({ activeView: 'terminal' });
+    useTransferStore.setState({
+      queueExpanded: false,
+      transfers: new Map([
+        [
+          't1',
+          {
+            id: 't1',
+            type: 'upload',
+            localPath: '/l',
+            remotePath: '/r',
+            fileName: 'f',
+            size: 10,
+            transferred: 1,
+            status: 'active',
+            bytesPerSec: 0,
+            sessionId: 's',
+          },
+        ],
+      ]),
+    });
+    render(wrap(<StatusBar />));
+
+    fireEvent.click(screen.getByRole('button', { name: /1 transfer/ }));
+
+    expect(useUIStore.getState().activeView).toBe('sftp');
+    expect(useTransferStore.getState().queueExpanded).toBe(true);
   });
 });

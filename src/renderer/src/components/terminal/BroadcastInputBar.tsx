@@ -1,8 +1,11 @@
 import { CheckSquare, Radio, Send, Square, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { IconButton } from '@/components/ui';
 import { getApi } from '@/services/api';
 import { type TerminalSession, useTerminalStore } from '@/stores/terminal-store';
+
+type Selection = { mode: 'all' } | { mode: 'custom'; ids: string[] };
 
 interface BroadcastInputBarProps {
   open: boolean;
@@ -17,30 +20,32 @@ export function BroadcastInputBar({ open, onClose }: BroadcastInputBarProps) {
     return Array.from(sessions.values()).filter((s) => s.status === 'connected');
   }, [sessions]);
 
-  const [selectedSessionIds, setSelectedSessionIds] = useState<string[]>([]);
+  // Explicit mode rather than "an empty list means everyone". That convention
+  // made deselecting the last session — or toggling "All" off — silently
+  // target *every* connected shell, so a command narrowed to one host went to
+  // all of them.
+  const [selection, setSelection] = useState<Selection>({ mode: 'all' });
 
-  // Keep selected ids updated when session list changes
   const effectiveSelectedIds = useMemo(() => {
-    if (selectedSessionIds.length === 0) {
-      return activeConnectedSessions.map((s) => s.id);
-    }
-    return selectedSessionIds.filter((id) => activeConnectedSessions.some((s) => s.id === id));
-  }, [selectedSessionIds, activeConnectedSessions]);
+    if (selection.mode === 'all') return activeConnectedSessions.map((s) => s.id);
+    return selection.ids.filter((id) => activeConnectedSessions.some((s) => s.id === id));
+  }, [selection, activeConnectedSessions]);
+
+  const allSelected =
+    activeConnectedSessions.length > 0 &&
+    effectiveSelectedIds.length === activeConnectedSessions.length;
 
   const toggleSelectAll = () => {
-    if (effectiveSelectedIds.length === activeConnectedSessions.length) {
-      setSelectedSessionIds([]);
-    } else {
-      setSelectedSessionIds(activeConnectedSessions.map((s) => s.id));
-    }
+    setSelection(allSelected ? { mode: 'custom', ids: [] } : { mode: 'all' });
   };
 
   const toggleSelectId = (id: string) => {
-    if (effectiveSelectedIds.includes(id)) {
-      setSelectedSessionIds(effectiveSelectedIds.filter((x) => x !== id));
-    } else {
-      setSelectedSessionIds([...effectiveSelectedIds, id]);
-    }
+    setSelection({
+      mode: 'custom',
+      ids: effectiveSelectedIds.includes(id)
+        ? effectiveSelectedIds.filter((x) => x !== id)
+        : [...effectiveSelectedIds, id],
+    });
   };
 
   const handleSendBroadcast = (e: React.FormEvent) => {
@@ -91,9 +96,10 @@ export function BroadcastInputBar({ open, onClose }: BroadcastInputBarProps) {
         <button
           type="button"
           onClick={toggleSelectAll}
+          aria-pressed={allSelected}
           className="flex items-center gap-1 rounded bg-muted/80 px-2 py-1 text-2xs text-muted-foreground hover:bg-muted cursor-pointer flex-shrink-0"
         >
-          {effectiveSelectedIds.length === activeConnectedSessions.length ? (
+          {allSelected ? (
             <CheckSquare className="size-3 text-primary" />
           ) : (
             <Square className="size-3" />
@@ -108,6 +114,7 @@ export function BroadcastInputBar({ open, onClose }: BroadcastInputBarProps) {
               type="button"
               key={s.id}
               onClick={() => toggleSelectId(s.id)}
+              aria-pressed={isSelected}
               className={`flex items-center gap-1.5 rounded border px-2 py-0.5 text-2xs flex-shrink-0 cursor-pointer transition-colors ${
                 isSelected
                   ? 'border-primary/50 bg-primary/20 text-primary font-medium'
@@ -132,21 +139,22 @@ export function BroadcastInputBar({ open, onClose }: BroadcastInputBarProps) {
         />
         <button
           type="submit"
-          className="flex items-center gap-1 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 cursor-pointer"
+          disabled={effectiveSelectedIds.length === 0}
+          className="flex items-center gap-1 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Send className="size-3" />
-          Send
+          {/* The count is the last thing seen before sending to many shells. */}
+          Send to {effectiveSelectedIds.length}
         </button>
       </form>
 
-      <button
-        type="button"
+      <IconButton
         onClick={onClose}
-        className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+        aria-label="Close Broadcast Mode"
         title="Close Broadcast Mode"
-      >
-        <X className="size-4" />
-      </button>
+        size="md"
+        icon={<X className="size-4" />}
+      />
     </div>
   );
 }

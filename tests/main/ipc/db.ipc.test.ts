@@ -141,3 +141,50 @@ describe('db.ipc CONNECTION_IMPORT (privateKeyPath sanitization)', () => {
     );
   });
 });
+
+describe('db.ipc CONNECTION_IMPORT (port forwards)', () => {
+  it('keeps imported tunnels but marks every one as manual-start', async () => {
+    // Regression: forwards from an imported file were stored as-is and started
+    // on the first connect with no prompt — a crafted file could open a remote
+    // tunnel into the user's LAN the moment they tried the connection.
+    const fn = handlers.get(IPC.CONNECTION_IMPORT)!;
+    await fn({}, [
+      {
+        name: 'with-tunnel',
+        host: 'h.example.com',
+        port: 22,
+        username: 'u',
+        authType: 'password',
+        portForwards: [
+          {
+            id: 'pf1',
+            type: 'remote',
+            bindAddress: '127.0.0.1',
+            localPort: 9000,
+            remoteHost: '192.168.1.1',
+            remotePort: 80,
+            autoStart: true,
+          },
+        ],
+      },
+    ]);
+
+    expect(inserts).toHaveLength(1);
+    const stored = inserts[0]!.find(
+      (v) => typeof v === 'string' && v.startsWith('[') && v.includes('pf1'),
+    ) as string;
+    expect(JSON.parse(stored)).toEqual([expect.objectContaining({ id: 'pf1', autoStart: false })]);
+  });
+});
+
+describe('db.ipc CONNECTION_IMPORT (malformed entries)', () => {
+  it('skips an entry with a non-string name instead of aborting the whole import', async () => {
+    const fn = handlers.get(IPC.CONNECTION_IMPORT)!;
+    const result = (await fn({}, [
+      { name: 42, host: 'bad.example.com', port: 22, username: 'u', authType: 'password' },
+      { name: 'good', host: 'good.example.com', port: 22, username: 'u', authType: 'password' },
+    ])) as { imported: number; skipped: { name: string; reason: string }[] };
+    expect(result.imported).toBe(1);
+    expect(result.skipped).toHaveLength(1);
+  });
+});

@@ -1,7 +1,9 @@
+import { toastArgs } from '@shared/error-messages';
 import { FileText, Save, X } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { DialogShell } from '@/components/common/DialogShell';
+import { IconButton } from '@/components/ui';
 import { readTerminalScrollback } from '@/lib/terminal-registry';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
@@ -78,7 +80,7 @@ export function AuditExportDialog({
       toast.success(`Exported audit trail to ${savePath}`);
       onClose();
     } catch (err) {
-      toast.error(`Audit export failed: ${(err as Error).message}`);
+      toast.error(...toastArgs(err, 'Audit export failed'));
     } finally {
       setExporting(false);
     }
@@ -109,13 +111,13 @@ export function AuditExportDialog({
           </div>
         </div>
 
-        <button
-          type="button"
+        <IconButton
           onClick={onClose}
-          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
-        >
-          <X className="size-4" />
-        </button>
+          aria-label="Close dialog"
+          title="Close"
+          size="md"
+          icon={<X className="size-4" />}
+        />
       </div>
 
       {/* Content */}

@@ -20,6 +20,9 @@ beforeEach(() => {
   updates.length = 0;
 });
 
+/** Fingerprint the mocked fingerprintKey() produces for a key. */
+const fpOf = (key: Buffer): string => `sha256:${key.toString('hex').slice(0, 8)}`;
+
 describe('parseHostKeyAlgorithm', () => {
   it('extracts the algorithm name from a well-formed wire-format key', () => {
     const algo = 'ssh-ed25519';
@@ -55,7 +58,7 @@ describe('parseHostKeyAlgorithm', () => {
 describe('PendingHostKeyRegistry', () => {
   it('returns null when trusting a host that was never remembered', () => {
     const reg = new PendingHostKeyRegistry();
-    expect(reg.trust('host', 22)).toBeNull();
+    expect(reg.trust('host', 22, 'sha256:anything')).toBeNull();
   });
 
   it('persists a captured key and returns its fingerprint when trusted', () => {
@@ -63,7 +66,7 @@ describe('PendingHostKeyRegistry', () => {
     const key = Buffer.from('aabbccdd', 'hex');
     reg.remember('host', 22, key, 'ssh-ed25519');
 
-    const fingerprint = reg.trust('host', 22);
+    const fingerprint = reg.trust('host', 22, fpOf(key));
 
     expect(fingerprint).toBe('sha256:aabbccdd');
     expect(updates).toEqual([{ host: 'host', port: 22, key, algorithm: 'ssh-ed25519' }]);
@@ -72,8 +75,8 @@ describe('PendingHostKeyRegistry', () => {
   it('clears the candidate after a successful trust so a second call returns null', () => {
     const reg = new PendingHostKeyRegistry();
     reg.remember('host', 22, Buffer.from('aa', 'hex'), 'ssh-ed25519');
-    reg.trust('host', 22);
-    expect(reg.trust('host', 22)).toBeNull();
+    reg.trust('host', 22, 'sha256:aa');
+    expect(reg.trust('host', 22, 'sha256:aa')).toBeNull();
   });
 
   it('keeps a defensive copy of the key buffer', () => {
@@ -81,7 +84,7 @@ describe('PendingHostKeyRegistry', () => {
     const key = Buffer.from('aabb', 'hex');
     reg.remember('host', 22, key, 'ssh-ed25519');
     key[0] = 0xff;
-    reg.trust('host', 22);
+    reg.trust('host', 22, 'sha256:aabb');
     expect(updates[0]!.key.toString('hex')).toBe('aabb');
   });
 
@@ -98,9 +101,9 @@ describe('PendingHostKeyRegistry', () => {
     // Insert one more → should evict h1, not h0
     reg.remember('h64', 22, Buffer.from([64]), 'ssh-ed25519');
 
-    expect(reg.trust('h0', 22)).not.toBeNull();
-    expect(reg.trust('h1', 22)).toBeNull();
-    expect(reg.trust('h64', 22)).not.toBeNull();
+    expect(reg.trust('h0', 22, fpOf(Buffer.from([0])))).not.toBeNull();
+    expect(reg.trust('h1', 22, fpOf(Buffer.from([1])))).toBeNull();
+    expect(reg.trust('h64', 22, fpOf(Buffer.from([64])))).not.toBeNull();
   });
 
   it('remember() refuses to store a candidate with a disallowed algorithm', () => {
@@ -108,7 +111,7 @@ describe('PendingHostKeyRegistry', () => {
     const stored = reg.remember('host', 22, Buffer.from('aa', 'hex'), 'ssh-dss');
     expect(stored).toBe(false);
     // The candidate was never stored, so trust() finds nothing — no committed update.
-    expect(reg.trust('host', 22)).toBeNull();
+    expect(reg.trust('host', 22, 'sha256:aa')).toBeNull();
     expect(updates).toEqual([]);
   });
 
@@ -121,7 +124,23 @@ describe('PendingHostKeyRegistry', () => {
     const reg = new PendingHostKeyRegistry();
     reg.remember('host', 22, Buffer.from('aa', 'hex'), 'ssh-ed25519');
     reg.forget('host', 22);
-    expect(reg.trust('host', 22)).toBeNull();
+    expect(reg.trust('host', 22, 'sha256:aa')).toBeNull();
     expect(updates).toEqual([]);
+  });
+
+  it('refuses to commit a key other than the one the user was shown', () => {
+    // Regression: trust took only host:port, and the registry keeps one
+    // candidate per host:port that each failed verification overwrites. A
+    // retry that captured key K2 while the dialog showed K1 committed K2.
+    const reg = new PendingHostKeyRegistry();
+    const shown = Buffer.from('11111111', 'hex');
+    const swapped = Buffer.from('22222222', 'hex');
+    reg.remember('host', 22, shown, 'ssh-ed25519');
+    reg.remember('host', 22, swapped, 'ssh-ed25519');
+
+    expect(reg.trust('host', 22, fpOf(shown))).toBeNull();
+    expect(updates).toEqual([]);
+    // The pending candidate survives so the next prompt shows the real key.
+    expect(reg.trust('host', 22, fpOf(swapped))).toBe(fpOf(swapped));
   });
 });

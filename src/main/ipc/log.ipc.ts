@@ -10,6 +10,30 @@ import { SlidingWindowLimiter } from '../lib/sliding-window-limiter';
 // since normal debug/info logging can legitimately burst.
 const logMessageLimiter = new SlidingWindowLimiter(300, 10_000, 'Renderer log');
 
+/** Longest renderer message written to the log, in characters. */
+const MAX_MESSAGE_CHARS = 8192;
+
+/**
+ * Make a renderer-supplied message safe to write as one log line.
+ *
+ * Raw CR/LF let the renderer forge whole log entries — a message ending in
+ * "\n[12:00:00.000] [info] [Main] ..." reads as a genuine main-process line to
+ * anyone auditing the file. Control characters are escaped rather than
+ * dropped so the original text stays recoverable.
+ */
+export function sanitizeLogMessage(message: unknown): string {
+  const text = typeof message === 'string' ? message : String(message);
+  const clipped =
+    text.length > MAX_MESSAGE_CHARS ? `${text.slice(0, MAX_MESSAGE_CHARS)}…[truncated]` : text;
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: matching control characters is the point
+  return clipped.replace(/[\u0000-\u001f\u007f]/g, (c) => {
+    if (c === '\n') return '\\n';
+    if (c === '\r') return '\\r';
+    if (c === '\t') return '\\t';
+    return `\\x${c.charCodeAt(0).toString(16).padStart(2, '0')}`;
+  });
+}
+
 export function registerLogHandlers(): void {
   registerHandler(
     IPC.LOG_MESSAGE,
@@ -26,6 +50,7 @@ export function registerLogHandlers(): void {
       },
     ) => {
       logMessageLimiter.check();
+      message = sanitizeLogMessage(message);
       const data: unknown[] = [`[Renderer] ${message}`];
       if (context) data.push(context);
 

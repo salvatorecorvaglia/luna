@@ -1,3 +1,4 @@
+import { isPreviewImageMime } from '@shared/file-types';
 import {
   Check,
   Copy,
@@ -14,8 +15,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { DialogShell } from '@/components/common/DialogShell';
-import { Spinner } from '@/components/ui';
+import { IconButton, Spinner } from '@/components/ui';
 import { useCopiedFlag } from '@/hooks/use-copied-flag';
+import { copyToClipboard } from '@/lib/clipboard';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
 import { useStorageStore } from '@/stores/storage-store';
@@ -57,9 +59,7 @@ const GUTTER_LINE_HEIGHT_PX = 20;
 /** Extra rows rendered above/below the viewport to hide scroll tearing. */
 const GUTTER_OVERSCAN = 10;
 
-function isImageType(type: string): boolean {
-  return ['image/png', 'image/jpeg', 'image/gif', 'image/svg+xml', 'image/webp'].includes(type);
-}
+const isImageType = isPreviewImageMime;
 
 export function FilePreview() {
   const previewFile = useStorageStore((s) => s.previewFile);
@@ -135,9 +135,9 @@ export function FilePreview() {
   }, [previewFile, editorContent, setPreviewFile]);
 
   const handleCopyAll = () => {
-    navigator.clipboard.writeText(editorContent);
-    toast.success('Content copied to clipboard');
-    markCopied();
+    void copyToClipboard(editorContent, 'Content copied to clipboard').then((ok) => {
+      if (ok) markCopied();
+    });
   };
 
   const previewOpen = previewFile !== null;
@@ -147,13 +147,14 @@ export function FilePreview() {
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
         e.preventDefault();
         setShowSearch((v) => !v);
-      } else if (e.key === 'Escape') {
-        if (showSearch) {
-          setShowSearch(false);
-        } else {
-          e.preventDefault();
-          handleClose();
-        }
+      } else if (e.key === 'Escape' && showSearch) {
+        // Escape closes the search bar only. Without stopping here the same
+        // event went on to DialogShell's Escape handler and closed the whole
+        // preview. A plain Escape (no search open) is left to DialogShell —
+        // handling it here too ran handleClose twice.
+        e.preventDefault();
+        e.stopPropagation();
+        setShowSearch(false);
       }
     };
     window.addEventListener('keydown', handler, true);
@@ -270,6 +271,8 @@ export function FilePreview() {
                 <button
                   type="button"
                   onClick={() => setShowSearch((v) => !v)}
+                  aria-label="Search"
+                  aria-pressed={showSearch}
                   className={`flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium border border-border/60 transition-colors cursor-pointer ${
                     showSearch
                       ? 'bg-primary/20 text-primary border-primary/40'
@@ -283,6 +286,8 @@ export function FilePreview() {
                 <button
                   type="button"
                   onClick={() => setWordWrap((v) => !v)}
+                  aria-label="Word wrap"
+                  aria-pressed={wordWrap}
                   className={`flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium border border-border/60 transition-colors cursor-pointer ${
                     wordWrap
                       ? 'bg-primary/20 text-primary border-primary/40'
@@ -296,6 +301,7 @@ export function FilePreview() {
                 <button
                   type="button"
                   onClick={() => setAutoTail((v) => !v)}
+                  aria-pressed={autoTail}
                   className={`flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium border border-border/60 transition-colors cursor-pointer ${
                     autoTail
                       ? 'bg-success/20 text-success border-success/40'
@@ -310,6 +316,7 @@ export function FilePreview() {
                 <button
                   type="button"
                   onClick={handleCopyAll}
+                  aria-label={copied ? 'Copied' : 'Copy all content'}
                   className="flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium border border-border/60 hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                   title="Copy All Content"
                 >
@@ -336,14 +343,13 @@ export function FilePreview() {
                 </button>
               )}
 
-            <button
-              type="button"
+            <IconButton
               onClick={handleClose}
-              className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
               aria-label="Close preview"
-            >
-              <X className="size-4" />
-            </button>
+              title="Close preview"
+              size="md"
+              icon={<X className="size-4" />}
+            />
           </div>
         </div>
 
@@ -386,16 +392,21 @@ export function FilePreview() {
             </div>
           ) : previewFile.type === 'application/pdf' ? (
             /*
-                  Empty sandbox: the PDF viewer is a browser-native plugin and
-                  needs no script execution from the framed document. The
-                  previous `allow-scripts` granted a capability the preview
-                  never used, on content fetched from a remote server.
+                  No `sandbox` attribute, deliberately. Chromium refuses to run
+                  its PDF viewer in any sandboxed frame — `sandbox=""` and
+                  `sandbox="allow-scripts"` both render a blank white box
+                  (verified against the built app) — so with it PDF preview
+                  never worked. Isolation comes from elsewhere: a data: frame
+                  gets an opaque origin, so it cannot reach this document, its
+                  DOM or the preload bridge; PDFium renders out of process; and
+                  top-level navigation and window.open are already locked down
+                  in main. Do not switch to a blob: URL — that would be
+                  same-origin with the app.
                 */
             <iframe
               src={`data:application/pdf;base64,${previewFile.content}#toolbar=0`}
               className="h-full w-full rounded border-none bg-white"
               title={previewFile.name}
-              sandbox=""
               referrerPolicy="no-referrer"
             />
           ) : (
@@ -404,7 +415,7 @@ export function FilePreview() {
               <div
                 ref={gutterRef}
                 aria-hidden="true"
-                className="select-none text-right pr-3 pl-4 py-4 bg-muted/5 text-muted-foreground/30 border-r border-border/20 font-mono min-w-[3.5rem] overflow-hidden"
+                className="select-none text-right pr-3 pl-4 py-4 bg-muted/5 text-muted-foreground/60 border-r border-border/20 font-mono min-w-[3.5rem] overflow-hidden"
               >
                 {/* Spacer preserves total scroll height; only the visible
                         window of numbers is materialised. */}
@@ -444,7 +455,7 @@ export function FilePreview() {
                 onScroll={handleScroll}
                 disabled={isSaving}
                 className={`flex-1 h-full w-full resize-none bg-transparent px-4 py-4 outline-none border-none text-foreground/90 font-mono focus:ring-0 leading-relaxed overflow-y-auto ${
-                  wordWrap ? 'whitespace-pre-wrap word-break-all' : 'whitespace-pre overflow-x-auto'
+                  wordWrap ? 'whitespace-pre-wrap break-all' : 'whitespace-pre overflow-x-auto'
                 }`}
                 style={{ lineHeight: `${GUTTER_LINE_HEIGHT_PX}px` }}
                 placeholder="Enter text..."

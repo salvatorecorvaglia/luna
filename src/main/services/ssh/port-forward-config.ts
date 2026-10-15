@@ -126,6 +126,13 @@ export function validatePortForwardConfig(
     localPort,
   };
 
+  if (c.autoStart != null) {
+    if (typeof c.autoStart !== 'boolean') {
+      throw validationError('port forward autoStart must be a boolean');
+    }
+    out.autoStart = c.autoStart;
+  }
+
   if (c.name != null) {
     if (typeof c.name !== 'string') throw validationError('port forward name must be a string');
     if (c.name.length > MAX_NAME_LEN) {

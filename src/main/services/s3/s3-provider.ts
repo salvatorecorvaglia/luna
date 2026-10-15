@@ -145,10 +145,27 @@ class S3StorageProvider implements StorageProvider {
     timeoutMs: number = LIMITS.STORAGE_OP_TIMEOUT_MS,
   ): Promise<T> {
     const client = this.requireClient(sessionId);
+    // withTimeout only stops *waiting*. The SDK call kept running, so a
+    // "timed out" prefix delete went on deleting in the background and a
+    // timed-out listing kept paginating. Every request made through this
+    // scoped client carries the controller's signal, and the timeout aborts it
+    // — a multi-request op stops at its next request.
+    const controller = new AbortController();
+    const scoped = new Proxy(client, {
+      get(target, prop, receiver) {
+        if (prop === 'send') {
+          return (command: unknown, options?: Record<string, unknown>) =>
+            // biome-ignore lint/suspicious/noExplicitAny: generic passthrough of SDK command types
+            (target.send as any)(command, { ...options, abortSignal: controller.signal });
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+    });
     try {
-      return await withTimeout(fn(client), timeoutMs, `s3:${op}`);
+      return await withTimeout(fn(scoped), timeoutMs, `s3:${op}`);
     } catch (err) {
       if (err instanceof TimeoutError) {
+        controller.abort();
         throw new S3StorageError(`S3 ${op} operation timed out after ${timeoutMs}ms`, err);
       }
       throw err;
@@ -336,6 +353,18 @@ class S3StorageProvider implements StorageProvider {
       if (!a.key && !b.key) {
         throw new S3StorageError('Bucket-level rename is not supported');
       }
+      if (!a.key || !b.key) {
+        // Only one side names an object: that is "move a bucket into a key" or
+        // the reverse, neither of which CopyObject can express.
+        throw new S3StorageError('Cannot rename between a bucket and an object key');
+      }
+      if (a.key.endsWith('/')) {
+        // A "folder" is a key prefix, not an object. CopyObject on the prefix
+        // failed with an opaque NoSuchKey; say what's actually unsupported.
+        throw new S3StorageError(
+          'Renaming folders is not supported on S3 — it would mean copying every object under the prefix.',
+        );
+      }
       try {
         // RFC 3986 URL encoding for S3 CopySource header segments
         const encodedKey = a.key
@@ -447,6 +476,12 @@ class S3StorageProvider implements StorageProvider {
         throw new S3StorageError(
           `File too large to preview: ${head.ContentLength} bytes (max ${limit}). Download it instead.`,
         );
+      }
+      // A Range request against a zero-length object is unsatisfiable — S3
+      // answers 416 InvalidRange — so an empty file failed to preview at all.
+      // There is nothing to fetch.
+      if (head.ContentLength === 0) {
+        return { content: '', encoding: 'utf-8' };
       }
 
       try {

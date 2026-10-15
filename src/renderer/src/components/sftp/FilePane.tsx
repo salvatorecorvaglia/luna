@@ -250,6 +250,7 @@ export function FilePane({
   );
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: drop zone plus delegated shortcuts for the focusable rows inside it
     <div
       className={cn(
         'flex h-full flex-col overflow-hidden',

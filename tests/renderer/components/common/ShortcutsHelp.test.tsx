@@ -26,7 +26,7 @@ describe('ShortcutsHelp', () => {
   it('gives the close button an accessible name', () => {
     useUIStore.setState({ shortcutsHelpOpen: true });
     render(<ShortcutsHelp />);
-    expect(screen.getByRole('button', { name: 'Close' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
   });
 
   // Regression for UX-1: this dialog previously had no focus trap or Escape

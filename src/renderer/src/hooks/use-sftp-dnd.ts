@@ -2,8 +2,9 @@ import { isCancellation, toastArgs } from '@shared/error-messages';
 import { useCallback } from 'react';
 import { toast } from 'sonner';
 import type { FileEntry } from '@/components/sftp/FilePane';
+import { joinRemotePath } from '@/lib/remote-path';
+import { enqueueTransfer } from '@/lib/transfers';
 import { getApi } from '@/services/api';
-import { useTransferStore } from '@/stores/transfer-store';
 
 interface UseSftpDndArgs {
   activeSessionId: string | null;
@@ -32,8 +33,6 @@ export function useSftpDnd({
   localPath,
   remotePath,
 }: UseSftpDndArgs): UseSftpDndResult {
-  const addTransfer = useTransferStore((s) => s.addTransfer);
-
   const sanitizeFilename = useCallback((raw: string): string | null => {
     if (typeof raw !== 'string' || raw.length === 0) return null;
     const base = raw.split('/').pop()?.split('\\').pop() ?? '';
@@ -73,24 +72,17 @@ export function useSftpDnd({
         return;
       }
 
-      const localDest = await getApi().shell.joinPath(localPath, fileName);
       try {
-        const transferId = await getApi().storage.download({
-          sessionId: activeSessionId,
-          remotePath: remoteSrc,
-          localPath: localDest,
-        });
-        addTransfer({
-          id: transferId,
+        // Inside the try: joinPath rejects for a path outside home, and a
+        // rejection here used to escape as an unhandled promise rejection.
+        const localDest = await getApi().shell.joinPath(localPath, fileName);
+        await enqueueTransfer({
           type: 'download',
+          sessionId: activeSessionId,
           localPath: localDest,
           remotePath: remoteSrc,
-          fileName,
+          fileName: fileName,
           size: fileSize,
-          transferred: 0,
-          status: 'queued',
-          bytesPerSec: 0,
-          sessionId: activeSessionId,
         });
       } catch (err: unknown) {
         // A cancel that lands while the transfer is still being set up rejects
@@ -100,7 +92,7 @@ export function useSftpDnd({
         toast.error(...toastArgs(err, 'Download failed'));
       }
     },
-    [activeSessionId, localPath, addTransfer, sanitizeFilename],
+    [activeSessionId, localPath, sanitizeFilename],
   );
 
   const handleRemoteDrop = useCallback(
@@ -124,31 +116,22 @@ export function useSftpDnd({
         toast.error('Refused to transfer a file with an unsafe name.');
         return;
       }
-      const remoteDest = remotePath === '/' ? `/${fileName}` : `${remotePath}/${fileName}`;
+      const remoteDest = joinRemotePath(remotePath, fileName);
       try {
-        const transferId = await getApi().storage.upload({
-          sessionId: activeSessionId,
-          localPath: localSrc,
-          remotePath: remoteDest,
-        });
-        addTransfer({
-          id: transferId,
+        await enqueueTransfer({
           type: 'upload',
+          sessionId: activeSessionId,
           localPath: localSrc,
           remotePath: remoteDest,
-          fileName,
+          fileName: fileName,
           size: fileSize,
-          transferred: 0,
-          status: 'queued',
-          bytesPerSec: 0,
-          sessionId: activeSessionId,
         });
       } catch (err: unknown) {
         if (isCancellation(err)) return;
         toast.error(...toastArgs(err, 'Upload failed'));
       }
     },
-    [activeSessionId, remotePath, addTransfer, sanitizeFilename],
+    [activeSessionId, remotePath, sanitizeFilename],
   );
 
   const handleLocalDragStart = useCallback((entry: FileEntry, e: React.DragEvent) => {

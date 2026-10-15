@@ -25,8 +25,6 @@ export const Z = {
   paneOverlay: 'z-[30]',
   /** In-page dropdowns/popovers (combobox results, menu surfaces). */
   dropdown: 'z-[50]',
-  /** Tooltip overlays anchored to in-page elements. */
-  tooltip: 'z-[60]',
   /** Standard modal dialogs (PromptDialog, FilePreview, ConnectionForm, etc.). */
   modal: 'z-[70]',
   /** Settings/side-panel sheets that take over the right edge of the window. */
@@ -54,6 +52,4 @@ export const Z = {
    * above always claimed.
    */
   tooltipOverlay: 'z-[95]',
-  /** Drag chips and ephemeral floating UI during a drag gesture. */
-  drag: 'z-[200]',
 } as const;

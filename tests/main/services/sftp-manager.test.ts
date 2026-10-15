@@ -83,6 +83,23 @@ describe('SftpManager.publishUploadedFile', () => {
     expect(unlink).not.toHaveBeenCalled();
   });
 
+  it('falls back to plain rename when ssh2 throws synchronously for a missing extension', async () => {
+    // Real ssh2 does not report an unsupported extension through the callback:
+    // ext_openssh_rename *throws* 'Server does not support this extended
+    // request' (SFTP.js). The throw landed inside the Promise executor and
+    // rejected it, skipping the fallback — every upload to a server without
+    // posix-rename@openssh.com failed and its temp file was deleted.
+    const extRename = vi.fn(() => {
+      throw new Error('Server does not support this extended request');
+    });
+    const rename = vi.fn((_s, _d, cb) => cb());
+    const unlink = vi.fn();
+
+    await publish({ ext_openssh_rename: extRename, rename, unlink }, '/a/f.tmp', '/a/f.txt');
+
+    expect(rename).toHaveBeenCalledWith('/a/f.tmp', '/a/f.txt', expect.any(Function));
+  });
+
   it('non-destructively swaps an existing destination aside when both the extension and plain rename fail, then cleans up the backup', async () => {
     const calls: string[] = [];
     const extRename = vi.fn((_s, _d, cb) => cb(err('OP_UNSUPPORTED')));

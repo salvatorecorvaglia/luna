@@ -1,20 +1,23 @@
 import { Reorder } from 'framer-motion';
 import { ArrowRightToLine, Copy, Pencil, WifiOff, X, XCircle } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
 import { PromptDialog } from '@/components/common/PromptDialog';
 import { TerminalToolbar } from '@/components/terminal/TerminalToolbar';
 import { Spinner } from '@/components/ui';
+import { handleTabKeyDown, handleTablistKeyDown } from '@/lib/roving-tabs';
 import { openNewSession } from '@/lib/ssh';
 import { cn } from '@/lib/utils';
 import {
   getAllSessionIdsFromTree,
   getFirstLeafSessionId,
+  getTabSession,
   hasSessionInTree,
+  selectTabsByKind,
   useActiveSessionId,
   useTerminalStore,
-  useTerminalTabOrder,
 } from '@/stores/terminal-store';
 
 export function TerminalTabs() {
@@ -22,8 +25,6 @@ export function TerminalTabs() {
   // no-selector `useTerminalStore()` re-rendered this component (and the
   // seven dialogs below it) on every store change, including ones like
   // fontSize/scrollback that this component never reads.
-  const sessions = useTerminalStore((s) => s.sessions);
-  const tabOrder = useTerminalTabOrder();
   const activeSessionId = useActiveSessionId();
   const setActiveSession = useTerminalStore((s) => s.setActiveSession);
   const setTabOrder = useTerminalStore((s) => s.setTabOrder);
@@ -35,15 +36,11 @@ export function TerminalTabs() {
   const [closingTabId, setClosingTabId] = useState<string | null>(null);
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
 
-  const sshTabs = useMemo(
-    () =>
-      tabOrder.filter((id) => {
-        const s = sessions.get(id);
-
-        return !s || !s.type || s.type === 'ssh';
-      }),
-    [tabOrder, sessions],
-  );
+  // The tab list, shallow-compared, rather than the whole session Map: the
+  // Map changes identity on every status tick of every session, which
+  // re-rendered the strip (and its dialogs) for changes that move no tab.
+  // Handlers read sessions at call time via getState().
+  const sshTabs = useTerminalStore(useShallow((s) => selectTabsByKind(s, 'ssh')));
 
   const activeSshTabId = useMemo(() => {
     if (!activeSessionId) return null;
@@ -58,14 +55,15 @@ export function TerminalTabs() {
 
   const handleReorder = useCallback(
     (newOrder: string[]) => {
-      const localTabs = tabOrder.filter((id) => sessions.get(id)?.type === 'local');
+      const localTabs = selectTabsByKind(useTerminalStore.getState(), 'local');
       setTabOrder([...newOrder, ...localTabs]);
     },
-    [tabOrder, sessions, setTabOrder],
+    [setTabOrder],
   );
 
   const handleCloseTab = useCallback(
     (tabId: string) => {
+      const { sessions, layouts } = useTerminalStore.getState();
       const root = layouts.get(tabId);
       const ids = root ? getAllSessionIdsFromTree(root) : [tabId];
       const hasActive = ids.some((id) => {
@@ -81,24 +79,25 @@ export function TerminalTabs() {
         }
       }
     },
-    [sessions, layouts, closeTab],
+    [closeTab],
   );
 
   const handleRename = useCallback((tabId: string) => {
     setRenamingTabId(tabId);
   }, []);
 
-  const handleDuplicate = useCallback(
-    (tabId: string) => {
-      const session = sessions.get(tabId);
-      if (!session) return;
-      // openNewSession, not connectToHost: the latter focuses an existing
-      // connected session for the connection — which, for a tab you just
-      // right-clicked, is always this one. Duplicate then did nothing.
-      void openNewSession(session.connectionId);
-    },
-    [sessions],
-  );
+  const handleDuplicate = useCallback((tabId: string) => {
+    const session = getTabSession(useTerminalStore.getState(), tabId);
+    if (!session) return;
+    // openNewSession, not connectToHost: the latter focuses an existing
+    // connected session for the connection — which, for a tab you just
+    // right-clicked, is always this one. Duplicate then did nothing.
+    void openNewSession(session.connectionId);
+  }, []);
+
+  const renamingSession = renamingTabId
+    ? getTabSession(useTerminalStore.getState(), renamingTabId)
+    : undefined;
 
   const handleActivateTab = useCallback(
     (tabId: string) => {
@@ -117,6 +116,7 @@ export function TerminalTabs() {
       className="flex h-9 items-center border-b border-border/60 bg-card/60 no-select"
       role="tablist"
       aria-label="Terminal tabs (drag to reorder)"
+      onKeyDown={(e) => handleTablistKeyDown(e, handleActivateTab)}
     >
       <Reorder.Group
         transition={{ duration: 0 }}
@@ -126,7 +126,7 @@ export function TerminalTabs() {
         className="flex flex-1 items-center overflow-x-auto"
         as="div"
       >
-        {sshTabs.map((tabId) => {
+        {sshTabs.map((tabId, index) => {
           const root = layouts.get(tabId);
           if (!root) return null;
           return (
@@ -134,6 +134,7 @@ export function TerminalTabs() {
               key={tabId}
               tabId={tabId}
               isActive={tabId === activeSshTabId}
+              tabbable={tabId === activeSshTabId || (activeSshTabId === null && index === 0)}
               onActivate={handleActivateTab}
               onClose={handleCloseTab}
               onRename={handleRename}
@@ -170,16 +171,10 @@ export function TerminalTabs() {
         open={!!renamingTabId}
         title="Rename tab"
         placeholder="Tab name"
-        defaultValue={
-          renamingTabId
-            ? sessions.get(renamingTabId)?.title ||
-              sessions.get(renamingTabId)?.connectionName ||
-              ''
-            : ''
-        }
+        defaultValue={renamingSession?.title || renamingSession?.connectionName || ''}
         confirmLabel="Rename"
         onConfirm={(newTitle) => {
-          if (renamingTabId) renameTab(renamingTabId, newTitle);
+          if (renamingSession) renameTab(renamingSession.id, newTitle);
           setRenamingTabId(null);
         }}
         onCancel={() => setRenamingTabId(null)}
@@ -191,6 +186,8 @@ export function TerminalTabs() {
 interface TabProps {
   tabId: string;
   isActive: boolean;
+  /** The strip's single Tab stop (roving tabIndex). */
+  tabbable: boolean;
   onActivate: (tabId: string) => void;
   onClose: (tabId: string) => void;
   onRename: (tabId: string) => void;
@@ -202,6 +199,7 @@ interface TabProps {
 const Tab = memo(function Tab({
   tabId,
   isActive,
+  tabbable,
   onActivate,
   onClose,
   onRename,
@@ -209,7 +207,7 @@ const Tab = memo(function Tab({
   onCloseOthers,
   onCloseToRight,
 }: TabProps) {
-  const session = useTerminalStore((s) => s.sessions.get(tabId));
+  const session = useTerminalStore((s) => getTabSession(s, tabId));
 
   const contextItems: ContextMenuItem[] = useMemo(
     () => [
@@ -278,6 +276,9 @@ const Tab = memo(function Tab({
       role="tab"
       aria-selected={isActive}
       aria-label={session.title || session.connectionName}
+      data-tab-id={tabId}
+      tabIndex={tabbable ? 0 : -1}
+      onKeyDown={(e) => handleTabKeyDown(e, () => onActivate(tabId))}
       className={cn(
         'group relative flex h-9 min-w-[90px] max-w-[200px] items-center gap-2 border-r border-border/40 px-3 text-xs cursor-grab active:cursor-grabbing',
         isActive

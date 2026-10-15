@@ -2,7 +2,7 @@
 /// <reference types="@testing-library/jest-dom" />
 import type { Connection } from '@shared/types/ipc';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { DragControls } from 'framer-motion';
 import { describe, expect, it, vi } from 'vitest';
 import { ConnectionItem } from '../../../../../src/renderer/src/components/layout/sidebar-parts/ConnectionItem';
@@ -103,5 +103,48 @@ describe('ConnectionItem accessible name', () => {
       }),
     );
     expect(screen.getByLabelText('Backups (eu-west-1) — disconnected')).toBeInTheDocument();
+  });
+});
+
+describe('ConnectionItem — reconnect', () => {
+  it('reconnects the existing SSH session in place instead of opening a new tab', async () => {
+    // Regression: Reconnect removed the session (and its tab/split pane) and
+    // opened a fresh one at the end of the tab strip.
+    const { installFakeApi } = await import('../../../../../src/test/fake-api');
+    const { useTerminalStore } = await import(
+      '../../../../../src/renderer/src/stores/terminal-store'
+    );
+    const { connectToHost } = await import('@/lib/ssh');
+    const api = installFakeApi();
+    useTerminalStore.setState({
+      sessions: new Map([
+        [
+          's1',
+          {
+            id: 's1',
+            connectionId: 'c1',
+            connectionName: 'TEST',
+            // Reconnect is offered for live sessions (e.g. a hung one).
+            status: 'connected',
+            title: 'TEST',
+            type: 'ssh',
+          },
+        ],
+      ]),
+      tabOrder: ['s1'],
+      layouts: new Map([['s1', { type: 'terminal', sessionId: 's1' }]]),
+      activeSessionId: 's1',
+    });
+    renderItem(makeConnection());
+
+    fireEvent.contextMenu(screen.getByText('TEST'));
+    fireEvent.click(await screen.findByText('Reconnect'));
+
+    await waitFor(() =>
+      expect(api.ssh.connect).toHaveBeenCalledWith({ connectionId: 'c1', sessionId: 's1' }),
+    );
+    expect(useTerminalStore.getState().sessions.has('s1')).toBe(true);
+    expect(useTerminalStore.getState().tabOrder).toEqual(['s1']);
+    expect(connectToHost).not.toHaveBeenCalled();
   });
 });

@@ -89,7 +89,7 @@ describe('SettingsPanel — public port-forward bind', () => {
 
     expect(toggle).toHaveAttribute('aria-checked', 'false');
     // A security-relevant switch needs to say what it does, not just name itself.
-    expect(screen.getByText(/reachable from other machines/i)).toBeTruthy();
+    expect(screen.getByText(/reachable from other machines/i)).toBeInTheDocument();
   });
 
   it('persists the opt-in when enabled', async () => {

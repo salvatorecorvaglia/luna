@@ -1,11 +1,15 @@
 import type { CliCommandDoc, CliCommandExample } from '@shared/types/cli-reference';
 import { BookOpen, Copy, Play, Search, X } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { DialogShell } from '@/components/common/DialogShell';
-import { EmptyState, Spinner } from '@/components/ui';
+import { EmptyState, IconButton, Spinner } from '@/components/ui';
+import { logger } from '@/lib/logger';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
+
+/** Pause after the last keystroke before querying. */
+const SEARCH_DEBOUNCE_MS = 120;
 
 interface CliReferenceDialogProps {
   open: boolean;
@@ -18,26 +22,38 @@ export function CliReferenceDialog({ open, onClose, onRunCommand }: CliReference
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const fetchDocs = useCallback(async (q: string) => {
-    setLoading(true);
-    try {
-      const results = await getApi().shell.cliReference(q);
-      setDocs(results);
-    } catch (err) {
-      console.error('CLI reference fetch error:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+  // Debounced, and each run ignores its own result once superseded. It used
+  // to fetch on every keystroke with no guard, so a slow response for "gi"
+  // could land after the one for "git" and replace the results the user was
+  // looking at.
   useEffect(() => {
     if (!open) return;
-    fetchDocs(query);
-  }, [open, query, fetchDocs]);
+    let stale = false;
+    setLoading(true);
+    const timer = setTimeout(() => {
+      getApi()
+        .shell.cliReference(query)
+        .then((results) => {
+          if (!stale) setDocs(results);
+        })
+        .catch((err: unknown) => {
+          if (!stale) logger.warn('CLI reference fetch failed', { error: String(err) });
+        })
+        .finally(() => {
+          if (!stale) setLoading(false);
+        });
+    }, SEARCH_DEBOUNCE_MS);
+    return () => {
+      stale = true;
+      clearTimeout(timer);
+    };
+  }, [open, query]);
 
   const handleCopy = (cmd: string) => {
-    navigator.clipboard.writeText(cmd);
-    toast.success('Command copied to clipboard');
+    navigator.clipboard
+      .writeText(cmd)
+      .then(() => toast.success('Command copied to clipboard'))
+      .catch(() => toast.error('Could not copy the command'));
   };
 
   const handleRun = (cmd: string) => {
@@ -75,13 +91,13 @@ export function CliReferenceDialog({ open, onClose, onRunCommand }: CliReference
           </div>
         </div>
 
-        <button
-          type="button"
+        <IconButton
           onClick={onClose}
-          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
-        >
-          <X className="size-4" />
-        </button>
+          aria-label="Close dialog"
+          title="Close"
+          size="md"
+          icon={<X className="size-4" />}
+        />
       </div>
 
       {/* Search bar */}

@@ -429,6 +429,7 @@ export function FileList({
       {/* Header — semantic columnheaders so the file table is announced
           correctly by assistive tech. */}
 
+      {/* biome-ignore lint/a11y/useFocusableInteractive: header row of the file grid; its sortable cells are real buttons */}
       <div
         role="row"
         className="flex items-center border-b border-border/60 bg-muted/20 text-2xs font-medium text-muted-foreground no-select"
@@ -457,6 +458,7 @@ export function FileList({
           Size <SortIcon field="size" sortField={sortField} sortDir={sortDir} />
         </button>
         {showPermissions && (
+          // biome-ignore lint/a11y/useFocusableInteractive: non-sortable column label, nothing to activate
           <div role="columnheader" className="w-[84px] px-2 py-1.5 text-right">
             Perms
           </div>

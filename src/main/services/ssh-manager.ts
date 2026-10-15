@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { IPC, LIMITS } from '@shared/constants';
 import { ErrorCode, LunaError } from '@shared/errors';
 import type {
@@ -7,13 +8,14 @@ import type {
 } from '@shared/types/connection';
 import type { SessionStatus } from '@shared/types/terminal';
 import { Client, type ClientChannel } from 'ssh2';
-import { v4 as uuidv4 } from 'uuid';
 import { getSshReconnectTunables } from '../config/runtime';
 import { describeSshError } from '../lib/error-map';
 import log from '../lib/logger';
+import { OutputFlow } from '../lib/output-flow';
 import { TimeoutError, withTimeout } from '../lib/with-timeout';
 import { type ConnectionRow, getDatabase, getSetting } from './database';
 import { emitToRenderer } from './emit';
+import { recordConnect, recordDisconnect } from './ssh/connection-history';
 import { PendingHostKeyRegistry } from './ssh/host-key-flow';
 import { type PortForwardHandle, startPortForward } from './ssh/port-forward';
 import { parseStoredPortForwards, validatePortForwardConfig } from './ssh/port-forward-config';
@@ -45,6 +47,7 @@ type SshConnectRow = Pick<
 interface StreamListeners {
   onData: (data: Buffer) => void;
   onClose: () => void;
+  onExit: (code: number | null) => void;
   onStderrData: (data: Buffer) => void;
 }
 
@@ -55,6 +58,16 @@ interface SshSession {
   shell: ClientChannel | null;
   status: SessionStatus;
   _streamListeners?: StreamListeners;
+  /**
+   * Settles this session's pending connect() while its handshake is in
+   * flight. Set for the duration of the handshake only. A replacing connect()
+   * or a disconnect() strips the client's listeners, after which the handshake
+   * can never settle on its own — so they call this instead of leaving the
+   * caller to hang until the connect timeout.
+   */
+  abortHandshake?: (error: string) => void;
+  /** Output backpressure towards the renderer; see OutputFlow. */
+  flow?: OutputFlow;
   historyId?: string;
   cols?: number;
   rows?: number;
@@ -98,16 +111,6 @@ interface ReconnectState {
 // database and run migrations — before index.ts had taken the single-instance
 // lock. See the comment on getSshReconnectTunables in config/runtime.ts.
 
-/**
- * How often to prune `connection_history`. The prune used to run on every
- * successful connect, executing a correlated `NOT IN (SELECT … ORDER BY …
- * LIMIT 1000)` subquery each time — a full scan + sort on the hot connect
- * path for a table that only needs trimming occasionally.
- */
-const HISTORY_PRUNE_INTERVAL_MS = 60 * 60 * 1000;
-/** Retained `connection_history` rows. */
-const HISTORY_RETENTION_ROWS = 1000;
-
 class SshManager {
   private sessions = new Map<string, SshSession>();
   /** Reconnect ladders in progress, keyed by sessionId. See ReconnectState. */
@@ -116,15 +119,13 @@ class SshManager {
   private onConnectCallbacks: ((sessionId: string) => void)[] = [];
   /** Candidate host keys captured during a rejected verification, awaiting user trust. */
   private pendingHostKeys = new PendingHostKeyRegistry();
-  /** Timestamp of the last `connection_history` prune — see pruneHistoryIfDue. */
-  private lastHistoryPruneAt = 0;
 
   /**
    * Trust a captured host key so the next connect succeeds.
    * Returns the fingerprint that was stored, or null if no candidate is pending.
    */
-  trustPendingHostKey(host: string, port: number): string | null {
-    return this.pendingHostKeys.trust(host, port);
+  trustPendingHostKey(host: string, port: number, expectedFingerprint: string): string | null {
+    return this.pendingHostKeys.trust(host, port, expectedFingerprint);
   }
 
   /**
@@ -227,34 +228,8 @@ class SshManager {
    */
   private recordDisconnectHistory(session: SshSession): void {
     if (!session.historyId) return;
-    try {
-      const db = getDatabase();
-      const now = Math.floor(Date.now() / 1000);
-      db.prepare(
-        'UPDATE connection_history SET disconnected_at = ?, duration_secs = (? - connected_at) WHERE id = ?',
-      ).run(now, now, session.historyId);
-    } catch (err) {
-      log.warn(`[SSH] Failed to record disconnect history for ${session.historyId}:`, err);
-    }
+    recordDisconnect(session.historyId);
     session.historyId = undefined;
-  }
-
-  /**
-   * Trim `connection_history` at most once an hour rather than on every
-   * connect. The delete is a full scan + sort of the table; running it inline
-   * with each handshake put that cost on the interactive connect path for no
-   * benefit — a few hundred extra rows between prunes are harmless.
-   */
-  private pruneHistoryIfDue(db: ReturnType<typeof getDatabase>): void {
-    const now = Date.now();
-    if (now - this.lastHistoryPruneAt < HISTORY_PRUNE_INTERVAL_MS) return;
-    this.lastHistoryPruneAt = now;
-    db.prepare(
-      `DELETE FROM connection_history
-       WHERE id NOT IN (
-         SELECT id FROM connection_history ORDER BY connected_at DESC LIMIT ?
-       )`,
-    ).run(HISTORY_RETENTION_ROWS);
   }
 
   async connect(
@@ -263,6 +238,25 @@ class SshManager {
     cols = 80,
     rows = 24,
     options: { isReconnect?: boolean } = {},
+  ): Promise<{ success: boolean; error?: string }> {
+    const result = await this.connectOnce(sessionId, connectionId, cols, rows, options);
+    // A failed *first* attempt has no ladder to feed: nothing will retry it.
+    // Its reconnect state was created up front and, before this, never freed —
+    // one leaked entry (with its closure) per failed connect for the life of
+    // the process. Retries keep theirs (the ladder owns it), and so does an id
+    // a newer attempt now holds.
+    if (!result.success && !options.isReconnect && !this.sessions.has(sessionId)) {
+      this.clearReconnect(sessionId);
+    }
+    return result;
+  }
+
+  private async connectOnce(
+    sessionId: string,
+    connectionId: string,
+    cols: number,
+    rows: number,
+    options: { isReconnect?: boolean },
   ): Promise<{ success: boolean; error?: string }> {
     const db = getDatabase();
     const row = db
@@ -314,6 +308,7 @@ class SshManager {
         clearTimeout(reconnectState.timer);
         reconnectState.timer = null;
       }
+      existing.abortHandshake?.('Superseded by a newer connection attempt');
       try {
         // Drop listeners before destroying so the synthetic 'close'/'error'
         // from teardown can't reach the soon-to-be-replaced session entry.
@@ -354,7 +349,7 @@ class SshManager {
       return { success: false, error: 'Connection aborted' };
     }
     if (configError) {
-      this.sessions.delete(sessionId);
+      this.dropIfCurrent(session);
       return { success: false, error: configError };
     }
 
@@ -377,11 +372,17 @@ class SshManager {
       const settle = (result: { success: boolean; error?: string }): void => {
         if (handshakeSettled) return;
         handshakeSettled = true;
+        session.abortHandshake = undefined;
         removeHandshakeListeners();
         resolve(result);
       };
+      session.abortHandshake = (error: string): void => settle({ success: false, error });
 
       onReady = (): void => {
+        // A handshake that was already settled (superseded, disconnected,
+        // timed out) must not bring its session up: that would record history,
+        // start port forwards and open a shell for an entry nothing owns.
+        if (handshakeSettled || this.sessions.get(sessionId) !== session) return;
         // Success clears the ladder: the budget is per outage, not per session.
         const state = this.reconnects.get(sessionId);
         if (state) {
@@ -393,24 +394,9 @@ class SshManager {
         }
         this.setStatus(session, 'connected');
 
-        // Update last_connected_at and record history. Wrap in try/catch so a DB error
-        // doesn't hang the connection promise before resolve() or client.shell().
-        try {
-          db.prepare('UPDATE connections SET last_connected_at = ? WHERE id = ?').run(
-            Math.floor(Date.now() / 1000),
-            connectionId,
-          );
-
-          const historyId = uuidv4();
-          session.historyId = historyId;
-          db.prepare('INSERT INTO connection_history (id, connection_id) VALUES (?, ?)').run(
-            historyId,
-            connectionId,
-          );
-          this.pruneHistoryIfDue(db);
-        } catch (err) {
-          log.warn(`[SSH] Failed to record connection info for ${connectionId}:`, err);
-        }
+        // Best-effort (never throws), so a DB error can't hang the connect
+        // before resolve() or client.shell().
+        session.historyId = recordConnect(connectionId);
 
         // Fire-and-forget: a forward that fails to bind must not block the
         // shell from opening. Each failure is reported individually so the
@@ -429,16 +415,22 @@ class SshManager {
             } catch {
               // already torn down
             }
-            this.sessions.delete(sessionId);
+            this.dropIfCurrent(session);
             settle({ success: false, error: err.message });
             return;
           }
 
           session.shell = stream;
+          const flow = new OutputFlow(
+            () => stream.pause(),
+            () => stream.resume(),
+          );
+          session.flow = flow;
 
           const queueSshData = (chunk: Buffer): void => {
             sshStreamBuffer.queueData(sessionId, chunk, (data) => {
               emitToRenderer(IPC.SSH_ON_DATA, { sessionId, data });
+              flow.sent(data.length);
             });
           };
 
@@ -446,8 +438,19 @@ class SshManager {
             queueSshData(data);
           };
 
+          // A shell that exits on its own (the user typed `exit`, a
+          // ForceCommand finished) reports an exit *status* before its channel
+          // closes; a dropped transport or a killed shell does not. Only the
+          // latter should trigger auto-reconnect — reconnecting a shell the
+          // user just exited reopened the tab, and against a host whose shell
+          // exits immediately it looped forever.
+          let exitCode: number | null = null;
+          const onExit = (code: number | null): void => {
+            if (typeof code === 'number') exitCode = code;
+          };
           const onShellClose = (): void => {
-            this.handleDisconnect(sessionId);
+            if (exitCode !== null) this.handleShellExit(sessionId, exitCode);
+            else this.handleDisconnect(sessionId);
           };
 
           const onStderrData = (data: Buffer): void => {
@@ -455,11 +458,12 @@ class SshManager {
           };
 
           stream.on('data', onData);
+          stream.on('exit', onExit);
           stream.on('close', onShellClose);
           stream.stderr.on('data', onStderrData);
 
           // Store listener refs for cleanup
-          session._streamListeners = { onData, onClose: onShellClose, onStderrData };
+          session._streamListeners = { onData, onClose: onShellClose, onExit, onStderrData };
 
           // Identity guard: if the sessions map has moved on (e.g. manual disconnect
           // during shell connection), do not trigger connect callbacks or resolve.
@@ -499,13 +503,13 @@ class SshManager {
       onError = (err: Error): void => {
         const friendly = describeSshError(err);
         emitToRenderer(IPC.SSH_ON_ERROR, { sessionId, error: friendly });
-        this.sessions.delete(sessionId);
+        this.dropIfCurrent(session);
         settle({ success: false, error: friendly });
       };
 
       onClose = (): void => {
         // Handshake aborted or socket closed before ready
-        this.sessions.delete(sessionId);
+        this.dropIfCurrent(session);
         settle({ success: false, error: 'Connection closed during handshake' });
       };
 
@@ -525,6 +529,7 @@ class SshManager {
       // again into the (already-rejected) promise pathway.
       if (!handshakeSettled) {
         handshakeSettled = true;
+        session.abortHandshake = undefined;
         removeHandshakeListeners();
       }
       try {
@@ -532,7 +537,9 @@ class SshManager {
       } catch {
         // ignore
       }
-      this.sessions.delete(sessionId);
+      // Identity-checked: by the time a timeout fires, a newer connect() may
+      // own this id. Deleting by id alone wiped that live session.
+      this.dropIfCurrent(session);
       const isTimeout = err instanceof TimeoutError;
       const message = err instanceof Error ? err.message : String(err);
       return {
@@ -542,10 +549,21 @@ class SshManager {
     }
   }
 
+  /**
+   * Remove `session` from the map only if it is still the entry for its id.
+   * Every failure path in connect() runs after at least one await, by which
+   * point a replacing connect() may have installed a new session under the
+   * same id.
+   */
+  private dropIfCurrent(session: SshSession): void {
+    if (this.sessions.get(session.id) === session) this.sessions.delete(session.id);
+  }
+
   private cleanupStreamListeners(session: SshSession): void {
     if (session.shell && session._streamListeners) {
-      const { onData, onClose, onStderrData } = session._streamListeners;
+      const { onData, onClose, onExit, onStderrData } = session._streamListeners;
       session.shell.removeListener('data', onData);
+      session.shell.removeListener('exit', onExit);
       session.shell.removeListener('close', onClose);
       session.shell.stderr.removeListener('data', onStderrData);
       session._streamListeners = undefined;
@@ -623,7 +641,7 @@ class SshManager {
     const config = validatePortForwardConfig(rawConfig, {
       allowPublicBind: this.allowPublicBind(),
     });
-    if (!config.id) config.id = uuidv4();
+    if (!config.id) config.id = randomUUID();
 
     // Reject a duplicate local bind up front with a clear message rather than
     // letting the OS return an opaque EADDRINUSE.
@@ -691,9 +709,11 @@ class SshManager {
     session: SshSession,
     portForwardsJson: string | null,
   ): Promise<void> {
+    // Forwards marked autoStart:false (every imported one) are started by
+    // hand from the Tunnel Manager, never implicitly on connect.
     const configs = parseStoredPortForwards(portForwardsJson, {
       allowPublicBind: this.allowPublicBind(),
-    });
+    }).filter((config) => config.autoStart !== false);
     if (configs.length === 0) return;
 
     // Started in parallel: forwards are independent, and binding is the slow
@@ -755,6 +775,25 @@ class SshManager {
     // and geometry to try again.
     this.reconnectStateFor(sessionId, session.connectionId, session.cols ?? 80, session.rows ?? 24);
     this.attemptReconnect(sessionId);
+  }
+
+  /**
+   * The remote shell exited with a status: the session ended normally, so tell
+   * the renderer and retire it without starting the reconnect ladder.
+   */
+  private handleShellExit(sessionId: string, code: number): void {
+    const session = this.sessions.get(sessionId);
+    if (!session || session.status === 'disconnected') return;
+    log.info(`[SSH] Shell for ${sessionId} exited with status ${code}`);
+    emitToRenderer(IPC.SSH_ON_CLOSE, { sessionId });
+    for (const cb of this.onDisconnectCallbacks) {
+      try {
+        cb(sessionId);
+      } catch (cbErr) {
+        log.warn(`[SSH] onDisconnect callback threw for ${sessionId}:`, cbErr);
+      }
+    }
+    this.retireSession(session, 'disconnected');
   }
 
   /**
@@ -892,6 +931,14 @@ class SshManager {
     return true;
   }
 
+  /** Renderer acknowledgement of parsed output — drives OutputFlow. */
+  ackOutput(sessionId: string, chars: number, reset = false): void {
+    const flow = this.sessions.get(sessionId)?.flow;
+    if (!flow) return;
+    if (reset) flow.reset();
+    else flow.acked(chars);
+  }
+
   resize(sessionId: string, cols: number, rows: number): void {
     const session = this.sessions.get(sessionId);
     if (session) {
@@ -917,6 +964,9 @@ class SshManager {
 
     this.cleanupPortForwards(session);
     this.cleanupStreamListeners(session);
+    // Removing the client's listeners below would leave an in-flight handshake
+    // unable to settle; resolve the pending ssh:connect now.
+    session.abortHandshake?.('Disconnected');
 
     try {
       session.shell?.close();

@@ -34,6 +34,12 @@ const MANUAL_UPDATE_MESSAGE =
 type UpdateMode = 'squirrel' | 'self' | 'manual';
 
 let updateAvailable = false;
+/**
+ * Squirrel-path state for the two-press install ("Download" → "Restart now"),
+ * matching the ad-hoc macOS flow in installBySelfReplace().
+ */
+let squirrelDownloaded = false;
+let squirrelDownloadInFlight = false;
 let updateVersion = '';
 let inFlightCheck: Promise<unknown> | null = null;
 let autoInstallSupport: Promise<boolean> | null = null;
@@ -125,6 +131,20 @@ function checkOnce(): Promise<unknown> {
   return inFlightCheck;
 }
 
+/**
+ * The message shown for an updater failure. Squirrel.Mac's signature-check
+ * errors mean this build can never install the update in place, so they
+ * become the "download it from GitHub" message instead of a raw
+ * ShipIt/codesign string.
+ */
+function describeUpdateError(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  if (message.includes('code signature at URL') || message.includes('did not pass validation')) {
+    return MANUAL_UPDATE_MESSAGE;
+  }
+  return message;
+}
+
 export function initAutoUpdater(): void {
   // Hard-fail closed in unpackaged builds. `app.isPackaged` is false in dev
   // and for tampered packages whose `package.json` was edited at rest, so a
@@ -197,17 +217,12 @@ export function initAutoUpdater(): void {
   });
 
   autoUpdater.on('update-downloaded', () => {
+    squirrelDownloaded = true;
     emitToRenderer(IPC.APP_UPDATE_DOWNLOADED, {});
   });
 
   autoUpdater.on('error', (err) => {
-    let errorMessage = err.message;
-    if (
-      errorMessage.includes('code signature at URL') ||
-      errorMessage.includes('did not pass validation')
-    ) {
-      errorMessage = MANUAL_UPDATE_MESSAGE;
-    }
+    const errorMessage = describeUpdateError(err);
     log.error('[Updater] Error:', errorMessage);
     emitToRenderer(IPC.APP_UPDATE_ERROR, { error: errorMessage });
   });
@@ -283,19 +298,30 @@ export async function installUpdate(): Promise<void> {
     return;
   }
 
+  // Second press ("Restart now"): the package is on disk, install it.
+  if (squirrelDownloaded) {
+    autoUpdater.quitAndInstall(false, true);
+    return;
+  }
+  if (squirrelDownloadInFlight) {
+    log.info('[Updater] Download already in progress; ignoring the repeat request.');
+    return;
+  }
+
+  // First press ("Download"): download only. This used to call
+  // quitAndInstall() the moment the download finished, so on Windows/Linux the
+  // app quit mid-work — open SSH sessions and running transfers included —
+  // with no chance to finish or save. The renderer's "Restart now" toast (fired
+  // by 'update-downloaded') is the second press.
+  squirrelDownloadInFlight = true;
   try {
     await autoUpdater.downloadUpdate();
-    autoUpdater.quitAndInstall(false, true);
   } catch (err: unknown) {
-    let errorMessage = err instanceof Error ? err.message : String(err);
-    if (
-      errorMessage.includes('code signature at URL') ||
-      errorMessage.includes('did not pass validation')
-    ) {
-      errorMessage = MANUAL_UPDATE_MESSAGE;
-    }
+    const errorMessage = describeUpdateError(err);
     log.error('[Updater] Failed to download update:', errorMessage);
     emitToRenderer(IPC.APP_UPDATE_ERROR, { error: errorMessage });
+  } finally {
+    squirrelDownloadInFlight = false;
   }
 }
 

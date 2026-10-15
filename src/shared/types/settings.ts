@@ -14,6 +14,12 @@ export interface AppSettings {
   'terminal.fontSize': number;
   'terminal.theme': string;
   'terminal.scrollback': number;
+  /**
+   * xterm's screen-reader mode keeps an accessibility DOM in sync with the
+   * buffer. Essential for screen-reader users, and a real cost under heavy
+   * output for everyone else — so it is a setting, defaulting to on.
+   */
+  'terminal.screenReaderMode': boolean;
   'transfer.concurrency': number;
   'ssh.autoReconnect': boolean;
   'ssh.keepAliveInterval': number;
@@ -47,6 +53,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   'terminal.fontSize': 14,
   'terminal.theme': 'dracula',
   'terminal.scrollback': 10000,
+  'terminal.screenReaderMode': true,
   'transfer.concurrency': 3,
   'ssh.autoReconnect': true,
   'ssh.keepAliveInterval': 10000,

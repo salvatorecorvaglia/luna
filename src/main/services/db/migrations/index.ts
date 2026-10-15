@@ -10,6 +10,12 @@
  *
  * Explicit imports (rather than a glob) keep electron-vite's main-process
  * bundling deterministic — no Node-only `fs.readdir` magic at boot.
+ *
+ * The numbering has gaps (no 010, 011, 013 or 014). That is harmless: applied
+ * migrations are recorded by `name`, never by position or number, so a gap
+ * changes nothing at runtime. Do not renumber existing files to close it —
+ * the names are persisted in every user's `_migrations` table. New migrations
+ * continue from the highest number (next: 020).
  */
 import m001 from './001_connections';
 import m002 from './002_settings';

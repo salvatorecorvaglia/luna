@@ -169,6 +169,22 @@ function expandTilde(rawPath: string, name: string): string {
   return resolvePath(expanded);
 }
 
+/**
+ * Home directory with symlinks resolved, for comparing against other realpath
+ * results. Where home is itself a link (/home -> /usr/home on some BSD and NAS
+ * setups), comparing a realpath'd target against the *unresolved* homedir()
+ * string rejected every legitimate file. Falls back to homedir() if it can't
+ * be resolved.
+ */
+async function realHome(): Promise<string> {
+  const home = homedir();
+  try {
+    return await realpath(home);
+  } catch {
+    return home;
+  }
+}
+
 /** Expand `~`, then require the result to sit inside the home subtree. */
 function expandTildeInHome(rawPath: string, name: string): string {
   const resolved = expandTilde(rawPath, name);
@@ -191,11 +207,10 @@ export async function expandAndConfineToHome(
   name: string,
   options: { requireExists?: boolean } = {},
 ): Promise<string> {
-  const home = homedir();
   const resolved = expandTildeInHome(rawPath, name);
   if (options.requireExists) {
     const real = await realpath(resolved);
-    if (!isInsideDir(real, home)) {
+    if (!isInsideDir(real, await realHome())) {
       throw new LunaError(
         `${name} resolves outside the home directory via symlink`,
         ErrorCode.FORBIDDEN,
@@ -241,7 +256,7 @@ export async function assertSafeRealAbsolutePath(value: unknown, name: string): 
       }
     }
     const real = await realpath(value);
-    if (!isInsideDir(real, home)) {
+    if (!isInsideDir(real, await realHome())) {
       throw new LunaError(
         `${name} resolves outside the home directory via symlink`,
         ErrorCode.FORBIDDEN,
@@ -254,7 +269,7 @@ export async function assertSafeRealAbsolutePath(value: unknown, name: string): 
     // Path does not exist yet — validate the parent directory's real target.
     const parent = dirname(value);
     const realParent = await realpath(parent);
-    if (!isInsideDir(realParent, home)) {
+    if (!isInsideDir(realParent, await realHome())) {
       throw new LunaError(
         `${name} resolves outside the home directory via symlink`,
         ErrorCode.FORBIDDEN,

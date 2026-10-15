@@ -2,7 +2,7 @@ import { Check, Copy, Link2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { DialogShell } from '@/components/common/DialogShell';
-import { Button, Spinner } from '@/components/ui';
+import { Button, IconButton, Spinner } from '@/components/ui';
 import { useCopiedFlag } from '@/hooks/use-copied-flag';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
@@ -77,7 +77,7 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
     <DialogShell
       open={open && entry !== null}
       onClose={onClose}
-      zLayer={Z.confirm}
+      zLayer={Z.modal}
       dismissOnOverlayClick
       ariaLabelledBy="presigned-dialog-title"
       panelClassName="w-full max-w-md rounded-xl border border-border/80 bg-card p-5 shadow-xl"
@@ -94,13 +94,13 @@ export function PresignedUrlDialog({ open, entry, sessionId, onClose }: Presigne
               <Link2 className="size-4 text-primary" />
               Generate Presigned URL
             </h3>
-            <button
-              type="button"
+            <IconButton
               onClick={onClose}
-              className="rounded-lg p-1 text-muted-foreground/60 hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
-            >
-              <X className="size-4" />
-            </button>
+              aria-label="Close dialog"
+              title="Close"
+              size="md"
+              icon={<X className="size-4" />}
+            />
           </div>
 
           <div className="mt-4 space-y-4">

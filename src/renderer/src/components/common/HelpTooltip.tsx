@@ -15,6 +15,7 @@ export function HelpTooltip({ content, className, iconClassName }: HelpTooltipPr
   const tooltipId = useId();
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: hover mirror only; the inner button carries focus/blur for keyboard users
     <div
       className={cn('relative inline-flex items-center', className)}
       onMouseEnter={() => setIsVisible(true)}
@@ -27,7 +28,7 @@ export function HelpTooltip({ content, className, iconClassName }: HelpTooltipPr
         // mouse users get, and aria-describedby wires the content to it for
         // screen readers.
         className={cn(
-          'flex cursor-help items-center justify-center rounded-full text-muted-foreground/30 transition-colors hover:text-muted-foreground/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+          'flex cursor-help items-center justify-center rounded-full text-muted-foreground/60 transition-colors hover:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
           isVisible && 'text-muted-foreground/80',
         )}
         aria-describedby={isVisible ? tooltipId : undefined}

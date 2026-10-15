@@ -87,136 +87,137 @@ function evictOldestTerminal(transfers: Map<string, TransferItem>): void {
   // Map preserves insertion order — older entries are at the front.
   while (terminalIds.length > MAX_RETAINED_TERMINAL) {
     const id = terminalIds.shift();
-    if (id) transfers.delete(id);
+    if (id) {
+      transfers.delete(id);
+      // The row is gone; its reaper would only fire into nothing.
+      cancelAutoRemove(id);
+    }
   }
 }
 
-export const useTransferStore = create<TransferState>((set, get) => ({
-  transfers: new Map(),
-  queueExpanded: false,
-
-  addTransfer: (transfer) =>
+export const useTransferStore = create<TransferState>((set, get) => {
+  const finishTransfer = (transferId: string, next: (item: TransferItem) => TransferItem): void => {
+    const item = get().transfers.get(transferId);
+    if (!item) return;
     set((s) => {
       const transfers = new Map(s.transfers);
-      transfers.set(transfer.id, transfer);
-      return { transfers, queueExpanded: true };
-    }),
-
-  updateProgress: (transferId, transferred, bytesPerSec) =>
-    set((s) => {
-      const transfers = new Map(s.transfers);
-      const item = transfers.get(transferId);
-      if (item) {
-        transfers.set(transferId, { ...item, transferred, bytesPerSec, status: 'active' });
-      }
+      transfers.set(transferId, next(item));
+      evictOldestTerminal(transfers);
       return { transfers };
-    }),
+    });
+    if (get().transfers.has(transferId)) {
+      scheduleAutoRemove(transferId, (id) => get().removeTransfer(id));
+    }
+  };
 
-  applyProgressBatch: (samples) =>
-    set((s) => {
-      let mutated = false;
-      let transfers = s.transfers;
-      for (const sample of samples) {
-        const item = transfers.get(sample.transferId);
-        if (!item) continue;
-        // Skip late progress samples that arrive after a terminal status
-        // (completed/error/cancelled) — without this guard a stray sample
-        // would regress the status back to 'active' and the UI would show
-        // the transfer as still in flight.
-        if (item.status === 'completed' || item.status === 'error' || item.status === 'cancelled') {
-          continue;
+  return {
+    transfers: new Map(),
+    queueExpanded: false,
+
+    addTransfer: (transfer) =>
+      set((s) => {
+        const transfers = new Map(s.transfers);
+        transfers.set(transfer.id, transfer);
+        return { transfers, queueExpanded: true };
+      }),
+
+    updateProgress: (transferId, transferred, bytesPerSec) =>
+      set((s) => {
+        const transfers = new Map(s.transfers);
+        const item = transfers.get(transferId);
+        if (item) {
+          transfers.set(transferId, { ...item, transferred, bytesPerSec, status: 'active' });
         }
-        if (!mutated) {
-          // Only allocate a new Map once we know there's at least one matching
-          // transfer — empty/no-op batches don't trigger a re-render.
-          transfers = new Map(s.transfers);
-          mutated = true;
+        return { transfers };
+      }),
+
+    applyProgressBatch: (samples) =>
+      set((s) => {
+        let mutated = false;
+        let transfers = s.transfers;
+        for (const sample of samples) {
+          const item = transfers.get(sample.transferId);
+          if (!item) continue;
+          // Skip late progress samples that arrive after a terminal status
+          // (completed/error/cancelled) — without this guard a stray sample
+          // would regress the status back to 'active' and the UI would show
+          // the transfer as still in flight.
+          if (
+            item.status === 'completed' ||
+            item.status === 'error' ||
+            item.status === 'cancelled'
+          ) {
+            continue;
+          }
+          if (!mutated) {
+            // Only allocate a new Map once we know there's at least one matching
+            // transfer — empty/no-op batches don't trigger a re-render.
+            transfers = new Map(s.transfers);
+            mutated = true;
+          }
+          transfers.set(sample.transferId, {
+            ...item,
+            transferred: sample.transferred,
+            bytesPerSec: sample.bytesPerSec,
+            status: 'active',
+          });
         }
-        transfers.set(sample.transferId, {
-          ...item,
-          transferred: sample.transferred,
-          bytesPerSec: sample.bytesPerSec,
-          status: 'active',
-        });
-      }
-      return mutated ? { transfers } : s;
-    }),
+        return mutated ? { transfers } : s;
+      }),
 
-  completeTransfer: (transferId) => {
-    set((s) => {
-      const transfers = new Map(s.transfers);
-      const item = transfers.get(transferId);
-      if (item) {
-        transfers.set(transferId, {
-          ...item,
-          status: 'completed',
-          transferred: item.size,
-          bytesPerSec: 0,
-        });
-        evictOldestTerminal(transfers);
-      }
-      return { transfers };
-    });
-    scheduleAutoRemove(transferId, (id) => get().removeTransfer(id));
-  },
+    // The three terminal transitions share one shape. Events for a row the
+    // store doesn't have (already removed, or never registered) used to allocate
+    // a fresh Map — waking every subscriber — and arm a reaper for nothing.
+    completeTransfer: (transferId) =>
+      finishTransfer(transferId, (item) => ({
+        ...item,
+        status: 'completed',
+        transferred: item.size,
+        bytesPerSec: 0,
+      })),
 
-  cancelTransfer: (transferId) => {
-    set((s) => {
-      const transfers = new Map(s.transfers);
-      const item = transfers.get(transferId);
-      if (item) {
-        transfers.set(transferId, { ...item, status: 'cancelled', bytesPerSec: 0 });
-        evictOldestTerminal(transfers);
-      }
-      return { transfers };
-    });
-    scheduleAutoRemove(transferId, (id) => get().removeTransfer(id));
-  },
+    cancelTransfer: (transferId) =>
+      finishTransfer(transferId, (item) => ({ ...item, status: 'cancelled', bytesPerSec: 0 })),
 
-  errorTransfer: (transferId, error, errorClass) => {
-    set((s) => {
-      const transfers = new Map(s.transfers);
-      const item = transfers.get(transferId);
-      if (item) {
-        transfers.set(transferId, {
-          ...item,
-          status: 'error',
-          error,
-          errorClass,
-          bytesPerSec: 0,
-        });
-        evictOldestTerminal(transfers);
-      }
-      return { transfers };
-    });
-    scheduleAutoRemove(transferId, (id) => get().removeTransfer(id));
-  },
+    errorTransfer: (transferId, error, errorClass) =>
+      finishTransfer(transferId, (item) => ({
+        ...item,
+        status: 'error',
+        error,
+        errorClass,
+        bytesPerSec: 0,
+      })),
 
-  removeTransfer: (transferId) => {
-    // Drop any pending reaper for this row: it has been removed by hand, so the
-    // timer has nothing left to do.
-    cancelAutoRemove(transferId);
-    set((s) => {
-      if (!s.transfers.has(transferId)) return s;
-      const transfers = new Map(s.transfers);
-      transfers.delete(transferId);
-      return { transfers };
-    });
-  },
+    removeTransfer: (transferId) => {
+      // Drop any pending reaper for this row: it has been removed by hand, so the
+      // timer has nothing left to do.
+      cancelAutoRemove(transferId);
+      set((s) => {
+        if (!s.transfers.has(transferId)) return s;
+        const transfers = new Map(s.transfers);
+        transfers.delete(transferId);
+        return { transfers };
+      });
+    },
 
-  clearCompleted: () =>
-    set((s) => {
-      const transfers = new Map(s.transfers);
-      for (const [id, item] of transfers) {
-        if (item.status === 'completed' || item.status === 'error' || item.status === 'cancelled') {
-          transfers.delete(id);
-          // The row is gone; its five-minute reaper would otherwise stay armed.
-          cancelAutoRemove(id);
+    clearCompleted: () =>
+      set((s) => {
+        const transfers = new Map(s.transfers);
+        for (const [id, item] of transfers) {
+          if (
+            item.status === 'completed' ||
+            item.status === 'error' ||
+            item.status === 'cancelled'
+          ) {
+            transfers.delete(id);
+            // The row is gone; its five-minute reaper would otherwise stay armed.
+            cancelAutoRemove(id);
+          }
         }
-      }
-      return { transfers };
-    }),
+        return { transfers };
+      }),
 
-  setQueueExpanded: (expanded) => set({ queueExpanded: expanded }),
-  toggleQueueExpanded: () => set((s) => ({ queueExpanded: !s.queueExpanded })),
-}));
+    setQueueExpanded: (expanded) => set({ queueExpanded: expanded }),
+    toggleQueueExpanded: () => set((s) => ({ queueExpanded: !s.queueExpanded })),
+  };
+});

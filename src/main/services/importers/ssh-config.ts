@@ -21,12 +21,14 @@ export function parseSshConfig(content: string): ExportedConnection[] {
   let currentHost: Partial<ExportedConnection> = {};
 
   const finishCurrentHost = () => {
-    if (currentHost.name && currentHost.host) {
+    if (currentHost.name) {
       connections.push({
         name: currentHost.name,
         provider: 'sftp', // Imported hosts default to SFTP (SSH transfer)
         folder: 'ssh-config', // Group in default folder for organizational clarity
-        host: currentHost.host,
+        // With no HostName, OpenSSH connects to the alias itself (`Host
+        // myserver.example.com`). Such entries were silently dropped.
+        host: currentHost.host ?? currentHost.name,
         port: currentHost.port || 22,
         username: currentHost.username || getSystemUsername(),
         authType: currentHost.privateKeyPath ? 'key' : 'password',
@@ -51,11 +53,21 @@ export function parseSshConfig(content: string): ExportedConnection[] {
 
     if (command === 'host') {
       finishCurrentHost();
-      // Skip hosts that contain wildcard characters (* or ?)
-      if (value.includes('*') || value.includes('?')) {
-        continue;
-      }
-      currentHost.name = value;
+      // `Host a b` declares two aliases for one block. Use the first concrete
+      // one; the whole string ("a b") is neither a usable name nor hostname.
+      // Pattern-only blocks (`Host *`, `Host *.corp`) configure other hosts
+      // and are skipped.
+      const alias = value
+        .split(/\s+/)
+        .find(
+          (token) =>
+            token && !token.includes('*') && !token.includes('?') && !token.startsWith('!'),
+        );
+      if (alias) currentHost.name = alias;
+    } else if (command === 'match') {
+      // A Match block's options apply conditionally to *other* hosts. Without
+      // this they were applied to whichever Host block preceded it.
+      finishCurrentHost();
     } else if (currentHost.name) {
       if (command === 'hostname') {
         currentHost.host = value;

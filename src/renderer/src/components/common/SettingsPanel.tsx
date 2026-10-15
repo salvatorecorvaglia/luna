@@ -1,3 +1,4 @@
+import { LIMITS } from '@shared/constants';
 import { toastArgs } from '@shared/error-messages';
 import { type AppSettings, DEFAULT_SETTINGS } from '@shared/types/settings';
 import type { TerminalThemeName } from '@shared/types/terminal';
@@ -25,24 +26,30 @@ import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { useUIStore } from '@/stores/ui-store';
+import { terminalThemes } from '@/themes/terminal';
 import lunaLogo from '../../../../../resources/luna.png';
 import { ConfirmDialog } from './ConfirmDialog';
 import { DialogShell } from './DialogShell';
 
-const TERMINAL_THEMES: {
-  value: TerminalThemeName;
-  label: string;
-  bg: string;
-  fg: string;
-  accent: string;
-}[] = [
-  { value: 'dracula', label: 'Dracula', bg: '#282a36', fg: '#f8f8f2', accent: '#bd93f9' },
-  { value: 'nord', label: 'Nord', bg: '#2e3440', fg: '#d8dee9', accent: '#88c0d0' },
-  { value: 'tokyo-night', label: 'Tokyo Night', bg: '#1a1b26', fg: '#a9b1d6', accent: '#7aa2f7' },
-  { value: 'gruvbox', label: 'Gruvbox', bg: '#282828', fg: '#ebdbb2', accent: '#fabd2f' },
-  { value: 'one-dark', label: 'One Dark', bg: '#282c34', fg: '#abb2bf', accent: '#61afef' },
-  { value: 'monokai', label: 'Monokai', bg: '#272822', fg: '#f8f8f2', accent: '#a6e22e' },
+/**
+ * Theme picker cards. Background and foreground come from the terminal theme
+ * definitions themselves, so a palette tweak there can't leave the preview
+ * showing stale colours; only the swatch accent and label live here.
+ */
+const THEME_CARDS: { value: TerminalThemeName; label: string; accent: string }[] = [
+  { value: 'dracula', label: 'Dracula', accent: '#bd93f9' },
+  { value: 'nord', label: 'Nord', accent: '#88c0d0' },
+  { value: 'tokyo-night', label: 'Tokyo Night', accent: '#7aa2f7' },
+  { value: 'gruvbox', label: 'Gruvbox', accent: '#fabd2f' },
+  { value: 'one-dark', label: 'One Dark', accent: '#61afef' },
+  { value: 'monokai', label: 'Monokai', accent: '#a6e22e' },
 ];
+
+const TERMINAL_THEMES = THEME_CARDS.map((card) => ({
+  ...card,
+  bg: terminalThemes[card.value].background ?? '#000000',
+  fg: terminalThemes[card.value].foreground ?? '#ffffff',
+}));
 
 export function SettingsPanel() {
   const queryClient = useQueryClient();
@@ -56,6 +63,8 @@ export function SettingsPanel() {
   const setFontSize = useTerminalStore((s) => s.setFontSize);
   const scrollback = useTerminalStore((s) => s.scrollback);
   const setScrollback = useTerminalStore((s) => s.setScrollback);
+  const screenReaderMode = useTerminalStore((s) => s.screenReaderMode);
+  const setScreenReaderMode = useTerminalStore((s) => s.setScreenReaderMode);
   const initializeSettings = useTerminalStore((s) => s.initializeSettings);
   const [concurrency, setConcurrency] = useState(DEFAULT_SETTINGS['transfer.concurrency']);
   const [autoReconnect, setAutoReconnect] = useState(DEFAULT_SETTINGS['ssh.autoReconnect']);
@@ -94,7 +103,10 @@ export function SettingsPanel() {
       .settings.getAll()
       .then((settings: Record<string, unknown>) => {
         if (cancelled) return;
-        const hydrate: { fontSize?: number; scrollback?: number } = {};
+        const hydrate: { fontSize?: number; scrollback?: number; screenReaderMode?: boolean } = {};
+        if (typeof settings['terminal.screenReaderMode'] === 'boolean') {
+          hydrate.screenReaderMode = settings['terminal.screenReaderMode'] as boolean;
+        }
         if (settings['terminal.fontSize'] != null) {
           hydrate.fontSize = Number(settings['terminal.fontSize']);
         }
@@ -227,13 +239,14 @@ export function SettingsPanel() {
             <EditableNumberRow
               label="Font Size"
               value={fontSize}
-              min={10}
-              max={24}
+              // Same range as the store and Cmd+/Cmd- zoom (LIMITS); this row
+              // stopped at 10-24, so a zoomed size showed a value it rejected.
+              min={LIMITS.MIN_FONT_SIZE}
+              max={LIMITS.MAX_FONT_SIZE}
               suffix="px"
-              onChange={(v) => {
-                setFontSize(v);
-                persistSetting('terminal.fontSize', v);
-              }}
+              // setFontSize already persists; the extra persistSetting call
+              // wrote every change twice.
+              onChange={(v) => setFontSize(v)}
             />
             <EditableNumberRow
               label="Scrollback"
@@ -242,10 +255,12 @@ export function SettingsPanel() {
               max={100000}
               step={1000}
               suffix=" lines"
-              onChange={(v) => {
-                setScrollback(v);
-                persistSetting('terminal.scrollback', v);
-              }}
+              onChange={(v) => setScrollback(v)}
+            />
+            <Toggle
+              label="Screen reader support"
+              enabled={screenReaderMode}
+              onToggle={(v) => setScreenReaderMode(v)}
             />
           </Section>
 
@@ -421,7 +436,17 @@ export function SettingsPanel() {
 
           {/* Logs */}
           <Section title="Diagnostics" icon={<FileText className="size-4" />}>
-            <Button variant="outline" onClick={() => getApi().app.openLogFile()} className="w-full">
+            <Button
+              variant="outline"
+              onClick={() =>
+                getApi()
+                  .app.openLogFile()
+                  .catch((err: unknown) =>
+                    toast.error(...toastArgs(err, 'Could not open the log file')),
+                  )
+              }
+              className="w-full"
+            >
               <FileText className="size-3.5" />
               Open log file
             </Button>

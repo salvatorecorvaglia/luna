@@ -129,6 +129,33 @@ describe('shell IPC — symlink jail (TOCTOU & bypass)', () => {
     );
   });
 
+  it.skipIf(isWindows)(
+    'readFile rejects a path that escapes through a symlinked directory',
+    async () => {
+      // Regression: only the *final* component was checked for being a link
+      // (and O_NOFOLLOW only covers the final component), so ~/x/etc-dir/hosts
+      // with etc-dir -> /etc read /etc/hosts.
+      const dirLink = join(workdir, 'etc-dir');
+      await symlink('/etc', dirLink);
+      await expect(handlers.get(IPC.SHELL_READ_FILE)!({}, join(dirLink, 'hosts'))).rejects.toThrow(
+        /outside the home directory/,
+      );
+    },
+  );
+
+  it.skipIf(isWindows)(
+    'readdir refuses to list a directory reached through a symlink out of home',
+    async () => {
+      // Regression: readdir never resolved the path it listed, so a link to /etc
+      // listed /etc.
+      const dirLink = join(workdir, 'etc-dir');
+      await symlink('/etc', dirLink);
+      await expect(handlers.get(IPC.SHELL_READDIR)!({}, dirLink)).rejects.toThrow(
+        /restricted to the home directory/,
+      );
+    },
+  );
+
   it('readdir does not classify an out-of-home symlink target as a directory', async () => {
     const subdir = join(workdir, 'sub');
     await mkdir(subdir);

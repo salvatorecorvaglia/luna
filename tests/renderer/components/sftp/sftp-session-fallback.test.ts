@@ -114,3 +114,22 @@ describe('resolveSftpSession — implicit selection', () => {
     expect(out).toBeNull();
   });
 });
+
+describe('resolveSftpSession — sticky current session', () => {
+  it('keeps the current session when a sibling for the same connection changes state', () => {
+    // Regression: the first connected match won, so a sibling reconnecting
+    // flipped the pane to it and reset the path to '/'.
+    const sessions = ssh_([ssh('first', 'c1', 'connected'), ssh('mine', 'c1', 'connected')]);
+    expect(resolveSftpSession(sessions, s3_([]), 'c1', 'mine')).toBe('mine');
+  });
+
+  it('waits for the current session to reconnect rather than hopping to a sibling', () => {
+    const sessions = ssh_([ssh('other', 'c1', 'connected'), ssh('mine', 'c1', 'reconnecting')]);
+    expect(resolveSftpSession(sessions, s3_([]), 'c1', 'mine')).toBeNull();
+  });
+
+  it('still moves when the current session belongs to another connection', () => {
+    const sessions = ssh_([ssh('c1-sess', 'c1', 'connected'), ssh('c2-sess', 'c2', 'connected')]);
+    expect(resolveSftpSession(sessions, s3_([]), 'c1', 'c2-sess')).toBe('c1-sess');
+  });
+});

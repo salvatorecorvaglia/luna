@@ -244,3 +244,28 @@ describe('useConnectionFormState', () => {
     });
   });
 });
+
+describe('useConnectionFormState — dirty tracking', () => {
+  it('marks the form dirty for button-driven edits that fire no input event', () => {
+    // Regression: dirtiness came from onChange bubbling, so a colour tag,
+    // group chip, provider or auth-type click was discarded on Escape without
+    // the discard prompt.
+    const { result } = renderHook(() => useConnectionFormState('#fff', { isEditing: false }));
+    expect(result.current.dirty).toBe(false);
+    act(() => result.current.patchCommon({ colorTag: '#000' }));
+    expect(result.current.dirty).toBe(true);
+  });
+
+  it('does not treat revealing a secret as an edit', () => {
+    const { result } = renderHook(() => useConnectionFormState('#fff', { isEditing: false }));
+    act(() => result.current.patchSftp({ showPassword: true }));
+    act(() => result.current.patchS3({ showSecretKey: true }));
+    expect(result.current.dirty).toBe(false);
+  });
+
+  it('removing a port-forward rule is an edit', () => {
+    const { result } = renderHook(() => useConnectionFormState('#fff', { isEditing: false }));
+    act(() => result.current.patchSftp({ portForwards: [] }));
+    expect(result.current.dirty).toBe(true);
+  });
+});

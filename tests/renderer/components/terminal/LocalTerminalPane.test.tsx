@@ -19,10 +19,6 @@ vi.mock('@xterm/addon-webgl', async () => {
   const { FakeWebglAddon } = await import('../../../../src/test/fake-xterm');
   return { WebglAddon: FakeWebglAddon };
 });
-vi.mock('@xterm/addon-canvas', async () => {
-  const { FakeCanvasAddon } = await import('../../../../src/test/fake-xterm');
-  return { CanvasAddon: FakeCanvasAddon };
-});
 vi.mock('@xterm/addon-unicode11', async () => {
   const { FakeUnicode11Addon } = await import('../../../../src/test/fake-xterm');
   return { Unicode11Addon: FakeUnicode11Addon };
@@ -42,6 +38,7 @@ vi.mock('sonner', () => ({
 }));
 
 import { LocalTerminalPane } from '../../../../src/renderer/src/components/terminal/LocalTerminalPane';
+import { __disposeAllTerminals } from '../../../../src/renderer/src/components/terminal/use-terminal-session';
 import { useTerminalStore } from '../../../../src/renderer/src/stores/terminal-store';
 import { createFakeApi, installFakeApi } from '../../../../src/test/fake-api';
 import { FakeTerminal, resetFakeXterm } from '../../../../src/test/fake-xterm';
@@ -68,6 +65,9 @@ let onExit: ReturnType<typeof capturingListener<{ sessionId: string; exitCode: n
 let spawn: ReturnType<typeof vi.fn<(params: SpawnParams) => Promise<void>>>;
 
 beforeEach(() => {
+  // Cached terminals outlive unmount by one macrotask (see liveTerminals);
+  // drop them so each test constructs its own.
+  __disposeAllTerminals();
   resetFakeXterm();
   toastError.mockClear();
 

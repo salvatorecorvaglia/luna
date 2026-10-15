@@ -1,3 +1,4 @@
+import { toastArgs } from '@shared/error-messages';
 import type { Connection } from '@shared/types/ipc';
 import type { DragControls } from 'framer-motion';
 import { Reorder, useDragControls } from 'framer-motion';
@@ -244,18 +245,27 @@ export function ConnectionItem({
           await getApi().s3.disconnect(sessionId);
           useStorageStore.getState().removeStorageSession(sessionId);
         } else {
-          // Best-effort teardown — removeSession() below proceeds regardless,
-          // and this was previously a bare `void` call that could surface as
-          // an unhandled rejection instead of being caught by the try/catch
-          // around this function.
+          // Reconnect in place. This used to remove the session (and its tab
+          // or split pane) and open a fresh one 150 ms later — at the end of
+          // the tab strip, or not at all if a sibling session for the same
+          // connection was still up (handleConnect just focused that one).
+          // ssh.connect with the same sessionId replaces the old client in main.
+          const terminal = useTerminalStore.getState();
+          const previousStatus = terminal.sessions.get(sessionId)?.status ?? 'disconnected';
+          terminal.updateSessionStatus(sessionId, 'connecting');
+          terminal.setActiveSession(sessionId);
+          setActiveView('terminal');
           getApi()
-            .ssh.disconnect(sessionId)
-            .catch(() => {});
-          useTerminalStore.getState().removeSession(sessionId);
+            .ssh.connect({ connectionId: connection.id, sessionId })
+            .catch((err: unknown) => {
+              useTerminalStore.getState().updateSessionStatus(sessionId, previousStatus);
+              toast.error(...toastArgs(err, 'Failed to reconnect'));
+            });
+          return;
         }
       }
 
-      // Re-connect after cleanup
+      // S3 (or no existing session): open a new one after cleanup.
       setTimeout(() => {
         handleConnect();
       }, 150);
@@ -420,7 +430,7 @@ export function ConnectionItem({
               dragControls.start(e);
             }}
             onClick={(e) => e.stopPropagation()}
-            className="cursor-grab active:cursor-grabbing px-1 py-2 opacity-0 group-hover:opacity-100 transition-opacity"
+            className="cursor-grab active:cursor-grabbing px-1 py-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
           >
             <GripVertical className="size-3 text-muted-foreground/40" />
           </button>

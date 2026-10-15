@@ -5,7 +5,7 @@ import type { LunaAPI } from '../../src/preload';
 
 /**
  * The preload is the entire renderer↔main attack surface, and it was at 0%
- * coverage. vitest.config.ts was changed specifically to measure it ("hid
+ * coverage. vitest.config.mts was changed specifically to measure it ("hid
  * regressions in invoke() and createEventListener()") — but adding it to the
  * include list only put it in the denominator, because no test imported it. The
  * Playwright suite exercises it for real, and Playwright is not measured.
@@ -77,7 +77,7 @@ describe('preload bridge surface', () => {
     // argument. Sending an explicit `undefined` would reach main as an argument
     // and defeat the payload-size fast path in ipc-handler.
     const api = await loadPreload();
-    invokeMock.mockResolvedValue('1.0.0');
+    invokeMock.mockResolvedValue('1.1.0');
     await api.app.getVersion();
     expect(invokeMock).toHaveBeenCalledWith(IPC.APP_GET_VERSION);
     expect(invokeMock.mock.calls[0]).toHaveLength(1);
@@ -191,5 +191,50 @@ describe('preload event listeners', () => {
     first();
     expect(removeListenerMock).toHaveBeenCalledTimes(1);
     expect(removeListenerMock).toHaveBeenCalledWith(IPC.SSH_ON_ERROR, firstListener);
+  });
+});
+
+describe('every bridge method', () => {
+  /**
+   * The per-method wrappers were unmeasured: the tests above pick a couple of
+   * methods, so a wrapper bound to the wrong constant (a copy-pasted
+   * `IPC.SSH_RESIZE` under `localTerminal.resize`, say) typechecks whenever
+   * the payload shapes happen to match, and nothing noticed. Call them all.
+   */
+  it('reaches exactly one known channel, and no two methods share one', async () => {
+    const api = await loadPreload();
+    const known = new Set<string>(Object.values(IPC));
+    const owner = new Map<string, string>();
+    invokeMock.mockResolvedValue(undefined);
+
+    for (const [namespace, methods] of Object.entries(api)) {
+      for (const [name, method] of Object.entries(methods as Record<string, unknown>)) {
+        if (typeof method !== 'function') continue;
+        const label = `${namespace}.${name}`;
+        invokeMock.mockClear();
+        onMock.mockClear();
+        removeListenerMock.mockClear();
+
+        const result = (method as (arg: unknown) => unknown)(() => {});
+        const calls = [...invokeMock.mock.calls, ...onMock.mock.calls];
+        expect(calls, `${label} should reach exactly one channel`).toHaveLength(1);
+        const channel = String(calls[0]?.[0]);
+        expect(known.has(channel), `${label} uses unknown channel ${channel}`).toBe(true);
+        expect(owner.get(channel), `${label} shares ${channel}`).toBeUndefined();
+        owner.set(channel, label);
+
+        if (onMock.mock.calls.length > 0) {
+          // A subscription must hand back a working unsubscribe for the same
+          // listener, or every remount leaks one.
+          expect(typeof result, `${label} should return an unsubscribe`).toBe('function');
+          (result as () => void)();
+          expect(removeListenerMock).toHaveBeenCalledWith(channel, onMock.mock.calls[0]?.[1]);
+        } else {
+          await result;
+        }
+      }
+    }
+
+    expect(owner.size).toBeGreaterThan(50);
   });
 });

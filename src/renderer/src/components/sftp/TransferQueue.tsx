@@ -18,8 +18,8 @@ import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { Spinner } from '@/components/ui';
 import { cancelTransfer } from '@/hooks/use-transfers';
 import { formatEta, formatSize, formatSpeed } from '@/lib/format';
+import { enqueueTransfer } from '@/lib/transfers';
 import { cn } from '@/lib/utils';
-import { getApi } from '@/services/api';
 import { useTransferStore } from '@/stores/transfer-store';
 
 export function TransferQueue() {
@@ -31,7 +31,6 @@ export function TransferQueue() {
   const toggleQueueExpanded = useTransferStore((s) => s.toggleQueueExpanded);
   const clearCompleted = useTransferStore((s) => s.clearCompleted);
   const removeTransfer = useTransferStore((s) => s.removeTransfer);
-  const addTransfer = useTransferStore((s) => s.addTransfer);
 
   const handleRemove = useCallback(
     (item: TransferItem) => removeTransfer(item.id),
@@ -45,29 +44,13 @@ export function TransferQueue() {
       // from the queue — no record, and no way to try again. Keep it until the
       // replacement actually exists.
       try {
-        const transferId =
-          item.type === 'download'
-            ? await getApi().storage.download({
-                sessionId: item.sessionId,
-                remotePath: item.remotePath,
-                localPath: item.localPath,
-              })
-            : await getApi().storage.upload({
-                sessionId: item.sessionId,
-                localPath: item.localPath,
-                remotePath: item.remotePath,
-              });
-        addTransfer({
-          id: transferId,
+        const transferId = await enqueueTransfer({
           type: item.type,
+          sessionId: item.sessionId,
           localPath: item.localPath,
           remotePath: item.remotePath,
           fileName: item.fileName,
           size: item.size,
-          transferred: 0,
-          status: 'queued',
-          bytesPerSec: 0,
-          sessionId: item.sessionId,
         });
         // The replacement is in the queue; now the old row can go. Guard against
         // the case where the queue deduped and handed back the same id.
@@ -77,7 +60,7 @@ export function TransferQueue() {
         toast.error(...toastArgs(err, 'Retry failed'));
       }
     },
-    [addTransfer, removeTransfer],
+    [removeTransfer],
   );
 
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
@@ -103,8 +86,13 @@ export function TransferQueue() {
   const cancelAll = (): void => {
     for (const item of items) {
       if (item.status === 'active' || item.status === 'queued') {
-        cancelTransfer(item.id);
-        removeTransfer(item.id);
+        // Drop the row only once main has accepted the cancel. It used to go
+        // immediately, so a failed cancel left the transfer running with no
+        // row — and its completion then invalidated every local directory
+        // because the row that held its sessionId was gone.
+        void cancelTransfer(item.id).then((ok) => {
+          if (ok) removeTransfer(item.id);
+        });
       }
     }
   };
@@ -269,10 +257,14 @@ const TransferRow = memo(function TransferRow({
   const eta = formatEta(item.size - item.transferred, item.bytesPerSec);
 
   const handleRemove = () => {
-    if (isInProgress) {
-      cancelTransfer(item.id);
+    if (!isInProgress) {
+      onRemove(item);
+      return;
     }
-    onRemove(item);
+    // See cancelAll: keep the row until main confirms the cancel.
+    void cancelTransfer(item.id).then((ok) => {
+      if (ok) onRemove(item);
+    });
   };
 
   return (

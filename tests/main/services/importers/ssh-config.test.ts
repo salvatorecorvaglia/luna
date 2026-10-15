@@ -81,3 +81,28 @@ Host server-eq
     expect(result[0]!.privateKeyPath).toBe(join(homedir(), 'keys', 'key.pem'));
   });
 });
+
+describe('parseSshConfig — OpenSSH semantics', () => {
+  it('uses the alias as the hostname when HostName is absent', () => {
+    const [conn] = parseSshConfig('Host db.example.com\n  User admin\n');
+    expect(conn).toMatchObject({
+      name: 'db.example.com',
+      host: 'db.example.com',
+      username: 'admin',
+    });
+  });
+
+  it('takes the first concrete alias from a multi-alias Host line', () => {
+    const [conn] = parseSshConfig('Host web web-prod\n  HostName 10.0.0.5\n');
+    expect(conn).toMatchObject({ name: 'web', host: '10.0.0.5' });
+  });
+
+  it('does not apply a Match block to the preceding Host', () => {
+    const conns = parseSshConfig(
+      'Host alpha\n  HostName alpha.example.com\nMatch host *.corp\n  User corpuser\n  Port 2222\n',
+    );
+    expect(conns).toHaveLength(1);
+    expect(conns[0]!.port).toBe(22);
+    expect(conns[0]!.username).not.toBe('corpuser');
+  });
+});

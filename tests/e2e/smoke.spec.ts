@@ -1,15 +1,29 @@
 import { expect, test } from '@playwright/test';
 import type { LunaAPI } from '../../src/preload';
-import { closeApp, type LaunchedApp, launchApp } from './fixtures';
+import { closeApp, type LaunchedApp, launchApp, packagedExecutable } from './fixtures';
 
 let launched: LaunchedApp;
+
+/**
+ * Main-process evaluation isn't available against a packaged build (see
+ * fixtures.ts), so tests that need it skip there rather than fail.
+ */
+const MAIN_ACCESS_SKIP_REASON =
+  'needs main-process evaluation, unavailable against a packaged build (inspect fuse)';
+
+/** The main-process handle, for tests that have already skipped packaged mode. */
+function mainApp() {
+  if (!launched.app) throw new Error(MAIN_ACCESS_SKIP_REASON);
+  return launched.app;
+}
 
 test.beforeAll(async () => {
   launched = await launchApp();
 });
 
 test.afterAll(async () => {
-  await closeApp(launched);
+  // Unset when launchApp itself threw; it cleans up after itself then.
+  if (launched) await closeApp(launched);
 });
 
 test.describe('application boot', () => {
@@ -22,8 +36,7 @@ test.describe('application boot', () => {
   });
 
   test('reports no renderer console errors during boot', async () => {
-    const { app } = launched;
-    const page = await app.firstWindow();
+    const { page } = launched;
     const errors: string[] = [];
     page.on('console', (msg) => {
       if (msg.type() === 'error') errors.push(msg.text());
@@ -37,10 +50,11 @@ test.describe('application boot', () => {
 
 test.describe('window security posture', () => {
   test('keeps the renderer isolated and sandboxed', async () => {
+    test.skip(!!packagedExecutable, MAIN_ACCESS_SKIP_REASON);
     // These are the settings that make "the renderer is untrusted" true rather
     // than aspirational. A regression here silently removes the guarantee the
     // whole IPC validation layer is built on, and no unit test can observe it.
-    const prefs = await launched.app.evaluate(({ BrowserWindow }) => {
+    const prefs = await mainApp().evaluate(({ BrowserWindow }) => {
       // Non-null: the app has finished booting by the time this test runs.
       const win = BrowserWindow.getAllWindows()[0]!;
       return (
@@ -52,6 +66,30 @@ test.describe('window security posture', () => {
     expect(prefs?.nodeIntegration).toBeFalsy();
     expect(prefs?.sandbox).toBe(true);
     expect(prefs?.webviewTag).toBeFalsy();
+  });
+
+  test('enforces a CSP that blocks inline script', async () => {
+    // The policy comes from the <meta> tag in every build and additionally
+    // from a response header in packaged builds; either one must block this.
+    // (Not `eval`: code run through page.evaluate bypasses CSP, whereas a
+    // <script> element is executed by the document itself.)
+    const outcome = await launched.page.evaluate(
+      () =>
+        new Promise<string>((resolve) => {
+          const w = window as unknown as { __lunaCspProbe?: boolean };
+          document.addEventListener(
+            'securitypolicyviolation',
+            (e) => resolve(`blocked:${e.effectiveDirective}`),
+            { once: true },
+          );
+          const script = document.createElement('script');
+          script.textContent = 'window.__lunaCspProbe = true;';
+          document.head.appendChild(script);
+          script.remove();
+          setTimeout(() => resolve(w.__lunaCspProbe ? 'executed' : 'not executed'), 500);
+        }),
+    );
+    expect(outcome).toMatch(/^blocked:script-src/);
   });
 
   test('does not expose Node primitives to the renderer', async () => {
@@ -209,8 +247,23 @@ test.describe('clipboard', () => {
    * they stub `navigator.clipboard` outright, so the permission gate that
    * actually breaks it is never exercised.
    */
+  test('the renderer can round-trip text through the clipboard', async () => {
+    // Renderer-only, so it also runs against a packaged build, where the
+    // permission handler and the fuses are the production ones.
+    const roundTrip = await launched.page.evaluate(async () => {
+      try {
+        await navigator.clipboard.writeText('luna-e2e-roundtrip');
+        return await navigator.clipboard.readText();
+      } catch (e) {
+        return `REJECTED: ${(e as Error).message}`;
+      }
+    });
+    expect(roundTrip).toBe('luna-e2e-roundtrip');
+  });
+
   test('the renderer can read and write the clipboard', async () => {
-    await launched.app.evaluate(({ clipboard }) => clipboard.writeText('luna-e2e-seed'));
+    test.skip(!!packagedExecutable, MAIN_ACCESS_SKIP_REASON);
+    await mainApp().evaluate(({ clipboard }) => clipboard.writeText('luna-e2e-seed'));
 
     const read = await launched.page.evaluate(() =>
       navigator.clipboard.readText().catch((e: Error) => `REJECTED: ${e.message}`),
@@ -226,7 +279,7 @@ test.describe('clipboard', () => {
     expect(wrote).toBe('ok');
 
     // Confirm it reached the real clipboard, not just a resolved promise.
-    const onClipboard = await launched.app.evaluate(({ clipboard }) => clipboard.readText());
+    const onClipboard = await mainApp().evaluate(({ clipboard }) => clipboard.readText());
     expect(onClipboard).toBe('luna-e2e-written');
   });
 

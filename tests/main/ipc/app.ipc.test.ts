@@ -23,7 +23,7 @@ vi.mock('electron', () => ({
   BrowserWindow: {
     fromWebContents: (s: { _windowId: number }) => fromWebContents(s),
   },
-  shell: { showItemInFolder: vi.fn() },
+  shell: { showItemInFolder: vi.fn(), openExternal: vi.fn().mockResolvedValue(undefined) },
   ipcMain: {
     handle: (channel: string, fn: (...args: unknown[]) => unknown) => {
       handlers.set(channel, fn);
@@ -128,5 +128,28 @@ describe('app IPC — window controls', () => {
     mockMainWindow.isMaximized.mockReturnValue(true);
     const result = await handlers.get(IPC.WINDOW_IS_MAXIMIZED)!({ sender: { _windowId: 1 } });
     expect(result).toBe(true);
+  });
+});
+
+describe('app IPC — open external', () => {
+  it('opens https links through the OS', async () => {
+    const { shell } = await import('electron');
+    await handlers.get(IPC.APP_OPEN_EXTERNAL)!({}, 'https://example.com/docs?q=1');
+    expect(shell.openExternal).toHaveBeenCalledWith('https://example.com/docs?q=1');
+  });
+
+  it.each([
+    'http://example.com',
+    'file:///etc/passwd',
+    'javascript:alert(1)',
+    'ms-msdt:/id PCWDiagnostic',
+    'smb://attacker/share',
+    'not a url',
+    '',
+  ])('refuses %s', async (url) => {
+    const { shell } = await import('electron');
+    vi.mocked(shell.openExternal).mockClear();
+    await expect(handlers.get(IPC.APP_OPEN_EXTERNAL)!({}, url)).rejects.toThrow();
+    expect(shell.openExternal).not.toHaveBeenCalled();
   });
 });

@@ -1,3 +1,4 @@
+import { toastArgs } from '@shared/error-messages';
 import type { ActivePortForwardInfo, PortForwardingConfig } from '@shared/types/connection';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -13,23 +14,15 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { v4 as uuidv4 } from 'uuid';
 import { DialogShell } from '@/components/common/DialogShell';
-import { EmptyState, Spinner } from '@/components/ui';
+import { EmptyState, IconButton, Spinner } from '@/components/ui';
+import { formatBytes } from '@/lib/format';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
 
 interface TunnelManagerDialogProps {
   open: boolean;
   onClose: () => void;
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`;
 }
 
 export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps) {
@@ -108,7 +101,7 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
       toast.success('Port forward stopped');
       refresh();
     } catch (err) {
-      toast.error(`Failed to stop port forward: ${(err as Error).message}`);
+      toast.error(...toastArgs(err, 'Failed to stop port forward'));
     }
   };
 
@@ -137,7 +130,7 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
     const config: PortForwardingConfig = {
       // uuid, not a timestamp: two forwards created in the same millisecond got
       // the same id, and the id is what stopPortForward matches on.
-      id: uuidv4(),
+      id: crypto.randomUUID(),
       type: newType,
       bindAddress: newBindAddress || '127.0.0.1',
       localPort: portNum,
@@ -156,7 +149,7 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
       setShowAddForm(false);
       refresh();
     } catch (err) {
-      toast.error(`Failed to start port forward: ${(err as Error).message}`);
+      toast.error(...toastArgs(err, 'Failed to start port forward'));
     }
   };
 
@@ -202,13 +195,13 @@ export function TunnelManagerDialog({ open, onClose }: TunnelManagerDialogProps)
           </div>
         </div>
 
-        <button
-          type="button"
+        <IconButton
           onClick={onClose}
-          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
-        >
-          <X className="size-4" />
-        </button>
+          aria-label="Close dialog"
+          title="Close"
+          size="md"
+          icon={<X className="size-4" />}
+        />
       </div>
 
       {/* Content */}

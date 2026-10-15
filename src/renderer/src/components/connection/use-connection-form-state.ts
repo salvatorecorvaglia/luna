@@ -123,15 +123,40 @@ export function useConnectionFormState(
   const [touched, setTouchedState] = useState<Record<string, boolean>>({});
   const [dirty, setDirtyState] = useState(false);
 
+  /**
+   * Every user edit goes through a patch, so this is where "dirty" is decided.
+   * It used to rely on onChange/onInput bubbling to the <form>, which button-
+   * driven edits — colour tag, group chips, provider, auth type, removing a
+   * port-forward rule — never fire; Escape then discarded those changes with no
+   * prompt. The reveal-secret toggles are view state, not edits.
+   */
+  const markDirtyFor = useCallback((patch: object) => {
+    if (Object.keys(patch).some((k) => k !== 'showPassword' && k !== 'showSecretKey')) {
+      setDirtyState(true);
+    }
+  }, []);
+
   const patchCommon = useCallback<Patch<CommonState>>(
-    (p) => setCommon((prev) => ({ ...prev, ...p })),
-    [],
+    (p) => {
+      markDirtyFor(p);
+      setCommon((prev) => ({ ...prev, ...p }));
+    },
+    [markDirtyFor],
   );
   const patchSftp = useCallback<Patch<SftpState>>(
-    (p) => setSftp((prev) => ({ ...prev, ...p })),
-    [],
+    (p) => {
+      markDirtyFor(p);
+      setSftp((prev) => ({ ...prev, ...p }));
+    },
+    [markDirtyFor],
   );
-  const patchS3 = useCallback<Patch<S3State>>((p) => setS3((prev) => ({ ...prev, ...p })), []);
+  const patchS3 = useCallback<Patch<S3State>>(
+    (p) => {
+      markDirtyFor(p);
+      setS3((prev) => ({ ...prev, ...p }));
+    },
+    [markDirtyFor],
+  );
 
   const markTouched = useCallback((field: string) => {
     setTouchedState((prev) => ({ ...prev, [field]: true }));

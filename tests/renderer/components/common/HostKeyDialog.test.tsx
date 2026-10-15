@@ -65,20 +65,20 @@ describe('HostKeyDialog', () => {
 
   it('shows both fingerprints when a known host key has changed', async () => {
     await showDialog(CHANGED_KEY_EVENT);
-    expect(screen.getByText(/Host Key Changed/i)).toBeTruthy();
-    expect(screen.getByText(new RegExp(CHANGED_KEY_EVENT.newFingerprint))).toBeTruthy();
-    expect(screen.getByText(new RegExp(CHANGED_KEY_EVENT.storedFingerprint))).toBeTruthy();
-    expect(screen.getByText(/man-in-the-middle/i)).toBeTruthy();
+    expect(screen.getByText(/Host Key Changed/i)).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(CHANGED_KEY_EVENT.newFingerprint))).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(CHANGED_KEY_EVENT.storedFingerprint))).toBeInTheDocument();
+    expect(screen.getByText(/man-in-the-middle/i)).toBeInTheDocument();
   });
 
   it('renders fingerprints with the SHA256: prefix OpenSSH uses', async () => {
     await showDialog(FIRST_USE_EVENT);
-    expect(screen.getByText(/SHA256:NEWnew/)).toBeTruthy();
+    expect(screen.getByText(/SHA256:NEWnew/)).toBeInTheDocument();
   });
 
   it('frames a never-seen host as first-use rather than a key change', async () => {
     await showDialog(FIRST_USE_EVENT);
-    expect(screen.getByText(/Unknown Host/i)).toBeTruthy();
+    expect(screen.getByText(/Unknown Host/i)).toBeInTheDocument();
     expect(screen.queryByText(/man-in-the-middle/i)).toBeNull();
   });
 
@@ -108,9 +108,48 @@ describe('HostKeyDialog', () => {
     fireEvent.click(screen.getByText('Trust New Key'));
 
     await waitFor(() =>
-      expect(trustHostKey).toHaveBeenCalledWith({ host: 'example.com', port: 22 }),
+      expect(trustHostKey).toHaveBeenCalledWith({
+        host: 'example.com',
+        port: 22,
+        // Trust is bound to the key the dialog displayed.
+        fingerprint: CHANGED_KEY_EVENT.newFingerprint,
+      }),
     );
+    // No tab for 's1' exists in this test, so a fresh connection is opened.
     await waitFor(() => expect(connectToHost).toHaveBeenCalledWith('c1'));
+  });
+
+  it('reconnects the session that raised the prompt instead of opening a new tab', async () => {
+    // Regression: connectToHost() spawned a second session and left the
+    // original tab (or split pane) stuck in `error`.
+    const connect = vi.fn().mockResolvedValue({ success: true });
+    (window as unknown as { api: { ssh: Record<string, unknown> } }).api.ssh.connect = connect;
+    const { useTerminalStore } = await import('../../../../src/renderer/src/stores/terminal-store');
+    useTerminalStore.setState({
+      sessions: new Map([
+        [
+          's1',
+          {
+            id: 's1',
+            connectionId: 'c1',
+            connectionName: 'prod',
+            status: 'error',
+            title: 'prod',
+            type: 'ssh',
+          },
+        ],
+      ]),
+    });
+    await showDialog(CHANGED_KEY_EVENT);
+
+    fireEvent.click(screen.getByText('Trust New Key'));
+
+    await waitFor(() =>
+      expect(connect).toHaveBeenCalledWith({ connectionId: 'c1', sessionId: 's1' }),
+    );
+    expect(connectToHost).not.toHaveBeenCalled();
+    expect(useTerminalStore.getState().sessions.get('s1')?.status).toBe('connecting');
+    useTerminalStore.setState({ sessions: new Map() });
   });
 
   it('does not reconnect when trusting fails', async () => {
@@ -134,5 +173,18 @@ describe('HostKeyDialog', () => {
 
     expect(trustHostKey).not.toHaveBeenCalled();
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+  });
+});
+
+describe('HostKeyDialog — several prompts at once', () => {
+  it('queues a second host instead of overwriting the first', async () => {
+    // Regression: one pending slot, so the second prompt replaced the first
+    // and that host's prompt was lost until retried.
+    await showDialog({ ...FIRST_USE_EVENT, host: 'one.example.com' });
+    hostKeyListener!({ ...FIRST_USE_EVENT, host: 'two.example.com' });
+
+    expect(await screen.findByText(/one\.example\.com/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Reject'));
+    expect(await screen.findByText(/two\.example\.com/)).toBeInTheDocument();
   });
 });

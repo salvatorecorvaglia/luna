@@ -120,3 +120,18 @@ describe('useInvalidateLocalDir', () => {
     expect(spy).toHaveBeenCalledWith({ queryKey: ['local-dir'] });
   });
 });
+
+describe('invalidator identity', () => {
+  it('returns the same functions across re-renders', () => {
+    // Regression: fresh arrows each render made useTransferEventListener tear
+    // down and re-add every transfer listener on each App re-render.
+    const wrapper = makeWrapper(freshClient());
+    const sftp = renderHook(() => useInvalidateSftp(), { wrapper });
+    const local = renderHook(() => useInvalidateLocalDir(), { wrapper });
+    const [firstSftp, firstLocal] = [sftp.result.current, local.result.current];
+    sftp.rerender();
+    local.rerender();
+    expect(sftp.result.current).toBe(firstSftp);
+    expect(local.result.current).toBe(firstLocal);
+  });
+});

@@ -1,7 +1,6 @@
 import { RefreshCcw } from 'lucide-react';
 import { memo, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
-import { attachFocusTrap } from '@/lib/focus-trap';
 import { sanitizeTerminalText } from '@/lib/terminal-output';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
@@ -23,6 +22,7 @@ export const TerminalPane = memo(function TerminalPane({ sessionId, isActive }: 
       sendData: (p) => getApi().ssh.sendData(p),
       resize: (p) => getApi().ssh.resize(p),
       onData: (cb) => getApi().ssh.onData(cb),
+      ack: (p) => getApi().ssh.ackData(p),
     }),
     [],
   );
@@ -72,25 +72,23 @@ export const TerminalPane = memo(function TerminalPane({ sessionId, isActive }: 
   });
 
   const overlayShown = status === 'error' || status === 'disconnected';
-  const overlayRef = useRef<HTMLDivElement>(null);
   const reconnectBtnRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    if (!overlayShown || !overlayRef.current) return;
-    // Move focus into the overlay so screen readers announce the dialog and
-    // keyboard users land on the actionable button instead of staying on the
-    // terminal underneath. attachFocusTrap also restores focus to the prior
-    // element on unmount.
+    // Only the pane the user is looking at takes focus. This overlay covers a
+    // single pane, not the app, so it no longer installs a focus trap: the
+    // trap listened on `window` and became top of the stack for *every*
+    // disconnected pane — hidden tabs and hidden views included — after which
+    // Tab jumped to an invisible Reconnect button and any open dialog lost
+    // Escape.
+    if (!overlayShown || !isActive) return;
     reconnectBtnRef.current?.focus();
-    return attachFocusTrap(overlayRef.current);
-  }, [overlayShown]);
+  }, [overlayShown, isActive]);
 
   return (
     <div className="relative h-full w-full overflow-hidden">
       {overlayShown && (
         <div
-          ref={overlayRef}
-          role="alertdialog"
-          aria-modal="true"
+          role="group"
           aria-labelledby={`terminal-overlay-title-${sessionId}`}
           aria-describedby={`terminal-overlay-desc-${sessionId}`}
           className={`absolute inset-0 ${Z.paneOverlay} flex items-center justify-center bg-background/60 backdrop-blur-sm`}
@@ -99,6 +97,7 @@ export const TerminalPane = memo(function TerminalPane({ sessionId, isActive }: 
             <div className="text-center">
               <h3
                 id={`terminal-overlay-title-${sessionId}`}
+                aria-live="assertive"
                 className="text-lg font-medium text-foreground"
               >
                 {status === 'error' ? 'Connection Error' : 'Disconnected'}

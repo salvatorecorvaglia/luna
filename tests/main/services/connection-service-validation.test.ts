@@ -28,11 +28,14 @@ const fakeDb = {
   transaction: (fn: () => void) => () => fn(),
 };
 
+/** Provider of the row the fake DB hands back; tests flip it for S3 cases. */
+let storedProvider: 'sftp' | 's3' = 'sftp';
+
 function storedRow(id: string): Record<string, unknown> {
   return {
     id,
     name: 'n',
-    provider: 'sftp',
+    provider: storedProvider,
     host: 'h',
     port: 22,
     username: 'u',
@@ -307,5 +310,59 @@ describe('renameFolder validation', () => {
     expect(() =>
       service.renameFolder({ oldName: 'a', newName: 'b', provider: 'sftp' }),
     ).not.toThrow();
+  });
+});
+
+describe('updateConnection credentials', () => {
+  it('merges a partial S3 key update with the stored keys', async () => {
+    // Regression: the stored keys were read *after* the credential could be
+    // deleted, so a partial update wrote a blob missing the other key.
+    const store = await import('../../../src/main/services/credential-store');
+    vi.mocked(store.retrieveS3Credential).mockReturnValueOnce({
+      accessKeyId: 'AK-OLD',
+      secretAccessKey: 'SK-OLD',
+    } as never);
+    vi.mocked(store.storeCredential).mockClear();
+    storedProvider = 's3';
+    try {
+      rows.set('c1', { id: 'c1' });
+      service.updateConnection({ id: 'c1', secretAccessKey: 'SK-NEW' });
+      const [, blob] = vi.mocked(store.storeCredential).mock.calls.at(-1)!;
+      expect(JSON.parse(blob as string)).toMatchObject({
+        accessKeyId: 'AK-OLD',
+        secretAccessKey: 'SK-NEW',
+      });
+    } finally {
+      storedProvider = 'sftp';
+    }
+  });
+
+  it('refuses to switch a connection to S3 with only half a key pair', () => {
+    rows.set('c1', { id: 'c1' });
+    expect(() => service.updateConnection({ id: 'c1', provider: 's3', accessKeyId: 'AK' })).toThrow(
+      /both an access key ID and a secret key/,
+    );
+  });
+});
+
+describe('secret length cap', () => {
+  it('refuses a password on create that connect would later reject', () => {
+    expect(() =>
+      service.createConnection({
+        name: 'big',
+        host: 'h',
+        port: 22,
+        username: 'u',
+        authType: 'password',
+        password: 'x'.repeat(5000),
+      } as never),
+    ).toThrow(/password must be a string up to 4096/);
+  });
+
+  it('applies the same cap on update', () => {
+    rows.set('c1', { id: 'c1' });
+    expect(() => service.updateConnection({ id: 'c1', passphrase: 'y'.repeat(5000) })).toThrow(
+      /passphrase/,
+    );
   });
 });

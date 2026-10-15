@@ -31,9 +31,10 @@ describe('CliReferenceDialog', () => {
 
   it('loads and displays matching docs when open', async () => {
     render(<CliReferenceDialog open onClose={vi.fn()} />);
-    expect(api.shell.cliReference).toHaveBeenCalledWith('');
+    // Debounced, so the first query runs a beat after opening.
+    await vi.waitFor(() => expect(api.shell.cliReference).toHaveBeenCalledWith(''));
     await screen.findByText('tar');
-    expect(screen.getByText('tar -xzf file.tar.gz')).toBeTruthy();
+    expect(screen.getByText('tar -xzf file.tar.gz')).toBeInTheDocument();
   });
 
   it('re-queries as the search text changes', async () => {
@@ -45,6 +46,31 @@ describe('CliReferenceDialog', () => {
     });
 
     await vi.waitFor(() => expect(api.shell.cliReference).toHaveBeenCalledWith('docker'));
+  });
+
+  it('never lets an older query overwrite the results of a newer one', async () => {
+    // Regression: every keystroke fetched with no guard, so a slow response
+    // for an earlier query could land last and replace the current results.
+    const cli = api.shell.cliReference as ReturnType<typeof vi.fn>;
+    let resolveOld!: (v: unknown) => void;
+    cli.mockImplementation((q: string) =>
+      q === 'old'
+        ? new Promise((r) => {
+            resolveOld = r;
+          })
+        : Promise.resolve([{ name: 'docker', description: 'd', category: 'c', examples: [] }]),
+    );
+    render(<CliReferenceDialog open onClose={vi.fn()} />);
+    const box = screen.getByPlaceholderText(/Search command/);
+    fireEvent.change(box, { target: { value: 'old' } });
+    await vi.waitFor(() => expect(cli).toHaveBeenCalledWith('old'));
+    fireEvent.change(box, { target: { value: 'new' } });
+    await screen.findByText('docker');
+
+    resolveOld([{ name: 'stale-cmd', description: 's', category: 'c', examples: [] }]);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByText('stale-cmd')).toBeNull();
+    expect(screen.getByText('docker')).toBeInTheDocument();
   });
 
   it('closes on Escape', () => {

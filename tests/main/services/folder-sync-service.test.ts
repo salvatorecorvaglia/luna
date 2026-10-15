@@ -70,10 +70,13 @@ describe('FolderSyncService.compareDirectories', () => {
       expect(res.items[0]!.recommendedAction).toBe('upload');
     });
 
-    it('is symmetric — a remote newer than local is still modified', () => {
+    it('is symmetric in bi-directional mode — a remote newer than local is modified', () => {
+      // One-way modes only count the source side's changes (see the
+      // convergence tests below); bi-directional still sees either.
       const res = folderSyncService.compareDirectories(
         [local('a.txt', 100, T)],
         [remote('a.txt', 100, T + 600)],
+        'bi-directional',
       );
       expect(res.modifiedCount).toBe(1);
     });
@@ -102,9 +105,11 @@ describe('FolderSyncService.compareDirectories', () => {
     });
 
     it('sync-to-local downloads modified files and skips local-only ones', () => {
+      // The remote copy is the newer one: a *newer local* file of the same size
+      // is no longer overwritten by an older remote copy.
       const res = folderSyncService.compareDirectories(
-        [local('a.txt', 100, T + 60), local('c.txt', 10, T)],
-        [remote('a.txt', 100, T)],
+        [local('a.txt', 100, T), local('c.txt', 10, T)],
+        [remote('a.txt', 100, T + 60)],
         'sync-to-local',
       );
       const a = res.items.find((i) => i.relativePath === 'a.txt')!;
@@ -166,5 +171,62 @@ describe('FolderSyncService.compareDirectories', () => {
       modifiedCount: 0,
       identicalCount: 0,
     });
+  });
+});
+
+describe('FolderSyncService — convergence', () => {
+  const service = folderSyncService;
+  const remote = (name: string, size: number, modifiedAt: number) => ({
+    name,
+    path: `/r/${name}`,
+    size,
+    modifiedAt,
+    isDirectory: false,
+    isSymlink: false,
+  });
+
+  it('does not re-upload a file whose remote copy is simply newer (sync-to-remote)', () => {
+    // Regression: after an upload the remote copy is newer than its source
+    // (S3 can't set LastModified), and the symmetric mtime test flagged it as
+    // modified on every run.
+    const res = service.compareDirectories(
+      [{ relativePath: 'a.txt', size: 10, mtime: 1000 }],
+      [remote('a.txt', 10, 5000)],
+      'sync-to-remote',
+    );
+    expect(res.items[0]).toMatchObject({ status: 'identical', recommendedAction: 'skip' });
+  });
+
+  it('still uploads when the local file changed after the remote copy', () => {
+    const res = service.compareDirectories(
+      [{ relativePath: 'a.txt', size: 10, mtime: 9000 }],
+      [remote('a.txt', 10, 5000)],
+      'sync-to-remote',
+    );
+    expect(res.items[0]).toMatchObject({ status: 'modified', recommendedAction: 'upload' });
+  });
+
+  it('mirrors the rule for sync-to-local', () => {
+    const stale = service.compareDirectories(
+      [{ relativePath: 'a.txt', size: 10, mtime: 5000 }],
+      [remote('a.txt', 10, 1000)],
+      'sync-to-local',
+    );
+    expect(stale.items[0]?.recommendedAction).toBe('skip');
+    const changed = service.compareDirectories(
+      [{ relativePath: 'a.txt', size: 10, mtime: 1000 }],
+      [remote('a.txt', 10, 5000)],
+      'sync-to-local',
+    );
+    expect(changed.items[0]?.recommendedAction).toBe('download');
+  });
+
+  it('always re-sends on a size difference, whatever the timestamps', () => {
+    const res = service.compareDirectories(
+      [{ relativePath: 'a.txt', size: 11, mtime: 1000 }],
+      [remote('a.txt', 10, 5000)],
+      'sync-to-remote',
+    );
+    expect(res.items[0]?.recommendedAction).toBe('upload');
   });
 });

@@ -6,6 +6,16 @@ export function formatSize(bytes: number): string {
   return `${(bytes / 1024 ** i).toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
+/**
+ * Like formatSize, but shows zero (and unknown) as "0 B" — for counters such
+ * as tunnel traffic, where zero is a real value rather than "no data". Folder
+ * Sync and the Tunnel Manager each had a private copy of this that stopped at
+ * GB and rendered "undefined" for anything from 1 TB up.
+ */
+export function formatBytes(bytes?: number): string {
+  return bytes && bytes > 0 ? formatSize(bytes) : '0 B';
+}
+
 /** Format a byte/sec rate, e.g. "12 KB/s". Returns "—" for non-positive rates. */
 export function formatSpeed(bytesPerSec: number): string {
   if (!Number.isFinite(bytesPerSec) || bytesPerSec <= 0) return '—';

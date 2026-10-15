@@ -119,6 +119,22 @@ describe('settings IPC — SETTINGS_SET', () => {
     ).rejects.toThrow(/must be a number between/);
   });
 
+  it('rejects a fractional value for an integer setting', async () => {
+    await expect(
+      handlers.get(IPC.SETTINGS_SET)!({}, { key: 'transfer.concurrency', value: '2.5' }),
+    ).rejects.toThrow();
+  });
+
+  it('uses the same font-size and scrollback ceilings as the renderer', async () => {
+    // These were 72 and 1,000,000 while the UI clamps to 32 and 100,000.
+    await expect(
+      handlers.get(IPC.SETTINGS_SET)!({}, { key: 'terminal.fontSize', value: '40' }),
+    ).rejects.toThrow();
+    await expect(
+      handlers.get(IPC.SETTINGS_SET)!({}, { key: 'terminal.scrollback', value: '500000' }),
+    ).rejects.toThrow();
+  });
+
   it('accepts a valid value, stores canonical JSON, and invalidates the runtime cache', async () => {
     await handlers.get(IPC.SETTINGS_SET)!({}, { key: 'terminal.theme', value: '  "nord"  ' });
     expect(rows.get('terminal.theme')).toBe(JSON.stringify('nord'));

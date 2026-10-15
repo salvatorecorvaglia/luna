@@ -1,5 +1,5 @@
-import { createWriteStream } from 'node:fs';
-import { stat as fsStat, rename, unlink } from 'node:fs/promises';
+import { createWriteStream, unlinkSync } from 'node:fs';
+import { rename, unlink } from 'node:fs/promises';
 import type { Readable, Writable } from 'node:stream';
 import { AbortError } from '../../lib/errors';
 import log from '../../lib/logger';
@@ -197,7 +197,22 @@ export async function runPipeDownloadToFile(options: PipeDownloadToFileOptions):
     mapSourceError,
   } = options;
   const tempPath = `${localPath}${PARTIAL_DOWNLOAD_SUFFIX}`;
-  const writeStream = createWriteStream(tempPath, { highWaterMark });
+  // Only `localPath` was validated against the home jail; the temp path next
+  // to it was opened with a plain truncating open, which follows a symlink
+  // planted at `<name>.luna-partial`. Remove whatever is there (a crash
+  // leftover, or a link) and create the file exclusively: O_EXCL never
+  // follows a symlink, so a link re-planted in between makes the open fail
+  // instead of writing through it.
+  //
+  // Synchronous on purpose: the source stream is live from the moment it was
+  // created by the caller, and awaiting here would leave it with no 'error'
+  // listener until the pipe below is wired.
+  try {
+    unlinkSync(tempPath);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+  }
+  const writeStream = createWriteStream(tempPath, { highWaterMark, flags: 'wx' });
 
   await runPipeTransfer({
     source,
@@ -209,16 +224,10 @@ export async function runPipeDownloadToFile(options: PipeDownloadToFileOptions):
     // discard a temp file that is already complete.
     isComplete: () => writeStream.writableFinished,
     discardPartial: async () => {
-      // Second race guard: if what's on disk already matches the expected
-      // size, the download did finish — keep it rather than unlink it.
-      if (total > 0) {
-        try {
-          const stats = await fsStat(tempPath);
-          if (stats.size >= total) return;
-        } catch {
-          // ENOENT or stat error — fall through to unlink (no-op if missing)
-        }
-      }
+      // Always removed on this path. A size-based "it's complete, keep it"
+      // guard used to live here, but the transfer still rejects as cancelled
+      // afterwards, so the rename below never ran and the full-size temp file
+      // was simply orphaned next to the destination.
       await unlink(tempPath).catch((err: NodeJS.ErrnoException) => {
         if (err.code !== 'ENOENT') {
           log.warn(`[transfer] Failed to remove partial download ${tempPath}:`, err.message);

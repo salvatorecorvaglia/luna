@@ -93,7 +93,7 @@ describe('CommandPalette — filtering', () => {
 
     fireEvent.change(input, { target: { value: 'settings' } });
 
-    await waitFor(() => expect(screen.getByText(/settings/i)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/settings/i)).toBeInTheDocument());
     // A term that matches nothing should not leave unrelated commands showing.
     fireEvent.change(input, { target: { value: 'zzzznotacommand' } });
     await waitFor(() => expect(screen.queryByText(/open settings/i)).toBeNull());
@@ -116,7 +116,7 @@ describe('CommandPalette — filtering', () => {
     ]);
     renderPalette();
 
-    await waitFor(() => expect(screen.getByText(/prod-web/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/prod-web/)).toBeInTheDocument());
   });
 });
 
@@ -232,5 +232,35 @@ describe('CommandPalette — selection ordering', () => {
 
     expect(useUIStore.getState().commandPaletteOpen).toBe(true);
     expect(await screen.findByText('Delete all connections?')).toBeTruthy();
+  });
+});
+
+describe('CommandPalette — S3 connections', () => {
+  it('opens an S3 connection instead of running an SSH connect on it', async () => {
+    // Regression: every connection got "Connect: <name>" wired to connectToHost
+    // (SSH), described as "@:port" for S3 entries.
+    (api.connections.list as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        id: 's3-1',
+        name: 'Backups',
+        provider: 's3',
+        host: '',
+        port: 0,
+        username: '',
+        authType: 'password',
+        folder: 'default',
+        defaultBucket: 'my-backups',
+        createdAt: 0,
+        updatedAt: 0,
+      },
+    ]);
+    renderPalette();
+    const option = await screen.findByText('Open: Backups');
+    expect(screen.getByText('s3://my-backups')).toBeInTheDocument();
+    expect(screen.queryByText('Connect: Backups')).toBeNull();
+
+    fireEvent.click(option);
+    await waitFor(() => expect(api.s3.connect).toHaveBeenCalled());
+    expect(api.ssh.connect).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,9 @@
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { EventEmitter } from 'node:events';
 import { existsSync } from 'node:fs';
+import { readdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -17,16 +21,32 @@ const hasBash = existsSync('/bin/bash');
 
 let isPackaged = true;
 const getPath = vi.fn(() => '/Users/someone/Library/Logs/Luna');
+const { netRequest, verifyMock } = vi.hoisted(() => ({
+  netRequest: vi.fn(),
+  verifyMock: vi.fn<(message: Buffer, signature: string) => boolean>(),
+}));
 
 vi.mock('electron', () => ({
   get app() {
     return { isPackaged, getPath, on: vi.fn() };
   },
-  net: { request: vi.fn() },
+  net: { request: (options: { url: string }) => netRequest(options) },
 }));
 vi.mock('../../../src/main/lib/logger', () => ({
   default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
+
+/** Whether a release-signing key is "compiled in" for the module under test. */
+let signingConfigured = true;
+vi.mock('../../../src/main/services/update-signature', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../../src/main/services/update-signature')>();
+  return {
+    ...actual,
+    isUpdateSigningConfigured: () => signingConfigured,
+    verifyUpdateSignature: (message: Buffer, signature: string) => verifyMock(message, signature),
+  };
+});
 
 /**
  * Writability of the install location is an input to the code under test, so
@@ -67,6 +87,9 @@ beforeEach(() => {
   // Default: the bundle and its parent are writable. Tests that care override.
   accessMock.mockReset();
   accessMock.mockResolvedValue(undefined);
+  netRequest.mockReset();
+  verifyMock.mockReset();
+  verifyMock.mockReturnValue(false);
 });
 
 afterEach(() => {
@@ -139,6 +162,18 @@ describe('isSelfInstallSupported', () => {
     await expect(isSelfInstallSupported()).resolves.toBe(true);
     expect(accessMock).toHaveBeenCalledWith('/Applications/Luna.app', expect.any(Number));
     expect(accessMock).toHaveBeenCalledWith('/Applications', expect.any(Number));
+  });
+
+  it('is false without a compiled-in update-signing key, however writable the bundle', async () => {
+    // Fail closed: with no key there is nothing to prove who built an update,
+    // so the in-place path must not run at all.
+    signingConfigured = false;
+    try {
+      const { isSelfInstallSupported } = await freshModule();
+      await expect(isSelfInstallSupported()).resolves.toBe(false);
+    } finally {
+      signingConfigured = true;
+    }
   });
 });
 
@@ -245,5 +280,137 @@ describe('applyStagedUpdate', () => {
     const { applyStagedUpdate, hasStagedUpdate } = await freshModule();
     expect(hasStagedUpdate()).toBe(false);
     expect(applyStagedUpdate({ relaunch: true })).toBe(false);
+  });
+});
+
+/**
+ * A stand-in for Electron's `net.request`: answers each URL from `routes` with
+ * a status and the chunks to stream, one per tick, like a real response.
+ */
+function serve(routes: Record<string, { status?: number; chunks?: Buffer[] }>): string[] {
+  const requested: string[] = [];
+  netRequest.mockImplementation(({ url }: { url: string }) => {
+    requested.push(url);
+    const request = new EventEmitter() as EventEmitter & { end(): void; abort(): void };
+    let aborted = false;
+    request.abort = () => {
+      aborted = true;
+    };
+    request.end = () => {
+      const route = Object.entries(routes).find(([suffix]) => url.endsWith(suffix))?.[1];
+      const response = Object.assign(new EventEmitter(), {
+        statusCode: route?.status ?? (route ? 200 : 404),
+        pause: () => {},
+        resume: () => {},
+      });
+      setImmediate(async () => {
+        request.emit('response', response);
+        for (const chunk of route?.chunks ?? []) {
+          if (aborted) return;
+          await new Promise((r) => setImmediate(r));
+          response.emit('data', chunk);
+        }
+        if (!aborted) response.emit('end');
+      });
+    };
+    return request;
+  });
+  return requested;
+}
+
+describe('stageUpdate', () => {
+  const payload = Buffer.from('pretend this is a signed Luna.app zip');
+  const digest = createHash('sha512').update(payload).digest('base64');
+  /** Both arches, so the test does not depend on the machine running it. */
+  function feed(overrides: Partial<{ sha512: string; size: number }> = {}) {
+    const asset = (arch: string) => ({
+      url: `luna-1.6.0-mac-${arch}.zip`,
+      sha512: digest,
+      size: payload.length,
+      ...overrides,
+    });
+    return { version: '1.6.0', files: [asset('arm64'), asset('x64')] };
+  }
+
+  async function stageDirs(): Promise<string[]> {
+    return (await readdir(tmpdir())).filter((name) => name.startsWith('luna-update-'));
+  }
+
+  it('discards a download whose digest does not match the feed', async () => {
+    serve({ '.zip': { chunks: [payload] } });
+    const { stageUpdate } = await freshModule();
+    const before = await stageDirs();
+    await expect(stageUpdate(feed({ sha512: 'not-the-digest' }), vi.fn())).rejects.toThrow(
+      /failed its checksum/,
+    );
+    // The partial download is deleted, not left in the temp directory.
+    expect(await stageDirs()).toEqual(before);
+    expect(verifyMock).not.toHaveBeenCalled();
+  });
+
+  it('stops a download that runs past the size the feed declared', async () => {
+    serve({ '.zip': { chunks: [payload, Buffer.from('trailing bytes')] } });
+    const { stageUpdate } = await freshModule();
+    await expect(stageUpdate(feed(), vi.fn())).rejects.toThrow(/larger than the feed declared/);
+  });
+
+  it('rejects a download that ends short of the declared size', async () => {
+    serve({ '.zip': { chunks: [payload.subarray(0, 5)] } });
+    const { stageUpdate } = await freshModule();
+    await expect(stageUpdate(feed(), vi.fn())).rejects.toThrow(/ended early/);
+  });
+
+  it('surfaces an HTTP error from the asset host', async () => {
+    serve({ '.zip': { status: 404 } });
+    const { stageUpdate } = await freshModule();
+    await expect(stageUpdate(feed(), vi.fn())).rejects.toThrow(/HTTP 404/);
+  });
+
+  it('refuses an update with no published signature', async () => {
+    serve({ '.zip': { chunks: [payload] } });
+    const { stageUpdate } = await freshModule();
+    await expect(stageUpdate(feed(), vi.fn())).rejects.toThrow(/not signed/);
+    expect(verifyMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses an oversized signature file without buffering it', async () => {
+    serve({ '.zip': { chunks: [payload] }, '.sig': { chunks: [Buffer.alloc(4096, 65)] } });
+    const { stageUpdate } = await freshModule();
+    await expect(stageUpdate(feed(), vi.fn())).rejects.toThrow(/signature is malformed/);
+  });
+
+  it('verifies the signature over version, file name and digest before unpacking', async () => {
+    serve({ '.zip': { chunks: [payload] }, '.sig': { chunks: [Buffer.from('c2ln\n')] } });
+    const { stageUpdate } = await freshModule();
+    const { updateSignatureMessage } = await import('../../../src/main/services/update-signature');
+    const before = await stageDirs();
+
+    await expect(stageUpdate(feed(), vi.fn())).rejects.toThrow(/signature is invalid/);
+
+    const asset = process.arch === 'arm64' ? 'luna-1.6.0-mac-arm64.zip' : 'luna-1.6.0-mac-x64.zip';
+    expect(verifyMock).toHaveBeenCalledWith(
+      updateSignatureMessage('1.6.0', asset, digest),
+      'c2ln\n',
+    );
+    expect(await stageDirs()).toEqual(before);
+  });
+
+  it('only ever requests URLs on the release host, however the feed names the file', async () => {
+    const requested = serve({});
+    const { stageUpdate } = await freshModule();
+    const hostile = {
+      version: '1.6.0',
+      files: ['arm64', 'x64'].map((arch) => ({
+        url: `https://evil.example/../x?-mac-${arch}.zip`,
+        sha512: digest,
+        size: payload.length,
+      })),
+    };
+    await expect(stageUpdate(hostile, vi.fn())).rejects.toThrow();
+    expect(requested.length).toBeGreaterThan(0);
+    for (const url of requested) {
+      expect(new URL(url).origin).toBe('https://github.com');
+      expect(url).not.toContain('evil.example/');
+    }
   });
 });

@@ -1,6 +1,7 @@
 import type { LocalFileEntry } from '@shared/types/sftp';
 import type { StorageEntry } from '@shared/types/storage-provider';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
 import { getApi } from '@/services/api';
 
 /**
@@ -35,24 +36,37 @@ export function useLocalDirectory(path: string) {
   });
 }
 
+/**
+ * Both invalidators are memoised on the query client. They were fresh arrows
+ * on every render, and useTransferEventListener lists them as effect deps — so
+ * every App re-render (view switch, dialog open, theme change) tore down and
+ * re-added all four transfer listeners, cancelled the pending rAF and dropped
+ * the progress samples it was holding.
+ */
 export function useInvalidateSftp() {
   const queryClient = useQueryClient();
-  return (sessionId: string, path?: string) => {
-    if (path) {
-      void queryClient.invalidateQueries({ queryKey: ['storage', sessionId, path] });
-    } else {
-      void queryClient.invalidateQueries({ queryKey: ['storage', sessionId] });
-    }
-  };
+  return useCallback(
+    (sessionId: string, path?: string) => {
+      if (path) {
+        void queryClient.invalidateQueries({ queryKey: ['storage', sessionId, path] });
+      } else {
+        void queryClient.invalidateQueries({ queryKey: ['storage', sessionId] });
+      }
+    },
+    [queryClient],
+  );
 }
 
 export function useInvalidateLocalDir() {
   const queryClient = useQueryClient();
-  return (path?: string) => {
-    if (path) {
-      void queryClient.invalidateQueries({ queryKey: ['local-dir', path] });
-    } else {
-      void queryClient.invalidateQueries({ queryKey: ['local-dir'] });
-    }
-  };
+  return useCallback(
+    (path?: string) => {
+      if (path) {
+        void queryClient.invalidateQueries({ queryKey: ['local-dir', path] });
+      } else {
+        void queryClient.invalidateQueries({ queryKey: ['local-dir'] });
+      }
+    },
+    [queryClient],
+  );
 }

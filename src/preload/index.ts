@@ -30,7 +30,12 @@ import type {
   StorageStatParams,
   StorageTransferParams,
 } from '@shared/types/storage-provider';
-import type { SshConnectParams, SshResizeParams, SshSendDataParams } from '@shared/types/terminal';
+import type {
+  SshConnectParams,
+  SshResizeParams,
+  SshSendDataParams,
+  TerminalAckParams,
+} from '@shared/types/terminal';
 import type { CreateWorkspaceInput } from '@shared/types/workspace';
 import { contextBridge, ipcRenderer } from 'electron';
 
@@ -173,12 +178,13 @@ const api = {
     disconnect: (sessionId: string) => invoke(IPC.SSH_DISCONNECT, sessionId),
     sendData: (params: SshSendDataParams) => invoke(IPC.SSH_SEND_DATA, params),
     resize: (params: SshResizeParams) => invoke(IPC.SSH_RESIZE, params),
+    ackData: (params: TerminalAckParams) => invoke(IPC.SSH_ACK_DATA, params),
     onData: createEventListener(IPC.SSH_ON_DATA),
     onClose: createEventListener(IPC.SSH_ON_CLOSE),
     onError: createEventListener(IPC.SSH_ON_ERROR),
     onStatus: createEventListener(IPC.SSH_ON_STATUS),
     onHostKeyChange: createEventListener(IPC.SSH_ON_HOST_KEY_CHANGE),
-    trustHostKey: (params: { host: string; port: number }) =>
+    trustHostKey: (params: { host: string; port: number; fingerprint: string }) =>
       invoke(IPC.SSH_TRUST_HOST_KEY, params),
     listActivePortForwards: (params?: { sessionId?: string }) =>
       invoke(IPC.SSH_LIST_ACTIVE_PORT_FORWARDS, params ?? {}),
@@ -203,8 +209,8 @@ const api = {
     upload: (params: StorageTransferParams) => invoke(IPC.STORAGE_UPLOAD, params),
     onListTruncated: createEventListener(IPC.STORAGE_LIST_TRUNCATED),
     compareDirectories: (params: {
-      /** Optional: when supplied the call draws from that session's rate bucket. */
-      sessionId?: string;
+      /** Must be a live storage session; the call draws from its rate bucket. */
+      sessionId: string;
       localEntries: { relativePath: string; size: number; mtime: number }[];
       remoteEntries: StorageEntry[];
       direction?: 'sync-to-remote' | 'sync-to-local' | 'bi-directional';
@@ -238,8 +244,6 @@ const api = {
     writeFile: (filePath: string, content: string) =>
       invoke(IPC.SHELL_WRITE_FILE, { filePath, content }),
     cliReference: (query: string) => invoke(IPC.SHELL_CLI_REFERENCE, query),
-    searchHistory: (payload: { query: string; limit?: number }) =>
-      invoke(IPC.SHELL_SEARCH_HISTORY, payload),
     exportAuditLog: (options: AuditExportOptions) => invoke(IPC.SHELL_EXPORT_AUDIT_LOG, options),
   },
 
@@ -262,18 +266,15 @@ const api = {
       invoke(IPC.LOCAL_TERMINAL_SEND_DATA, params),
     resize: (params: { sessionId: string; cols: number; rows: number }) =>
       invoke(IPC.LOCAL_TERMINAL_RESIZE, params),
+    ackData: (params: TerminalAckParams) => invoke(IPC.LOCAL_TERMINAL_ACK_DATA, params),
     onData: createEventListener(IPC.LOCAL_TERMINAL_ON_DATA),
     onExit: createEventListener(IPC.LOCAL_TERMINAL_ON_EXIT),
   },
 
   // Credentials
   credentials: {
-    store: (connectionId: string, secret: string) =>
-      invoke(IPC.CREDENTIAL_STORE, { connectionId, secret }),
-    retrieve: (connectionId: string) => invoke(IPC.CREDENTIAL_RETRIEVE, connectionId),
-    delete: (connectionId: string) => invoke(IPC.CREDENTIAL_DELETE, connectionId),
+    // Secrets never cross the bridge; see main/ipc/credentials.ipc.ts.
     onTamper: createEventListener(IPC.CREDENTIAL_ON_TAMPER),
-    resolveExternal: (ref: string) => invoke(IPC.CREDENTIAL_RESOLVE_EXTERNAL, ref),
   },
 
   // Settings
@@ -289,6 +290,7 @@ const api = {
     checkUpdate: () => invoke(IPC.APP_CHECK_UPDATE),
     installUpdate: () => invoke(IPC.APP_INSTALL_UPDATE),
     openReleasePage: () => invoke(IPC.APP_OPEN_RELEASE_PAGE),
+    openExternal: (url: string) => invoke(IPC.APP_OPEN_EXTERNAL, url),
     getLogPath: () => invoke(IPC.APP_GET_LOG_PATH),
     openLogFile: () => invoke(IPC.APP_OPEN_LOG_FILE),
     getActiveSessions: () => invoke(IPC.APP_GET_ACTIVE_SESSIONS),

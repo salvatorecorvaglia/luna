@@ -72,3 +72,16 @@ describe('formatEta', () => {
     expect(formatEta(3700, 1)).toBe('1h 1m');
   });
 });
+
+describe('formatBytes', () => {
+  it('shows zero and unknown as 0 B', async () => {
+    const { formatBytes } = await import('../../../src/renderer/src/lib/format');
+    expect(formatBytes(0)).toBe('0 B');
+    expect(formatBytes(undefined)).toBe('0 B');
+  });
+
+  it('keeps going past GB instead of rendering "undefined"', async () => {
+    const { formatBytes } = await import('../../../src/renderer/src/lib/format');
+    expect(formatBytes(2 * 1024 ** 4)).toBe('2.0 TB');
+  });
+});

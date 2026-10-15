@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { DialogShell } from '../../../../src/renderer/src/components/common/DialogShell';
 
@@ -115,5 +115,57 @@ describe('DialogShell', () => {
       container.querySelector('[data-testid="wrapper"]')?.contains(screen.getByText('content')),
     ).toBe(false);
     expect(document.body.contains(screen.getByText('content'))).toBe(true);
+  });
+
+  describe('initial focus', () => {
+    it('moves focus off the element that opened it and onto the first field', async () => {
+      // Regression: without onOpenFocus nothing moved focus, so a dialog opened
+      // from the terminal left keystrokes flowing into the remote shell.
+      const opener = document.createElement('textarea');
+      document.body.appendChild(opener);
+      opener.focus();
+      render(
+        <DialogShell open onClose={vi.fn()} zLayer="z-[70]">
+          <button type="button">Close</button>
+          <input aria-label="Name" />
+        </DialogShell>,
+      );
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('Name')));
+      opener.remove();
+    });
+
+    it('prefers a [data-autofocus] element', async () => {
+      render(
+        <DialogShell open onClose={vi.fn()} zLayer="z-[70]">
+          <input aria-label="First" />
+          <button type="button" data-autofocus>
+            Primary
+          </button>
+        </DialogShell>,
+      );
+      await waitFor(() =>
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Primary' })),
+      );
+    });
+
+    it('focuses the dialog itself when it has nothing focusable', async () => {
+      render(
+        <DialogShell open onClose={vi.fn()} zLayer="z-[70]">
+          <p>Just text</p>
+        </DialogShell>,
+      );
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('dialog')));
+    });
+
+    it('defers to onOpenFocus when given', async () => {
+      const onOpenFocus = vi.fn();
+      render(
+        <DialogShell open onClose={vi.fn()} zLayer="z-[70]" onOpenFocus={onOpenFocus}>
+          <input aria-label="Name" />
+        </DialogShell>,
+      );
+      await waitFor(() => expect(onOpenFocus).toHaveBeenCalledTimes(1));
+      expect(document.activeElement).not.toBe(screen.getByLabelText('Name'));
+    });
   });
 });

@@ -2,14 +2,13 @@ import { constants as fsConstants } from 'node:fs';
 import { access, lstat, open, readdir, realpath, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, isAbsolute, join, resolve } from 'node:path';
-import { BINARY_PREVIEW_EXTENSIONS, IPC } from '@shared/constants';
+import { BINARY_PREVIEW_EXTENSIONS, IPC, LIMITS } from '@shared/constants';
 import { ErrorCode, LunaError } from '@shared/errors';
 import type { AuditExportOptions } from '@shared/types/session-audit';
 import type { LocalFileEntry } from '@shared/types/sftp';
 import { dialog } from 'electron';
 import { registerHandler } from '../lib/ipc-handler';
 import {
-  assertBoundedInt,
   assertNonEmptyString,
   assertSafeAbsolutePath,
   assertSafeRealAbsolutePath,
@@ -20,7 +19,6 @@ import {
 } from '../lib/validate';
 import { cliReferenceService } from '../services/cli-reference-service';
 import { sessionAuditService } from '../services/session-audit-service';
-import { shellHistoryService } from '../services/shell-history-service';
 
 export function registerShellHandlers(): void {
   registerHandler(IPC.SHELL_READDIR, async (_event, dirPath: string) => {
@@ -33,13 +31,17 @@ export function registerShellHandlers(): void {
     // Use path.relative-based check so look-alike names like `/home/user-other`
     // can't slip past a naive `startsWith(home + '/')` prefix match.
     const home = homedir();
-    if (!isInsideDir(normalized, home)) {
-      throw new LunaError(
+    // Check both the requested path and its real target. The string check
+    // alone let a symlinked directory inside home (~/x -> /etc) list /etc.
+    const denied = (): LunaError =>
+      new LunaError(
         'Access denied: directory listing is restricted to the home directory',
         ErrorCode.FORBIDDEN,
       );
-    }
-    const entries = await readdir(normalized, { withFileTypes: true });
+    if (!isInsideDir(normalized, home)) throw denied();
+    const realDir = await realpath(normalized);
+    if (!isInsideDir(realDir, await realpath(home).catch(() => home))) throw denied();
+    const entries = await readdir(realDir, { withFileTypes: true });
     const results: LocalFileEntry[] = [];
 
     // Batch limit to prevent OS file descriptor exhaustion. Iterate with an
@@ -146,7 +148,7 @@ export function registerShellHandlers(): void {
       if (result.canceled || !result.filePath) return null;
 
       // Cap content size so a misbehaving renderer can't write arbitrarily large files.
-      const MAX_BYTES = 50 * 1024 * 1024; // 50 MB
+      const MAX_BYTES = LIMITS.MAX_LOCAL_FILE_BYTES;
       if (typeof options.content !== 'string') {
         throw new LunaError('content must be a string', ErrorCode.VALIDATION_ERROR);
       }
@@ -209,33 +211,28 @@ export function registerShellHandlers(): void {
   );
   registerHandler(IPC.SHELL_READ_FILE, async (_event, filePath: string) => {
     assertValidPath(filePath, 'filePath');
-    // expandAndConfineToHome handles ~ expansion, absolute-path enforcement,
-    // and home-jail confinement consistently with the rest of the IPC layer.
-    const expanded = await expandAndConfineToHome(filePath, 'filePath');
-    const home = homedir();
-
-    // Resolve symlinks to their real target *before* reading so we cannot be
-    // TOCTOU'd between the jail check and readFile().
-    const ls = await lstat(expanded);
-    const target = ls.isSymbolicLink() ? await realpath(expanded) : expanded;
-    if (!isInsideDir(target, home)) {
-      throw new LunaError(
-        'Access denied: symlink target is outside the home directory',
-        ErrorCode.FORBIDDEN,
-      );
-    }
+    // Resolve the *whole* path — every intermediate directory, not just the
+    // final component — and confine the real target to home. Checking only
+    // whether the last component was a link let ~/x/hosts with x -> /etc read
+    // /etc/hosts, because O_NOFOLLOW below only guards the final component.
+    const target = await expandAndConfineToHome(filePath, 'filePath', { requireExists: true });
 
     // Open with O_NOFOLLOW so the read is anchored to the inode we just
     // validated. If `target` is swapped to a symlink between realpath() and
     // open(), the open fails with ELOOP instead of silently following the
     // attacker's link out of the home jail.
+    //
+    // POSIX only: Node leaves O_NOFOLLOW undefined on Windows, where it ORs in
+    // as 0. The realpath-based jail check above still applies there; only the
+    // protection against a swap *between* check and open is missing (and
+    // creating symlinks on Windows needs elevated rights or Developer Mode).
     const fh = await open(target, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
     try {
       const s = await fh.stat();
       if (!s.isFile()) {
         throw new LunaError('Not a regular file', ErrorCode.VALIDATION_ERROR);
       }
-      const MAX_BYTES = 50 * 1024 * 1024; // 50 MB
+      const MAX_BYTES = LIMITS.MAX_LOCAL_FILE_BYTES;
       if (s.size > MAX_BYTES) {
         throw new LunaError(
           `File is too large (${Math.round(s.size / 1024 / 1024)}MB). Max 50MB.`,
@@ -267,7 +264,7 @@ export function registerShellHandlers(): void {
       const expanded = await expandAndConfineToHome(filePath, 'filePath');
       const target = await assertSafeRealAbsolutePath(expanded, 'filePath');
 
-      const MAX_BYTES = 50 * 1024 * 1024; // 50 MB
+      const MAX_BYTES = LIMITS.MAX_LOCAL_FILE_BYTES;
       if (Buffer.byteLength(content, 'utf-8') > MAX_BYTES) {
         throw new LunaError(`Content exceeds maximum size of 50MB`, ErrorCode.VALIDATION_ERROR);
       }
@@ -309,27 +306,6 @@ export function registerShellHandlers(): void {
     return cliReferenceService.searchDocs(query);
   });
 
-  registerHandler(
-    IPC.SHELL_SEARCH_HISTORY,
-    (_event, payload: { query: string; limit?: number }) => {
-      const query = payload?.query ?? '';
-      if (typeof query !== 'string') {
-        throw new LunaError('query must be a string', ErrorCode.VALIDATION_ERROR);
-      }
-      if (query.length > MAX_SEARCH_QUERY_LEN) {
-        throw new LunaError(
-          `query exceeds maximum length of ${MAX_SEARCH_QUERY_LEN} characters`,
-          ErrorCode.VALIDATION_ERROR,
-        );
-      }
-      // `limit` was previously unbounded, so `limit: 1e9` returned the whole
-      // cached history in one IPC response.
-      const limit = payload?.limit ?? 50;
-      assertBoundedInt(limit, 'limit', 1, 500);
-      return shellHistoryService.searchHistory(query, limit);
-    },
-  );
-
   registerHandler(IPC.SHELL_EXPORT_AUDIT_LOG, async (_event, options: AuditExportOptions) => {
     assertNonEmptyString(options?.sessionTitle, 'sessionTitle');
     const MAX_TITLE_LEN = 512;
@@ -344,7 +320,7 @@ export function registerShellHandlers(): void {
     }
     // Same 50MB ceiling as SHELL_WRITE_FILE — keeps every local-write handler
     // bounded the same way.
-    const MAX_BUFFER_BYTES = 50 * 1024 * 1024;
+    const MAX_BUFFER_BYTES = LIMITS.MAX_LOCAL_FILE_BYTES;
     if (Buffer.byteLength(options.bufferText, 'utf-8') > MAX_BUFFER_BYTES) {
       throw new LunaError('bufferText exceeds maximum size of 50MB', ErrorCode.VALIDATION_ERROR);
     }

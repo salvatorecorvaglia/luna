@@ -213,7 +213,15 @@ export function SftpFields({
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.15 }}
           >
-            <FormField label="Password" icon={<Lock className="size-3.5" />} id={`${fieldId}-pass`}>
+            {/* `error` wired like every other field: the validation message
+                existed but was never rendered, so the user saw only a red
+                border and a generic "fix the highlighted fields" toast. */}
+            <FormField
+              label="Password"
+              icon={<Lock className="size-3.5" />}
+              id={`${fieldId}-pass`}
+              error={visibleError('password')}
+            >
               <div className="relative">
                 <input
                   id={`${fieldId}-pass`}
@@ -222,6 +230,8 @@ export function SftpFields({
                   onChange={(e) => onSftpChange({ password: e.target.value })}
                   onBlur={() => markTouched('password')}
                   placeholder={isEditing ? '(unchanged)' : 'Enter password'}
+                  aria-invalid={!!visibleError('password')}
+                  aria-describedby={visibleError('password') ? `${fieldId}-pass-error` : undefined}
                   className={cn(
                     'form-input pr-9',
                     visibleError('password') && 'border-destructive/60 focus:border-destructive',
@@ -289,6 +299,7 @@ export function SftpFields({
                 label="Passphrase"
                 icon={<Lock className="size-3.5" />}
                 id={`${fieldId}-phrase`}
+                error={visibleError('passphrase')}
               >
                 <input
                   id={`${fieldId}-phrase`}
@@ -297,7 +308,14 @@ export function SftpFields({
                   onChange={(e) => onSftpChange({ passphrase: e.target.value })}
                   onBlur={() => markTouched('passphrase')}
                   placeholder={isEditing ? '(unchanged)' : 'Key passphrase'}
-                  className="form-input"
+                  aria-invalid={!!visibleError('passphrase')}
+                  aria-describedby={
+                    visibleError('passphrase') ? `${fieldId}-phrase-error` : undefined
+                  }
+                  className={cn(
+                    'form-input',
+                    visibleError('passphrase') && 'border-destructive/60 focus:border-destructive',
+                  )}
                 />
               </FormField>
             )}
@@ -384,6 +402,11 @@ export function SftpFields({
                       <div className="flex flex-col">
                         <span className="font-semibold capitalize text-foreground flex items-center gap-1.5">
                           {pf.type} forwarding
+                          {pf.autoStart === false && (
+                            <span className="rounded bg-muted px-1 text-3xs font-normal normal-case text-muted-foreground">
+                              manual start
+                            </span>
+                          )}
                         </span>
                         <span className="text-3xs text-muted-foreground">
                           {pf.type === 'dynamic'
@@ -393,6 +416,21 @@ export function SftpFields({
                               : `Remote ${pf.bindAddress}:${pf.localPort} -> Local ${pf.remoteHost}:${pf.remotePort}`}
                         </span>
                       </div>
+                      {pf.autoStart === false && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onSftpChange({
+                              portForwards: sftp.portForwards.map((x) =>
+                                x.id === pf.id ? { ...x, autoStart: true } : x,
+                              ),
+                            });
+                          }}
+                          className="ml-auto mr-2 text-3xs text-primary hover:underline cursor-pointer"
+                        >
+                          Start on connect
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => {
@@ -416,7 +454,19 @@ export function SftpFields({
 
               {/* Add rule section */}
               {isAddingRule ? (
-                <div className="space-y-3 rounded-lg border border-border/60 bg-background/30 p-3">
+                // Enter inside the rule inputs adds the rule. These inputs sit
+                // inside the connection <form>, so Enter used to submit it —
+                // saving the connection and discarding the half-typed rule.
+                // biome-ignore lint/a11y/noStaticElementInteractions: intercepts Enter bubbling from the rule's own inputs
+                <div
+                  className="space-y-3 rounded-lg border border-border/60 bg-background/30 p-3"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') {
+                      e.preventDefault();
+                      handleAddRule();
+                    }
+                  }}
+                >
                   <div className="grid grid-cols-3 gap-2">
                     {/* Rule Type */}
                     <div className="col-span-1">
@@ -543,7 +593,7 @@ export function SftpFields({
                       remotePort: '',
                     });
                   }}
-                  className="w-full h-8 text-2xs font-medium hover:bg-accent/40 border-dashed border-border/80 flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="w-full h-8 rounded-md border border-dashed border-border/80 text-2xs font-medium hover:bg-accent/40 flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Plus className="size-3.5" />
                   Add Port Forwarding Rule

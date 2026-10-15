@@ -50,7 +50,7 @@ describe('SnippetVaultDialog — multi-variable run form', () => {
     const runButton = await screen.findByTitle('Execute snippet');
     fireEvent.click(runButton);
 
-    await waitFor(() => expect(screen.getByLabelText('{{ env }}')).toBeTruthy());
+    await waitFor(() => expect(screen.getByLabelText('{{ env }}')).toBeInTheDocument());
 
     const envInput = screen.getByLabelText('{{ env }}') as HTMLInputElement;
     const tagInput = screen.getByLabelText('{{ tag }}') as HTMLInputElement;
@@ -77,7 +77,7 @@ describe('SnippetVaultDialog — multi-variable run form', () => {
     const runButton = await screen.findByTitle('Execute snippet');
     fireEvent.click(runButton);
 
-    await waitFor(() => expect(screen.getByLabelText('{{ host }}')).toBeTruthy());
+    await waitFor(() => expect(screen.getByLabelText('{{ host }}')).toBeInTheDocument());
     expect(document.activeElement).toBe(screen.getByLabelText('{{ host }}'));
   });
 });

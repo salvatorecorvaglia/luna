@@ -2,7 +2,7 @@ import { Keyboard, X } from 'lucide-react';
 import { useCallback } from 'react';
 import { DialogShell } from '@/components/common/DialogShell';
 import { IconButton } from '@/components/ui';
-import { MOD_KEY } from '@/lib/platform';
+import { isMac, MOD_KEY } from '@/lib/platform';
 import { Z } from '@/lib/z-layers';
 import { useUIStore } from '@/stores/ui-store';
 
@@ -34,7 +34,7 @@ const CATEGORIES = [
     title: 'General',
     shortcuts: [
       { label: 'Command Palette', keys: ['MOD', 'K'] },
-      { label: 'Clear Terminal', keys: ['MOD', 'SHIFT', 'K'] },
+      { label: 'Clear Terminal', keys: ['MOD', '⇧', 'K'] },
       { label: 'Settings', keys: ['MOD', ','] },
       { label: 'Toggle Sidebar', keys: ['MOD', 'B'] },
       { label: 'Keyboard Shortcuts', keys: ['?'] },
@@ -65,6 +65,23 @@ const CATEGORIES = [
       { label: 'Close Tab', keys: ['MOD', 'W'] },
       { label: 'Next Tab', keys: ['MOD', '⇧', ']'] },
       { label: 'Previous Tab', keys: ['MOD', '⇧', '['] },
+    ],
+  },
+  {
+    // Mirrors buildTerminalKeyHandler (lib/terminal-input.ts), including its
+    // platform split: on Windows/Linux the terminal keeps plain Ctrl+letter
+    // for the shell, so copy/paste/find/split take Ctrl+Shift.
+    title: 'Inside a terminal',
+    shortcuts: [
+      { label: 'Copy selection', keys: isMac ? ['MOD', 'C'] : ['Ctrl', '⇧', 'C'] },
+      { label: 'Paste', keys: isMac ? ['MOD', 'V'] : ['Ctrl', '⇧', 'V'] },
+      { label: 'Find', keys: isMac ? ['MOD', 'F'] : ['Ctrl', '⇧', 'F'] },
+      { label: 'Split Vertically', keys: isMac ? ['MOD', 'D'] : ['Ctrl', '⇧', 'D'] },
+      { label: 'Split Horizontally', keys: isMac ? ['MOD', '⇧', 'D'] : ['Ctrl', '⇧', 'H'] },
+      { label: 'Next Pane', keys: ['MOD', isMac ? '⌥' : 'Alt', '→'] },
+      { label: 'Previous Pane', keys: ['MOD', isMac ? '⌥' : 'Alt', '←'] },
+      { label: 'Zoom In / Out', keys: ['MOD', '=', '/', '-'] },
+      { label: 'Reset Zoom', keys: ['MOD', '0'] },
     ],
   },
 ];

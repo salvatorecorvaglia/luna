@@ -1,6 +1,6 @@
 import { LunaError } from '@shared/errors';
 import log from 'electron-log/main';
-import { redact } from './redact';
+import { redact, redactString } from './redact';
 
 log.initialize();
 
@@ -21,8 +21,11 @@ if (process.env.NODE_ENV === 'test') {
 log.hooks.push((message) => {
   message.data = message.data.map((v) => {
     if (v instanceof Error) {
-      // For errors, we redact the message and any custom properties
-      v.message = redact(v.message) as string;
+      // For errors, we redact the message, the stack and any custom properties.
+      // The stack starts with "Name: message", so redacting only `message`
+      // still wrote the secret to disk via the stack.
+      v.message = redactString(v.message);
+      if (v.stack) v.stack = redactString(v.stack);
       if (LunaError.isLunaError(v)) {
         const metadata = v.metadata;
         if (metadata) {

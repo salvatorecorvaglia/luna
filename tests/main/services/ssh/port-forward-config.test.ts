@@ -181,3 +181,20 @@ describe('parseStoredPortForwards', () => {
     expect(parseStoredPortForwards(json, { allowPublicBind: true })).toHaveLength(1);
   });
 });
+
+describe('validatePortForwardConfig — autoStart', () => {
+  const base = { type: 'local', localPort: 8080, remotePort: 80 };
+
+  it('passes an explicit autoStart through', () => {
+    expect(validatePortForwardConfig({ ...base, autoStart: false }).autoStart).toBe(false);
+    expect(validatePortForwardConfig({ ...base, autoStart: true }).autoStart).toBe(true);
+  });
+
+  it('leaves it absent when not given, which means start on connect', () => {
+    expect(validatePortForwardConfig(base)).not.toHaveProperty('autoStart');
+  });
+
+  it('rejects a non-boolean', () => {
+    expect(() => validatePortForwardConfig({ ...base, autoStart: 'yes' })).toThrow(/autoStart/);
+  });
+});

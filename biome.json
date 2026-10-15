@@ -35,9 +35,9 @@
       "preset": "recommended",
       "a11y": {
         "useButtonType": "error",
-        "noStaticElementInteractions": "off",
+        "noStaticElementInteractions": "error",
         "useSemanticElements": "off",
-        "useFocusableInteractive": "off",
+        "useFocusableInteractive": "error",
         "useKeyWithClickEvents": "error",
         "noAutofocus": "off",
         "useAriaPropsSupportedByRole": "error",

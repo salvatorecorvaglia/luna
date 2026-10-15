@@ -83,6 +83,17 @@ vi.mock('../../../src/main/services/database', () => ({
             remotePort: 90,
           },
           { id: '3', type: 'dynamic', bindAddress: '127.0.0.1', localPort: 1080 },
+          // Imported forwards are stored autoStart:false and must not start on
+          // connect — the listen/createServer counts below stay at 2.
+          {
+            id: '4',
+            type: 'local',
+            bindAddress: '127.0.0.1',
+            localPort: 8081,
+            remoteHost: 'localhost',
+            remotePort: 81,
+            autoStart: false,
+          },
         ]),
       }),
       run: vi.fn(),
@@ -165,9 +176,8 @@ describe('sshManager', () => {
     });
 
     // Fire connect; the cleanup branch runs synchronously before the first
-    // await, so we can inspect the spies immediately without waiting for the
-    // connect promise (which won't resolve in this minimal mock setup).
-    void sshManager.connect('dup-session', 'conn-id-1');
+    // await, so we can inspect the spies before the connect settles.
+    const pending = sshManager.connect('dup-session', 'conn-id-1');
     await Promise.resolve();
 
     expect(removeAllListeners).toHaveBeenCalledTimes(1);
@@ -179,6 +189,76 @@ describe('sshManager', () => {
       sshManager as unknown as { reconnects: Map<string, { gen: number }> }
     ).reconnects.get('dup-session')?.gen;
     expect(fresh).toBe(8);
+
+    // Let the connect finish inside this test. Left floating, it completed
+    // ~10 ms later and started this connection's port forwards during the
+    // *next* test, which is why that test used to open with an unexplained
+    // 50 ms sleep.
+    await pending;
+    sshManager.disconnect('dup-session');
+  });
+
+  it('settles a superseded connect promptly and never removes its replacement', async () => {
+    // Regression: a second connect() for the same sessionId stripped the first
+    // attempt's handshake listeners, so its promise could never settle — it
+    // hung until the 60 s connect timeout, whose catch then deleted the *new*
+    // session by id, and ssh.ipc unregistered its storage provider.
+    const m = sshManager as unknown as {
+      sessions: Map<string, { abortHandshake?: unknown; status: string }>;
+    };
+    const first = sshManager.connect('race-session', 'conn-id-1');
+    await vi.waitFor(() => expect(m.sessions.get('race-session')?.abortHandshake).toBeDefined(), {
+      interval: 1,
+    });
+    const firstSession = m.sessions.get('race-session');
+
+    const second = sshManager.connect('race-session', 'conn-id-1');
+
+    await expect(first).resolves.toEqual({
+      success: false,
+      error: 'Superseded by a newer connection attempt',
+    });
+    await expect(second).resolves.toEqual({ success: true });
+    const live = m.sessions.get('race-session');
+    expect(live).toBeDefined();
+    expect(live).not.toBe(firstSession);
+    sshManager.disconnect('race-session');
+  });
+
+  it('disconnect() during the handshake settles the pending connect', async () => {
+    const m = sshManager as unknown as { sessions: Map<string, { abortHandshake?: unknown }> };
+    const pending = sshManager.connect('abort-session', 'conn-id-1');
+    await vi.waitFor(() => expect(m.sessions.get('abort-session')?.abortHandshake).toBeDefined(), {
+      interval: 1,
+    });
+
+    sshManager.disconnect('abort-session');
+
+    await expect(pending).resolves.toEqual({ success: false, error: 'Disconnected' });
+    expect(m.sessions.has('abort-session')).toBe(false);
+  });
+
+  it('frees the reconnect state of a failed first attempt, but not of a retry', async () => {
+    // Regression: every failed user-initiated connect leaked its ladder entry.
+    const m = sshManager as unknown as {
+      reconnects: Map<string, unknown>;
+      connectOnce: (...a: unknown[]) => Promise<{ success: boolean; error?: string }>;
+    };
+    const original = m.connectOnce;
+    m.connectOnce = async (id: unknown) => {
+      m.reconnects.set(id as string, { attempts: 0, timer: null, gen: 1 });
+      return { success: false, error: 'auth failed' };
+    };
+    try {
+      await sshManager.connect('leak-check', 'conn-id-1');
+      expect(m.reconnects.has('leak-check')).toBe(false);
+
+      await sshManager.connect('retry-check', 'conn-id-1', 80, 24, { isReconnect: true });
+      expect(m.reconnects.has('retry-check')).toBe(true);
+    } finally {
+      m.connectOnce = original;
+      m.reconnects.delete('retry-check');
+    }
   });
 
   it('testConnection should return error if connection not found', async () => {
@@ -193,7 +273,6 @@ describe('sshManager', () => {
   });
 
   it('connect sets up keepalives and port forwarding rules, then disconnect tears them down', async () => {
-    await new Promise((r) => setTimeout(r, 50));
     const { createServer } = await import('node:net');
     createServerMock.mockClear();
     serverInstance.listen.mockClear();

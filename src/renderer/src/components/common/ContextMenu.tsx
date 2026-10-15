@@ -28,6 +28,8 @@ export function ContextMenu({ items, children }: ContextMenuProps) {
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const focusIndexRef = useRef(0);
+  /** Element focused when the menu opened; focus returns there on close. */
+  const openerRef = useRef<HTMLElement | null>(null);
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -45,15 +47,33 @@ export function ContextMenu({ items, children }: ContextMenuProps) {
         (total, item) => total + (item.separator ? SEPARATOR_H : ROW_H),
         0,
       );
-      const x = Math.min(e.clientX, window.innerWidth - 180);
-      const y = Math.min(e.clientY, window.innerHeight - estimatedHeight - 8);
+      // Keyboard-opened (Menu key / Shift+F10): Chromium reports (0, 0), which
+      // put the menu in the window's corner. Anchor it under the element.
+      let anchorX = e.clientX;
+      let anchorY = e.clientY;
+      if (anchorX === 0 && anchorY === 0 && e.currentTarget instanceof HTMLElement) {
+        const rect = e.currentTarget.getBoundingClientRect();
+        anchorX = rect.left + 8;
+        anchorY = rect.bottom;
+      }
+      openerRef.current =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      const x = Math.min(anchorX, window.innerWidth - 180);
+      const y = Math.min(anchorY, window.innerHeight - estimatedHeight - 8);
       focusIndexRef.current = 0;
       setPosition({ x, y: Math.max(0, y) });
     },
     [items],
   );
 
-  const close = useCallback(() => setPosition(null), []);
+  const close = useCallback(() => {
+    setPosition(null);
+    // Return focus to where the user was; otherwise it fell to <body> and
+    // keyboard users lost their place after every menu action.
+    const opener = openerRef.current;
+    openerRef.current = null;
+    if (opener && document.contains(opener)) opener.focus({ preventScroll: true });
+  }, []);
 
   // Focus the first item every time the menu (re-)opens at a new position.
   useEffect(() => {
@@ -77,7 +97,10 @@ export function ContextMenu({ items, children }: ContextMenuProps) {
       }
     };
     const keyHandler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' || e.key === 'Tab') {
+        // Tab leaving the menu closes it (standard menu behaviour) rather than
+        // leaving it open behind the newly focused control.
+        if (e.key === 'Escape') e.preventDefault();
         close();
         return;
       }
@@ -95,6 +118,11 @@ export function ContextMenu({ items, children }: ContextMenuProps) {
         const prev = (focusIndexRef.current - 1 + menuItems.length) % menuItems.length;
         focusIndexRef.current = prev;
         menuItems[prev]?.focus();
+      } else if (e.key === 'Home' || e.key === 'End') {
+        e.preventDefault();
+        const index = e.key === 'Home' ? 0 : menuItems.length - 1;
+        focusIndexRef.current = index;
+        menuItems[index]?.focus();
       }
     };
     document.addEventListener('mousedown', handler);
@@ -106,6 +134,7 @@ export function ContextMenu({ items, children }: ContextMenuProps) {
   }, [position, close]);
 
   if (!isValidElement(children)) {
+    // biome-ignore lint/a11y/noStaticElementInteractions: wrapper only forwards the contextmenu event of its (non-element) children
     return <div onContextMenu={handleContextMenu}>{children}</div>;
   }
 
@@ -133,7 +162,7 @@ export function ContextMenu({ items, children }: ContextMenuProps) {
             role="menu"
             className={cn(
               'fixed min-w-[160px] rounded-lg border border-border/80 bg-card p-1 shadow-xl',
-              Z.modal,
+              Z.dropdown,
             )}
             style={{ left: position.x, top: position.y }}
           >

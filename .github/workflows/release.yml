@@ -193,16 +193,6 @@ jobs:
           USE_SYSTEM_FPM: ${{ matrix.platform == 'linux' }}
         run: |
           if [ "${{ matrix.platform }}" = "linux" ]; then
-            # Build each arch in its own electron-builder run so the deb and
-            # AppImage targets of the two architectures never contend on the
-            # shared toolset cache.
-            #
-            # The explicit `<target>:<arch>` list is required — bare `--x64` /
-            # `--arm64` does NOT restrict the build here. computeArchToTargetNamesMap()
-            # only honours the CLI arch once at least one target name is given on
-            # the command line; with none it falls through and expands the per-target
-            # `arch:` arrays in electron-builder.yml, so `--linux --x64` still built
-            # (and published) both architectures, twice over.
             npx electron-builder --linux AppImage:x64 deb:x64 --publish always
             npx electron-builder --linux AppImage:arm64 deb:arm64 --publish always
           else

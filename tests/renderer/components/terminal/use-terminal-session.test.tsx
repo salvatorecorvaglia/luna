@@ -18,10 +18,6 @@ vi.mock('@xterm/addon-webgl', async () => {
   const { FakeWebglAddon } = await import('../../../../src/test/fake-xterm');
   return { WebglAddon: FakeWebglAddon };
 });
-vi.mock('@xterm/addon-canvas', async () => {
-  const { FakeCanvasAddon } = await import('../../../../src/test/fake-xterm');
-  return { CanvasAddon: FakeCanvasAddon };
-});
 vi.mock('@xterm/addon-unicode11', async () => {
   const { FakeUnicode11Addon } = await import('../../../../src/test/fake-xterm');
   return { Unicode11Addon: FakeUnicode11Addon };
@@ -48,7 +44,10 @@ import type {
   TerminalSessionOptions,
   TerminalTransport,
 } from '../../../../src/renderer/src/components/terminal/use-terminal-session';
-import { useTerminalSession } from '../../../../src/renderer/src/components/terminal/use-terminal-session';
+import {
+  __disposeAllTerminals,
+  useTerminalSession,
+} from '../../../../src/renderer/src/components/terminal/use-terminal-session';
 import { useTerminalStore } from '../../../../src/renderer/src/stores/terminal-store';
 import {
   FakeFitAddon,
@@ -63,6 +62,7 @@ function createMockTransport() {
   return {
     sendData: vi.fn(),
     resize: vi.fn(),
+    ack: vi.fn(),
     onData: vi.fn((cb: (e: { sessionId: string; data: string }) => void) => {
       handlers.push(cb);
       return () => {
@@ -108,6 +108,9 @@ function Harness(
 }
 
 beforeEach(() => {
+  // Cached terminals outlive unmount by one macrotask (see liveTerminals);
+  // drop them so each test constructs its own.
+  __disposeAllTerminals();
   resetFakeXterm();
   toastError.mockClear();
   toastWarning.mockClear();
@@ -192,7 +195,34 @@ describe('useTerminalSession — data flow', () => {
 
     const terminal = FakeTerminal.last();
     expect(terminal.write).toHaveBeenCalledTimes(1);
-    expect(terminal.write).toHaveBeenCalledWith('hello\n');
+    expect(terminal.write).toHaveBeenCalledWith('hello\n', expect.any(Function));
+  });
+});
+
+describe('useTerminalSession — output flow control', () => {
+  it('resets the flow count when a terminal attaches', async () => {
+    const transport = createMockTransport();
+    renderHarness(transport);
+    await flushMicrotasks();
+    expect(transport.ack).toHaveBeenCalledWith({ sessionId: 'sess-1', chars: 0, reset: true });
+  });
+
+  it('acknowledges parsed output in batches once xterm has processed it', async () => {
+    const transport = createMockTransport();
+    renderHarness(transport);
+    await flushMicrotasks();
+    const terminal = FakeTerminal.last();
+    transport.ack.mockClear();
+
+    const chunk = 'x'.repeat(40 * 1024);
+    transport.emit({ sessionId: 'sess-1', data: chunk });
+    transport.emit({ sessionId: 'sess-1', data: chunk });
+    // Nothing is acknowledged on arrival — only when parsed.
+    expect(transport.ack).not.toHaveBeenCalled();
+
+    for (const call of terminal.write.mock.calls) (call[1] as () => void)();
+    expect(transport.ack).toHaveBeenCalledTimes(1);
+    expect(transport.ack).toHaveBeenCalledWith({ sessionId: 'sess-1', chars: 80 * 1024 });
   });
 });
 
@@ -207,8 +237,49 @@ describe('useTerminalSession — cleanup', () => {
 
     unmount();
 
-    expect(terminal.dispose).toHaveBeenCalledTimes(1);
+    // Subscriptions go immediately; the terminal itself one macrotask later,
+    // unless a remount in the same commit reclaims it (see the next test).
     expect(transport.listenerCount()).toBe(0);
+    expect(terminal.dispose).not.toHaveBeenCalled();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(terminal.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the same terminal — and its scrollback — when the pane is remounted', async () => {
+    // Regression: splitting a pane moves it one level deeper in SplitLayout, so
+    // React remounts it. The terminal used to be disposed on unmount and a new,
+    // empty one constructed — every split wiped the surviving pane's history.
+    const transport = createMockTransport();
+    const { rerender } = render(
+      <div key="before">
+        <Harness transport={transport} logTag="Test" initErrorMessage="init failed" />
+      </div>,
+    );
+    await flushMicrotasks();
+    const terminal = FakeTerminal.last();
+    transport.emit({ sessionId: 'sess-1', data: 'history\n' });
+
+    // A different parent key forces an unmount + mount in one commit, which is
+    // what a leaf turning into a split does.
+    rerender(
+      <div key="after">
+        <Harness transport={transport} logTag="Test" initErrorMessage="init failed" />
+      </div>,
+    );
+    await flushMicrotasks();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(FakeTerminal.instances).toHaveLength(1);
+    expect(terminal.dispose).not.toHaveBeenCalled();
+    expect(terminal.open).toHaveBeenCalledTimes(1);
+    // Still attached to the live transport after the move.
+    transport.emit({ sessionId: 'sess-1', data: 'more\n' });
+    expect(terminal.write).toHaveBeenLastCalledWith('more\n', expect.any(Function));
+    expect(transport.listenerCount()).toBe(1);
   });
 
   it('runs the onReady cleanup on unmount', async () => {
@@ -226,20 +297,18 @@ describe('useTerminalSession — cleanup', () => {
 });
 
 describe('useTerminalSession — WebGL fallback', () => {
-  it('falls back to the Canvas addon on context loss and warns only once', async () => {
+  it('drops to the DOM renderer on context loss and warns only once', async () => {
     const transport = createMockTransport();
     renderHarness(transport);
     await flushMicrotasks();
 
-    const terminal = FakeTerminal.last();
     const webgl = FakeWebglAddon.last();
-    const loadAddonCallsBefore = terminal.loadAddon.mock.calls.length;
 
     webgl.triggerContextLoss();
     webgl.triggerContextLoss();
 
+    // Disposing the WebGL addon is what hands rendering back to the DOM.
     expect(webgl.dispose).toHaveBeenCalledTimes(2);
-    expect(terminal.loadAddon.mock.calls.length).toBeGreaterThan(loadAddonCallsBefore);
     expect(toastWarning).toHaveBeenCalledTimes(1);
   });
 });
@@ -268,32 +337,30 @@ describe('useTerminalSession — resize', () => {
     }
   });
 
-  it('drops a queued resize if the pane goes inactive before the debounce fires', async () => {
+  it('refits a visible pane even when it is not the active one', async () => {
+    // Regression: handleResize bailed for inactive panes, so in a split only
+    // the focused pane followed a window/divider resize or a font change.
+    // Hidden panes are still skipped — by the zero-size check, tested below.
     const transport = createMockTransport();
-    const { rerender } = renderHarness(transport, { isActive: false });
+    renderHarness(transport, { isActive: false });
     await flushMicrotasks();
+    const fit = FakeFitAddon.last().fit;
+    fit.mockClear();
 
     vi.useFakeTimers();
     try {
-      rerender(
-        <Harness transport={transport} logTag="Test" initErrorMessage="init failed" isActive />,
-      );
-      rerender(
-        <Harness
-          transport={transport}
-          logTag="Test"
-          initErrorMessage="init failed"
-          isActive={false}
-        />,
-      );
       act(() => {
-        vi.advanceTimersByTime(200);
+        useTerminalStore.setState({ fontSize: 15 });
       });
-
-      expect(transport.resize).not.toHaveBeenCalled();
+      act(() => {
+        vi.advanceTimersByTime(100);
+      });
     } finally {
       vi.useRealTimers();
     }
+
+    expect(fit).toHaveBeenCalledTimes(1);
+    expect(transport.resize).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'sess-1' }));
   });
 });
 
@@ -318,13 +385,42 @@ describe('useTerminalSession — live settings updates', () => {
 
     const terminal = FakeTerminal.last();
     const fitCallsBefore = FakeFitAddon.last().fit.mock.calls.length;
-    act(() => {
-      useTerminalStore.setState({ fontSize: 20, scrollback: 5000 });
-    });
+    vi.useFakeTimers();
+    try {
+      act(() => {
+        useTerminalStore.setState({ fontSize: 20, scrollback: 5000 });
+      });
+      act(() => {
+        vi.advanceTimersByTime(100);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
 
     expect(terminal.options.fontSize).toBe(20);
     expect(terminal.options.scrollback).toBe(5000);
     expect(FakeFitAddon.last().fit.mock.calls.length).toBe(fitCallsBefore + 1);
+    // Regression: a font change alters cols/rows without resizing the
+    // container, and the new geometry never reached the remote PTY.
+    expect(transport.resize).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 'sess-1', cols: 80, rows: 24 }),
+    );
+  });
+});
+
+describe('useTerminalSession — screen reader mode', () => {
+  it('constructs with the stored setting and applies changes live', async () => {
+    useTerminalStore.setState({ screenReaderMode: false });
+    const transport = createMockTransport();
+    renderHarness(transport);
+    await flushMicrotasks();
+    const terminal = FakeTerminal.last();
+    expect(terminal.options.screenReaderMode).toBe(false);
+
+    act(() => {
+      useTerminalStore.setState({ screenReaderMode: true });
+    });
+    expect(terminal.options.screenReaderMode).toBe(true);
   });
 });
 
@@ -344,8 +440,10 @@ describe('useTerminalSession — search', () => {
       lastApi!.findPrevious();
     });
 
-    expect(FakeSearchAddon.last().findNext).toHaveBeenCalledWith('needle');
-    expect(FakeSearchAddon.last().findPrevious).toHaveBeenCalledWith('needle');
+    // With decorations: the addon only reports match counts when they're on.
+    const withDecorations = expect.objectContaining({ decorations: expect.any(Object) });
+    expect(FakeSearchAddon.last().findNext).toHaveBeenCalledWith('needle', withDecorations);
+    expect(FakeSearchAddon.last().findPrevious).toHaveBeenCalledWith('needle', withDecorations);
   });
 
   it('closeSearch clears decorations, refocuses the terminal, and resets state', async () => {

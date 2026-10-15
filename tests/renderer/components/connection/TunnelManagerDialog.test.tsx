@@ -52,8 +52,8 @@ describe('TunnelManagerDialog', () => {
     (api.ssh.listActivePortForwards as ReturnType<typeof vi.fn>).mockResolvedValue([TUNNEL]);
     render(wrap(<TunnelManagerDialog open onClose={vi.fn()} />));
     await screen.findByText('127.0.0.1:8080');
-    expect(screen.getByText('localhost:80')).toBeTruthy();
-    expect(screen.getByText('active')).toBeTruthy();
+    expect(screen.getByText('localhost:80')).toBeInTheDocument();
+    expect(screen.getByText('active')).toBeInTheDocument();
   });
 
   it('shows the empty state with no active tunnels', async () => {

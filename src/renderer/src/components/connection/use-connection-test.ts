@@ -121,6 +121,41 @@ export function useConnectionTest(): UseConnectionTestApi {
         }
         setTesting(true);
         try {
+          const secretNeeded =
+            (sftp.authType === 'password' && !sftp.password) ||
+            (sftp.authType === 'key+passphrase' && !sftp.passphrase);
+          // Editing with the secret field left blank: test with the stored
+          // secret — but only via `connectionId` alone, i.e. against the saved
+          // host/user. Main refuses connectionId + config together on purpose
+          // (it would let the renderer aim a stored password at any host), so
+          // if the form's target differs from what's saved, ask for the secret.
+          if (secretNeeded && isEditing && editingConnectionId) {
+            const saved = await getApi().connections.get(editingConnectionId);
+            if (!isStillCurrent()) return;
+            const sameTarget =
+              saved &&
+              saved.host === sftp.host.trim() &&
+              saved.port === (parseInt(sftp.port) || 22) &&
+              saved.username === sftp.username.trim() &&
+              saved.authType === sftp.authType &&
+              (saved.privateKeyPath ?? '') === (sftp.privateKeyPath || '');
+            if (!sameTarget) {
+              setResult({
+                status: 'error',
+                message:
+                  'Enter the password to test the changed details — the saved one is only used with the saved host and user.',
+              });
+              return;
+            }
+            const res = await getApi().ssh.testConnection({ connectionId: editingConnectionId });
+            if (!isStillCurrent()) return;
+            setResult(
+              res.ok
+                ? { status: 'success', message: 'Connection successful' }
+                : { status: 'error', message: res.error || 'Connection failed' },
+            );
+            return;
+          }
           const res = await getApi().ssh.testConnection({
             config: {
               host: sftp.host.trim(),

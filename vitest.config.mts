@@ -68,21 +68,36 @@ export default defineConfig({
       // prove main/preload/renderer agree at runtime, which is not a
       // line-coverage question.
       //
-      // Measured 2026-09-13 over three consecutive runs with zero variance:
-      // 62.32 statements / 55.28 branches / 55.94 functions / 63.69 lines.
-      // Floors sit ~1pt under that.
+      // Measured 2026-09-27: 70.30 statements / 63.34 branches / 67.14
+      // functions / 71.83 lines. Floors sit ~1pt under that.
+      //
+      // The global floor alone let a well-tested area decay as long as new
+      // tests elsewhere made up the difference, so the security-critical
+      // directories carry their own floors too (same ~1pt margin). Branches in
+      // src/main/ipc are lower than the rest because many handlers' error arms
+      // are only reachable with a live session.
       thresholds: {
-        lines: 62,
-        functions: 54,
-        branches: 54,
-        statements: 61,
+        lines: 70,
+        functions: 66,
+        branches: 62,
+        statements: 69,
+        'src/main/lib/**': { statements: 86, branches: 83, functions: 88, lines: 89 },
+        'src/main/ipc/**': { statements: 80, branches: 66, functions: 80, lines: 82 },
+        'src/preload/**': { statements: 98, branches: 93, functions: 97, lines: 97 },
+        'src/shared/**': { statements: 86, branches: 78, functions: 90, lines: 87 },
+        'src/main/services/credential-store.ts': {
+          statements: 77,
+          branches: 54,
+          functions: 92,
+          lines: 79,
+        },
       },
     },
   },
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src/renderer/src'),
-      '@shared': resolve(__dirname, 'src/shared'),
+      '@': resolve(import.meta.dirname, 'src/renderer/src'),
+      '@shared': resolve(import.meta.dirname, 'src/shared'),
     },
   },
 });

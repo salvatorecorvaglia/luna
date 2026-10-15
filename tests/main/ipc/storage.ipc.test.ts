@@ -154,3 +154,24 @@ describe('storage IPC — writeFile', () => {
     ).rejects.toThrow(/content/);
   });
 });
+
+describe('storage.ipc compare-directories metering', () => {
+  it('requires a live session before drawing a rate token', async () => {
+    // Regression: the handler took a token for any sessionId string (or none),
+    // so junk ids created buckets — the 1024-bucket eviction trick the other
+    // handlers close by resolving the session first.
+    const { storageRegistry } = await import('../../../src/main/services/storage/registry');
+    vi.mocked(storageRegistry.require).mockImplementationOnce(() => {
+      throw new Error('No storage provider registered for junk');
+    });
+    const compare = handlers.get(IPC.STORAGE_COMPARE_DIRECTORIES)!;
+    await expect(
+      compare({}, { sessionId: 'junk', localEntries: [], remoteEntries: [] }),
+    ).rejects.toThrow(/No storage provider/);
+  });
+
+  it('rejects a missing sessionId instead of skipping the meter', async () => {
+    const compare = handlers.get(IPC.STORAGE_COMPARE_DIRECTORIES)!;
+    await expect(compare({}, { localEntries: [], remoteEntries: [] })).rejects.toThrow(/sessionId/);
+  });
+});

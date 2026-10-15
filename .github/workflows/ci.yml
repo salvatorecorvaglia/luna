@@ -197,21 +197,11 @@ jobs:
 
           fail=0
 
-          # better-sqlite3: layout differs between a prebuild (prebuilds/*.node)
-          # and a source build (build/Release/*.node), so match either.
           if ! find "$unpacked" -path '*better-sqlite3*' -name '*.node' | grep -q .; then
             echo "::error::no better-sqlite3 .node addon outside the asar"
             fail=1
           fi
 
-          # node-pty: assert against the one directory it actually loads from at
-          # runtime. lib/utils.js tries build/Release, build/Debug, then
-          # prebuilds/<platform>-<arch>, and unixTerminal.js exec's spawn-helper
-          # out of whichever of those won. node-pty also ships prebuilds for the
-          # *other* platforms — unused, and non-executable in the npm tarball —
-          # so matching on path substrings picked the wrong copy and failed a
-          # build that was in fact correct (a darwin prebuild nested under
-          # dist/linux-unpacked/ matches '*linux*').
           ptyroot=$(find "$unpacked" -type d -path '*node_modules/node-pty' -print -quit)
           if [ -z "$ptyroot" ]; then
             echo "::error::node-pty is not unpacked from the asar"
@@ -228,11 +218,6 @@ jobs:
             fail=1
           fi
 
-          # Per-platform helpers. spawn-helper is macOS-only: node-pty's
-          # binding.gyp declares that target under 'OS=="mac"', and pty.cc only
-          # reads helper_path inside '#if defined(__APPLE__)' — Linux forks the
-          # pty directly and ships no such file. Windows uses conpty/winpty and
-          # has no executable bit to lose.
           case "$RUNNER_OS" in
             Windows)
               if ! find "$ptyroot" -name 'conpty*.node' | grep -q .; then
@@ -241,10 +226,6 @@ jobs:
               fi
               ;;
             macOS)
-              # The regression this job exists for: spawn-helper has no
-              # extension, so the '**/*.node' unpack rule never matched it, and
-              # a local terminal cannot spawn when the helper is trapped inside
-              # the asar or lands without its executable bit.
               helper="$native/spawn-helper"
               if [ ! -f "$helper" ]; then
                 echo "::error::node-pty spawn-helper is not unpacked — local terminals will not start"

@@ -156,3 +156,63 @@ describe('useConnectionTest — resolved {ok:false} path still works (not broken
     expect(result.current.result).toEqual({ status: 'success', message: 'Connection successful' });
   });
 });
+
+describe('useConnectionTest — SFTP stored secret while editing', () => {
+  const saved = {
+    id: 'c1',
+    name: 'prod',
+    provider: 'sftp' as const,
+    host: 'example.com',
+    port: 22,
+    username: 'root',
+    authType: 'password' as const,
+    folder: 'default',
+    createdAt: 0,
+    updatedAt: 0,
+  };
+
+  function install(testConnection: ReturnType<typeof vi.fn>) {
+    __setApiForTesting({
+      ssh: { testConnection },
+      connections: { get: vi.fn().mockResolvedValue(saved) },
+      // biome-ignore lint/suspicious/noExplicitAny: minimal test double
+    } as any as LunaAPI);
+  }
+
+  it('tests with the stored password when the target is unchanged', async () => {
+    // Regression: the form never passed connectionId, so testing an existing
+    // password connection without retyping the password always failed auth.
+    const testConnection = vi.fn().mockResolvedValue({ ok: true });
+    install(testConnection);
+    const { result } = renderHook(() => useConnectionTest());
+    await act(async () => {
+      await result.current.runTest({
+        provider: 'sftp',
+        sftp: { ...baseSftp, password: '' },
+        s3: baseS3,
+        editingConnectionId: 'c1',
+        isEditing: true,
+      });
+    });
+    expect(testConnection).toHaveBeenCalledWith({ connectionId: 'c1' });
+    expect(result.current.result).toEqual({ status: 'success', message: 'Connection successful' });
+  });
+
+  it('refuses to use the stored password against a changed host', async () => {
+    const testConnection = vi.fn();
+    install(testConnection);
+    const { result } = renderHook(() => useConnectionTest());
+    await act(async () => {
+      await result.current.runTest({
+        provider: 'sftp',
+        sftp: { ...baseSftp, host: 'elsewhere.example.com', password: '' },
+        s3: baseS3,
+        editingConnectionId: 'c1',
+        isEditing: true,
+      });
+    });
+    expect(testConnection).not.toHaveBeenCalled();
+    expect(result.current.result?.status).toBe('error');
+    expect(result.current.result?.message).toMatch(/Enter the password/);
+  });
+});

@@ -80,4 +80,38 @@ describe('FilePreview component', () => {
     fireEvent.click(screen.getByLabelText('Close preview'));
     expect(useStorageStore.getState().previewFile).toBeNull();
   });
+
+  it('closes only the search bar on Escape, not the whole preview', () => {
+    // Regression: the capture handler closed the search, then the same event
+    // reached DialogShell's Escape handler and closed the preview.
+    useStorageStore.getState().setPreviewFile({
+      name: 'notes.txt',
+      content: 'needle in a haystack',
+      type: 'text/plain',
+      path: '/home/user/notes.txt',
+      isLocal: true,
+    });
+    render(<FilePreview />);
+    fireEvent.keyDown(window, { key: 'f', metaKey: true });
+    expect(screen.getByPlaceholderText(/search/i)).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(screen.queryByPlaceholderText(/search/i)).toBeNull();
+    expect(useStorageStore.getState().previewFile).not.toBeNull();
+    expect(screen.getByText('notes.txt')).toBeInTheDocument();
+  });
+
+  it('closes the preview on a plain Escape', () => {
+    useStorageStore.getState().setPreviewFile({
+      name: 'notes.txt',
+      content: 'x',
+      type: 'text/plain',
+      path: '/home/user/notes.txt',
+      isLocal: true,
+    });
+    render(<FilePreview />);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(useStorageStore.getState().previewFile).toBeNull();
+  });
 });

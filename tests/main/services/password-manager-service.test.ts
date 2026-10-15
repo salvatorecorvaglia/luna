@@ -82,6 +82,11 @@ describe('resolveSecretReference — accepted references', () => {
     );
   });
 
+  it('keeps whitespace that is part of the secret, stripping only the newline', async () => {
+    execFileMock.mockResolvedValue({ stdout: '  pass phrase \n', stderr: '' });
+    await expect(service.resolveSecretReference('bw://spaced')).resolves.toBe('  pass phrase ');
+  });
+
   it('returns null when the CLI produces no output', async () => {
     execFileMock.mockResolvedValue({ stdout: '  \n', stderr: '' });
     await expect(service.resolveSecretReference('bw://empty')).resolves.toBeNull();

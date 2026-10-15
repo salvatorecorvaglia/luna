@@ -10,7 +10,7 @@ import { WelcomeView } from '@/components/common/WelcomeView';
 import { AppShell } from '@/components/layout/AppShell';
 import { useConnectionStore } from '@/stores/connection-store';
 import { useStorageStore } from '@/stores/storage-store';
-import { useTerminalStore } from '@/stores/terminal-store';
+import { getTabKind, useTerminalStore } from '@/stores/terminal-store';
 import { useUIStore } from '@/stores/ui-store';
 
 // Overlays: chunk loads on first open. Each is gated on its store-managed
@@ -50,6 +50,7 @@ import { useSessionRecovery } from '@/hooks/use-session-recovery';
 import { useSshStatusListener } from '@/hooks/use-ssh-status-listener';
 import { useTransferEventListener } from '@/hooks/use-transfers';
 import { useUpdaterEventListener } from '@/hooks/use-updater';
+import { isModalOpen } from '@/lib/shortcut-guard';
 import { getApi } from '@/services/api';
 import { applyUIThemeTokens, buildUIThemeTokens } from '@/themes/ui-from-terminal';
 
@@ -76,10 +77,7 @@ export default function App() {
   // is just Object.is with extra indirection. useShallow only pays for itself
   // on object/array selections.
   const hasTerminals = useTerminalStore((s) =>
-    s.tabOrder.some((id) => {
-      const sess = s.sessions.get(id);
-      return !sess?.type || sess.type === 'ssh';
-    }),
+    s.tabOrder.some((id) => getTabKind(s, id) === 'ssh'),
   );
 
   // Load settings from DB on mount to prevent localStorage drift
@@ -90,7 +88,8 @@ export default function App() {
         const theme = settings['terminal.theme'] as TerminalThemeName | undefined;
         const fontSize = settings['terminal.fontSize'] as number | undefined;
         const scrollback = settings['terminal.scrollback'] as number | undefined;
-        initializeSettings({ theme, fontSize, scrollback });
+        const screenReaderMode = settings['terminal.screenReaderMode'] as boolean | undefined;
+        initializeSettings({ theme, fontSize, scrollback, screenReaderMode });
       })
       .catch((err) => {
         console.error('Failed to load settings from DB:', err);
@@ -214,6 +213,11 @@ export default function App() {
           (tag === 'INPUT' || tag === 'TEXTAREA' || active.isContentEditable) && !inTerminal;
         if (isFormField) return;
       }
+
+      // Modifier chords never act behind an open modal (Cmd+N stacked a
+      // connection form over Settings, Cmd+Shift+2 switched views under a
+      // confirmation). '?' is not a chord and still toggles ShortcutsHelp.
+      if (mod && isModalOpen()) return;
 
       // Cmd+K: Command palette
       if (mod && key === 'k') {

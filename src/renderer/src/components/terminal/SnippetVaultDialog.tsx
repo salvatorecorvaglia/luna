@@ -1,9 +1,12 @@
+import { toastArgs } from '@shared/error-messages';
 import type { Snippet } from '@shared/types/snippet';
-import { Code, Edit3, Play, Plus, Search, Tag, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Code, Edit3, Play, Plus, Search, Tag, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { DialogShell } from '@/components/common/DialogShell';
-import { EmptyState, Spinner } from '@/components/ui';
+import { Button, EmptyState, IconButton, Spinner } from '@/components/ui';
+import { extractSnippetVariables, substituteSnippetVariables } from '@/lib/snippets';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
 
@@ -13,13 +16,13 @@ interface SnippetVaultDialogProps {
   onRunSnippet?: (command: string) => void;
 }
 
-function extractVariables(command: string): string[] {
-  const matches = command.match(/\{\{([^}]+)\}\}/g);
-  if (!matches) return [];
-  return Array.from(new Set(matches.map((m) => m.slice(2, -2).trim())));
-}
+const extractVariables = extractSnippetVariables;
 
 export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVaultDialogProps) {
+  // Deletion is permanent; confirm first (the trash button used to act on one click).
+  /** A failed load, shown instead of the empty state it used to masquerade as. */
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [pendingDeleteSnippetId, setPendingDeleteSnippetId] = useState<string | null>(null);
   const [snippets, setSnippets] = useState<Snippet[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -38,8 +41,10 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
     try {
       const list = await getApi().snippets.list();
       setSnippets(list);
+      setLoadError(null);
     } catch (err) {
       console.error('Failed to load snippets:', err);
+      setLoadError(err instanceof Error ? err.message : String(err));
     }
   }, []);
 
@@ -105,7 +110,7 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
       setEditingSnippet(null);
       fetchSnippets();
     } catch (err) {
-      toast.error(`Failed to save snippet: ${(err as Error).message}`);
+      toast.error(...toastArgs(err, 'Failed to save snippet'));
     }
   };
 
@@ -115,7 +120,7 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
       toast.success('Snippet deleted');
       fetchSnippets();
     } catch (err) {
-      toast.error(`Failed to delete snippet: ${(err as Error).message}`);
+      toast.error(...toastArgs(err, 'Failed to delete snippet'));
     }
   };
 
@@ -137,8 +142,10 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
       toast.success('Snippet executed in terminal');
       onClose();
     } else {
-      navigator.clipboard.writeText(finalCmd);
-      toast.success('Snippet copied to clipboard');
+      navigator.clipboard
+        .writeText(finalCmd)
+        .then(() => toast.success('Snippet copied to clipboard'))
+        .catch(() => toast.error('Could not copy the snippet'));
     }
   };
 
@@ -146,10 +153,7 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
     e.preventDefault();
     if (!promptSnippet) return;
 
-    let finalCmd = promptSnippet.command;
-    for (const [key, val] of Object.entries(variableValues)) {
-      finalCmd = finalCmd.replace(new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g'), val);
-    }
+    const finalCmd = substituteSnippetVariables(promptSnippet.command, variableValues);
 
     setPromptSnippet(null);
     executeSnippetCommand(finalCmd);
@@ -180,13 +184,13 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
           </div>
         </div>
 
-        <button
-          type="button"
+        <IconButton
           onClick={onClose}
-          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
-        >
-          <X className="size-4" />
-        </button>
+          aria-label="Close dialog"
+          title="Close"
+          size="md"
+          icon={<X className="size-4" />}
+        />
       </div>
 
       {/* Content */}
@@ -362,6 +366,18 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
             <div className="flex justify-center py-8">
               <Spinner size="md" label="Loading command snippets…" />
             </div>
+          ) : loadError && snippets.length === 0 ? (
+            <EmptyState
+              icon={<AlertTriangle />}
+              title="Couldn't load snippets"
+              description={loadError}
+              action={
+                <Button variant="outline" onClick={() => void fetchSnippets()}>
+                  Retry
+                </Button>
+              }
+              className="rounded-xl border border-dashed border-border bg-accent/10 py-10"
+            />
           ) : filteredSnippets.length === 0 ? (
             <EmptyState
               icon={<Code />}
@@ -421,8 +437,9 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
 
                     <button
                       type="button"
-                      onClick={() => handleDeleteSnippet(s.id)}
+                      onClick={() => setPendingDeleteSnippetId(s.id)}
                       title="Delete snippet"
+                      aria-label="Delete snippet"
                       className="rounded-md border border-destructive/20 bg-destructive/10 p-1.5 text-destructive-fg hover:bg-destructive/20 transition-colors cursor-pointer"
                     >
                       <Trash2 className="size-3.5" />
@@ -433,6 +450,18 @@ export function SnippetVaultDialog({ open, onClose, onRunSnippet }: SnippetVault
             </div>
           ))}
       </div>
+      <ConfirmDialog
+        open={pendingDeleteSnippetId !== null}
+        title="Delete snippet?"
+        message="This snippet will be permanently removed."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => {
+          if (pendingDeleteSnippetId) void handleDeleteSnippet(pendingDeleteSnippetId);
+          setPendingDeleteSnippetId(null);
+        }}
+        onCancel={() => setPendingDeleteSnippetId(null)}
+      />
     </DialogShell>
   );
 }

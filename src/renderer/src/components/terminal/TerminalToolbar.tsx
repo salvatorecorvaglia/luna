@@ -2,7 +2,6 @@ import { BookOpen, Circle, Code, FileText, LayoutGrid, Radio } from 'lucide-reac
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { AuditExportDialog } from '@/components/terminal/AuditExportDialog';
-import { BroadcastInputBar } from '@/components/terminal/BroadcastInputBar';
 import { CliReferenceDialog } from '@/components/terminal/CliReferenceDialog';
 import { MacroRecorderDialog } from '@/components/terminal/MacroRecorderDialog';
 import { SnippetVaultDialog } from '@/components/terminal/SnippetVaultDialog';
@@ -11,7 +10,8 @@ import { IconButton } from '@/components/ui';
 import { connectToHost } from '@/lib/ssh';
 import { cn } from '@/lib/utils';
 import { getApi } from '@/services/api';
-import { useActiveSessionId, useTerminalStore } from '@/stores/terminal-store';
+import { selectViewSessionId, useTerminalStore } from '@/stores/terminal-store';
+import { useUIStore } from '@/stores/ui-store';
 
 /**
  * Trigger buttons plus their on-demand dialogs for the terminal tab bar's
@@ -31,17 +31,20 @@ import { useActiveSessionId, useTerminalStore } from '@/stores/terminal-store';
 const ACTIVE_TOGGLE = '!bg-primary/20 !text-primary';
 
 export function TerminalToolbar() {
-  const activeSessionId = useActiveSessionId();
+  // The toolbar lives in the SSH tab strip, so it acts on the session the SSH
+  // view is showing — not the global active session, which may be a hidden
+  // local shell.
+  const activeSessionId = useTerminalStore((s) => selectViewSessionId(s, 'ssh'));
   // Only this toolbar's own session, not the Map. The store replaces `sessions`
   // on every status change and rename, so subscribing to it re-rendered the
-  // whole toolbar (and remounted nothing, but re-ran every dialog's render path)
-  // whenever any unrelated session ticked.
+  // whole toolbar whenever any unrelated session ticked.
   const activeSession = useTerminalStore((s) =>
-    s.activeSessionId ? (s.sessions.get(s.activeSessionId) ?? null) : null,
+    activeSessionId ? (s.sessions.get(activeSessionId) ?? null) : null,
   );
+  const showBroadcastBar = useUIStore((s) => s.broadcastBarOpen);
+  const setShowBroadcastBar = useUIStore((s) => s.setBroadcastBarOpen);
 
   const [showSnippetVault, setShowSnippetVault] = useState(false);
-  const [showBroadcastBar, setShowBroadcastBar] = useState(false);
   const [showMacroRecorder, setShowMacroRecorder] = useState(false);
   const [showCliRef, setShowCliRef] = useState(false);
   const [showAuditExport, setShowAuditExport] = useState(false);
@@ -70,7 +73,7 @@ export function TerminalToolbar() {
         />
 
         <IconButton
-          onClick={() => setShowBroadcastBar((v) => !v)}
+          onClick={() => setShowBroadcastBar(!showBroadcastBar)}
           className={cn(showBroadcastBar && ACTIVE_TOGGLE)}
           title="Broadcast Input to Multiple Terminals"
           aria-label="Broadcast Input to Multiple Terminals"
@@ -112,9 +115,6 @@ export function TerminalToolbar() {
           this changes nothing about when they're visible), but mounting them
           unconditionally meant every one of their hooks ran on every render
           of this tab bar even while closed. */}
-      {showBroadcastBar && (
-        <BroadcastInputBar open={showBroadcastBar} onClose={() => setShowBroadcastBar(false)} />
-      )}
       {showCliRef && (
         <CliReferenceDialog
           open={showCliRef}
@@ -159,10 +159,10 @@ export function TerminalToolbar() {
           open={showWorkspaces}
           onClose={() => setShowWorkspaces(false)}
           onRestoreWorkspace={(preset) => {
-            if (preset.layout.connectionIds && preset.layout.connectionIds.length > 0) {
-              for (const connId of preset.layout.connectionIds) {
-                connectToHost(connId);
-              }
+            // Presets saved by earlier builds can contain the local-shell
+            // pseudo id; it is not a connection.
+            for (const connId of preset.layout.connectionIds ?? []) {
+              if (connId && connId !== 'local') void connectToHost(connId);
             }
           }}
         />

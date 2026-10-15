@@ -1,10 +1,13 @@
+import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { StringDecoder } from 'node:string_decoder';
 import { IPC } from '@shared/constants';
 import { ErrorCode, LunaError } from '@shared/errors';
+import type { TerminalAckParams } from '@shared/types/terminal';
 import * as pty from 'node-pty';
 import { registerHandler } from '../lib/ipc-handler';
 import log from '../lib/logger';
+import { OutputFlow } from '../lib/output-flow';
 import { assertBoundedInt, assertNonEmptyString } from '../lib/validate';
 import { getMainWindow } from './app.ipc';
 
@@ -16,6 +19,8 @@ interface LocalPtySession {
    * quit) can drain before discarding — see `drainAndDropBuffer`.
    */
   flush: () => void;
+  /** Output backpressure towards the renderer; see OutputFlow. */
+  flow: OutputFlow;
 }
 
 const sessions = new Map<string, LocalPtySession>();
@@ -104,14 +109,27 @@ const ALLOWED_POSIX_SHELLS = new Set([
   '/opt/homebrew/bin/fish',
 ]);
 
+/**
+ * Shell to use when $SHELL is unset or not on the allowlist. zsh is only a
+ * safe bet on macOS; most Linux installs don't ship it, and spawning a missing
+ * binary left the user with a tab that died instantly.
+ */
+function fallbackShell(): string {
+  if (process.platform === 'darwin') return '/bin/zsh';
+  return existsSync('/bin/bash') ? '/bin/bash' : '/bin/sh';
+}
+
 function detectShell(): string {
   if (process.platform === 'win32') return 'powershell.exe';
   const candidate = process.env['SHELL'];
   if (candidate && ALLOWED_POSIX_SHELLS.has(candidate)) return candidate;
+  const fallback = fallbackShell();
   if (candidate) {
-    log.warn(`[LocalTerminal] Ignoring untrusted $SHELL "${candidate}"; falling back to /bin/zsh`);
+    log.warn(
+      `[LocalTerminal] Ignoring untrusted $SHELL "${candidate}"; falling back to ${fallback}`,
+    );
   }
-  return '/bin/zsh';
+  return fallback;
 }
 
 export function registerLocalTerminalHandlers(): void {
@@ -172,10 +190,16 @@ export function registerLocalTerminalHandlers(): void {
        * handler answers with `process.exit(1)`. Closing the window while a
        * chatty command was running could take the whole app down with it.
        */
+      const flow = new OutputFlow(
+        () => ptyProcess.pause(),
+        () => ptyProcess.resume(),
+      );
+
       const emit = (data: string): boolean => {
         const win = getMainWindow();
         if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return false;
         win.webContents.send(IPC.LOCAL_TERMINAL_ON_DATA, { sessionId, data });
+        flow.sent(data.length);
         return true;
       };
 
@@ -207,9 +231,19 @@ export function registerLocalTerminalHandlers(): void {
 
       // Registered only now that `flush` exists — teardown paths reach it
       // through this record.
-      sessions.set(sessionId, { pty: ptyProcess, flush });
+      const record: LocalPtySession = { pty: ptyProcess, flush, flow };
+      sessions.set(sessionId, record);
+      /**
+       * True while this PTY still owns `sessionId`. A kill followed quickly by
+       * a respawn under the same id (a restarted tab) installs a new record
+       * before the old PTY's exit fires; without this check the old PTY's
+       * late exit deleted the *new* record — leaving an orphaned, unkillable
+       * shell — and told the renderer the new tab had exited.
+       */
+      const isCurrent = (): boolean => sessions.get(sessionId) === record;
 
       ptyProcess.onData((data: string) => {
+        if (!isCurrent()) return;
         // Cheap early-out: don't accumulate output for a window that's gone.
         // The authoritative check lives in emit().
         const win = getMainWindow();
@@ -242,6 +276,10 @@ export function registerLocalTerminalHandlers(): void {
       });
 
       ptyProcess.onExit(({ exitCode }: { exitCode: number }) => {
+        if (!isCurrent()) {
+          log.info(`[LocalTerminal] Superseded PTY for ${sessionId} exited with code ${exitCode}`);
+          return;
+        }
         // Drain before dropping the session, and before the on-exit notice, so
         // the shell's final output lands *above* the "Shell exited" banner
         // rather than being discarded with the buffer.
@@ -295,6 +333,16 @@ export function registerLocalTerminalHandlers(): void {
     },
   );
 
+  // Renderer acknowledgement of parsed output — drives OutputFlow.
+  registerHandler(IPC.LOCAL_TERMINAL_ACK_DATA, (_event, params: TerminalAckParams) => {
+    assertNonEmptyString(params?.sessionId, 'sessionId');
+    assertBoundedInt(params.chars, 'chars', 0, 64 * 1024 * 1024);
+    const flow = sessions.get(params.sessionId)?.flow;
+    if (!flow) return;
+    if (params.reset === true) flow.reset();
+    else flow.acked(params.chars);
+  });
+
   // Resize a session
   registerHandler(
     IPC.LOCAL_TERMINAL_RESIZE,
@@ -330,7 +378,7 @@ export function disposeLocalTerminals(): void {
       } catch {
         // ignore
       }
-      log.info(`[LocalTerminal] Disposed session ${id} on quit`);
+      log.info(`[LocalTerminal] Disposed session ${id}`);
     }
   }
   sessions.clear();

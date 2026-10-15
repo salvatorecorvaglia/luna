@@ -81,12 +81,6 @@ coverage/
 .vitest/
 .biome_cache/
 
-# Husky internal
-.husky/_
-
-# SBOM artifacts
-sbom.cyclonedx.json
-
 # Playwright
 /test-results/
 /playwright-report/

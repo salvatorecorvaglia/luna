@@ -56,7 +56,12 @@ export function __resetSshConnectLimiter(): void {
 }
 
 import type { AuthType, PortForwardingConfig } from '@shared/types/connection';
-import type { SshConnectParams, SshResizeParams, SshSendDataParams } from '@shared/types/terminal';
+import type {
+  SshConnectParams,
+  SshResizeParams,
+  SshSendDataParams,
+  TerminalAckParams,
+} from '@shared/types/terminal';
 
 export function registerSshHandlers(): void {
   // Re-register the SFTP provider on every successful (re)connect.
@@ -86,6 +91,9 @@ export function registerSshHandlers(): void {
   registerHandler(IPC.SSH_CONNECT, async (_event, params: SshConnectParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
     assertNonEmptyString(params.connectionId, 'connectionId');
+    // Same bounds as SSH_RESIZE: these go straight into the PTY request.
+    if (params.cols !== undefined) assertBoundedInt(params.cols, 'cols', 1, 500);
+    if (params.rows !== undefined) assertBoundedInt(params.rows, 'rows', 1, 500);
 
     sshConnectLimiter.check();
     // Existing sessionId means this is a reconnect of an already-tracked
@@ -113,7 +121,10 @@ export function registerSshHandlers(): void {
       params.rows,
     );
 
-    if (!result.success) {
+    // Only roll back when no session holds this id any more. A connect that
+    // was superseded by a newer attempt for the same sessionId fails here too,
+    // and unregistering would strip the provider from the live replacement.
+    if (!result.success && !sshManager.getSession(params.sessionId)) {
       // Roll the eager registration back. Every failure path in connect()
       // deletes the session *without* firing onSessionDisconnect, so the
       // registration above would otherwise outlive the session forever —
@@ -205,6 +216,12 @@ export function registerSshHandlers(): void {
     },
   );
 
+  registerHandler(IPC.SSH_ACK_DATA, (_event, params: TerminalAckParams) => {
+    assertNonEmptyString(params?.sessionId, 'sessionId');
+    assertBoundedInt(params.chars, 'chars', 0, 64 * 1024 * 1024);
+    sshManager.ackOutput(params.sessionId, params.chars, params.reset === true);
+  });
+
   registerHandler(IPC.SSH_RESIZE, (_event, params: SshResizeParams) => {
     assertNonEmptyString(params.sessionId, 'sessionId');
     assertBoundedInt(params.cols, 'cols', 1, 500);
@@ -216,11 +233,12 @@ export function registerSshHandlers(): void {
     IPC.SSH_TRUST_HOST_KEY,
     (
       _event,
-      params: { host: string; port: number },
+      params: { host: string; port: number; fingerprint: string },
     ): { trusted: boolean; fingerprint?: string } => {
       assertNonEmptyString(params.host, 'host');
       assertBoundedInt(params.port, 'port', 1, 65535);
-      const fp = sshManager.trustPendingHostKey(params.host, params.port);
+      assertNonEmptyString(params.fingerprint, 'fingerprint');
+      const fp = sshManager.trustPendingHostKey(params.host, params.port, params.fingerprint);
       return fp ? { trusted: true, fingerprint: fp } : { trusted: false };
     },
   );

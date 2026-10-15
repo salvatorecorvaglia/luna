@@ -56,4 +56,51 @@ describe('redact', () => {
     obj.self = obj;
     expect(() => redact(obj)).not.toThrow();
   });
+
+  describe('gaps closed', () => {
+    it('redacts JSON-quoted keys', () => {
+      const out = redactString('{"user":"u","password":"hun\\"ter2","token": "abc"}');
+      expect(out).not.toContain('hun');
+      expect(out).not.toContain('abc');
+      expect(out).toContain('"user":"u"');
+    });
+
+    it('redacts S3 presigned-URL signatures and session tokens', () => {
+      const url =
+        'https://b.s3.amazonaws.com/k?X-Amz-Credential=AKIA%2F&X-Amz-Security-Token=FQoG&X-Amz-Signature=deadbeef&X-Amz-Expires=60';
+      const out = redactString(url);
+      expect(out).not.toContain('deadbeef');
+      expect(out).not.toContain('FQoG');
+      expect(out).not.toContain('AKIA');
+      expect(out).toContain('X-Amz-Expires=60');
+    });
+
+    it('redacts the token after a Bearer/Basic scheme, not just the scheme word', () => {
+      const out = redactString('Authorization: Bearer eyJhbGciOi.payload.sig');
+      expect(out).not.toContain('eyJ');
+    });
+
+    it('redacts token= and api_key= fragments', () => {
+      expect(redactString('token=abc123 api_key=zzz')).not.toMatch(/abc123|zzz/);
+    });
+
+    it('treats camelCase and suffixed object keys as sensitive', () => {
+      const out = redact({
+        accessToken: 'a',
+        refresh_token: 'b',
+        apiKey: 'c',
+        dbPassword: 'd',
+        clientSecret: 'e',
+        tokenCount: 3,
+      }) as Record<string, unknown>;
+      expect(out).toEqual({
+        accessToken: '[REDACTED]',
+        refresh_token: '[REDACTED]',
+        apiKey: '[REDACTED]',
+        dbPassword: '[REDACTED]',
+        clientSecret: '[REDACTED]',
+        tokenCount: 3,
+      });
+    });
+  });
 });

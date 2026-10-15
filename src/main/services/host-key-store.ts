@@ -14,15 +14,26 @@ export function formatHostKey(host: string, port: number): string {
 }
 
 /**
- * Allowlist of acceptable host-key algorithms. Reject weak or deprecated
- * algorithms (ssh-dss, plain ssh-rsa with SHA-1, anything else unknown) so
- * a downgrade-attack can't trick TOFU into trusting a weaker key.
+ * Allowlist of acceptable host-key *types*, as read from the key blob by
+ * `parseHostKeyAlgorithm`. Rejects DSA and anything unknown so a downgrade
+ * can't trick TOFU into trusting a weaker key.
+ *
+ * `ssh-rsa` is here because it is the RSA key-blob type, not a statement about
+ * the signature hash. An RSA host key is always encoded as `ssh-rsa` on the
+ * wire, even when the server signs with rsa-sha2-256/512 (ssh2 accepts exactly
+ * that pairing in kex.js). Leaving it out refused every RSA-only server as
+ * "weak". SHA-1 RSA signatures are excluded where they belong — at
+ * negotiation: `serverHostKey` in ssh-config.ts offers only rsa-sha2-*.
+ *
+ * The rsa-sha2-* names stay for rows written by any earlier build that stored
+ * the negotiated name.
  */
 const ALLOWED_HOST_KEY_ALGORITHMS = new Set([
   'ssh-ed25519',
   'ecdsa-sha2-nistp256',
   'ecdsa-sha2-nistp384',
   'ecdsa-sha2-nistp521',
+  'ssh-rsa',
   'rsa-sha2-256',
   'rsa-sha2-512',
 ]);

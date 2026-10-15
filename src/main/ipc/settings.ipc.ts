@@ -37,8 +37,11 @@ const VALID_SETTINGS_KEYS = new Set(Object.keys(SETTING_TYPES));
  * read, so the write path can never accept a value the read path will discard.
  */
 const SETTING_NUMERIC_BOUNDS: Partial<Record<keyof AppSettings, { min: number; max: number }>> = {
-  'terminal.fontSize': { min: LIMITS.MIN_FONT_SIZE, max: 72 },
-  'terminal.scrollback': { min: LIMITS.MIN_SCROLLBACK, max: 1_000_000 },
+  // Same limits the renderer store clamps to (constants.ts says they must
+  // match); these were 72 and 1,000,000, so main accepted values the UI then
+  // silently rewrote on the next launch.
+  'terminal.fontSize': { min: LIMITS.MIN_FONT_SIZE, max: LIMITS.MAX_FONT_SIZE },
+  'terminal.scrollback': { min: LIMITS.MIN_SCROLLBACK, max: LIMITS.MAX_SCROLLBACK },
   'transfer.concurrency': { min: 1, max: LIMITS.MAX_CONCURRENT_TRANSFERS },
   'ssh.keepAliveInterval': { min: 0, max: 600_000 },
   'ssh.maxReconnectAttempts': { min: 0, max: 100 },
@@ -51,7 +54,9 @@ function checkSettingType(key: string, parsed: unknown): boolean {
   const expected = SETTING_TYPES[key as keyof AppSettings];
   if (!expected) return false;
   if (expected === 'number') {
-    if (typeof parsed !== 'number' || !Number.isFinite(parsed)) return false;
+    // Every numeric setting is a count, a size in bytes/px or a duration in
+    // ms, so fractions are rejected (`transfer.concurrency: 2.5` used to pass).
+    if (typeof parsed !== 'number' || !Number.isInteger(parsed)) return false;
     const bounds = SETTING_NUMERIC_BOUNDS[key as keyof AppSettings];
     if (bounds && (parsed < bounds.min || parsed > bounds.max)) return false;
     return true;

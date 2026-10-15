@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs';
-import { stat as fsStat } from 'node:fs/promises';
+import { stat as fsStat, utimes as fsUtimes } from 'node:fs/promises';
 import { BINARY_PREVIEW_EXTENSIONS, LIMITS } from '@shared/constants';
 import type { SftpEntry } from '@shared/types/sftp';
 import type { ReadStreamOptions, SFTPWrapper, WriteStreamOptions } from 'ssh2';
@@ -7,7 +7,7 @@ import { getSftpIdleTunables, getTransferTunables } from '../config/runtime';
 import { SftpTransferError, SshConnectionError } from '../lib/errors';
 import log from '../lib/logger';
 import { releaseStorageBucket } from '../lib/rate-limiter';
-import { withTimeout } from '../lib/with-timeout';
+import { TimeoutError, withTimeout } from '../lib/with-timeout';
 import { formatPermissions, isSessionFatal } from './sftp/sftp-helpers';
 import { sshManager } from './ssh-manager';
 import { runPipeDownloadToFile, runPipeTransfer } from './storage/pipe-transfer';
@@ -33,6 +33,32 @@ type StepCallback = (transferred: number, chunk: number, total: number) => void;
  * destination.
  */
 const PARTIAL_UPLOAD_SUFFIX = '.luna-partial';
+
+/** How long cleanup waits for the server to acknowledge an unlink. */
+const CLEANUP_UNLINK_TIMEOUT_MS = 5_000;
+
+/**
+ * Remove a remote file, giving up after a few seconds.
+ *
+ * Used only for cleanup. On a dead channel ssh2 accepts the request and never
+ * calls back, so an unbounded wait here stopped a cancelled upload from ever
+ * unwinding — and the transfer queue only frees the concurrency slot when it
+ * does, so each such cancel permanently cost one slot.
+ */
+function unlinkBestEffort(sftp: SFTPWrapper, remotePath: string): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, CLEANUP_UNLINK_TIMEOUT_MS);
+    try {
+      sftp.unlink(remotePath, () => {
+        clearTimeout(timer);
+        resolve();
+      });
+    } catch {
+      clearTimeout(timer);
+      resolve();
+    }
+  });
+}
 
 class SftpManager {
   private sftpSessions = new Map<string, SFTPWrapper>();
@@ -139,15 +165,27 @@ class SftpManager {
     this.openGen.set(sessionId, (this.openGen.get(sessionId) ?? 0) + 1);
   }
 
-  private acquireLease(sessionId: string): void {
+  /**
+   * Take a lease for an in-flight op. Returns the channel generation it was
+   * taken under; pass it back to releaseLease().
+   *
+   * The generation is what keeps the count honest across a close: closeSftp()
+   * and a disconnect wipe `leases`, and the ops that were in flight then still
+   * release when they unwind. Without the check those late releases
+   * decremented leases taken on the *new* channel, driving its count to zero
+   * while ops were running — and the idle sweep closes a zero-lease session.
+   */
+  private acquireLease(sessionId: string): number {
     if (this.closing.has(sessionId)) {
       throw new SshConnectionError('SFTP session is closing');
     }
     this.leases.set(sessionId, (this.leases.get(sessionId) ?? 0) + 1);
     this.lastAccess.set(sessionId, Date.now());
+    return this.openGen.get(sessionId) ?? 0;
   }
 
-  private releaseLease(sessionId: string): void {
+  private releaseLease(sessionId: string, gen: number): void {
+    if ((this.openGen.get(sessionId) ?? 0) !== gen) return;
     const next = (this.leases.get(sessionId) ?? 0) - 1;
     if (next <= 0) this.leases.delete(sessionId);
     else this.leases.set(sessionId, next);
@@ -206,7 +244,9 @@ class SftpManager {
           this.sftpSessions.set(sessionId, sftp);
 
           sftp.on('close', () => {
-            this.sftpSessions.delete(sessionId);
+            // Identity-checked: a late close from a replaced channel must not
+            // remove the wrapper that superseded it.
+            if (this.sftpSessions.get(sessionId) === sftp) this.sftpSessions.delete(sessionId);
           });
 
           sftp.on('error', (err: unknown) => {
@@ -242,23 +282,36 @@ class SftpManager {
     fn: (sftp: SFTPWrapper) => Promise<T>,
     timeoutMs: number = LIMITS.STORAGE_OP_TIMEOUT_MS,
   ): Promise<T> {
-    this.acquireLease(sessionId);
-    let releasedInCatch = false;
+    const gen = this.acquireLease(sessionId);
     try {
       const sftp = await this.getSftp(sessionId);
       return await withTimeout(fn(sftp), timeoutMs, `sftp:${op}`);
     } catch (err) {
-      if (isSessionFatal(err)) {
+      if (this.shouldInvalidate(sessionId, err)) {
         log.warn(`[SFTP] Invalidating session ${sessionId} after ${op} failure: ${String(err)}`);
-        // closeSftp wipes the leases entry entirely; mark released so finally is a no-op.
+        // Bumps the generation, so the release below is a no-op.
         this.closeSftp(sessionId);
-        releasedInCatch = true;
-        throw err;
       }
       throw err;
     } finally {
-      if (!releasedInCatch && this.leases.has(sessionId)) this.releaseLease(sessionId);
+      this.releaseLease(sessionId, gen);
     }
+  }
+
+  /**
+   * Whether an op failure means the channel itself is unusable.
+   *
+   * A timeout is ambiguous: it can be a hung channel, or just one slow op (a
+   * huge directory listing). Treating every timeout as fatal tore the channel
+   * down under every other op sharing it, killing unrelated transfers. So a
+   * timeout only invalidates when this op was the only one in flight — if
+   * others are still running, the channel is evidently alive enough to carry
+   * them, and a genuinely dead one will fail them with a channel error soon
+   * enough.
+   */
+  private shouldInvalidate(sessionId: string, err: unknown): boolean {
+    if (err instanceof TimeoutError) return (this.leases.get(sessionId) ?? 0) <= 1;
+    return isSessionFatal(err);
   }
 
   async list(sessionId: string, remotePath: string): Promise<SftpEntry[]> {
@@ -360,6 +413,15 @@ class SftpManager {
       },
     );
 
+    // Refuse before deleting anything in this directory. The per-entry check
+    // below only tripped *after* ~100k unlinks had already run, so a "suspected
+    // loop" still deleted everything up to the cap.
+    if (visited.count + entries.length > SftpManager.REMOVE_DIR_MAX_ENTRIES) {
+      throw new SftpTransferError(
+        `Refusing to continue: visited entries exceed ${SftpManager.REMOVE_DIR_MAX_ENTRIES} (suspected mount/loop)`,
+      );
+    }
+
     const errors: Error[] = [];
     for (let i = 0; i < entries.length; i += SftpManager.REMOVE_DIR_BATCH_SIZE) {
       const batch = entries.slice(i, i + SftpManager.REMOVE_DIR_BATCH_SIZE);
@@ -441,9 +503,26 @@ class SftpManager {
           }
 
           const chunks: Buffer[] = [];
+          let received = 0;
           const stream = sftp.createReadStream(remotePath);
           activeStream = stream;
-          stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+          // stat() size is not a bound: /dev/zero, /dev/urandom and /proc
+          // entries report 0 and then stream without end. Count what actually
+          // arrives and stop at the limit instead of buffering until timeout.
+          stream.on('data', (chunk: Buffer) => {
+            received += chunk.length;
+            if (received > limit) {
+              settle(() =>
+                reject(
+                  new SftpTransferError(
+                    `File exceeds the ${limit}-byte preview limit while reading (it may be a device or special file). Download it instead.`,
+                  ),
+                ),
+              );
+              return;
+            }
+            chunks.push(chunk);
+          });
           stream.on('end', () =>
             settle(() => {
               const buffer = Buffer.concat(chunks);
@@ -524,11 +603,11 @@ class SftpManager {
     onStep: StepCallback,
     signal: AbortSignal,
   ): Promise<void> {
-    this.acquireLease(sessionId);
+    const gen = this.acquireLease(sessionId);
     try {
       return await this._streamDownload(sessionId, remotePath, localPath, onStep, signal);
     } finally {
-      this.releaseLease(sessionId);
+      this.releaseLease(sessionId, gen);
     }
   }
 
@@ -541,10 +620,13 @@ class SftpManager {
   ): Promise<void> {
     const sftp = await this.getSftp(sessionId);
     let total = 0;
+    let remoteMtimeSec: number | null = null;
     try {
-      total = await new Promise<number>((resolve, reject) => {
-        sftp.stat(remotePath, (err, stats) => (err ? reject(err) : resolve(stats.size)));
+      const stats = await new Promise<{ size: number; mtime: number }>((resolve, reject) => {
+        sftp.stat(remotePath, (err, st) => (err ? reject(err) : resolve(st)));
       });
+      total = stats.size;
+      remoteMtimeSec = stats.mtime;
     } catch {
       // size unknown — progress will lack a denominator
     }
@@ -558,7 +640,7 @@ class SftpManager {
       highWaterMark,
     } as unknown as ReadStreamOptions);
 
-    return runPipeDownloadToFile({
+    await runPipeDownloadToFile({
       source: readStream,
       localPath,
       signal,
@@ -567,6 +649,14 @@ class SftpManager {
       abortCleanupDelayMs,
       highWaterMark,
     });
+
+    // Mirror of the upload side: keep the remote mtime so a downloaded file
+    // doesn't immediately look locally modified to Folder Sync.
+    if (remoteMtimeSec) {
+      await fsUtimes(localPath, remoteMtimeSec, remoteMtimeSec).catch((err: unknown) => {
+        log.debug(`[SFTP] Could not preserve mtime on ${localPath}: ${String(err)}`);
+      });
+    }
   }
 
   /**
@@ -580,11 +670,11 @@ class SftpManager {
     onStep: StepCallback,
     signal: AbortSignal,
   ): Promise<void> {
-    this.acquireLease(sessionId);
+    const gen = this.acquireLease(sessionId);
     try {
       return await this._streamUpload(sessionId, localPath, remotePath, onStep, signal);
     } finally {
-      this.releaseLease(sessionId);
+      this.releaseLease(sessionId, gen);
     }
   }
 
@@ -597,9 +687,11 @@ class SftpManager {
   ): Promise<void> {
     const sftp = await this.getSftp(sessionId);
     let total = 0;
+    let localMtimeSec: number | null = null;
     try {
       const stats = await fsStat(localPath);
       total = stats.size;
+      localMtimeSec = Math.floor(stats.mtimeMs / 1000);
     } catch {
       // size unknown
     }
@@ -631,9 +723,7 @@ class SftpManager {
       isComplete: () => writeClosed,
       discardPartial: async () => {
         if (writeClosed) return;
-        await new Promise<void>((resolve) => {
-          sftp.unlink(tempRemotePath, () => resolve());
-        });
+        await unlinkBestEffort(sftp, tempRemotePath);
       },
       abortCleanupDelayMs,
     });
@@ -645,11 +735,30 @@ class SftpManager {
     try {
       await this.publishUploadedFile(sftp, tempRemotePath, remotePath);
     } catch (err) {
-      await new Promise<void>((resolve) => {
-        sftp.unlink(tempRemotePath, () => resolve());
-      });
+      await unlinkBestEffort(sftp, tempRemotePath);
       throw err;
     }
+
+    // Carry the local mtime over, as `scp -p` / `rsync -t` do. Without it the
+    // remote copy is always "newer" than its source, so Folder Sync reported
+    // every uploaded file as modified again and bi-directional sync pulled it
+    // straight back down. Best-effort: some servers refuse setstat.
+    if (localMtimeSec !== null) {
+      await this.setRemoteMtime(sftp, remotePath, localMtimeSec);
+    }
+  }
+
+  private setRemoteMtime(sftp: SFTPWrapper, remotePath: string, mtimeSec: number): Promise<void> {
+    return new Promise<void>((resolve) => {
+      try {
+        sftp.utimes(remotePath, mtimeSec, mtimeSec, (err) => {
+          if (err) log.debug(`[SFTP] Could not preserve mtime on ${remotePath}: ${err.message}`);
+          resolve();
+        });
+      } catch {
+        resolve();
+      }
+    });
   }
 
   /**
@@ -669,11 +778,7 @@ class SftpManager {
     destPath: string,
   ): Promise<void> {
     return new Promise((resolve, reject) => {
-      sftp.ext_openssh_rename(tempPath, destPath, (extErr) => {
-        if (!extErr) {
-          resolve();
-          return;
-        }
+      const fallback = (): void => {
         sftp.rename(tempPath, destPath, (renameErr) => {
           if (!renameErr) {
             resolve();
@@ -698,7 +803,22 @@ class SftpManager {
             });
           });
         });
-      });
+      };
+
+      // ssh2 reports a missing posix-rename@openssh.com extension by throwing
+      // synchronously rather than through the callback, so both paths must
+      // reach the fallback.
+      try {
+        sftp.ext_openssh_rename(tempPath, destPath, (extErr) => {
+          if (!extErr) {
+            resolve();
+            return;
+          }
+          fallback();
+        });
+      } catch {
+        fallback();
+      }
     });
   }
 

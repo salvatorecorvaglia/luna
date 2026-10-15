@@ -68,8 +68,15 @@ export class PendingHostKeyRegistry {
    * the captured algorithm is no longer on the allowlist. Re-checking the
    * algorithm here is defense-in-depth: even if a future refactor lets a
    * weak-algo key reach `remember()`, `trust()` will refuse to commit it.
+   *
+   * `expectedFingerprint` must match the pending key. The registry holds one
+   * candidate per host:port and each failed verification overwrites it, so a
+   * retry or test connection that captured a *different* key between the
+   * dialog opening and the user clicking Trust would otherwise have that
+   * unseen key committed. On a mismatch nothing is stored and the pending
+   * candidate stays, so the next attempt shows the key that is actually there.
    */
-  trust(host: string, port: number): string | null {
+  trust(host: string, port: number, expectedFingerprint: string): string | null {
     this.evictExpired();
     const k = formatHostKey(host, port);
     const pending = this.map.get(k);
@@ -82,6 +89,7 @@ export class PendingHostKeyRegistry {
       this.map.delete(k);
       return null;
     }
+    if (fingerprintKey(pending.key) !== expectedFingerprint) return null;
     updateHostKey(host, port, pending.key, pending.algorithm);
     this.map.delete(k);
     return fingerprintKey(pending.key);

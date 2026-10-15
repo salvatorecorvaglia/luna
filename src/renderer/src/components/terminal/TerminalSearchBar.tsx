@@ -2,6 +2,7 @@ import type { SearchAddon } from '@xterm/addon-search';
 import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import type { RefObject } from 'react';
 import { IconButton } from '@/components/ui';
+import { SEARCH_TYPE_OPTIONS } from '@/lib/terminal-search';
 import { Z } from '@/lib/z-layers';
 
 interface TerminalSearchBarProps {
@@ -43,7 +44,7 @@ export function TerminalSearchBar({
         onChange={(e) => {
           setQuery(e.target.value);
           if (e.target.value) {
-            searchAddonRef.current?.findNext(e.target.value);
+            searchAddonRef.current?.findNext(e.target.value, SEARCH_TYPE_OPTIONS);
           } else {
             searchAddonRef.current?.clearDecorations();
             setMatch?.(null);

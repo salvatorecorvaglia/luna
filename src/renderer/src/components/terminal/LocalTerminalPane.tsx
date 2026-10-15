@@ -21,6 +21,7 @@ export const LocalTerminalPane = memo(function LocalTerminalPane({
       sendData: (p) => getApi().localTerminal.sendData(p),
       resize: (p) => getApi().localTerminal.resize(p),
       onData: (cb) => getApi().localTerminal.onData(cb),
+      ack: (p) => getApi().localTerminal.ackData(p),
     }),
     [],
   );

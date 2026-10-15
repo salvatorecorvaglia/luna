@@ -126,8 +126,17 @@ export function useTransferEventListener(): void {
 /**
  * Cancel a transfer by ID. Delegates to main process.
  */
-export function cancelTransfer(transferId: string): void {
-  getApi()
+/**
+ * Ask main to cancel a transfer. Resolves true once main accepted it; false
+ * (after telling the user) if it didn't — callers must not drop the row in
+ * that case, or a transfer that is still running disappears from the queue.
+ */
+export function cancelTransfer(transferId: string): Promise<boolean> {
+  return getApi()
     .transfers.cancel(transferId)
-    .catch(() => toast.error('Failed to cancel transfer'));
+    .then(() => true)
+    .catch(() => {
+      toast.error('Failed to cancel transfer');
+      return false;
+    });
 }

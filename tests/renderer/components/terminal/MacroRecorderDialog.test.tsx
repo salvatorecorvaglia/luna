@@ -19,7 +19,7 @@ describe('MacroRecorderDialog', () => {
 
   it('shows the empty state with no saved macros', () => {
     render(<MacroRecorderDialog open onClose={vi.fn()} />);
-    expect(screen.getByText('No macros recorded')).toBeTruthy();
+    expect(screen.getByText('No macros recorded')).toBeInTheDocument();
   });
 
   it('records steps and saves a macro to localStorage', () => {
@@ -34,8 +34,8 @@ describe('MacroRecorderDialog', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: /Save & Finish/ }));
 
-    expect(screen.getByText('List files')).toBeTruthy();
-    expect(screen.getByText('ls -la')).toBeTruthy();
+    expect(screen.getByText('List files')).toBeInTheDocument();
+    expect(screen.getByText('ls -la')).toBeInTheDocument();
     const stored = JSON.parse(localStorage.getItem('luna_terminal_macros') || '[]');
     expect(stored).toHaveLength(1);
     expect(stored[0].sequence).toEqual(['ls -la']);
@@ -56,7 +56,7 @@ describe('MacroRecorderDialog', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('deletes a saved macro', () => {
+  it('deletes a saved macro after confirmation', () => {
     localStorage.setItem(
       'luna_terminal_macros',
       JSON.stringify([{ id: 'm1', name: 'Deploy', sequence: ['git pull'], createdAt: 0 }]),
@@ -64,6 +64,9 @@ describe('MacroRecorderDialog', () => {
     render(<MacroRecorderDialog open onClose={vi.fn()} />);
 
     fireEvent.click(screen.getByTitle('Delete Macro'));
+    // Nothing is deleted until the confirmation is accepted.
+    expect(screen.getByText('Deploy')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
 
     expect(screen.queryByText('Deploy')).toBeNull();
     const stored = JSON.parse(localStorage.getItem('luna_terminal_macros') || '[]');
@@ -75,5 +78,21 @@ describe('MacroRecorderDialog', () => {
     render(<MacroRecorderDialog open onClose={onClose} />);
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('parseStoredMacros', () => {
+  it('drops malformed entries instead of crashing the dialog', async () => {
+    const { parseStoredMacros } = await import(
+      '../../../../src/renderer/src/components/terminal/MacroRecorderDialog'
+    );
+    const raw = JSON.stringify([
+      { id: 'ok', name: 'Deploy', sequence: ['git pull'], createdAt: 0 },
+      { id: 'bad', name: 'No sequence' },
+      null,
+      { id: 'bad2', name: 'Numbers', sequence: [1, 2] },
+    ]);
+    expect(parseStoredMacros(raw).map((m) => m.id)).toEqual(['ok']);
+    expect(parseStoredMacros('{"not":"an array"}')).toEqual([]);
   });
 });

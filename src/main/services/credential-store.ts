@@ -10,9 +10,17 @@ import { getDatabase } from './database';
 // A fallback CREATE IF NOT EXISTS is kept for databases initialized before that
 // migration. We don't cache the result by a simple boolean: a future code path
 // (tests, multi-profile) could swap the SQLite handle, and a stale cache would
-// skip the create and crash. The CREATE statement is cheap to re-run.
+// skip the create and crash.
+//
+// Cached per handle rather than with a flag: that keeps the swap safe (a new
+// handle is simply not in the set) without re-running DDL on every read and
+// write of a credential.
+const ensuredHandles = new WeakSet<object>();
+
 function ensureTable(): void {
   const db = getDatabase();
+  if (ensuredHandles.has(db)) return;
+  ensuredHandles.add(db);
   db.exec(`
     CREATE TABLE IF NOT EXISTS credentials (
       connection_id TEXT PRIMARY KEY,

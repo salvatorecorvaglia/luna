@@ -47,7 +47,7 @@ describe('ConnectionForm — visibility', () => {
   it('opens on the SFTP provider by default', async () => {
     renderForm();
     await screen.findByRole('dialog');
-    expect(screen.getByLabelText(/host/i)).toBeTruthy();
+    expect(screen.getByLabelText(/host/i)).toBeInTheDocument();
   });
 });
 
@@ -60,7 +60,7 @@ describe('ConnectionForm — provider switching', () => {
 
     // SSH-only fields must not linger once the provider changes, or a save
     // would carry values the S3 branch never validates.
-    await waitFor(() => expect(screen.getByLabelText(/access key id/i)).toBeTruthy());
+    await waitFor(() => expect(screen.getByLabelText(/access key id/i)).toBeInTheDocument());
     expect(screen.queryByLabelText(/^username/i)).toBeNull();
   });
 });
@@ -140,7 +140,9 @@ describe('ConnectionForm — test connection', () => {
     fireEvent.click(screen.getByRole('button', { name: /test/i }));
 
     // The guard is client-side; no IPC should be issued at all.
-    await waitFor(() => expect(screen.getByText(/host and username are required/i)).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText(/host and username are required/i)).toBeInTheDocument(),
+    );
     expect(api.ssh.testConnection).not.toHaveBeenCalled();
   });
 
@@ -152,7 +154,7 @@ describe('ConnectionForm — test connection', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /test/i }));
 
-    await waitFor(() => expect(screen.getByText(/connection successful/i)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/connection successful/i)).toBeInTheDocument());
   });
 
   it('surfaces the server-reported failure reason', async () => {
@@ -167,7 +169,7 @@ describe('ConnectionForm — test connection', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /test/i }));
 
-    await waitFor(() => expect(screen.getByText(/authentication failed/i)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/authentication failed/i)).toBeInTheDocument());
   });
 
   it('sends the typed credentials as a transient config, never a connectionId', async () => {
@@ -184,5 +186,34 @@ describe('ConnectionForm — test connection', () => {
     const [params] = (api.ssh.testConnection as ReturnType<typeof vi.fn>).mock.calls[0]!;
     expect(params.config).toBeDefined();
     expect(params.connectionId).toBeUndefined();
+  });
+});
+
+describe('ConnectionForm — field-level feedback', () => {
+  it('shows "Password is required" under the password field on submit', async () => {
+    // Regression: the message existed but the field never rendered it; the
+    // user saw a red border and a generic toast.
+    renderForm();
+    await screen.findByRole('dialog');
+    fireEvent.click(await submitButton());
+    expect(await screen.findByText('Password is required')).toBeInTheDocument();
+  });
+
+  it('Enter in a port-forward rule input adds the rule instead of submitting the form', async () => {
+    // Regression: the rule inputs sit inside the connection <form>, so Enter
+    // submitted it — saving the connection and dropping the half-typed rule.
+    renderForm();
+    await screen.findByRole('dialog');
+    fireEvent.click(screen.getByText('Advanced SSH Settings'));
+    fireEvent.click(await screen.findByText('Add Port Forwarding Rule'));
+    fireEvent.change(document.getElementById('sftp-port-445')!, { target: { value: '8080' } });
+    fireEvent.change(document.getElementById('sftp-port')!, { target: { value: '80' } });
+
+    fireEvent.keyDown(document.getElementById('sftp-port')!, { key: 'Enter' });
+
+    expect(
+      await screen.findByText(/Local 127\.0\.0\.1:8080 -> Remote localhost:80/),
+    ).toBeInTheDocument();
+    expect(api.connections.create).not.toHaveBeenCalled();
   });
 });

@@ -175,16 +175,6 @@ export class FakeWebglAddon {
   }
 }
 
-export class FakeCanvasAddon {
-  static instances: FakeCanvasAddon[] = [];
-  static reset(): void {
-    FakeCanvasAddon.instances = [];
-  }
-  constructor() {
-    FakeCanvasAddon.instances.push(this);
-  }
-}
-
 export class FakeUnicode11Addon {}
 
 export class FakeWebLinksAddon {}
@@ -195,5 +185,4 @@ export function resetFakeXterm(): void {
   FakeFitAddon.reset();
   FakeSearchAddon.reset();
   FakeWebglAddon.reset();
-  FakeCanvasAddon.reset();
 }

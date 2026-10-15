@@ -7,7 +7,6 @@ import type {
   TerminalThemeName,
 } from '@shared/types/terminal';
 import { toast } from 'sonner';
-import { v4 as uuidv4 } from 'uuid';
 import { create } from 'zustand';
 import { getApi } from '@/services/api';
 
@@ -105,6 +104,14 @@ function getInitialScrollback(): number {
   );
 }
 
+function getInitialScreenReaderMode(): boolean {
+  return readPersisted(
+    'luna-terminal-screen-reader',
+    (raw) => (raw === 'true' ? true : raw === 'false' ? false : undefined),
+    true,
+  );
+}
+
 function getInitialTerminalTheme(): TerminalThemeName {
   return readPersisted(
     'luna-terminal-theme',
@@ -159,6 +166,7 @@ function splitLeafInTree(
     if (node.sessionId === targetId) {
       return {
         type: 'split',
+        id: crypto.randomUUID(),
         direction,
         ratio: 0.5,
         children: [
@@ -205,24 +213,15 @@ function removeLeafFromTree(node: PaneNode, targetId: string): PaneNode | null {
   };
 }
 
-function updateSplitRatioInTree(node: PaneNode, leftKey: string, ratio: number): PaneNode {
-  if (node.type === 'split') {
-    const key = getFirstLeafSessionId(node.children[0]);
-    if (key === leftKey) {
-      return {
-        ...node,
-        ratio,
-      };
-    }
-    return {
-      ...node,
-      children: [
-        updateSplitRatioInTree(node.children[0], leftKey, ratio),
-        updateSplitRatioInTree(node.children[1], leftKey, ratio),
-      ] as [PaneNode, PaneNode],
-    };
-  }
-  return node;
+function updateSplitRatioInTree(node: PaneNode, splitId: string, ratio: number): PaneNode {
+  if (node.type !== 'split') return node;
+  if (node.id === splitId) return { ...node, ratio };
+  const left = updateSplitRatioInTree(node.children[0], splitId, ratio);
+  const right = updateSplitRatioInTree(node.children[1], splitId, ratio);
+  // Preserve identity when nothing below changed, so memoised SplitLayout
+  // subtrees that don't contain the dragged divider skip re-rendering.
+  if (left === node.children[0] && right === node.children[1]) return node;
+  return { ...node, children: [left, right] };
 }
 
 export function findTabIdForSession(
@@ -235,6 +234,67 @@ export function findTabIdForSession(
     }
   }
   return null;
+}
+
+/**
+ * The session that represents a tab: the first leaf of its pane tree.
+ *
+ * A tab's id is the id of the session it was *opened* with, and it keeps that
+ * id for life — but that session can be closed out of a split while the tab
+ * lives on. Code that looked the tab id up in `sessions` then found nothing:
+ * the tab strip dropped the tab's header, and every "is this an SSH or a local
+ * tab?" check fell through to its default and filed a local tab under SSH.
+ * Resolve through the layout instead.
+ */
+export function getTabSession(
+  state: Pick<TerminalState, 'sessions' | 'layouts'>,
+  tabId: string,
+): TerminalSession | undefined {
+  const root = state.layouts.get(tabId);
+  return state.sessions.get(root ? getFirstLeafSessionId(root) : tabId);
+}
+
+/**
+ * 'local' or 'ssh' for a tab. Every pane in a tab shares its kind — a split
+ * copies its parent's type — so the representative session decides.
+ */
+export function getTabKind(
+  state: Pick<TerminalState, 'sessions' | 'layouts'>,
+  tabId: string,
+): 'ssh' | 'local' {
+  return getTabSession(state, tabId)?.type === 'local' ? 'local' : 'ssh';
+}
+
+/** Tab ids of one kind, in tab order. */
+export function selectTabsByKind(
+  state: Pick<TerminalState, 'sessions' | 'layouts' | 'tabOrder'>,
+  kind: 'ssh' | 'local',
+): string[] {
+  return state.tabOrder.filter((id) => getTabKind(state, id) === kind);
+}
+
+/**
+ * The session a view is actually showing.
+ *
+ * `activeSessionId` is global across the SSH and Local views, and switching
+ * view doesn't change it — so a view whose tabs don't contain it falls back to
+ * its first tab (see TerminalViewContainer). Toolbar actions that used the raw
+ * global id sent snippets, macros and CLI commands from the SSH view into a
+ * hidden local shell.
+ */
+export function selectViewSessionId(
+  state: Pick<TerminalState, 'sessions' | 'layouts' | 'tabOrder' | 'activeSessionId'>,
+  kind: 'ssh' | 'local',
+): string | null {
+  const active = state.activeSessionId;
+  if (active) {
+    const tabId = findTabIdForSession(state.layouts, active);
+    if (tabId && getTabKind(state, tabId) === kind) return active;
+  }
+  const first = selectTabsByKind(state, kind)[0];
+  if (!first) return null;
+  const root = state.layouts.get(first);
+  return root ? getFirstLeafSessionId(root) : first;
 }
 
 /** The slice of store state that detaching a session rewrites. */
@@ -340,8 +400,11 @@ interface TerminalState {
   terminalTheme: TerminalThemeName;
   fontSize: number;
   scrollback: number;
+  screenReaderMode: boolean;
 
   addSession: (session: TerminalSession) => void;
+  /** Open (and focus) a new local shell tab; returns its session id. */
+  openLocalSession: () => string;
   removeSession: (sessionId: string) => void;
   updateSessionStatus: (sessionId: string, status: SessionStatus) => void;
   setActiveSession: (sessionId: string) => void;
@@ -349,17 +412,19 @@ interface TerminalState {
   setTerminalTheme: (theme: TerminalThemeName) => void;
   setFontSize: (size: number) => void;
   setScrollback: (lines: number) => void;
+  setScreenReaderMode: (enabled: boolean) => void;
   initializeSettings: (settings: {
     theme?: TerminalThemeName;
     fontSize?: number;
     scrollback?: number;
+    screenReaderMode?: boolean;
   }) => void;
   renameTab: (sessionId: string, title: string) => void;
   closeTab: (sessionId: string) => void;
   closeOtherTabs: (sessionId: string) => void;
   closeTabsToRight: (sessionId: string) => void;
   splitSession: (targetSessionId: string, direction: SplitDirection) => void;
-  updateSplitRatio: (tabId: string, leftKey: string, ratio: number) => void;
+  updateSplitRatio: (tabId: string, splitId: string, ratio: number) => void;
 }
 
 export const useTerminalStore = create<TerminalState>((set, get) => ({
@@ -370,6 +435,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   terminalTheme: getInitialTerminalTheme(),
   fontSize: getInitialFontSize(),
   scrollback: getInitialScrollback(),
+  screenReaderMode: getInitialScreenReaderMode(),
 
   addSession: (session) =>
     set((s) => {
@@ -384,16 +450,33 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       return { sessions, tabOrder, activeSessionId: session.id, layouts };
     }),
 
+  openLocalSession: () => {
+    // Was spelled out identically in TerminalViewContainer and
+    // LocalTerminalTabs; the PTY itself is spawned by LocalTerminalPane.
+    const id = crypto.randomUUID();
+    get().addSession({
+      id,
+      connectionId: 'local',
+      connectionName: 'Local Terminal',
+      status: 'connected',
+      title: 'Local',
+      type: 'local',
+    });
+    return id;
+  },
+
   /** Drop a session from the store without touching its transport. */
   removeSession: (sessionId) => set((s) => detachSession(s, sessionId)),
 
+  // No-op guard: every whole-Map subscriber re-renders when `sessions` gets a
+  // new identity, and status events repeat (reconnect ticks, duplicate
+  // 'connected'). An unknown id or an unchanged status now changes nothing.
   updateSessionStatus: (sessionId, status) =>
     set((s) => {
+      const session = s.sessions.get(sessionId);
+      if (!session || session.status === status) return s;
       const sessions = new Map(s.sessions);
-      const session = sessions.get(sessionId);
-      if (session) {
-        sessions.set(sessionId, { ...session, status });
-      }
+      sessions.set(sessionId, { ...session, status });
       return { sessions };
     }),
 
@@ -436,6 +519,16 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     );
     set({ scrollback: clamped });
   },
+  setScreenReaderMode: (enabled) => {
+    persistTerminalSetting(
+      'luna-terminal-screen-reader',
+      String(enabled),
+      'terminal.screenReaderMode',
+      enabled,
+      'Failed to save screen reader setting',
+    );
+    set({ screenReaderMode: enabled });
+  },
   initializeSettings: (settings) => {
     set(() => {
       const updates: Partial<TerminalState> = {};
@@ -453,17 +546,20 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
         updates.scrollback = clamped;
         writePersisted('luna-terminal-scrollback', String(clamped));
       }
+      if (typeof settings.screenReaderMode === 'boolean') {
+        updates.screenReaderMode = settings.screenReaderMode;
+        writePersisted('luna-terminal-screen-reader', String(settings.screenReaderMode));
+      }
       return updates;
     });
   },
 
   renameTab: (sessionId, title) =>
     set((s) => {
+      const session = s.sessions.get(sessionId);
+      if (!session || session.title === title) return s;
       const sessions = new Map(s.sessions);
-      const session = sessions.get(sessionId);
-      if (session) {
-        sessions.set(sessionId, { ...session, title });
-      }
+      sessions.set(sessionId, { ...session, title });
       return { sessions };
     }),
 
@@ -530,7 +626,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     const tabId = findTabIdForSession(layouts, targetSessionId);
     if (!tabId) return;
 
-    const newSessionId = uuidv4();
+    const newSessionId = crypto.randomUUID();
 
     const newSession: TerminalSession = {
       id: newSessionId,
@@ -573,12 +669,14 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     }
   },
 
-  updateSplitRatio: (tabId, leftKey, ratio) => {
+  updateSplitRatio: (tabId, splitId, ratio) => {
     set((s) => {
       const root = s.layouts.get(tabId);
       if (!root) return {};
+      const updated = updateSplitRatioInTree(root, splitId, ratio);
+      if (updated === root) return {};
       const newLayouts = new Map(s.layouts);
-      newLayouts.set(tabId, updateSplitRatioInTree(root, leftKey, ratio));
+      newLayouts.set(tabId, updated);
       return { layouts: newLayouts };
     });
   },

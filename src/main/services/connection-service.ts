@@ -1,6 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { LIMITS } from '@shared/constants';
 import { ErrorCode, LunaError } from '@shared/errors';
 import type {
   AuthType,
@@ -13,14 +15,36 @@ import type {
 import type { StorageProviderKind } from '@shared/types/storage-provider';
 import type Database from 'better-sqlite3';
 import { dialog } from 'electron';
-import { v4 as uuidv4 } from 'uuid';
 import log from '../lib/logger';
 import {
   assertBoundedInt,
+  assertBoundedSecretFields,
   assertNonEmptyString,
   expandAndConfineToHomeSync,
   validationError,
 } from '../lib/validate';
+
+/**
+ * Same cap every other path applies to secrets (test-connection IPC, and
+ * ssh-config at connect time). Create and update had none, so an oversized
+ * password was saved without complaint and then refused on every connect.
+ */
+function assertSecretsWithinCap(input: {
+  password?: string;
+  passphrase?: string;
+  accessKeyId?: string;
+  secretAccessKey?: string;
+  sessionToken?: string;
+}): void {
+  assertBoundedSecretFields({
+    password: input.password,
+    passphrase: input.passphrase,
+    accessKeyId: input.accessKeyId,
+    secretAccessKey: input.secretAccessKey,
+    sessionToken: input.sessionToken,
+  });
+}
+
 import { deleteCredential, retrieveS3Credential, storeCredential } from './credential-store';
 import { CONNECTION_COLUMNS, type ConnectionRow, getDatabase } from './database';
 import { detectAndImport } from './importers';
@@ -388,6 +412,19 @@ const UPDATE_FIELD_MAP: Record<string, string> = {
   portForwards: 'port_forwards',
 };
 
+/**
+ * Decode an import file, honouring a byte-order mark. regedit writes `.reg`
+ * exports as UTF-16LE with a BOM; decoding those as UTF-8 produced text with a
+ * NUL between every character, which no importer could parse.
+ */
+export function decodeImportFile(bytes: Buffer): string {
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) return bytes.subarray(2).toString('utf16le');
+  if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    return bytes.subarray(3).toString('utf-8');
+  }
+  return bytes.toString('utf-8');
+}
+
 export class ConnectionService {
   listConnections(): Connection[] {
     const db = getDatabase();
@@ -406,6 +443,7 @@ export class ConnectionService {
   }
 
   createConnection(input: CreateConnectionInput): Connection {
+    assertSecretsWithinCap(input);
     const db = getDatabase();
     // Shared with the import path — see normaliseConnectionFields. Create,
     // update and import all enforce the same rules now; they used to enforce
@@ -421,7 +459,7 @@ export class ConnectionService {
       assertNonEmptyString(input.secretAccessKey, 'secretAccessKey');
     }
 
-    const id = uuidv4();
+    const id = randomUUID();
     const now = Math.floor(Date.now() / 1000);
 
     const createTx = db.transaction(() => {
@@ -460,6 +498,7 @@ export class ConnectionService {
   }
 
   updateConnection(input: UpdateConnectionInput): Connection {
+    assertSecretsWithinCap(input);
     const db = getDatabase();
     const now = Math.floor(Date.now() / 1000);
     const existing = db
@@ -555,13 +594,23 @@ export class ConnectionService {
 
     values.push(input.id);
 
+    const provider = input.provider ?? existing.provider ?? 'sftp';
+    const providerChanged = input.provider != null && input.provider !== existing.provider;
+    // A connection switched to S3 has no previous keys to merge with, so a
+    // partial pair would be stored as a blob that can never authenticate.
+    if (provider === 's3' && providerChanged && !(input.accessKeyId && input.secretAccessKey)) {
+      throw validationError('Switching to S3 requires both an access key ID and a secret key');
+    }
+
     const updateTx = db.transaction(() => {
       db.prepare(`UPDATE connections SET ${assignments.join(', ')} WHERE id = ?`).run(...values);
 
-      const provider = input.provider ?? existing.provider ?? 'sftp';
-      const providerChanged = input.provider != null && input.provider !== existing.provider;
       const authTypeChanged =
         provider === 'sftp' && input.authType != null && input.authType !== existing.auth_type;
+      // Read the stored S3 keys *before* anything is deleted: a partial update
+      // (just a new secret) merges with them. This read used to come after the
+      // delete below, so it found nothing and wrote a blob missing the other key.
+      const prev = provider === 's3' && !providerChanged ? retrieveS3Credential(input.id) : null;
       if (providerChanged || authTypeChanged) {
         deleteCredential(input.id);
       }
@@ -572,7 +621,6 @@ export class ConnectionService {
           storeCredential(input.id, input.passphrase);
         }
       } else if (provider === 's3' && (input.accessKeyId || input.secretAccessKey)) {
-        const prev = retrieveS3Credential(input.id);
         storeCredential(
           input.id,
           JSON.stringify({
@@ -646,10 +694,26 @@ export class ConnectionService {
     if (!Array.isArray(ids)) {
       throw validationError('ids must be an array');
     }
+    // `ids` is only what the sidebar was *showing* — a search or the hidden-
+    // connections filter narrows it. Renumbering just those from 0 collided
+    // with the sort_order of everything filtered out, which then jumped
+    // around. Instead: take the full current order, put the reordered ids back
+    // into the positions they already occupied (in their new order), and
+    // renumber the whole list, which also repairs any pre-existing ties.
+    const moved = new Set(ids);
+    const current = (
+      db.prepare('SELECT id FROM connections ORDER BY sort_order ASC, name ASC').all() as {
+        id: string;
+      }[]
+    ).map((r) => r.id);
+    const known = new Set(current);
+    const queue = ids.filter((id) => known.has(id));
+    const next = current.map((id) => (moved.has(id) ? (queue.shift() ?? id) : id));
+
     const stmt = db.prepare('UPDATE connections SET sort_order = ? WHERE id = ?');
     const transaction = db.transaction(() => {
-      for (let i = 0; i < ids.length; i++) {
-        stmt.run(i, ids[i]);
+      for (let i = 0; i < next.length; i++) {
+        stmt.run(i, next[i]);
       }
     });
     transaction();
@@ -714,7 +778,10 @@ export class ConnectionService {
           continue;
         }
 
-        const name = (item.name || '').trim();
+        // typeof-guarded: a non-string name (a number in a hand-edited file)
+        // threw here, inside the transaction, and aborted the whole import
+        // instead of skipping the one bad entry.
+        const name = typeof item.name === 'string' ? item.name.trim() : '';
         if (!name) {
           skipped.push({ name: 'Unnamed', reason: 'Missing connection name' });
           continue;
@@ -747,7 +814,10 @@ export class ConnectionService {
           continue;
         }
 
-        insertConnectionRow(db, uuidv4(), fields, Math.floor(Date.now() / 1000));
+        // Imported tunnels are kept but never auto-started; see
+        // PortForwardingConfig.autoStart.
+        fields.portForwards = fields.portForwards.map((pf) => ({ ...pf, autoStart: false }));
+        insertConnectionRow(db, randomUUID(), fields, Math.floor(Date.now() / 1000));
 
         existingNames.add(name);
         imported++;
@@ -767,8 +837,8 @@ export class ConnectionService {
       properties: ['openFile'],
       filters: [
         {
-          name: 'Luna / WinSCP / MobaXterm Connections',
-          extensions: ['json', 'ini', 'mxtsessions'],
+          name: 'Luna / WinSCP / MobaXterm / PuTTY Connections',
+          extensions: ['json', 'ini', 'mxtsessions', 'reg'],
         },
       ],
     });
@@ -782,14 +852,14 @@ export class ConnectionService {
     // Cap the read like every other file path in the app does (shell.ipc uses
     // the same 50 MB ceiling). A connections export is kilobytes; without a cap
     // a mis-selected multi-GB file is read wholly into the main process.
-    const MAX_IMPORT_BYTES = 50 * 1024 * 1024;
+    const MAX_IMPORT_BYTES = LIMITS.MAX_LOCAL_FILE_BYTES;
     const { size } = await stat(filePath);
     if (size > MAX_IMPORT_BYTES) {
       throw validationError(
         `Import file is too large (${Math.round(size / 1024 / 1024)}MB). Max 50MB.`,
       );
     }
-    const fileContent = await readFile(filePath, 'utf-8');
+    const fileContent = decodeImportFile(await readFile(filePath));
     const connections = detectAndImport(fileContent, filePath);
     return this.importConnections(connections);
   }
