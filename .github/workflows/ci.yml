@@ -8,7 +8,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -55,7 +55,6 @@ jobs:
   test:
     name: Tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    needs: [quality]
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -81,8 +80,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run tests with coverage
+      - name: Run tests with coverage (Linux)
+        if: matrix.os == 'ubuntu-24.04'
         run: pnpm run test:coverage
+
+      - name: Run tests (other platforms)
+        if: matrix.os != 'ubuntu-24.04'
+        run: pnpm test
 
       - name: Upload coverage report
         if: matrix.os == 'ubuntu-24.04'
@@ -96,7 +100,6 @@ jobs:
     name: E2E (Electron)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    needs: [quality]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -153,7 +156,6 @@ jobs:
     name: Packaging smoke (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
-    needs: [quality]
     strategy:
       fail-fast: false
       matrix:
