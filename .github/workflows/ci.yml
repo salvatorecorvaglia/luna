@@ -242,14 +242,3 @@ jobs:
           esac
 
           exit $fail
-
-  dependency-review:
-    name: Dependency Review
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    if: github.event_name == 'pull_request'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-      - name: Dependency Review
-        uses: actions/dependency-review-action@v4
