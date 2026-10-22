@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Updated Electron to 44.9.1, Biome to 2.6.2, and refreshed AWS SDK, TanStack, Framer Motion, Lucide, Vite and Vitest dependencies and the pnpm lockfile.
+- CI test, end-to-end and packaging jobs now run in parallel with quality checks; superseded workflow runs are cancelled, and coverage is collected on Linux while other platforms run tests without coverage.
+- Release builds now depend directly on tag validation; removed the separate release verification job and the pull-request dependency review job.
+
+### Security
+
+- Updated transitive dependency overrides for `fast-uri`, `brace-expansion`, `http-cache-semantics` and `undici`, and moved Electron's download tooling to `global-agent` 4 to remove `roarr` and `sprintf-js`.
+
 ## [1.1.0] - 2026-10-15
 
 ### Added
