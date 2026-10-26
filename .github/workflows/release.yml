@@ -12,7 +12,7 @@ on:
         type: string
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: release-run-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -51,11 +51,16 @@ jobs:
             exit 1
           fi
 
+  quality:
+    name: Release checks
+    needs: validate
+    uses: ./.github/workflows/ci.yml
+
   release:
     name: Release (${{ matrix.platform-name }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
-    needs: validate
+    needs: [validate, quality]
     permissions:
       contents: write
     strategy:
