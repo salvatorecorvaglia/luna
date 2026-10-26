@@ -1,6 +1,6 @@
 appId: com.luna.app
 productName: Luna
-copyright: "Copyright © ${author}"
+copyright: 'Copyright © ${author}'
 
 directories:
   buildResources: resources

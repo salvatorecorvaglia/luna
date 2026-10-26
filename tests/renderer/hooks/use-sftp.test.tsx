@@ -25,9 +25,9 @@ beforeEach(() => {
 });
 
 function makeWrapper(client: QueryClient) {
-  return function Wrapper({ children }: PropsWithChildren) {
-    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
-  };
+  return ({ children }: PropsWithChildren) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
 }
 
 function freshClient() {

@@ -17,6 +17,7 @@
       "!**/test-results",
       "!**/playwright-report",
       "!**/package-lock.json",
+      "!**/pnpm-lock.yaml",
       "!**/*.log",
       "!**/.DS_Store"
     ]
@@ -89,6 +90,11 @@
       "trailingCommas": "all",
       "bracketSpacing": true,
       "arrowParentheses": "always"
+    }
+  },
+  "yaml": {
+    "formatter": {
+      "quoteStyle": "single"
     }
   },
   "css": {

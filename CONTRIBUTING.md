@@ -10,24 +10,27 @@ To contribute code, you will need to set up a local development environment.
 
 ### Prerequisites
 
-*   **Node.js:** Ensure you have Node.js version `22.x` or higher installed.
-*   **pnpm:** We use `pnpm` (version `11.x`) to manage our workspace dependencies. Do not use `npm` or `yarn`.
-*   **Native Modules Build Dependencies:** Luna uses native modules (such as `node-pty` and `better-sqlite3`). You may need basic build tools installed on your operating system (e.g., Xcode Command Line Tools on macOS, Build Tools on Windows, or `build-essential` on Linux).
+-   **Node.js:** Ensure you have Node.js version `22.x` or higher installed.
+-   **pnpm:** We use `pnpm` (version `11.x`) to manage our workspace dependencies. Do not use `npm` or `yarn`.
+-   **Native Modules Build Dependencies:** Luna uses native modules (such as `node-pty` and `better-sqlite3`). You may need basic build tools installed on your operating system (e.g., Xcode Command Line Tools on macOS, Build Tools on Windows, or `build-essential` on Linux).
 
 ### Setting Up the Repository
 
 1.  **Fork and Clone:** Fork Luna to your own GitHub account, then clone it locally:
+
     ```bash
     git clone https://github.com/your-username/luna.git
     cd luna
     ```
 
 2.  **Install Dependencies:** Run the following command to download and install all workspace packages and prepare native binaries:
+
     ```bash
     pnpm install
     ```
 
 3.  **Run Development Server:** Run the dev task, which boots up Vite and launches Electron with live hot-reloading for both the main and renderer processes:
+
     ```bash
     pnpm run dev
     ```
@@ -39,12 +42,13 @@ To contribute code, you will need to set up a local development environment.
 To keep Luna's codebase clean and maintainable, please follow these guidelines when writing code:
 
 ### Tech Stack Standards
-*   **Frontend UI:** We use **React 19** and **Tailwind CSS v4** (using `@tailwindcss/vite` configuration). Ensure your styles leverage utility classes and follow the design guidelines.
-*   **State Management:** Global UI state and session properties are managed with **Zustand**. Keep state structures simple and slice-based.
-*   **Data Fetching:** For remote state, use **TanStack Query** (React Query) to leverage clean caching and status state.
-*   **Database & Persistence:** SQLite database migrations are located under `src/main/services/db/migrations/`. When introducing schema updates (such as new tables or columns), add a new versioned migration file and register it in `src/main/services/db/migrations/index.ts`.
-*   **Security:** Avoid writing credentials (like private keys or passwords) directly to disk or settings database. Secrets travel only inward: the renderer sends them with a connection create/update, main encrypts them (`src/main/services/credential-store.ts`) and resolves them itself at connect time. Do not add an IPC channel that returns a decrypted secret to the renderer. Renderer code reaches main through `getApi()` (`src/renderer/src/services/api.ts`). Renderer code must never read the `window.api` global directly — `tests/unit/design-tokens.test.ts` fails the build if it does.
-*   **Design tokens:** Use the semantic Tailwind tokens (`text-muted-foreground`, `bg-card`, `text-destructive-fg`, …), the type scale (`text-3xs`/`text-2xs`/`text-xs`/`text-sm-plus`), and the `Z.*` constants from `src/renderer/src/lib/z-layers.ts`. Raw palette classes (`text-red-500`), hex literals in `className`, arbitrary `z-[N]` values and arbitrary `text-[Npx]` sizes all fail `tests/unit/design-tokens.test.ts`, which is a build gate.
+
+-   **Frontend UI:** We use **React 19** and **Tailwind CSS v4** (using `@tailwindcss/vite` configuration). Ensure your styles leverage utility classes and follow the design guidelines.
+-   **State Management:** Global UI state and session properties are managed with **Zustand**. Keep state structures simple and slice-based.
+-   **Data Fetching:** For remote state, use **TanStack Query** (React Query) to leverage clean caching and status state.
+-   **Database & Persistence:** SQLite database migrations are located under `src/main/services/db/migrations/`. When introducing schema updates (such as new tables or columns), add a new versioned migration file and register it in `src/main/services/db/migrations/index.ts`.
+-   **Security:** Avoid writing credentials (like private keys or passwords) directly to disk or settings database. Secrets travel only inward: the renderer sends them with a connection create/update, main encrypts them (`src/main/services/credential-store.ts`) and resolves them itself at connect time. Do not add an IPC channel that returns a decrypted secret to the renderer. Renderer code reaches main through `getApi()` (`src/renderer/src/services/api.ts`). Renderer code must never read the `window.api` global directly — `tests/unit/design-tokens.test.ts` fails the build if it does.
+-   **Design tokens:** Use the semantic Tailwind tokens (`text-muted-foreground`, `bg-card`, `text-destructive-fg`, …), the type scale (`text-3xs`/`text-2xs`/`text-xs`/`text-sm-plus`), and the `Z.*` constants from `src/renderer/src/lib/z-layers.ts`. Raw palette classes (`text-red-500`), hex literals in `className`, arbitrary `z-[N]` values and arbitrary `text-[Npx]` sizes all fail `tests/unit/design-tokens.test.ts`, which is a build gate.
 
 ### Code Style & Formatting
 
@@ -72,11 +76,10 @@ pnpm run typecheck
 ## 🧪 Testing Guidelines
 
 Any new features, components, or service refactors must be accompanied by comprehensive tests. We use **Vitest** for unit and component verification.
-
-*   Tests for main process IPC handlers, services, and utilities are located in `tests/main/`.
-*   Tests for renderer React components, hooks, stores, and themes are located in `tests/renderer/`.
-*   Unit, integration, design-token, and end-to-end test suites are located in `tests/unit/` and `tests/e2e/`.
-*   Ensure that tests clean up after themselves (e.g., mock cleaning, temporary file deletion).
+-   Tests for main process IPC handlers, services, and utilities are located in `tests/main/`.
+-   Tests for renderer React components, hooks, stores, and themes are located in `tests/renderer/`.
+-   Unit, integration, design-token, and end-to-end test suites are located in `tests/unit/` and `tests/e2e/`.
+-   Ensure that tests clean up after themselves (e.g., mock cleaning, temporary file deletion).
 
 ### Test Commands
 
@@ -114,15 +117,17 @@ Format your commit messages as:
 ```
 
 ### Allowed Types:
-*   `feat`: A new feature
-*   `fix`: A bug fix
-*   `docs`: Documentation changes
-*   `style`: Changes that do not affect the meaning of the code (formatting, white-space, etc.)
-*   `refactor`: A code change that neither fixes a bug nor adds a feature
-*   `test`: Adding missing tests or correcting existing tests
-*   `chore`: Changes to the build process or auxiliary tools/libraries
+
+-   `feat`: A new feature
+-   `fix`: A bug fix
+-   `docs`: Documentation changes
+-   `style`: Changes that do not affect the meaning of the code (formatting, white-space, etc.)
+-   `refactor`: A code change that neither fixes a bug nor adds a feature
+-   `test`: Adding missing tests or correcting existing tests
+-   `chore`: Changes to the build process or auxiliary tools/libraries
 
 ### Example:
+
 `feat(terminal): add vertical split pane layout support`
 
 ---
@@ -130,7 +135,6 @@ Format your commit messages as:
 ## 🚀 Pull Request Checklist
 
 When you are ready to submit a Pull Request, please ensure the following:
-
 1.  Your branch is up-to-date with `main`.
 2.  All dependencies are correctly managed via `pnpm`.
 3.  All code checks pass cleanly (`pnpm run lint` and `pnpm run typecheck`).

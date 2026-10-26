@@ -101,37 +101,41 @@ describe('stacked focus traps', () => {
   });
 });
 
+/**
+ * Parent re-renders on demand while keeping the dialog mounted, so the test can
+ * check that an unrelated parent render does not re-run the dialog's focus trap.
+ */
+function Parent() {
+  const [, setTick] = useState(0);
+  return (
+    <>
+      <button type="button" data-testid="rerender" onClick={() => setTick((t) => t + 1)}>
+        rerender
+      </button>
+      <DialogShell
+        open
+        onClose={() => undefined}
+        zLayer="z-[70]"
+        portal={false}
+        onOpenFocus={(dialog) => dialog.querySelector<HTMLElement>('[data-cancel]')?.focus()}
+      >
+        <button type="button" data-cancel data-testid="cancel">
+          Cancel
+        </button>
+        <button type="button" data-testid="destructive">
+          Delete
+        </button>
+      </DialogShell>
+    </>
+  );
+}
+
 describe('DialogShell focus stability', () => {
   it('does not steal focus back when the parent re-renders', async () => {
     // onOpenFocus and onClose are routinely inline arrows, so they changed
     // identity every render. With them in the effect's deps the trap was torn
     // down and rebuilt and onOpenFocus fired again — moving focus off whatever
     // the user had tabbed to, on an unrelated parent render.
-    function Parent() {
-      const [, setTick] = useState(0);
-      return (
-        <>
-          <button type="button" data-testid="rerender" onClick={() => setTick((t) => t + 1)}>
-            rerender
-          </button>
-          <DialogShell
-            open
-            onClose={() => undefined}
-            zLayer="z-[70]"
-            portal={false}
-            onOpenFocus={(dialog) => dialog.querySelector<HTMLElement>('[data-cancel]')?.focus()}
-          >
-            <button type="button" data-cancel data-testid="cancel">
-              Cancel
-            </button>
-            <button type="button" data-testid="destructive">
-              Delete
-            </button>
-          </DialogShell>
-        </>
-      );
-    }
-
     render(<Parent />);
 
     // Let the dialog's initial onOpenFocus land first, otherwise the assertion
