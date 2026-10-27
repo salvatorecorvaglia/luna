@@ -6,7 +6,7 @@ directories:
   buildResources: resources
   output: dist
 
-icon: resources/luna.png
+icon: build/icons/luna.png
 
 files:
   - '!**/.vscode/*'

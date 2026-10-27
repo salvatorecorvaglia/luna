@@ -2,7 +2,7 @@ import { join, resolve as resolvePath } from 'node:path';
 import { is } from '@electron-toolkit/utils';
 import { ErrorCode, LunaError } from '@shared/errors';
 import { app, BrowserWindow, dialog, Menu, session, shell } from 'electron';
-import icon from '../../resources/luna.png?asset';
+import icon from '../../build/icons/luna.png?asset';
 import { registerAllHandlers } from './ipc';
 import { setMainWindow } from './ipc/app.ipc';
 import { disposeLocalTerminals } from './ipc/local-terminal.ipc';

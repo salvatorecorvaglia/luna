@@ -27,7 +27,7 @@ import { getApi } from '@/services/api';
 import { useTerminalStore } from '@/stores/terminal-store';
 import { useUIStore } from '@/stores/ui-store';
 import { terminalThemes } from '@/themes/terminal';
-import lunaLogo from '../../../../../resources/luna.png';
+import lunaLogo from '../../../../../resources/luna.svg';
 import { ConfirmDialog } from './ConfirmDialog';
 import { DialogShell } from './DialogShell';
 

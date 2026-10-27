@@ -14,7 +14,7 @@ import { isMac } from '@/lib/platform';
 import { cn } from '@/lib/utils';
 import { getApi } from '@/services/api';
 import { useUIStore } from '@/stores/ui-store';
-import lunaLogo from '../../../../../resources/luna.png';
+import lunaLogo from '../../../../../resources/luna.svg';
 
 const VIEW_TABS = [
   { view: 'local', icon: Monitor, label: 'Local' },

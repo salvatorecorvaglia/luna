@@ -3,7 +3,7 @@ import { ArrowRight, Command, FolderOpen, Plus } from 'lucide-react';
 import { isMac } from '@/lib/platform';
 import { useConnectionStore } from '@/stores/connection-store';
 import { useUIStore } from '@/stores/ui-store';
-import lunaLogo from '../../../../../resources/luna.png';
+import lunaLogo from '../../../../../resources/luna.svg';
 
 const stagger = {
   animate: { transition: { staggerChildren: 0.08 } },

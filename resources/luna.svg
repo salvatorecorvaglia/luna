@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>Luna</title>
+  <defs>
+    <linearGradient id="moon" x1=".8" y1="0" x2=".3" y2="1"><stop stop-color="#078df5"/><stop offset=".55" stop-color="#4936cc"/><stop offset="1" stop-color="#800dbb"/></linearGradient>
+    <linearGradient id="inner" x1=".7" y1="0" x2=".3" y2="1"><stop stop-color="#3931bf"/><stop offset="1" stop-color="#9114ce"/></linearGradient>
+  </defs>
+  <path d="M489 231C654 219 791 348 791 512c0 155-125 282-280 282-112 0-210-65-255-166 43 42 101 65 160 65 129 0 233-105 233-234 0-107-64-193-160-228Z" fill="url(#moon)"/>
+  <path d="M489 231c126 34 218 128 218 254 0 141-109 255-250 255-80 0-152-41-201-112 43 42 101 65 160 65 129 0 233-105 233-234 0-107-64-193-160-228Z" fill="url(#inner)"/>
+  <path d="m346 383 88 89-88 89-24-24 66-65-66-66ZM434 533h114v33H434Z" fill="#18bcec"/>
+</svg>

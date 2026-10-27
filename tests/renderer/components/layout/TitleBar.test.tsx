@@ -6,7 +6,7 @@ import { TitleBar } from '../../../../src/renderer/src/components/layout/TitleBa
 import { useUIStore } from '../../../../src/renderer/src/stores/ui-store';
 import { installFakeApi } from '../../../../src/test/fake-api';
 
-vi.mock('../../../../resources/luna.png', () => ({ default: 'luna.png' }));
+vi.mock('../../../../resources/luna.svg', () => ({ default: 'luna.svg' }));
 
 beforeEach(() => {
   installFakeApi();

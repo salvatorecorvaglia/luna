@@ -11,7 +11,7 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
 }));
 // The logo is imported as an asset URL; jsdom has no loader for it.
-vi.mock('../../../../resources/luna.png', () => ({ default: 'luna.png' }));
+vi.mock('../../../../resources/luna.svg', () => ({ default: 'luna.svg' }));
 
 function renderPanel(): void {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
