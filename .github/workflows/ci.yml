@@ -146,10 +146,12 @@ jobs:
             ${{ steps.native-abi.outputs.paths }}
             ${{ github.workspace }}/.cache/electron
             ${{ github.workspace }}/.cache/electron-builder
-          key: native-electron-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.native-abi.outputs.electron }}-node${{ steps.native-abi.outputs.node }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: native-electron-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.native-abi.outputs.electron }}-node${{ steps.native-abi.outputs.node }}-${{ hashFiles('pnpm-lock.yaml') }}
       - name: Build native Electron modules on cache miss
         if: steps.native-cache.outputs.cache-hit != 'true'
-        run: pnpm exec electron-builder install-app-deps
+        run: |
+          node scripts/prepare-native-build.mjs
+          pnpm exec electron-builder install-app-deps
 
       - name: Ensure Electron executable is installed
         run: node node_modules/electron/install.js
@@ -234,10 +236,12 @@ jobs:
             ${{ steps.native-abi.outputs.paths }}
             ${{ github.workspace }}/.cache/electron
             ${{ github.workspace }}/.cache/electron-builder
-          key: native-electron-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.native-abi.outputs.electron }}-node${{ steps.native-abi.outputs.node }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: native-electron-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.native-abi.outputs.electron }}-node${{ steps.native-abi.outputs.node }}-${{ hashFiles('pnpm-lock.yaml') }}
       - name: Build native Electron modules on cache miss
         if: steps.native-cache.outputs.cache-hit != 'true'
-        run: pnpm exec electron-builder install-app-deps
+        run: |
+          node scripts/prepare-native-build.mjs
+          pnpm exec electron-builder install-app-deps
 
       - name: Ensure Electron executable is installed
         run: node node_modules/electron/install.js
