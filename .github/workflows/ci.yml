@@ -36,12 +36,8 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - name: Fix node-gyp permissions
-        shell: bash
-        run: find /Users/runner /home/runner ~/.pnpm-store -name "gyp_main.py" -exec chmod +x {} + 2>/dev/null || true
-
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Run Biome
         run: pnpm exec biome check . --error-on-warnings
@@ -74,12 +70,8 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - name: Fix node-gyp permissions
-        shell: bash
-        run: find /Users/runner /home/runner ~/.pnpm-store -name "gyp_main.py" -exec chmod +x {} + 2>/dev/null || true
-
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Run tests with coverage (Linux)
         if: matrix.os == 'ubuntu-24.04'
@@ -105,16 +97,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Cache Electron Binaries
-        uses: actions/cache@v6
-        with:
-          path: |
-            ${{ github.workspace }}/.cache/electron
-            ${{ github.workspace }}/.cache/electron-builder
-          key: ${{ runner.os }}-electron-cache-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-electron-cache-
-
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
 
@@ -124,20 +106,53 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - name: Fix node-gyp permissions
-        shell: bash
-        run: find /Users/runner /home/runner ~/.pnpm-store -name "gyp_main.py" -exec chmod +x {} + 2>/dev/null || true
-
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Ensure Electron binary is installed with retry
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Fix permissions only in installed node-gyp packages
         shell: bash
         run: |
-          for i in 1 2 3 4 5; do
-            echo "Attempt $i: Installing Electron binary..."
-            node node_modules/electron/install.js && break || sleep 5
-          done
+          node -e '
+            const fs = require("node:fs");
+            const path = require("node:path");
+            const store = "node_modules/.pnpm";
+            for (const entry of fs.readdirSync(store)) {
+              const module = entry.startsWith("@electron+node-gyp@") ? "@electron/node-gyp"
+                : entry.startsWith("node-gyp@") ? "node-gyp" : null;
+              if (!module) continue;
+              const file = path.join(store, entry, "node_modules", module, "gyp/gyp_main.py");
+              if (fs.existsSync(file)) fs.chmodSync(file, 0o755);
+            }
+          '
+      - name: Identify native ABI and package paths
+        id: native-abi
+        shell: bash
+        run: |
+          node -e '
+            const fs = require("node:fs");
+            const path = require("node:path");
+            const electron = require("electron/package.json").version;
+            const modules = ["node-pty", "better-sqlite3", "ssh2"];
+            const paths = modules.map(name => path.dirname(require.resolve(`${name}/package.json`)));
+            const fromSsh = require("node:module").createRequire(require.resolve("ssh2/package.json"));
+            try { paths.push(path.dirname(fromSsh.resolve("cpu-features/package.json"))); }
+            catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `electron=${electron}\nnode=${process.versions.modules}\npaths<<NATIVE_PATHS\n${paths.join("\n")}\nNATIVE_PATHS\n`);
+          '
+      - name: Cache native Electron modules and downloads
+        id: native-cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ steps.native-abi.outputs.paths }}
+            ${{ github.workspace }}/.cache/electron
+            ${{ github.workspace }}/.cache/electron-builder
+          key: native-electron-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.native-abi.outputs.electron }}-node${{ steps.native-abi.outputs.node }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Build native Electron modules on cache miss
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        run: pnpm exec electron-builder install-app-deps
+
+      - name: Ensure Electron executable is installed
+        run: node node_modules/electron/install.js
 
       - name: Build application
         run: pnpm run build
@@ -154,13 +169,18 @@ jobs:
           retention-days: 14
 
   package-smoke:
-    name: Packaging smoke (${{ matrix.os }})
+    name: Packaging (${{ matrix.os }}, ${{ matrix.arch }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 25
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-latest, windows-latest]
+        include:
+          - { os: macos-15, arch: arm64 }
+          - { os: macos-15-intel, arch: x64 }
+          - { os: ubuntu-24.04, arch: x64 }
+          - { os: ubuntu-24.04-arm, arch: arm64 }
+          - { os: windows-2025, arch: x64 }
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -174,15 +194,58 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - name: Fix node-gyp permissions
-        shell: bash
-        run: find /Users/runner /home/runner ~/.pnpm-store -name "gyp_main.py" -exec chmod +x {} + 2>/dev/null || true
-
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Fix permissions only in installed node-gyp packages
+        shell: bash
+        run: |
+          node -e '
+            const fs = require("node:fs");
+            const path = require("node:path");
+            const store = "node_modules/.pnpm";
+            for (const entry of fs.readdirSync(store)) {
+              const module = entry.startsWith("@electron+node-gyp@") ? "@electron/node-gyp"
+                : entry.startsWith("node-gyp@") ? "node-gyp" : null;
+              if (!module) continue;
+              const file = path.join(store, entry, "node_modules", module, "gyp/gyp_main.py");
+              if (fs.existsSync(file)) fs.chmodSync(file, 0o755);
+            }
+          '
+      - name: Identify native ABI and package paths
+        id: native-abi
+        shell: bash
+        run: |
+          node -e '
+            const fs = require("node:fs");
+            const path = require("node:path");
+            const electron = require("electron/package.json").version;
+            const modules = ["node-pty", "better-sqlite3", "ssh2"];
+            const paths = modules.map(name => path.dirname(require.resolve(`${name}/package.json`)));
+            const fromSsh = require("node:module").createRequire(require.resolve("ssh2/package.json"));
+            try { paths.push(path.dirname(fromSsh.resolve("cpu-features/package.json"))); }
+            catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `electron=${electron}\nnode=${process.versions.modules}\npaths<<NATIVE_PATHS\n${paths.join("\n")}\nNATIVE_PATHS\n`);
+          '
+      - name: Cache native Electron modules and downloads
+        id: native-cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ steps.native-abi.outputs.paths }}
+            ${{ github.workspace }}/.cache/electron
+            ${{ github.workspace }}/.cache/electron-builder
+          key: native-electron-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.native-abi.outputs.electron }}-node${{ steps.native-abi.outputs.node }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Build native Electron modules on cache miss
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        run: pnpm exec electron-builder install-app-deps
 
-      - name: Package (unpacked)
-        run: pnpm run package:dir
+      - name: Ensure Electron executable is installed
+        run: node node_modules/electron/install.js
+      - name: Package (unpacked) using verified native modules
+        shell: bash
+        run: |
+          pnpm run build
+          pnpm exec electron-builder --dir --"$(node -p 'process.arch')" -c.npmRebuild=false --publish never
 
       - name: Assert native helpers are unpacked from the asar
         shell: bash
@@ -243,3 +306,91 @@ jobs:
           esac
 
           exit $fail
+
+      - name: Install fpm for Linux installers
+        if: runner.os == 'Linux'
+        run: |
+          for source in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources /etc/apt/apt-mirrors.txt; do
+            if [[ -f "$source" ]]; then
+              sudo sed -i 's|http://azure.archive.ubuntu.com|https://archive.ubuntu.com|g; s|https://azure.archive.ubuntu.com|https://archive.ubuntu.com|g' "$source"
+            fi
+          done
+          options=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
+          sudo apt-get "${options[@]}" update
+          sudo apt-get "${options[@]}" install -y --no-install-recommends ruby ruby-dev build-essential
+          sudo gem install --no-document fpm
+      - name: Locate verified unpacked application
+        id: unpacked-app
+        shell: bash
+        run: |
+          node -e '
+            const fs = require("node:fs");
+            const path = require("node:path");
+            const root = "dist";
+            const directory = process.platform === "darwin"
+              ? fs.readdirSync(root).filter(name => name === "mac" || name.startsWith("mac-"))
+              : [process.platform === "win32" ? "win-unpacked" : process.arch === "arm64" ? "linux-arm64-unpacked" : "linux-unpacked"];
+            const base = directory.map(name => path.join(root, name)).find(name => fs.existsSync(name));
+            if (!base) throw new Error("Unpacked application missing");
+            const app = process.platform === "darwin" ? path.join(base, fs.readdirSync(base).find(name => name.endsWith(".app"))) : base;
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `path=${path.resolve(app)}\n`);
+          '
+      - name: Build native installers without publishing
+        shell: bash
+        env:
+          USE_SYSTEM_FPM: ${{ runner.os == 'Linux' }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          PREPACKAGED_APP: ${{ steps.unpacked-app.outputs.path }}
+        run: |
+          set -euo pipefail
+          arch="--$(node -p 'process.arch')"
+          case "$RUNNER_OS" in
+            Linux) pnpm exec electron-builder --linux AppImage deb "$arch" --prepackaged "$PREPACKAGED_APP" --publish never ;;
+            macOS) pnpm exec electron-builder --mac dmg zip "$arch" --prepackaged "$PREPACKAGED_APP" --publish never ;;
+            Windows) pnpm exec electron-builder --win nsis "$arch" --prepackaged "$PREPACKAGED_APP" --publish never ;;
+          esac
+      - name: Require installer artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$RUNNER_OS" in
+            Linux) test -n "$(find dist -name '*.AppImage' -print -quit)"; test -n "$(find dist -name '*.deb' -print -quit)" ;;
+            macOS) test -n "$(find dist -name '*.dmg' -print -quit)"; test -n "$(find dist -name '*.zip' -print -quit)" ;;
+            Windows) test -n "$(find dist -name '*setup.exe' -print -quit)" ;;
+          esac
+
+      - name: Stage native update feeds and build identity
+        shell: bash
+        env:
+          BUILD_ARCH: ${{ matrix.arch }}
+        run: |
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            mv dist/latest-mac.yml "dist/latest-mac-$BUILD_ARCH.yml"
+          fi
+          node -e '
+            const fs = require("node:fs");
+            const { createHash } = require("node:crypto");
+            const pkg = require("./package.json");
+            const { RUNNER_OS: platform, BUILD_ARCH: arch, GITHUB_SHA: commit } = process.env;
+            const files = fs.readdirSync("dist").filter(name => /\.(dmg|zip|exe|AppImage|deb|yml|blockmap)$/.test(name));
+            if (!files.length) throw new Error("No installers produced");
+            const checksums = files.map(name => `${createHash("sha256").update(fs.readFileSync(`dist/${name}`)).digest("hex")}  ${name}`);
+            fs.writeFileSync(`dist/checksums-${platform}-${arch}.txt`, checksums.join("\n") + "\n");
+            fs.writeFileSync(`dist/build-${platform}-${arch}.json`, JSON.stringify({platform, arch, commit, version: pkg.version}));
+          '
+      - uses: actions/upload-artifact@v6
+        with:
+          name: luna-${{ runner.os }}-${{ matrix.arch }}
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.exe
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.blockmap
+            dist/latest*.yml
+            dist/checksums-*.txt
+            dist/build-*.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7

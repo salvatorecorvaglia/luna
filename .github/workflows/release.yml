@@ -30,26 +30,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Check if tag ref and validate package version
+      - name: Require the exact release tag and version
         env:
           INPUT_TAG: ${{ github.event.inputs.tag }}
         run: |
-          TAG="$INPUT_TAG"
-          if [ -z "$TAG" ] && [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            TAG="${GITHUB_REF#refs/tags/}"
-          fi
-          if [ -n "$TAG" ]; then
-            TAG_VERSION="${TAG#v}"
-            PKG_VERSION=$(jq -r .version package.json)
-            echo "Tag version: $TAG_VERSION | package.json version: $PKG_VERSION"
-            if [[ "$TAG_VERSION" != "$PKG_VERSION" ]]; then
-              echo "::error::Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
-              exit 1
-            fi
-          elif [[ "${{ github.event_name }}" != "workflow_dispatch" && "$GITHUB_REF" != refs/tags/* ]]; then
-            echo "::error::Release workflow must be run on a tag ref (e.g. refs/tags/v1.0.0) or triggered with a tag input"
+          if [[ "$GITHUB_REF" != refs/tags/v* ]]; then
+            echo 'Select the release tag when dispatching this workflow.' >&2
             exit 1
           fi
+          if [[ -n "$INPUT_TAG" && "$INPUT_TAG" != "$GITHUB_REF_NAME" ]]; then
+            echo 'The supplied tag must match the selected workflow ref.' >&2
+            exit 1
+          fi
+          test "${GITHUB_REF_NAME#v}" = "$(jq -r .version package.json)"
 
   quality:
     name: Release checks
@@ -57,161 +50,240 @@ jobs:
     uses: ./.github/workflows/ci.yml
 
   release:
-    name: Release (${{ matrix.platform-name }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    name: Publish verified native installers
     needs: [validate, quality]
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            platform: mac
-            platform-name: macOS
-            artifact-name: release-mac
-            path: |
-              dist/*.dmg
-              dist/*.zip
-              dist/*.yml
-          - os: windows-latest
-            platform: win
-            platform-name: Windows
-            artifact-name: release-win
-            path: |
-              dist/*.exe
-              dist/*.yml
-          - os: ubuntu-24.04
-            platform: linux
-            platform-name: Linux
-            artifact-name: release-linux
-            path: |
-              dist/*.AppImage
-              dist/*.deb
-              dist/*.yml
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Cache Electron Binaries
-        uses: actions/cache@v6
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v6
         with:
-          path: |
-            ${{ github.workspace }}/.cache/electron
-            ${{ github.workspace }}/.cache/electron-builder
-          key: ${{ runner.os }}-electron-cache-v2-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-electron-cache-v2-
+          pattern: luna-*
+          path: dist
+          merge-multiple: true
+      - name: Verify all installer checksums
+        working-directory: dist
+        run: |
+          for checksums in checksums-*.txt; do sha256sum --check "$checksums"; done
+      - name: Install update-feed validator dependency
+        run: python3 -m pip install --quiet --target "$RUNNER_TEMP/update-yaml" PyYAML==6.0.3
+      - name: Merge and validate update feeds and native build identities
+        env:
+          PYTHONPATH: ${{ runner.temp }}/update-yaml
+        run: |
+          python3 - --directory dist --version "$GITHUB_REF_NAME" <<'PYTHON'
+          """Merge and validate the desktop update feeds before a release is published.
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+          electron-builder writes one `latest-mac.yml` per macOS architecture. The
+          release job downloads both, so merging them into one file is what lets a Mac
+          pick the zip for its own architecture. The other platforms already produce a
+          distinct file per architecture (`latest.yml`, `latest-linux.yml`,
+          `latest-linux-arm64.yml`).
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: pnpm
+          Every manifest is then checked against the installers actually present: the
+          release would otherwise go public with a feed pointing at a missing or
+          truncated asset, and every installed copy would fail its next update.
+          """
 
-      - name: Fix node-gyp permissions
-        shell: bash
-        run: find /Users/runner /home/runner ~/.pnpm-store -name "gyp_main.py" -exec chmod +x {} + 2>/dev/null || true
+          import argparse
+          import base64
+          import hashlib
+          import json
+          import os
+          import sys
+          from pathlib import Path
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+          import yaml
 
-      - name: Build Electron app
-        run: pnpm run build
+          MAC_MANIFESTS = ("latest-mac-arm64.yml", "latest-mac-x64.yml")
+          REQUIRED_MANIFESTS = (
+              "latest.yml",
+              "latest-mac.yml",
+              "latest-linux.yml",
+              "latest-linux-arm64.yml",
+          )
 
-      - name: Install fpm (Linux deb target)
-        if: matrix.platform == 'linux'
+
+          def load_manifest(path):
+              try:
+                  data = yaml.safe_load(path.read_text())
+              except yaml.YAMLError as error:
+                  raise SystemExit(f"{path.name}: invalid YAML: {error}") from error
+              if not isinstance(data, dict):
+                  raise SystemExit(f"{path.name}: not a mapping")
+              return data
+
+
+          def validate_manifest(manifest, version, directory):
+              """Checks one feed against the version and the files next to it."""
+              name = manifest.get("_name", "manifest")
+              if str(manifest.get("version", "")) != version:
+                  raise SystemExit(
+                      f"{name}: version {manifest.get('version')!r} does not match {version!r}"
+                  )
+
+              files = manifest.get("files")
+              if not isinstance(files, list) or not files:
+                  raise SystemExit(f"{name}: no files listed")
+
+              urls = set()
+              for entry in files:
+                  if not isinstance(entry, dict):
+                      raise SystemExit(f"{name}: file entry is not a mapping")
+                  url = entry.get("url")
+                  if (
+                      not isinstance(url, str)
+                      or not url
+                      or "/" in url
+                      or "\\" in url
+                      or url in (".", "..")
+                  ):
+                      raise SystemExit(f"{name}: unsafe asset name {url!r}")
+                  if url in urls:
+                      raise SystemExit(f"{name}: duplicate asset {url}")
+                  urls.add(url)
+
+                  sha512 = entry.get("sha512")
+                  if not isinstance(sha512, str) or len(sha512) != 88:
+                      raise SystemExit(f"{name}: invalid sha512 for {url}")
+
+                  size = entry.get("size")
+                  if not isinstance(size, int) or size <= 0:
+                      raise SystemExit(f"{name}: invalid size for {url}")
+                  asset = directory / url
+                  if not asset.is_file():
+                      raise SystemExit(f"{name}: missing asset {url}")
+                  actual_hash = base64.b64encode(
+                      hashlib.sha512(asset.read_bytes()).digest()
+                  ).decode()
+                  if actual_hash != sha512:
+                      raise SystemExit(f"{name}: checksum mismatch for {url}")
+                  actual = asset.stat().st_size
+                  if actual != size:
+                      raise SystemExit(f"{name}: {url} is {actual} bytes, feed says {size}")
+
+              path = manifest.get("path")
+              if path is not None and path not in urls:
+                  raise SystemExit(f"{name}: path {path!r} is not one of the listed files")
+
+
+          def merge_mac(manifests, version, directory):
+              """Merges per-architecture feeds, keeping every zip exactly once."""
+              merged = dict(manifests[0])
+              files = []
+              seen = {}
+              for manifest in manifests:
+                  validate_manifest(manifest, version, directory)
+                  for entry in manifest["files"]:
+                      url = entry["url"]
+                      if url in seen:
+                          if seen[url]["sha512"] != entry["sha512"]:
+                              raise SystemExit(f"latest-mac: conflicting checksums for {url}")
+                          continue
+                      seen[url] = entry
+                      files.append(entry)
+
+              merged["files"] = files
+              preferred = next(
+                  (entry for entry in files if entry["url"].endswith(".zip")), files[0]
+              )
+              merged["path"] = preferred["url"]
+              merged["sha512"] = preferred["sha512"]
+              merged["releaseDate"] = max(str(m.get("releaseDate", "")) for m in manifests)
+              merged.pop("_name", None)
+              return merged
+
+
+          def main():
+              parser = argparse.ArgumentParser(description=__doc__)
+              parser.add_argument(
+                  "--directory", required=True, type=Path, help="Downloaded desktop artifacts"
+              )
+              parser.add_argument(
+                  "--version", required=True, help="Release version without the v prefix"
+              )
+              args = parser.parse_args()
+
+              directory = args.directory
+              metadata = list(directory.glob("build-*.json"))
+              expected = {
+                  ("macOS", "x64"),
+                  ("macOS", "arm64"),
+                  ("Linux", "x64"),
+                  ("Linux", "arm64"),
+                  ("Windows", "x64"),
+              }
+              actual = set()
+              for path in metadata:
+                  build = json.loads(path.read_text())
+                  identity = (build["platform"], build["arch"])
+                  if (
+                      identity in actual
+                      or build["commit"] != os.environ["GITHUB_SHA"]
+                      or build["version"] != args.version.removeprefix("v")
+                  ):
+                      raise SystemExit("Installer commit, version or platform mismatch")
+                  actual.add(identity)
+              if actual != expected:
+                  raise SystemExit(
+                      f"Missing or unexpected native installers: {actual ^ expected}"
+                  )
+              version = args.version.removeprefix("v")
+
+              mac_inputs = [directory / name for name in MAC_MANIFESTS]
+              missing = [path.name for path in mac_inputs if not path.is_file()]
+              if missing:
+                  raise SystemExit(f"Missing macOS update manifests: {', '.join(missing)}")
+
+              manifests = []
+              for path in mac_inputs:
+                  manifest = load_manifest(path)
+                  manifest["_name"] = path.name
+                  manifests.append(manifest)
+
+              merged = merge_mac(manifests, version, directory)
+              validate_manifest({**merged, "_name": "latest-mac.yml"}, version, directory)
+              (directory / "latest-mac.yml").write_text(yaml.safe_dump(merged, sort_keys=False))
+              for path in mac_inputs:
+                  path.unlink()
+
+              for name in REQUIRED_MANIFESTS:
+                  path = directory / name
+                  if not path.is_file():
+                      raise SystemExit(f"Missing update manifest: {name}")
+                  manifest = load_manifest(path)
+                  manifest["_name"] = name
+                  validate_manifest(manifest, version, directory)
+
+              print(
+                  "Update feeds verified: "
+                  + ", ".join(
+                      f"{name} ({len(load_manifest(directory / name)['files'])} files)"
+                      for name in REQUIRED_MANIFESTS
+                  )
+              )
+              return 0
+
+
+          if __name__ == "__main__":
+              sys.exit(main())
+          PYTHON
+      - name: Publish verified installers
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ruby ruby-dev build-essential
-          sudo gem install --no-document fpm
-          fpm --version
-
-      - name: Package & Publish
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          USE_SYSTEM_FPM: ${{ matrix.platform == 'linux' }}
-        run: |
-          if [ "${{ matrix.platform }}" = "linux" ]; then
-            npx electron-builder --linux AppImage:x64 deb:x64 --publish always
-            npx electron-builder --linux AppImage:arm64 deb:arm64 --publish always
-          else
-            npx electron-builder --${{ matrix.platform }} --publish always
+          version="${GITHUB_REF_NAME#v}"
+          notes="$RUNNER_TEMP/release-notes.md"
+          awk -v version="$version" '
+            /^## / { heading=$2; gsub(/[][]/, "", heading); selected=(heading==version); next }
+            selected { print }
+          ' CHANGELOG.md > "$notes"
+          if ! grep -q '[^[:space:]]' "$notes"; then printf 'Luna %s\n' "$GITHUB_REF_NAME" > "$notes"; fi
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "Luna $GITHUB_REF_NAME" --notes-file "$notes"
           fi
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{ matrix.artifact-name }}
-          path: ${{ matrix.path }}
-          retention-days: 30
-          if-no-files-found: error
-
-  finalize:
-    name: Finalize Release
-    runs-on: ubuntu-24.04
-    needs: release
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Extract Release Notes
-        id: extract_notes
-        env:
-          INPUT_TAG: ${{ github.event.inputs.tag }}
-        run: |
-          TAG="$INPUT_TAG"
-          if [ -z "$TAG" ]; then
-            TAG="${GITHUB_REF#refs/tags/}"
-          fi
-          VERSION="${TAG#v}"
-          NOTES=""
-          if [ -f CHANGELOG.md ]; then
-            NOTES=$(sed -e "1,/## \[$VERSION\]/d" -e '/## \[/,$d' CHANGELOG.md || true)
-          fi
-          {
-            echo "tag=$TAG"
-            echo "version=$VERSION"
-            echo 'notes<<EOF'
-            echo "$NOTES"
-            echo 'EOF'
-          } >> $GITHUB_OUTPUT
-
-      - name: Update Release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.extract_notes.outputs.tag }}
-          VERSION: ${{ steps.extract_notes.outputs.version }}
-          RELEASE_NOTES: ${{ steps.extract_notes.outputs.notes }}
-        run: |
-          if [ -n "$RELEASE_NOTES" ]; then
-            gh release edit "$TAG" \
-              --draft=false \
-              --title "Luna v$VERSION" \
-              --notes "$RELEASE_NOTES" \
-              --repo "$GITHUB_REPOSITORY" || \
-            gh release create "$TAG" \
-              --title "Luna v$VERSION" \
-              --notes "$RELEASE_NOTES" \
-              --repo "$GITHUB_REPOSITORY"
-          else
-            gh release edit "$TAG" \
-              --draft=false \
-              --title "Luna v$VERSION" \
-              --generate-notes \
-              --repo "$GITHUB_REPOSITORY" || \
-            gh release create "$TAG" \
-              --title "Luna v$VERSION" \
-              --generate-notes \
-              --repo "$GITHUB_REPOSITORY"
-          fi
+          mapfile -d '' assets < <(find dist -maxdepth 1 -type f ! -name 'build-*' ! -name 'checksums-*' -print0)
+          gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
+          gh release edit "$GITHUB_REF_NAME" --draft=false --title "Luna $GITHUB_REF_NAME" --notes-file "$notes"
