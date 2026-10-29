@@ -376,7 +376,8 @@ jobs:
             const { createHash } = require("node:crypto");
             const pkg = require("./package.json");
             const { RUNNER_OS: platform, BUILD_ARCH: arch, GITHUB_SHA: commit } = process.env;
-            const files = fs.readdirSync("dist").filter(name => /\.(dmg|zip|exe|AppImage|deb|yml|blockmap)$/.test(name));
+            // Match the uploaded installers and update feeds, excluding builder diagnostics.
+            const files = fs.readdirSync("dist").filter(name => /\.(dmg|zip|exe|AppImage|deb|blockmap)$/.test(name) || /^latest.*\.yml$/.test(name));
             if (!files.length) throw new Error("No installers produced");
             const checksums = files.map(name => `${createHash("sha256").update(fs.readFileSync(`dist/${name}`)).digest("hex")}  ${name}`);
             fs.writeFileSync(`dist/checksums-${platform}-${arch}.txt`, checksums.join("\n") + "\n");
