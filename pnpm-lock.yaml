@@ -203,7 +203,7 @@ importers:
         version: 1.17.0
     devDependencies:
       '@biomejs/biome':
-        specifier: 2.6.4
+        specifier: ^2.6.4
         version: 2.6.4
       '@electron-toolkit/utils':
         specifier: ^4.0.0
