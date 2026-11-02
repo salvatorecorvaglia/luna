@@ -10,7 +10,7 @@
 
 ---
 
-## ✨ Key Features
+## Features ✨
 
 ### 🖥️ High-Performance Terminals
 
@@ -65,7 +65,7 @@
 
 ---
 
-## 🚀 Getting Started
+## Getting Started 🚀
 
 ### Prerequisites
 
@@ -128,46 +128,24 @@ pnpm run lint
 pnpm run format
 ```
 
-### Running Tests
-
-We use **Vitest** for unit and component testing (organized under the top-level `tests/` directory: `tests/main/`, `tests/renderer/`, `tests/unit/`, and `tests/e2e/`).
-
-Shared test helpers live in `src/test/`: `fake-api.ts` exposes `installFakeApi()`, a fully-stubbed `LunaAPI` that registers its own cleanup — use it rather than stubbing the `window.api` global. `fake-xterm.ts` and `setup.ts` cover the terminal and jsdom polyfills.
-
-Coverage thresholds in `vitest.config.mts` are a hard gate: a change that drops coverage below the floor fails the build.
-
-```bash
-# Run tests once
-pnpm run test
-
-# Run tests in watch mode (interactive)
-pnpm run test:watch
-
-# Run tests with HTML coverage reports
-pnpm run test:coverage
-
-# Run Playwright end-to-end tests against the built application
-pnpm run test:e2e
-```
-
 ---
 
-## 🤝 Contributing
+## Contributing 🤝
 
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-## 📜 Changelog
+## Changelog 📜
 
 Detailed release history and version changes can be found in [CHANGELOG.md](CHANGELOG.md).
 
-## 🔐 Security
+## Security 🔐
 
 If you discover a security vulnerability, please see our [Security Policy](SECURITY.md).
 
-## 📝 License
+## License 📝
 
 Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
 
----
+## Author ✍️
 
-**Author**: [Salvatore Corvaglia](https://github.com/salvatorecorvaglia)
+[Salvatore Corvaglia](https://github.com/salvatorecorvaglia)
