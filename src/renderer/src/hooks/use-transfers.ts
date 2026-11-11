@@ -64,6 +64,7 @@ export function useTransferEventListener(): void {
       pending.current.set(event.transferId, {
         transferId: event.transferId,
         transferred: event.transferred,
+        total: event.total,
         bytesPerSec: event.bytesPerSec,
       });
       if (rafHandle.current === null) {
@@ -74,6 +75,8 @@ export function useTransferEventListener(): void {
     const cleanupComplete = getApi().transfers.onComplete((event) => {
       const transfer = useTransferStore.getState().transfers.get(event.transferId);
       const sessionId = transfer?.sessionId;
+      const finalSample = pending.current.get(event.transferId);
+      if (finalSample) applyProgressBatch([finalSample]);
       dropPending(event.transferId);
       completeTransfer(event.transferId);
       // Only invalidate the directories actually touched by this transfer.

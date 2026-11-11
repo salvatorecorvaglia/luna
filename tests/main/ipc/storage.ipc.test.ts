@@ -117,9 +117,20 @@ describe('storage IPC — transfers', () => {
 
     const out = await handlers.get(IPC.STORAGE_DOWNLOAD)!(
       {},
-      { sessionId: 's1', remotePath: '/srv/a.txt', localPath: sandboxFile },
+      {
+        transferId: '00000000-0000-4000-8000-000000000001',
+        sessionId: 's1',
+        remotePath: '/srv/a.txt',
+        localPath: sandboxFile,
+      },
     );
-    expect(enqueue).toHaveBeenCalledWith('download', 's1', sandboxFile, '/srv/a.txt');
+    expect(enqueue).toHaveBeenCalledWith(
+      'download',
+      's1',
+      sandboxFile,
+      '/srv/a.txt',
+      '00000000-0000-4000-8000-000000000001',
+    );
     expect(out).toBe('t1');
   });
 
@@ -173,5 +184,31 @@ describe('storage.ipc compare-directories metering', () => {
   it('rejects a missing sessionId instead of skipping the meter', async () => {
     const compare = handlers.get(IPC.STORAGE_COMPARE_DIRECTORIES)!;
     await expect(compare({}, { localEntries: [], remoteEntries: [] })).rejects.toThrow(/sessionId/);
+  });
+});
+
+describe('storage write and transfer boundaries', () => {
+  it('rejects missing or malformed renderer transfer IDs', async () => {
+    await expect(
+      handlers.get(IPC.STORAGE_DOWNLOAD)!(
+        {},
+        { sessionId: 's1', localPath: sandboxFile, remotePath: '/file' },
+      ),
+    ).rejects.toThrow(/transferId/);
+    await expect(
+      handlers.get(IPC.STORAGE_DOWNLOAD)!(
+        {},
+        { transferId: 'invalid', sessionId: 's1', localPath: sandboxFile, remotePath: '/file' },
+      ),
+    ).rejects.toThrow(/transferId/);
+  });
+  it('rejects oversized editable content before calling the provider', async () => {
+    await expect(
+      handlers.get(IPC.STORAGE_WRITE_FILE)!(
+        {},
+        { sessionId: 's1', path: '/file', content: 'a'.repeat(512 * 1024 + 1) },
+      ),
+    ).rejects.toThrow(/editing limit/);
+    expect(writeFileMock).not.toHaveBeenCalled();
   });
 });

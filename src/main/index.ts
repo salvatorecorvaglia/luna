@@ -6,6 +6,7 @@ import icon from '../../build/icons/luna.png?asset';
 import { registerAllHandlers } from './ipc';
 import { setMainWindow } from './ipc/app.ipc';
 import { disposeLocalTerminals } from './ipc/local-terminal.ipc';
+import { setTrustedIpcSender } from './lib/ipc-sender';
 import log from './lib/logger';
 import { isAllowedNavigation } from './lib/navigation-guard';
 import { initializeCredentialStore } from './services/credential-store';
@@ -138,8 +139,14 @@ function createWindow(): void {
     },
   });
 
+  setTrustedIpcSender(
+    mainWindow.webContents,
+    RENDERER_ENTRY,
+    is.dev ? process.env['ELECTRON_RENDERER_URL'] : undefined,
+  );
   setMainWindow(mainWindow);
   mainWindow.on('closed', () => {
+    setTrustedIpcSender(null);
     setMainWindow(null);
     mainWindow = null;
   });
@@ -382,11 +389,7 @@ app.on('before-quit', (event) => {
       sshManager.disconnectAll();
       s3StorageProvider.disposeAll();
       disposeLocalTerminals();
-      // Give in-flight aborts a window to settle. SFTP/S3 abort handlers
-      // run asynchronously after `controller.abort()`, so an immediate quit
-      // can leave a local file descriptor half-flushed. 500 ms is well under
-      // the watchdog (3 s) and is invisible to the user during normal quit.
-      await new Promise<void>((resolve) => setTimeout(resolve, 500));
+      await transferQueue.waitForIdle();
     } catch (err) {
       log.error('[Main] before-quit cleanup error:', err);
     } finally {

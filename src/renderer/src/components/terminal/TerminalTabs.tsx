@@ -1,65 +1,30 @@
 import { Reorder } from 'framer-motion';
-import { ArrowRightToLine, Copy, Pencil, WifiOff, X, XCircle } from 'lucide-react';
+import { ArrowRightToLine, Copy, Pencil, X, XCircle } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
-import { useShallow } from 'zustand/react/shallow';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
-import { ContextMenu, type ContextMenuItem } from '@/components/common/ContextMenu';
+import type { ContextMenuItem } from '@/components/common/ContextMenu';
 import { PromptDialog } from '@/components/common/PromptDialog';
 import { TerminalToolbar } from '@/components/terminal/TerminalToolbar';
-import { Spinner } from '@/components/ui';
-import { handleTabKeyDown, handleTablistKeyDown } from '@/lib/roving-tabs';
+import { useTerminalTabs } from '@/hooks/use-terminal-tabs';
+import { handleTablistKeyDown } from '@/lib/roving-tabs';
 import { openNewSession } from '@/lib/ssh';
-import { cn } from '@/lib/utils';
-import {
-  getAllSessionIdsFromTree,
-  getFirstLeafSessionId,
-  getTabSession,
-  hasSessionInTree,
-  selectTabsByKind,
-  useActiveSessionId,
-  useTerminalStore,
-} from '@/stores/terminal-store';
+import { getAllSessionIdsFromTree, getTabSession, useTerminalStore } from '@/stores/terminal-store';
+import { SessionTab } from './SessionTab';
 
 export function TerminalTabs() {
-  // Individual selectors instead of a whole-store destructure: the previous
-  // no-selector `useTerminalStore()` re-rendered this component (and the
-  // seven dialogs below it) on every store change, including ones like
-  // fontSize/scrollback that this component never reads.
-  const activeSessionId = useActiveSessionId();
-  const setActiveSession = useTerminalStore((s) => s.setActiveSession);
-  const setTabOrder = useTerminalStore((s) => s.setTabOrder);
+  const {
+    tabs: sshTabs,
+    layouts,
+    activeTabId: activeSshTabId,
+    activate: handleActivateTab,
+    reorder: handleReorder,
+  } = useTerminalTabs('ssh');
   const closeTab = useTerminalStore((s) => s.closeTab);
   const renameTab = useTerminalStore((s) => s.renameTab);
+  const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
   const closeOtherTabs = useTerminalStore((s) => s.closeOtherTabs);
   const closeTabsToRight = useTerminalStore((s) => s.closeTabsToRight);
-  const layouts = useTerminalStore((s) => s.layouts);
   const [closingTabId, setClosingTabId] = useState<string | null>(null);
-  const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
-
-  // The tab list, shallow-compared, rather than the whole session Map: the
-  // Map changes identity on every status tick of every session, which
-  // re-rendered the strip (and its dialogs) for changes that move no tab.
-  // Handlers read sessions at call time via getState().
-  const sshTabs = useTerminalStore(useShallow((s) => selectTabsByKind(s, 'ssh')));
-
-  const activeSshTabId = useMemo(() => {
-    if (!activeSessionId) return null;
-    for (const tabId of sshTabs) {
-      const root = layouts.get(tabId);
-      if (root && hasSessionInTree(root, activeSessionId)) {
-        return tabId;
-      }
-    }
-    return null;
-  }, [sshTabs, activeSessionId, layouts]);
-
-  const handleReorder = useCallback(
-    (newOrder: string[]) => {
-      const localTabs = selectTabsByKind(useTerminalStore.getState(), 'local');
-      setTabOrder([...newOrder, ...localTabs]);
-    },
-    [setTabOrder],
-  );
 
   const handleCloseTab = useCallback(
     (tabId: string) => {
@@ -98,18 +63,6 @@ export function TerminalTabs() {
   const renamingSession = renamingTabId
     ? getTabSession(useTerminalStore.getState(), renamingTabId)
     : undefined;
-
-  const handleActivateTab = useCallback(
-    (tabId: string) => {
-      const root = layouts.get(tabId);
-      if (root) {
-        setActiveSession(getFirstLeafSessionId(root));
-      } else {
-        setActiveSession(tabId);
-      }
-    },
-    [layouts, setActiveSession],
-  );
 
   return (
     <div
@@ -207,8 +160,6 @@ const Tab = memo(function Tab({
   onCloseOthers,
   onCloseToRight,
 }: TabProps) {
-  const session = useTerminalStore((s) => getTabSession(s, tabId));
-
   const contextItems: ContextMenuItem[] = useMemo(
     () => [
       {
@@ -243,78 +194,14 @@ const Tab = memo(function Tab({
     [tabId, onRename, onDuplicate, onCloseOthers, onCloseToRight, onClose],
   );
 
-  if (!session) return null;
-
-  const statusIcon = () => {
-    const label = `Status: ${session.status}`;
-    const inner = (() => {
-      switch (session.status) {
-        case 'connected':
-          return <div className="size-2 rounded-full bg-success" />;
-        case 'connecting':
-        case 'reconnecting':
-          return <Spinner size="xs" className="text-warning" />;
-        case 'error':
-          return <WifiOff className="size-3 text-destructive-fg" />;
-        default:
-          return <div className="size-2 rounded-full bg-muted-foreground/30" />;
-      }
-    })();
-    return (
-      <span role="img" aria-label={label} title={label}>
-        {inner}
-      </span>
-    );
-  };
-
   return (
-    <Reorder.Item
-      initial={false}
-      transition={{ duration: 0 }}
-      value={tabId}
-      as="div"
-      role="tab"
-      aria-selected={isActive}
-      aria-label={session.title || session.connectionName}
-      data-tab-id={tabId}
-      tabIndex={tabbable ? 0 : -1}
-      onKeyDown={(e) => handleTabKeyDown(e, () => onActivate(tabId))}
-      className={cn(
-        'group relative flex h-9 min-w-[90px] max-w-[200px] items-center gap-2 border-r border-border/40 px-3 text-xs cursor-grab active:cursor-grabbing',
-        isActive
-          ? 'bg-background text-foreground'
-          : 'text-muted-foreground hover:bg-background/50 hover:text-foreground',
-      )}
-      whileDrag={{ opacity: 0.8, scale: 1.02, zIndex: 10 }}
-      onClick={() => onActivate(tabId)}
-    >
-      <ContextMenu items={contextItems}>
-        <div className="flex h-full w-full items-center gap-2">
-          {isActive && <div className="absolute inset-x-0 top-0 h-[2px] bg-primary" />}
-          {statusIcon()}
-          <span className="truncate font-medium" title={session.title || session.connectionName}>
-            {session.title || session.connectionName}
-          </span>
-
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onClose(tabId);
-            }}
-            className={cn(
-              'ml-auto flex-shrink-0 rounded p-0.5 hover:bg-accent cursor-pointer transition-opacity',
-              isActive
-                ? 'opacity-70 hover:opacity-100'
-                : 'opacity-40 group-hover:opacity-100 focus:opacity-100',
-            )}
-            aria-label={`Close tab ${session.title || session.connectionName}`}
-            title="Close tab"
-          >
-            <X className="size-3" />
-          </button>
-        </div>
-      </ContextMenu>
-    </Reorder.Item>
+    <SessionTab
+      tabId={tabId}
+      isActive={isActive}
+      tabbable={tabbable}
+      contextItems={contextItems}
+      onActivate={onActivate}
+      onClose={onClose}
+    />
   );
 });

@@ -1,5 +1,3 @@
-import { createReadStream } from 'node:fs';
-import { stat as fsStat } from 'node:fs/promises';
 import type { Readable } from 'node:stream';
 import {
   type CommonPrefix,
@@ -23,10 +21,12 @@ import type { StorageEntry, StorageStatResult } from '@shared/types/storage-prov
 import { getRuntimeNumber, getTransferTunables } from '../../config/runtime';
 import { AbortError, S3StorageError } from '../../lib/errors';
 import log from '../../lib/logger';
+import { assertEditableText } from '../../lib/validate';
 import { TimeoutError, withTimeout } from '../../lib/with-timeout';
 import { emitToRenderer } from '../emit';
 import { runPipeDownloadToFile } from '../storage/pipe-transfer';
 import type { StepCallback, StorageProvider } from '../storage/types';
+import { openUploadSource } from '../storage/upload-source';
 import { buildS3ClientConfig, objectToEntry, prefixToEntry, wrapS3Error } from './s3-helpers';
 import { parseS3Path } from './s3-paths';
 
@@ -491,7 +491,13 @@ class S3StorageProvider implements StorageProvider {
         const body = out.Body as Readable | undefined;
         if (!body) throw new S3StorageError('Empty response body');
         const chunks: Buffer[] = [];
+        let received = 0;
         for await (const chunk of body as AsyncIterable<Buffer | Uint8Array>) {
+          received += chunk.length;
+          if (received > limit) {
+            body.destroy();
+            throw new S3StorageError(`Response exceeds the ${limit}-byte preview limit`);
+          }
           chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
         }
         const buffer = Buffer.concat(chunks);
@@ -509,6 +515,7 @@ class S3StorageProvider implements StorageProvider {
   }
 
   async writeFile(sessionId: string, path: string, content: string): Promise<void> {
+    assertEditableText(content);
     return this.runOp(sessionId, 'writeFile', async (client) => {
       const { bucket, key } = parseS3Path(path);
       if (!bucket || !key) throw new S3StorageError('Cannot write to a non-key path');
@@ -579,86 +586,88 @@ class S3StorageProvider implements StorageProvider {
 
     if (signal.aborted) throw new AbortError('Transfer cancelled');
 
-    let total = 0;
+    const { handle, stats } = await openUploadSource(localPath, signal);
+    const total = stats.size;
+    const body = handle.createReadStream({ autoClose: false });
+    // The SDK may fail before it starts consuming the body.
+    body.on('error', () => {});
     try {
-      const stats = await fsStat(localPath);
-      total = stats.size;
-    } catch {
-      // size unknown — onStep will still report `loaded` from the SDK.
-    }
-
-    const body = createReadStream(localPath);
-    let partSize = getRuntimeNumber('S3_UPLOAD_PART_SIZE_BYTES');
-    const maxS3Parts = 10000;
-    if (total > 0 && total / partSize > maxS3Parts) {
-      // S3 has a strict limit of 10,000 parts per multipart upload. If the file
-      // size is larger than (10,000 * defaultPartSize), we must scale partSize
-      // to avoid throwing a part count error.
-      partSize = Math.ceil(total / maxS3Parts);
-    }
-
-    const upload = new Upload({
-      client,
-      params: { Bucket: bucket, Key: key, Body: body },
-      // Tunable via settings (s3.uploadQueueSize / s3.uploadPartSizeBytes) —
-      // see src/main/config/runtime.ts for the bounds.
-      queueSize: getRuntimeNumber('S3_UPLOAD_QUEUE_SIZE'),
-      partSize,
-      // Tells the SDK to call AbortMultipartUpload + DeleteObject on any
-      // failure path, so an erroring upload doesn't strand parts in the
-      // bucket waiting to be billed.
-      leavePartsOnError: false,
-    });
-
-    upload.on('httpUploadProgress', (p) => {
-      const transferred = p.loaded ?? 0;
-      onStep(transferred, 0, total || (p.total ?? 0));
-    });
-
-    // Track the in-flight abort so the outer flow can wait for the multipart
-    // cleanup to land on the server before resolving. Without the await, the
-    // process could exit (or the next op start) while AbortMultipartUpload is
-    // still in flight, occasionally leaving orphaned parts behind despite
-    // leavePartsOnError: false.
-    let abortPromise: Promise<void> | null = null;
-    const onAbort = (): void => {
-      try {
-        abortPromise = upload.abort().catch((err) => {
-          log.warn(`[S3] AbortMultipartUpload failed for ${bucket}/${key}:`, err);
-        });
-      } catch (err) {
-        log.warn(`[S3] upload.abort() threw synchronously for ${bucket}/${key}:`, err);
+      let partSize = getRuntimeNumber('S3_UPLOAD_PART_SIZE_BYTES');
+      const maxS3Parts = 10000;
+      if (total > 0 && total / partSize > maxS3Parts) {
+        // S3 has a strict limit of 10,000 parts per multipart upload. If the file
+        // size is larger than (10,000 * defaultPartSize), we must scale partSize
+        // to avoid throwing a part count error.
+        partSize = Math.ceil(total / maxS3Parts);
       }
-      body.destroy();
-    };
-    signal.addEventListener('abort', onAbort, { once: true });
-    // The signal can have fired during the `fsStat` await above, before this
-    // listener existed to catch it — re-check now so a cancel during that
-    // window isn't lost, letting an already-cancelled upload finish anyway.
-    if (signal.aborted) {
-      onAbort();
-    }
 
-    try {
-      await upload.done();
-    } catch (err) {
-      // If the user aborted, surface a clean AbortError — but only after the
-      // SDK's abort path has actually completed, otherwise the renderer can
-      // start a new upload to the same key while the old multipart is still
-      // being torn down (causes intermittent 409s on some S3 providers).
-      if (signal.aborted) {
-        if (abortPromise) {
-          try {
-            await abortPromise;
-          } catch {
-            // already logged inside onAbort
-          }
+      const upload = new Upload({
+        client,
+        params: { Bucket: bucket, Key: key, Body: body },
+        // Tunable via settings (s3.uploadQueueSize / s3.uploadPartSizeBytes) —
+        // see src/main/config/runtime.ts for the bounds.
+        queueSize: getRuntimeNumber('S3_UPLOAD_QUEUE_SIZE'),
+        partSize,
+        // Tells the SDK to call AbortMultipartUpload + DeleteObject on any
+        // failure path, so an erroring upload doesn't strand parts in the
+        // bucket waiting to be billed.
+        leavePartsOnError: false,
+      });
+
+      upload.on('httpUploadProgress', (p) => {
+        const transferred = p.loaded ?? 0;
+        onStep(transferred, 0, total || (p.total ?? 0));
+      });
+
+      // Track the in-flight abort so the outer flow can wait for the multipart
+      // cleanup to land on the server before resolving. Without the await, the
+      // process could exit (or the next op start) while AbortMultipartUpload is
+      // still in flight, occasionally leaving orphaned parts behind despite
+      // leavePartsOnError: false.
+      let abortPromise: Promise<void> | null = null;
+      const onAbort = (): void => {
+        try {
+          abortPromise = upload.abort().catch((err) => {
+            log.warn(`[S3] AbortMultipartUpload failed for ${bucket}/${key}:`, err);
+          });
+        } catch (err) {
+          log.warn(`[S3] upload.abort() threw synchronously for ${bucket}/${key}:`, err);
         }
-        throw new AbortError('Transfer cancelled');
+        body.destroy();
+      };
+      signal.addEventListener('abort', onAbort, { once: true });
+      // The signal can have fired while opening the source, before this
+      // listener existed to catch it — re-check now so a cancel during that
+      // window isn't lost, letting an already-cancelled upload finish anyway.
+      if (signal.aborted) {
+        onAbort();
       }
-      throw wrapS3Error('upload', err);
+
+      try {
+        await upload.done();
+      } catch (err) {
+        // If the user aborted, surface a clean AbortError — but only after the
+        // SDK's abort path has actually completed, otherwise the renderer can
+        // start a new upload to the same key while the old multipart is still
+        // being torn down (causes intermittent 409s on some S3 providers).
+        if (signal.aborted) {
+          if (abortPromise) {
+            try {
+              await abortPromise;
+            } catch {
+              // already logged inside onAbort
+            }
+          }
+          throw new AbortError('Transfer cancelled');
+        }
+        throw wrapS3Error('upload', err);
+      } finally {
+        signal.removeEventListener('abort', onAbort);
+        if (abortPromise) await abortPromise;
+      }
     } finally {
-      signal.removeEventListener('abort', onAbort);
+      body.destroy();
+      await handle.close();
     }
   }
 

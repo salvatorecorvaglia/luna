@@ -17,7 +17,10 @@ export function handleTablistKeyDown(
   const tabs = Array.from(
     e.currentTarget.querySelectorAll<HTMLElement>('[role="tab"][data-tab-id]'),
   );
-  const current = tabs.indexOf(document.activeElement as HTMLElement);
+  // Motion can move focus before this bubbling handler runs. Navigate from
+  // the tab that received the key, rather than navigating a second time.
+  const origin = (e.target as HTMLElement).closest<HTMLElement>('[role="tab"][data-tab-id]');
+  const current = origin ? tabs.indexOf(origin) : -1;
   if (tabs.length === 0 || current === -1) return;
   e.preventDefault();
   const next =

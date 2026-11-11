@@ -54,6 +54,7 @@ export interface StorageReadFileParams {
   maxSize?: number;
 }
 export interface StorageTransferParams {
+  transferId: string;
   sessionId: string;
   localPath: string;
   remotePath: string;

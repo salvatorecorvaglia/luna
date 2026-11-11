@@ -81,30 +81,16 @@ describe('registerHandler payload validation', () => {
   });
 });
 
-describe('registerHandler sender frame', () => {
-  const reg = registerHandler as (channel: unknown, handler: unknown) => void;
-
-  it('refuses an invoke from a subframe', async () => {
-    const handler = vi.fn(() => 'ok');
+describe('registerHandler sender validation', () => {
+  it('checks the sender before running the handler', async () => {
+    const { assertTrustedIpcSender } = await import('../../../src/main/lib/ipc-sender');
+    vi.mocked(assertTrustedIpcSender).mockImplementationOnce(() => {
+      throw new Error('untrusted sender');
+    });
+    const handler = vi.fn();
+    const reg = registerHandler as (channel: unknown, handler: unknown) => void;
     reg(IPC.APP_GET_VERSION, handler);
-    const fn = handlers.get(IPC.APP_GET_VERSION)!;
-    const mainFrame = { url: 'file:///index.html' };
-    const subframe = { url: 'data:application/pdf;base64,AAAA' };
-
-    const err = await Promise.resolve(fn({ sender: { mainFrame }, senderFrame: subframe })).catch(
-      (e: unknown) => e,
-    );
-
-    expect(unwrap(err).code).toBe(ErrorCode.FORBIDDEN);
+    await expect(handlers.get(IPC.APP_GET_VERSION)!({})).rejects.toThrow(/untrusted sender/);
     expect(handler).not.toHaveBeenCalled();
-  });
-
-  it('allows the main frame', async () => {
-    const handler = vi.fn(() => 'ok');
-    reg(IPC.APP_GET_VERSION, handler);
-    const mainFrame = { url: 'file:///index.html' };
-    await expect(
-      handlers.get(IPC.APP_GET_VERSION)!({ sender: { mainFrame }, senderFrame: mainFrame }),
-    ).resolves.toBe('ok');
   });
 });

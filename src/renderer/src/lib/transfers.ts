@@ -21,9 +21,20 @@ export interface EnqueueTransferParams {
  * completion, no way to cancel. Going through one function keeps the two from
  * drifting apart again.
  */
+const pendingRequests = new Map<string, Promise<string>>();
+
 export async function enqueueTransfer(params: EnqueueTransferParams): Promise<string> {
   const { type, sessionId, localPath, remotePath, fileName, size } = params;
-  const transferId = await getApi().storage[type]({ sessionId, localPath, remotePath });
+  const existing = Array.from(useTransferStore.getState().transfers.values()).find(
+    (item) =>
+      item.type === type &&
+      item.sessionId === sessionId &&
+      item.localPath === localPath &&
+      item.remotePath === remotePath &&
+      (item.status === 'queued' || item.status === 'active'),
+  );
+  if (existing) return pendingRequests.get(existing.id) ?? existing.id;
+  const transferId = crypto.randomUUID();
   useTransferStore.getState().addTransfer({
     id: transferId,
     type,
@@ -36,5 +47,28 @@ export async function enqueueTransfer(params: EnqueueTransferParams): Promise<st
     bytesPerSec: 0,
     sessionId,
   });
-  return transferId;
+  const request = (async () => {
+    try {
+      const acceptedId = await getApi().storage[type]({
+        transferId,
+        sessionId,
+        localPath,
+        remotePath,
+      });
+      if (acceptedId !== transferId)
+        throw new Error('Transfer registration returned an unexpected id');
+      return transferId;
+    } catch (error) {
+      if (useTransferStore.getState().transfers.get(transferId)?.status === 'queued') {
+        useTransferStore.getState().removeTransfer(transferId);
+      }
+      throw error;
+    }
+  })();
+  pendingRequests.set(transferId, request);
+  try {
+    return await request;
+  } finally {
+    pendingRequests.delete(transferId);
+  }
 }

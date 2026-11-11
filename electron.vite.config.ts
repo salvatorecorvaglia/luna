@@ -29,6 +29,7 @@ export default defineConfig({
   renderer: {
     root: 'src/renderer',
     build: {
+      minify: true,
       sourcemap: process.env.NODE_ENV !== 'production',
       rollupOptions: {
         input: resolve('src/renderer/index.html'),

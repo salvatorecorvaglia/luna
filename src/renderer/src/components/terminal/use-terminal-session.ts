@@ -470,7 +470,10 @@ export function useTerminalSession(opts: TerminalSessionOptions): TerminalSessio
   useEffect(() => {
     if (isActive) {
       handleResize();
-      terminalRef.current?.focus();
+      // Keyboard tab navigation must retain focus in the tab strip.
+      if (!document.activeElement?.closest('[role="tab"]')) {
+        terminalRef.current?.focus();
+      }
     }
   }, [isActive, handleResize]);
 

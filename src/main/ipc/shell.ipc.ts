@@ -9,6 +9,7 @@ import type { LocalFileEntry } from '@shared/types/sftp';
 import { dialog } from 'electron';
 import { registerHandler } from '../lib/ipc-handler';
 import {
+  assertEditableText,
   assertNonEmptyString,
   assertSafeAbsolutePath,
   assertSafeRealAbsolutePath,
@@ -19,6 +20,7 @@ import {
 } from '../lib/validate';
 import { cliReferenceService } from '../services/cli-reference-service';
 import { sessionAuditService } from '../services/session-audit-service';
+import { atomicWriteText } from '../services/storage/atomic-write';
 
 export function registerShellHandlers(): void {
   registerHandler(IPC.SHELL_READDIR, async (_event, dirPath: string) => {
@@ -258,32 +260,11 @@ export function registerShellHandlers(): void {
     IPC.SHELL_WRITE_FILE,
     async (_event, { filePath, content }: { filePath: string; content: string }) => {
       assertValidPath(filePath, 'filePath');
-      if (typeof content !== 'string') {
-        throw new LunaError('content must be a string', ErrorCode.VALIDATION_ERROR);
-      }
+      assertEditableText(content);
       const expanded = await expandAndConfineToHome(filePath, 'filePath');
       const target = await assertSafeRealAbsolutePath(expanded, 'filePath');
 
-      const MAX_BYTES = LIMITS.MAX_LOCAL_FILE_BYTES;
-      if (Buffer.byteLength(content, 'utf-8') > MAX_BYTES) {
-        throw new LunaError(`Content exceeds maximum size of 50MB`, ErrorCode.VALIDATION_ERROR);
-      }
-
-      // O_NOFOLLOW anchors the write to the inode we just validated, exactly as
-      // SHELL_READ_FILE does for reads. Plain writeFile() re-resolved the path,
-      // leaving a window in which `target` could be swapped for a symlink
-      // pointing outside the home jail between the check and the write.
-      // O_WRONLY|O_CREAT|O_TRUNC reproduces writeFile's default 'w' flag.
-      const fh = await open(
-        target,
-        fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_TRUNC | fsConstants.O_NOFOLLOW,
-        0o600,
-      );
-      try {
-        await fh.writeFile(content, 'utf-8');
-      } finally {
-        await fh.close();
-      }
+      await atomicWriteText(target, content);
     },
   );
 

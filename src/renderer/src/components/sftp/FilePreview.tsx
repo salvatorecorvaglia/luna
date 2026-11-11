@@ -1,3 +1,5 @@
+import { LIMITS } from '@shared/constants';
+import { isEditableContent } from '@shared/editor';
 import { isPreviewImageMime } from '@shared/file-types';
 import {
   Check,
@@ -11,13 +13,15 @@ import {
   WrapText,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { DialogShell } from '@/components/common/DialogShell';
 import { IconButton, Spinner } from '@/components/ui';
 import { useCopiedFlag } from '@/hooks/use-copied-flag';
+import { PREVIEW_LINE_HEIGHT, usePreviewGutter } from '@/hooks/use-preview-gutter';
 import { copyToClipboard } from '@/lib/clipboard';
+import { MOD_KEY } from '@/lib/platform';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
 import { useStorageStore } from '@/stores/storage-store';
@@ -50,22 +54,28 @@ function detectLanguage(name: string): string {
   return map[ext || ''] || 'text';
 }
 
-/**
- * Line height for the gutter, in px. Must stay in lockstep with the textarea's
- * `lineHeight: '1.25rem'` (20px at the default root size) or the numbers drift
- * out of alignment with the text as you scroll.
- */
-const GUTTER_LINE_HEIGHT_PX = 20;
-/** Extra rows rendered above/below the viewport to hide scroll tearing. */
-const GUTTER_OVERSCAN = 10;
-
 const isImageType = isPreviewImageMime;
 
 export function FilePreview() {
-  const previewFile = useStorageStore((s) => s.previewFile);
-  const setPreviewFile = useStorageStore((s) => s.setPreviewFile);
+  const file = useStorageStore((s) => s.previewFile);
+  const revision = useStorageStore((s) => s.previewRevision);
+  return file ? (
+    <FilePreviewDocument key={revision} previewFile={file} revision={revision} />
+  ) : null;
+}
 
-  const [editorContent, setEditorContent] = useState('');
+function FilePreviewDocument({
+  previewFile,
+  revision,
+}: {
+  previewFile: NonNullable<ReturnType<typeof useStorageStore.getState>['previewFile']>;
+  revision: number;
+}) {
+  const setPreviewFile = useStorageStore((s) => s.setPreviewFile);
+  const [editorContent, setEditorContent] = useState(previewFile.content);
+  const savingRef = useRef(false);
+  const readOnly = !isEditableContent(previewFile.content);
+  const withinLimit = useMemo(() => isEditableContent(editorContent), [editorContent]);
   const [isSaving, setIsSaving] = useState(false);
   const [showConfirmClose, setShowConfirmClose] = useState(false);
   const [wordWrap, setWordWrap] = useState(false);
@@ -79,16 +89,13 @@ export function FilePreview() {
   const gutterRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Initialize editor content when a new file is previewed
-  useEffect(() => {
-    if (previewFile) {
-      setEditorContent(previewFile.content);
-    } else {
-      setEditorContent('');
-    }
-  }, [previewFile]);
+  const gutter = usePreviewGutter(editorContent, wordWrap, textareaRef);
+  useLayoutEffect(() => {
+    if (gutterRef.current && textareaRef.current)
+      gutterRef.current.scrollTop = textareaRef.current.scrollTop;
+  }, [gutter.height, gutter.lines]);
 
-  // Auto tail scrolling
+  // Follow the bottom of the loaded document; this does not fetch remote changes.
   useEffect(() => {
     if (autoTail && textareaRef.current) {
       textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
@@ -108,7 +115,8 @@ export function FilePreview() {
   }, [isDirty, setPreviewFile]);
 
   const handleSave = useCallback(async () => {
-    if (!previewFile) return;
+    if (savingRef.current || readOnly || !withinLimit) return;
+    savingRef.current = true;
     setIsSaving(true);
     try {
       if (previewFile.isLocal) {
@@ -122,17 +130,15 @@ export function FilePreview() {
         });
       }
       toast.success('File saved successfully');
-      setPreviewFile({
-        ...previewFile,
-        content: editorContent,
-      });
+      useStorageStore.getState().markPreviewSaved(revision, editorContent);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       toast.error(`Save failed: ${msg}`);
     } finally {
+      savingRef.current = false;
       setIsSaving(false);
     }
-  }, [previewFile, editorContent, setPreviewFile]);
+  }, [previewFile, editorContent, revision, readOnly, withinLimit]);
 
   const handleCopyAll = () => {
     void copyToClipboard(editorContent, 'Content copied to clipboard').then((ok) => {
@@ -140,13 +146,19 @@ export function FilePreview() {
     });
   };
 
+  const closeSearch = useCallback(() => {
+    setShowSearch(false);
+    textareaRef.current?.focus({ preventScroll: true });
+  }, []);
+
   const previewOpen = previewFile !== null;
   useEffect(() => {
     if (!previewOpen) return;
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
         e.preventDefault();
-        setShowSearch((v) => !v);
+        if (showSearch) closeSearch();
+        else setShowSearch(true);
       } else if (e.key === 'Escape' && showSearch) {
         // Escape closes the search bar only. Without stopping here the same
         // event went on to DialogShell's Escape handler and closed the whole
@@ -154,23 +166,14 @@ export function FilePreview() {
         // handling it here too ran handleClose twice.
         e.preventDefault();
         e.stopPropagation();
-        setShowSearch(false);
+        closeSearch();
       }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [previewOpen, showSearch, handleClose]);
+  }, [previewOpen, showSearch, handleClose, closeSearch]);
 
-  // Line *count* is all the gutter needs; splitting a 5 MB file into an array
-  // of strings just to read `.length` allocated the whole document a second
-  // time on every keystroke.
-  const lineCount = useMemo(() => {
-    let count = 1;
-    for (let i = 0; i < editorContent.length; i++) {
-      if (editorContent.charCodeAt(i) === 10) count++;
-    }
-    return count;
-  }, [editorContent]);
+  const lineCount = gutter.lineCount;
 
   const matchCount = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -187,38 +190,13 @@ export function FilePreview() {
     return count;
   }, [searchQuery, editorContent]);
 
-  // Only the line numbers actually on screen are rendered. MAX_PREVIEW_BYTES
-  // is 5 MB, so a log file can easily be 100k+ lines — one <div> each meant
-  // 100k DOM nodes for decoration that is never more than ~40 rows visible.
-  const [gutterScrollTop, setGutterScrollTop] = useState(0);
-  const [gutterHeight, setGutterHeight] = useState(0);
-
-  const visibleLines = useMemo(() => {
-    if (gutterHeight === 0) return { start: 0, end: Math.min(lineCount, 80) };
-    const start = Math.max(
-      0,
-      Math.floor(gutterScrollTop / GUTTER_LINE_HEIGHT_PX) - GUTTER_OVERSCAN,
-    );
-    const visible = Math.ceil(gutterHeight / GUTTER_LINE_HEIGHT_PX) + GUTTER_OVERSCAN * 2;
-    return { start, end: Math.min(lineCount, start + visible) };
-  }, [gutterScrollTop, gutterHeight, lineCount]);
-
-  const handleScroll = useCallback((e: React.UIEvent<HTMLTextAreaElement>) => {
-    const { scrollTop, clientHeight } = e.currentTarget;
-    if (gutterRef.current) {
-      gutterRef.current.scrollTop = scrollTop;
-    }
-    setGutterScrollTop(scrollTop);
-    setGutterHeight(clientHeight);
-  }, []);
-
-  // Seed the viewport height once the textarea is laid out, so the gutter is
-  // correct before the user scrolls for the first time.
-  useEffect(() => {
-    if (!previewFile) return;
-    const el = textareaRef.current;
-    if (el) setGutterHeight(el.clientHeight);
-  }, [previewFile]);
+  const handleScroll = useCallback(
+    (e: React.UIEvent<HTMLTextAreaElement>) => {
+      if (gutterRef.current) gutterRef.current.scrollTop = e.currentTarget.scrollTop;
+      gutter.sync();
+    },
+    [gutter.sync],
+  );
 
   // Rendered through DialogShell rather than a hand-rolled overlay.
   //
@@ -270,7 +248,10 @@ export function FilePreview() {
               <>
                 <button
                   type="button"
-                  onClick={() => setShowSearch((v) => !v)}
+                  onClick={() => {
+                    if (showSearch) closeSearch();
+                    else setShowSearch(true);
+                  }}
                   aria-label="Search"
                   aria-pressed={showSearch}
                   className={`flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium border border-border/60 transition-colors cursor-pointer ${
@@ -278,7 +259,7 @@ export function FilePreview() {
                       ? 'bg-primary/20 text-primary border-primary/40'
                       : 'hover:bg-accent text-muted-foreground hover:text-foreground'
                   }`}
-                  title="Search (Cmd+F / Ctrl+F)"
+                  title={`Search (${MOD_KEY}+F)`}
                 >
                   <Search className="size-3.5" />
                 </button>
@@ -307,10 +288,10 @@ export function FilePreview() {
                       ? 'bg-success/20 text-success border-success/40'
                       : 'hover:bg-accent text-muted-foreground hover:text-foreground'
                   }`}
-                  title="Auto Tail (Live Scroll to Bottom)"
+                  title="Follow the bottom of this loaded preview; does not reload the file"
                 >
                   <Play className="size-3.5" />
-                  <span>Tail</span>
+                  <span>Follow bottom</span>
                 </button>
 
                 <button
@@ -335,7 +316,7 @@ export function FilePreview() {
                 <button
                   type="button"
                   onClick={handleSave}
-                  disabled={isSaving}
+                  disabled={isSaving || !withinLimit}
                   className="flex h-7 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   {isSaving ? <Spinner size="xs" /> : <Save className="size-3" />}
@@ -361,6 +342,7 @@ export function FilePreview() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              aria-label="Search in file"
               placeholder="Search in file..."
               autoFocus
               className="flex-1 bg-transparent outline-none text-foreground text-xs"
@@ -370,15 +352,23 @@ export function FilePreview() {
                 {matchCount} match{matchCount !== 1 ? 'es' : ''}
               </span>
             )}
-            <button
-              type="button"
-              onClick={() => setShowSearch(false)}
-              className="text-muted-foreground hover:text-foreground cursor-pointer"
-            >
-              <X className="size-3.5" />
-            </button>
+            <IconButton
+              onClick={closeSearch}
+              aria-label="Close file search"
+              title="Close file search"
+              icon={<X className="size-3.5" />}
+            />
           </div>
         )}
+
+        {(readOnly || !withinLimit) &&
+          !isImageType(previewFile.type) &&
+          previewFile.type !== 'application/pdf' && (
+            <p role="status" className="px-4 py-2 text-xs text-warning">
+              {readOnly ? 'Read-only preview.' : 'Text is too large to save.'} Editing is limited to{' '}
+              {LIMITS.MAX_EDITABLE_BYTES / 1024} KiB. Download the file to edit it externally.
+            </p>
+          )}
 
         {/* Content */}
         <div className="flex-1 overflow-hidden">
@@ -417,33 +407,23 @@ export function FilePreview() {
                 aria-hidden="true"
                 className="select-none text-right pr-3 pl-4 py-4 bg-muted/5 text-muted-foreground/60 border-r border-border/20 font-mono min-w-[3.5rem] overflow-hidden"
               >
-                {/* Spacer preserves total scroll height; only the visible
-                        window of numbers is materialised. */}
-                <div style={{ height: lineCount * GUTTER_LINE_HEIGHT_PX, position: 'relative' }}>
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: visibleLines.start * GUTTER_LINE_HEIGHT_PX,
-                      left: 0,
-                      right: 0,
-                    }}
-                  >
-                    {Array.from(
-                      { length: visibleLines.end - visibleLines.start },
-                      (_, i) => visibleLines.start + i,
-                    ).map((lineIndex) => (
-                      <div
-                        key={lineIndex}
-                        className="text-right"
-                        style={{
-                          height: GUTTER_LINE_HEIGHT_PX,
-                          lineHeight: `${GUTTER_LINE_HEIGHT_PX}px`,
-                        }}
-                      >
-                        {lineIndex + 1}
-                      </div>
-                    ))}
-                  </div>
+                <div style={{ height: gutter.height, position: 'relative' }}>
+                  {gutter.lines.map((line) => (
+                    <div
+                      key={line.number}
+                      data-line-number={line.number}
+                      style={{
+                        position: 'absolute',
+                        top: line.top,
+                        left: 0,
+                        right: 0,
+                        height: PREVIEW_LINE_HEIGHT,
+                        lineHeight: `${PREVIEW_LINE_HEIGHT}px`,
+                      }}
+                    >
+                      {line.number}
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -453,11 +433,12 @@ export function FilePreview() {
                 value={editorContent}
                 onChange={(e) => setEditorContent(e.target.value)}
                 onScroll={handleScroll}
-                disabled={isSaving}
+                readOnly={readOnly}
+                aria-label="File contents"
                 className={`flex-1 h-full w-full resize-none bg-transparent px-4 py-4 outline-none border-none text-foreground/90 font-mono focus:ring-0 leading-relaxed overflow-y-auto ${
                   wordWrap ? 'whitespace-pre-wrap break-all' : 'whitespace-pre overflow-x-auto'
                 }`}
-                style={{ lineHeight: `${GUTTER_LINE_HEIGHT_PX}px` }}
+                style={{ lineHeight: `${PREVIEW_LINE_HEIGHT}px` }}
                 placeholder="Enter text..."
               />
             </div>
@@ -472,7 +453,7 @@ export function FilePreview() {
           </div>
           <div className="flex items-center gap-3">
             {wordWrap && <span>Wrap ON</span>}
-            {autoTail && <span className="text-success">Tail ON</span>}
+            {autoTail && <span className="text-success">Follow bottom ON</span>}
           </div>
         </div>
       </DialogShell>

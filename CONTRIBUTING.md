@@ -65,6 +65,7 @@ pnpm run format
 ```
 
 Additionally, make sure there are no TypeScript compiler errors:
+
 ```bash
 # Typecheck all three projects: node (main, preload, shared, tooling
 # configs), web (renderer) and test
@@ -76,6 +77,7 @@ pnpm run typecheck
 ## 🧪 Testing Guidelines
 
 Any new features, components, or service refactors must be accompanied by comprehensive tests. We use **Vitest** for unit and component verification.
+
 -   Tests for main process IPC handlers, services, and utilities are located in `tests/main/`.
 -   Tests for renderer React components, hooks, stores, and themes are located in `tests/renderer/`.
 -   Unit, integration, design-token, and end-to-end test suites are located in `tests/unit/` and `tests/e2e/`.
@@ -108,6 +110,7 @@ LUNA_E2E_EXECUTABLE="$PWD/dist/mac-arm64/Luna.app/Contents/MacOS/Luna" pnpm exec
 We encourage the use of **Conventional Commits** to keep our changelog and release workflows automated:
 
 Format your commit messages as:
+
 ```
 <type>(<scope>): <short description>
 
@@ -135,6 +138,7 @@ Format your commit messages as:
 ## 🚀 Pull Request Checklist
 
 When you are ready to submit a Pull Request, please ensure the following:
+
 1.  Your branch is up-to-date with `main`.
 2.  All dependencies are correctly managed via `pnpm`.
 3.  All code checks pass cleanly (`pnpm run lint` and `pnpm run typecheck`).

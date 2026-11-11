@@ -32,9 +32,9 @@
 
 ### 📁 SFTP File Manager & Folder Sync
 
--   **Folder Synchronization:** Perform directional or bidirectional directory synchronization between local and remote paths with conflict detection.
+-   **Folder Synchronization:** Compare files one directory level at a time using sizes and timestamps, resolve ambiguous matches with Upload, Download, or Skip, and queue transfers in either direction. Content equality and changes made on both sides are not verified.
 -   **Visual File Operations:** Drag-and-drop file transfers, directory creation, deletion, and renaming over remote SSH channels.
--   **Enhanced Inline File Editor:** Open, view, search, word-wrap, live-tail, and edit local or remote files (code, config scripts, logs) directly inside `FilePreview`.
+-   **Enhanced Inline File Editor:** Preview, search, word-wrap, and edit local or remote text files up to 512 KiB inside `FilePreview`; larger previews are read-only. Local and SFTP saves publish complete temporary files and preserve permission bits where supported.
 -   **Enhanced Accessibility:** Fully optimized keyboard navigation (e.g., Space to toggle multi-row selection) and standard-compliant ARIA attributes. Split-pane and sidebar handles are focusable `separator`s that resize with the arrow keys, and transfer progress is exposed as a labelled `progressbar`.
 -   **Safety Guards:** Protective recursion depth limits and warning thresholds to prevent accidental bulk deletions.
 -   **Corruption-Safe Downloads:** Downloads write to a temporary file and are atomically renamed into place, preventing partial or corrupted files if a transfer is interrupted.
@@ -94,6 +94,7 @@
 ### Development Workflow
 
 Start the Electron builder dev server with live hot-reloading:
+
 ```bash
 pnpm run dev
 ```
@@ -101,11 +102,13 @@ pnpm run dev
 ### Build & Package
 
 Compile the app — main, preload and renderer bundles are written to `out/`:
+
 ```bash
 pnpm run build
 ```
 
 Produce an installer for your current operating system:
+
 ```bash
 pnpm run package
 ```
@@ -113,6 +116,7 @@ Installers are written to the `dist/` directory.
 
 To get an unpacked application directory without building an installer — useful for inspecting
 what actually ships inside the asar — use:
+
 ```bash
 pnpm run package:dir
 ```
@@ -120,6 +124,7 @@ pnpm run package:dir
 ### Linting & Formatting
 
 We use **Biome** for fast formatting, linting, and quality checks:
+
 ```bash
 # Check code style and run lint checks
 pnpm run lint

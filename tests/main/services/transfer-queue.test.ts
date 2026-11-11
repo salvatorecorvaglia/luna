@@ -2,7 +2,7 @@ import { stat as fsStat } from 'node:fs/promises';
 import { IPC, LIMITS } from '@shared/constants';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { emitToRenderer } from '../../../src/main/services/emit';
-import { transferQueue } from '../../../src/main/services/transfer-queue';
+import { TransferQueue } from '../../../src/main/services/transfer-queue';
 
 // Mock peers before importing the module under test. We make stream operations
 // hang forever so transfers stay either queued or active for the duration of a
@@ -41,23 +41,10 @@ vi.mock('../../../src/main/services/emit', () => ({
   emitToRenderer: vi.fn(),
 }));
 
-// The TransferQueue is a module-level singleton. Reach into private state to
-// reset it between tests so each test starts from a clean slate.
-function resetQueue(): void {
-  const q = transferQueue as unknown as {
-    queue: unknown[];
-    active: Map<string, unknown>;
-    dedupIndex?: Map<string, string>;
-    reserved?: { clear: () => void };
-  };
-  q.queue.length = 0;
-  q.active.clear();
-  q.dedupIndex?.clear();
-  q.reserved?.clear();
-}
+let transferQueue: TransferQueue;
 
 beforeEach(() => {
-  resetQueue();
+  transferQueue = new TransferQueue();
   // Reset every stub so the per-test mockImplementation overrides start clean.
   stubProvider.streamUpload.mockReset().mockImplementation(() => new Promise(() => {}));
   stubProvider.streamDownload.mockReset().mockImplementation(() => new Promise(() => {}));
@@ -86,10 +73,12 @@ describe('transferQueue', () => {
     const upload = await transferQueue.enqueue('upload', 'sess', '/l', '/r');
     const download = await transferQueue.enqueue('download', 'sess', '/l', '/r');
     const otherSession = await transferQueue.enqueue('upload', 'sess2', '/l', '/r');
-    const otherLocal = await transferQueue.enqueue('upload', 'sess', '/l2', '/r');
+    await expect(transferQueue.enqueue('upload', 'sess', '/l2', '/r')).rejects.toThrow(
+      /already writing/,
+    );
     const otherRemote = await transferQueue.enqueue('upload', 'sess', '/l', '/r2');
-    const ids = new Set([upload, download, otherSession, otherLocal, otherRemote]);
-    expect(ids.size).toBe(5);
+    const ids = new Set([upload, download, otherSession, otherRemote]);
+    expect(ids.size).toBe(4);
   });
 
   it('dedups concurrent enqueues that race through the stat() await', async () => {
@@ -130,18 +119,13 @@ describe('transferQueue', () => {
       pendingStat,
     );
 
-    const inflight = transferQueue.enqueue('upload', 'sess', '/race', '/race-r');
+    const reservedId = '00000000-0000-4000-8000-000000000001';
+    const inflight = transferQueue.enqueue('upload', 'sess', '/race', '/race-r', reservedId);
     // Let enqueue() reach the stat() await and reserve the id.
     await Promise.resolve();
     await Promise.resolve();
 
-    const reserved = (transferQueue as unknown as { reserved: Map<string, { id: string }> })
-      .reserved;
-    expect(reserved.size).toBe(1);
-    const [reservedId] = reserved.keys();
-
-    // Non-null: reserved.size === 1 was just asserted above.
-    transferQueue.cancel(reservedId!);
+    transferQueue.cancel(reservedId);
     releaseStat!({ size: 0 });
 
     // enqueue() rejects rather than resolving with the id. The caller does not
@@ -266,7 +250,7 @@ describe('transferQueue', () => {
     expect(transferQueue.getQueuedCount()).toBe(4);
   });
 
-  it('cancelAll clears both active and queued transfers', async () => {
+  it('cancelAll clears queued transfers but retains active ownership until cleanup', async () => {
     await transferQueue.enqueue('upload', 'sess', '/local/active', '/remote/active');
     await transferQueue.enqueue('upload', 'sess', '/local/q1', '/remote/q1');
     await transferQueue.enqueue('upload', 'sess', '/local/q2', '/remote/q2');
@@ -276,7 +260,7 @@ describe('transferQueue', () => {
 
     transferQueue.cancelAll();
 
-    expect(transferQueue.getActiveCount()).toBe(0);
+    expect(transferQueue.getActiveCount()).toBe(1);
     expect(transferQueue.getQueuedCount()).toBe(0);
   });
 
@@ -406,13 +390,13 @@ describe('download destination exclusivity', () => {
     ).rejects.toThrow(/already writing to \/local\/same/);
   });
 
-  it('allows the same local path once the first download is cancelled', async () => {
+  it('holds the local path while a cancelled download is still unwinding', async () => {
     const first = await transferQueue.enqueue('download', 'sess', '/local/reuse', '/remote/one');
     transferQueue.cancel(first);
 
     await expect(
       transferQueue.enqueue('download', 'sess', '/local/reuse', '/remote/two'),
-    ).resolves.toBeTruthy();
+    ).rejects.toThrow(/already writing/);
   });
 
   it('does not constrain uploads, which read the local path rather than write it', async () => {
@@ -426,5 +410,124 @@ describe('download destination exclusivity', () => {
     const a = await transferQueue.enqueue('download', 'sess', '/local/dup', '/remote/dup');
     const b = await transferQueue.enqueue('download', 'sess', '/local/dup', '/remote/dup');
     expect(b).toBe(a);
+  });
+});
+
+describe('transfer ownership through teardown', () => {
+  it('holds an upload destination during session cancellation and releases it after cleanup', async () => {
+    let finish!: () => void;
+    stubProvider.streamUpload.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const first = await transferQueue.enqueue('upload', 'sess', '/source/a', '/dest/file');
+    transferQueue.cancelBySession('sess');
+    await expect(
+      transferQueue.enqueue('upload', 'sess', '/source/b', '/dest/file'),
+    ).rejects.toThrow(/already writing/);
+    // A provider that committed before seeing cancel reports completion only.
+    expect(emitsOf(IPC.TRANSFER_CANCELLED)).toHaveLength(0);
+    finish();
+    await transferQueue.waitForIdle();
+    expect(emitsOf(IPC.TRANSFER_COMPLETE)).toEqual([{ transferId: first }]);
+    expect(emitsOf(IPC.TRANSFER_CANCELLED)).toHaveLength(0);
+    await expect(
+      transferQueue.enqueue('upload', 'sess', '/source/b', '/dest/file'),
+    ).resolves.toBeTruthy();
+  });
+
+  it('cancelAll retains download ownership and capacity until cleanup rejects', async () => {
+    let fail!: (error: Error) => void;
+    stubProvider.streamDownload.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          fail = reject;
+        }),
+    );
+    const first = await transferQueue.enqueue('download', 'sess', '/target', '/remote/a');
+    transferQueue.cancelAll();
+    await expect(transferQueue.enqueue('download', 'sess', '/target', '/remote/b')).rejects.toThrow(
+      /already writing/,
+    );
+    expect(transferQueue.getActiveCount()).toBe(1);
+    expect(emitsOf(IPC.TRANSFER_CANCELLED)).toHaveLength(0);
+    fail(new Error('aborted after cleanup'));
+    await transferQueue.waitForIdle();
+    expect(transferQueue.getActiveCount()).toBe(0);
+    expect(emitsOf(IPC.TRANSFER_CANCELLED)).toEqual([{ transferId: first }]);
+    expect(emitsOf(IPC.TRANSFER_COMPLETE)).toHaveLength(0);
+    await expect(
+      transferQueue.enqueue('download', 'sess', '/target', '/remote/b'),
+    ).resolves.toBeTruthy();
+  });
+
+  it('waitForIdle includes cancelled reservations still awaiting stat', async () => {
+    let release!: (value: { size: number }) => void;
+    (fsStat as unknown as { mockReturnValueOnce: (value: unknown) => void }).mockReturnValueOnce(
+      new Promise<{ size: number }>((resolve) => {
+        release = resolve;
+      }),
+    );
+    const pending = transferQueue.enqueue('upload', 'sess', '/source', '/dest');
+    const rejected = expect(pending).rejects.toThrow(/cancelled/);
+    transferQueue.cancelAll();
+    let idle = false;
+    const drained = transferQueue.waitForIdle().then(() => {
+      idle = true;
+    });
+    await Promise.resolve();
+    expect(idle).toBe(false);
+    release({ size: 1 });
+    await rejected;
+    await drained;
+    expect(idle).toBe(true);
+  });
+
+  it('reserves upload destinations before stat resolves, including normalized SFTP paths', async () => {
+    let release!: (value: { size: number }) => void;
+    (fsStat as unknown as { mockReturnValueOnce: (value: unknown) => void }).mockReturnValueOnce(
+      new Promise<{ size: number }>((resolve) => {
+        release = resolve;
+      }),
+    );
+    const first = transferQueue.enqueue('upload', 'sess', '/source/a', '/dest/sub/../file');
+    await expect(
+      transferQueue.enqueue('upload', 'sess', '/source/b', '/dest/file'),
+    ).rejects.toThrow(/already writing/);
+    release({ size: 1 });
+    await first;
+  });
+});
+
+describe('renderer-chosen transfer IDs', () => {
+  it('preserves the supplied ID and rejects active or completed ID reuse', async () => {
+    const id = '00000000-0000-4000-8000-000000000111';
+    stubProvider.streamUpload.mockResolvedValueOnce(undefined);
+    expect(await transferQueue.enqueue('upload', 'sess', '/source', '/dest', id)).toBe(id);
+    await transferQueue.waitForIdle();
+    expect(emitsOf(IPC.TRANSFER_COMPLETE)).toEqual([{ transferId: id }]);
+    await expect(transferQueue.enqueue('upload', 'sess', '/other', '/other', id)).rejects.toThrow(
+      /id already used/,
+    );
+  });
+  it('rejects a second ID for the same active operation without returning a mismatched ID', async () => {
+    await transferQueue.enqueue(
+      'upload',
+      'sess',
+      '/source',
+      '/dest',
+      '00000000-0000-4000-8000-000000000222',
+    );
+    await expect(
+      transferQueue.enqueue(
+        'upload',
+        'sess',
+        '/source',
+        '/dest',
+        '00000000-0000-4000-8000-000000000333',
+      ),
+    ).rejects.toThrow(/already queued/);
   });
 });

@@ -6,6 +6,7 @@ export interface ProgressSample {
   transferId: string;
   transferred: number;
   bytesPerSec: number;
+  total?: number;
 }
 
 interface TransferState {
@@ -116,6 +117,7 @@ export const useTransferStore = create<TransferState>((set, get) => {
 
     addTransfer: (transfer) =>
       set((s) => {
+        if (s.transfers.has(transfer.id)) return s;
         const transfers = new Map(s.transfers);
         transfers.set(transfer.id, transfer);
         return { transfers, queueExpanded: true };
@@ -158,6 +160,7 @@ export const useTransferStore = create<TransferState>((set, get) => {
           transfers.set(sample.transferId, {
             ...item,
             transferred: sample.transferred,
+            size: sample.total ?? item.size,
             bytesPerSec: sample.bytesPerSec,
             status: 'active',
           });

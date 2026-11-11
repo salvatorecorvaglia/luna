@@ -22,7 +22,7 @@ vi.mock('@/stores/transfer-store', () => ({
   // lib/transfers.ts (enqueueTransfer), which the hook now goes through.
   useTransferStore: Object.assign(
     (selector: (s: { addTransfer: typeof addTransfer }) => unknown) => selector({ addTransfer }),
-    { getState: () => ({ addTransfer }) },
+    { getState: () => ({ addTransfer, transfers: new Map(), removeTransfer: vi.fn() }) },
   ),
 }));
 
@@ -85,7 +85,7 @@ describe('useSftpDnd — remote → local download', () => {
   });
 
   it('strips path components from the dragged name and enqueues the download', async () => {
-    download.mockResolvedValue('t1');
+    download.mockImplementation(async (p: { transferId: string }) => p.transferId);
     const { result } = renderHook(() =>
       useSftpDnd({ activeSessionId: 's1', localPath: '/tmp', remotePath: '/' }),
     );
@@ -99,12 +99,17 @@ describe('useSftpDnd — remote → local download', () => {
     await result.current.handleLocalDrop(e);
     expect(joinPath).toHaveBeenCalledWith('/tmp', 'log.txt');
     expect(download).toHaveBeenCalledWith({
+      transferId: expect.any(String),
       sessionId: 's1',
       remotePath: '/srv/log.txt',
       localPath: '/tmp/log.txt',
     });
     expect(addTransfer).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 't1', type: 'download', fileName: 'log.txt' }),
+      expect.objectContaining({
+        id: download.mock.calls[0]![0].transferId,
+        type: 'download',
+        fileName: 'log.txt',
+      }),
     );
   });
 
@@ -140,7 +145,7 @@ describe('useSftpDnd — remote → local download', () => {
 
 describe('useSftpDnd — local → remote upload', () => {
   it('joins remotePath without a leading // when remotePath is /', async () => {
-    upload.mockResolvedValue('t2');
+    upload.mockImplementation(async (p: { transferId: string }) => p.transferId);
     const { result } = renderHook(() =>
       useSftpDnd({ activeSessionId: 's1', localPath: '/tmp', remotePath: '/' }),
     );
@@ -152,6 +157,7 @@ describe('useSftpDnd — local → remote upload', () => {
     });
     await result.current.handleRemoteDrop(e);
     expect(upload).toHaveBeenCalledWith({
+      transferId: expect.any(String),
       sessionId: 's1',
       localPath: '/tmp/log.txt',
       remotePath: '/log.txt',
@@ -159,7 +165,7 @@ describe('useSftpDnd — local → remote upload', () => {
   });
 
   it('joins remotePath with a single / on a sub-path', async () => {
-    upload.mockResolvedValue('t3');
+    upload.mockImplementation(async (p: { transferId: string }) => p.transferId);
     const { result } = renderHook(() =>
       useSftpDnd({ activeSessionId: 's1', localPath: '/tmp', remotePath: '/srv/logs' }),
     );
@@ -171,6 +177,7 @@ describe('useSftpDnd — local → remote upload', () => {
     });
     await result.current.handleRemoteDrop(e);
     expect(upload).toHaveBeenCalledWith({
+      transferId: expect.any(String),
       sessionId: 's1',
       localPath: '/tmp/log.txt',
       remotePath: '/srv/logs/log.txt',

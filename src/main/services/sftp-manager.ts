@@ -1,16 +1,20 @@
-import { createReadStream } from 'node:fs';
-import { stat as fsStat, utimes as fsUtimes } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { utimes as fsUtimes } from 'node:fs/promises';
+import { posix } from 'node:path';
+import { Readable } from 'node:stream';
 import { BINARY_PREVIEW_EXTENSIONS, LIMITS } from '@shared/constants';
 import type { SftpEntry } from '@shared/types/sftp';
 import type { ReadStreamOptions, SFTPWrapper, WriteStreamOptions } from 'ssh2';
 import { getSftpIdleTunables, getTransferTunables } from '../config/runtime';
-import { SftpTransferError, SshConnectionError } from '../lib/errors';
+import { AbortError, SftpTransferError, SshConnectionError } from '../lib/errors';
 import log from '../lib/logger';
 import { releaseStorageBucket } from '../lib/rate-limiter';
+import { assertEditableText } from '../lib/validate';
 import { TimeoutError, withTimeout } from '../lib/with-timeout';
 import { formatPermissions, isSessionFatal } from './sftp/sftp-helpers';
 import { sshManager } from './ssh-manager';
 import { runPipeDownloadToFile, runPipeTransfer } from './storage/pipe-transfer';
+import { openUploadSource } from './storage/upload-source';
 
 // Deliberately do NOT import transferQueue here — that created a cycle
 // (sftp-manager ↔ transfer-queue). Transfer enqueueing is the IPC layer's
@@ -544,14 +548,71 @@ class SftpManager {
   }
 
   async writeFile(sessionId: string, remotePath: string, content: string): Promise<void> {
-    return this.runOp(sessionId, 'writeFile', (sftp) => {
-      return new Promise<void>((resolve, reject) => {
-        sftp.writeFile(remotePath, content, { encoding: 'utf-8' }, (err) => {
-          if (err) reject(err);
-          else resolve();
+    assertEditableText(content);
+    const controller = new AbortController();
+    try {
+      await this.runOp(sessionId, 'writeFile', async (sftp) => {
+        // Match readFile's symlink semantics: save the target, not the link.
+        const target = await new Promise<string>((resolve, reject) => {
+          sftp.realpath(remotePath, (error, resolved) => {
+            if (!error) resolve(resolved);
+            else if ((error as { code?: number }).code === 2) resolve(remotePath);
+            else reject(error);
+          });
         });
+        const temp = posix.join(posix.dirname(target), `${PARTIAL_UPLOAD_SUFFIX}-${randomUUID()}`);
+        let mode = 0o600;
+        try {
+          const stats = await new Promise<import('ssh2').Stats>((resolve, reject) => {
+            sftp.stat(target, (error, stats) => (error ? reject(error) : resolve(stats)));
+          });
+          if (!stats.isFile()) throw new SftpTransferError('Destination must be a regular file');
+          mode = stats.mode & 0o777;
+        } catch (error) {
+          if ((error as { code?: number }).code !== 2) throw error;
+        }
+        if (controller.signal.aborted) throw new AbortError('Save timed out');
+        const source = Readable.from([Buffer.from(content, 'utf8')]);
+        const sink = sftp.createWriteStream(temp, { flags: 'wx', mode: 0o600 });
+        let owned = false;
+        sink.once('open', () => {
+          owned = true;
+        });
+        const discard = async () => {
+          if (!owned) return;
+          owned = false;
+          await unlinkBestEffort(sftp, temp);
+        };
+        try {
+          await runPipeTransfer({
+            source,
+            sink,
+            signal: controller.signal,
+            total: Buffer.byteLength(content, 'utf8'),
+            onStep: () => {},
+            isComplete: () => sink.writableFinished,
+            discardPartial: discard,
+            abortCleanupDelayMs: getTransferTunables().abortCleanupDelayMs,
+          });
+          if (controller.signal.aborted) throw new AbortError('Save timed out');
+          await new Promise<void>((resolve, reject) =>
+            sftp.chmod(temp, mode, (error) => {
+              if (error && (error as { code?: number }).code !== 8) reject(error);
+              else resolve(); // Unsupported chmod: retain the private temporary-file mode.
+            }),
+          );
+          if (controller.signal.aborted) throw new AbortError('Save timed out');
+          await this.publishUploadedFile(sftp, temp, target);
+          owned = false;
+        } catch (error) {
+          await discard();
+          throw error;
+        }
       });
-    });
+    } catch (error) {
+      controller.abort();
+      throw error;
+    }
   }
 
   async statSize(sessionId: string, remotePath: string): Promise<number> {
@@ -686,65 +747,64 @@ class SftpManager {
     signal: AbortSignal,
   ): Promise<void> {
     const sftp = await this.getSftp(sessionId);
-    let total = 0;
-    let localMtimeSec: number | null = null;
+    const { handle, stats } = await openUploadSource(localPath, signal);
+    const total = stats.size;
+    const localMtimeSec = Math.floor(stats.mtimeMs / 1000);
     try {
-      const stats = await fsStat(localPath);
-      total = stats.size;
-      localMtimeSec = Math.floor(stats.mtimeMs / 1000);
-    } catch {
-      // size unknown
-    }
+      const { chunkSize, concurrency, highWaterMark, abortCleanupDelayMs } = getTransferTunables();
+      const tempRemotePath = posix.join(
+        posix.dirname(remotePath),
+        `${PARTIAL_UPLOAD_SUFFIX}-${randomUUID()}`,
+      );
 
-    const { chunkSize, concurrency, highWaterMark, abortCleanupDelayMs } = getTransferTunables();
-    const tempRemotePath = `${remotePath}${PARTIAL_UPLOAD_SUFFIX}`;
+      const readStream = handle.createReadStream({ highWaterMark, autoClose: false });
+      try {
+        let ownsTemp = false;
+        const writeStream = sftp.createWriteStream(tempRemotePath, {
+          chunkSize,
+          concurrency,
+          highWaterMark,
+          flags: 'wx',
+          mode: 0o600,
+        } as unknown as WriteStreamOptions);
+        writeStream.once('open', () => {
+          ownsTemp = true;
+        });
+        await runPipeTransfer({
+          source: readStream,
+          sink: writeStream,
+          signal,
+          total,
+          onStep,
+          // Once all writes finish, publish even if cancellation arrives late.
+          isComplete: () => writeStream.writableFinished,
+          discardPartial: async () => {
+            if (ownsTemp) await unlinkBestEffort(sftp, tempRemotePath);
+          },
+          abortCleanupDelayMs,
+        });
 
-    let writeClosed = false;
-    const readStream = createReadStream(localPath, { highWaterMark });
-    const writeStream = sftp.createWriteStream(tempRemotePath, {
-      chunkSize,
-      concurrency,
-      highWaterMark,
-    } as unknown as WriteStreamOptions);
-    // Latched before runPipeTransfer's own 'close' handler resolves, so both
-    // the abort guard and discardPartial see an accurate flag.
-    writeStream.on('close', () => {
-      writeClosed = true;
-    });
+        // Only reached once the upload genuinely succeeded — publish it. A crash
+        // or dropped connection before this point leaves only the harmless temp
+        // file behind; `remotePath` (and any existing file there) is never
+        // touched until the new content is fully on the remote.
+        try {
+          await this.publishUploadedFile(sftp, tempRemotePath, remotePath);
+        } catch (err) {
+          await unlinkBestEffort(sftp, tempRemotePath);
+          throw err;
+        }
 
-    await runPipeTransfer({
-      source: readStream,
-      sink: writeStream,
-      signal,
-      total,
-      onStep,
-      // If 'close' already fired the upload landed in the temp remote file;
-      // an abort arriving immediately after must not unlink a complete one.
-      isComplete: () => writeClosed,
-      discardPartial: async () => {
-        if (writeClosed) return;
-        await unlinkBestEffort(sftp, tempRemotePath);
-      },
-      abortCleanupDelayMs,
-    });
-
-    // Only reached once the upload genuinely succeeded — publish it. A crash
-    // or dropped connection before this point leaves only the harmless temp
-    // file behind; `remotePath` (and any existing file there) is never
-    // touched until the new content is fully on the remote.
-    try {
-      await this.publishUploadedFile(sftp, tempRemotePath, remotePath);
-    } catch (err) {
-      await unlinkBestEffort(sftp, tempRemotePath);
-      throw err;
-    }
-
-    // Carry the local mtime over, as `scp -p` / `rsync -t` do. Without it the
-    // remote copy is always "newer" than its source, so Folder Sync reported
-    // every uploaded file as modified again and bi-directional sync pulled it
-    // straight back down. Best-effort: some servers refuse setstat.
-    if (localMtimeSec !== null) {
-      await this.setRemoteMtime(sftp, remotePath, localMtimeSec);
+        // Carry the local mtime over, as `scp -p` / `rsync -t` do. Without it the
+        // remote copy is always "newer" than its source, so Folder Sync reported
+        // every uploaded file as modified again and bi-directional sync pulled it
+        // straight back down. Best-effort: some servers refuse setstat.
+        await this.setRemoteMtime(sftp, remotePath, localMtimeSec);
+      } finally {
+        readStream.destroy();
+      }
+    } finally {
+      await handle.close();
     }
   }
 
@@ -784,7 +844,7 @@ class SftpManager {
             resolve();
             return;
           }
-          const backupPath = `${destPath}${PARTIAL_UPLOAD_SUFFIX}.bak`;
+          const backupPath = `${tempPath}.bak`;
           sftp.rename(destPath, backupPath, (backupErr) => {
             if (backupErr) {
               // Nothing to move aside, or it genuinely can't be renamed for

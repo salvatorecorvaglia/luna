@@ -1,5 +1,7 @@
-import { createWriteStream, unlinkSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { createWriteStream } from 'node:fs';
 import { rename, unlink } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import type { Readable, Writable } from 'node:stream';
 import { AbortError } from '../../lib/errors';
 import log from '../../lib/logger';
@@ -82,11 +84,27 @@ export function runPipeTransfer(options: PipeTransferOptions): Promise<void> {
   } = options;
 
   const cleanup = async (): Promise<void> => {
-    await new Promise<void>((resolve) => {
-      source.destroy();
-      sink.destroy();
-      setTimeout(resolve, abortCleanupDelayMs);
-    });
+    const closed = [source, sink].map(
+      (stream) =>
+        new Promise<void>((resolve) => {
+          if (stream.closed) {
+            resolve();
+            return;
+          }
+          const done = () => {
+            if (!stream.closed && !(stream as { isClosed?: boolean }).isClosed) return;
+            stream.off('close', done);
+            stream.off('error', done);
+            resolve();
+          };
+          stream.on('close', done);
+          stream.on('error', done);
+        }),
+    );
+    source.destroy();
+    sink.destroy();
+    await Promise.all(closed);
+    await new Promise<void>((resolve) => setTimeout(resolve, abortCleanupDelayMs));
     await discardPartial();
   };
 
@@ -118,51 +136,45 @@ export function runPipeTransfer(options: PipeTransferOptions): Promise<void> {
 
     function onAbort(): void {
       if (isComplete()) {
-        settle(() => resolve());
+        // Bytes finished, but the destination may still be closing its handle.
+        if (sink.closed) settle(() => resolve());
         return;
       }
       failWith(new AbortError('Transfer cancelled'));
     }
 
-    if (signal.aborted) {
-      onAbort();
-      return;
-    }
-    signal.addEventListener('abort', onAbort, { once: true });
-
     source.on('data', (chunk: Buffer | string) => {
+      if (settled) return;
       transferred += chunk.length;
       onStep(transferred, chunk.length, total);
     });
 
     source.on('error', (err: Error) => failWith(mapSourceError(err)));
     sink.on('error', (err: Error) => failWith(err));
-    sink.on(completionEvent, () => settle(() => resolve()));
+    source.on('close', () => {
+      if (!source.readableEnded) failWith(new Error('Transfer source closed before completion'));
+    });
+    sink.on(completionEvent, () => {
+      if (!sink.writableFinished)
+        failWith(new Error('Transfer destination closed before completion'));
+      else settle(() => resolve());
+    });
 
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    signal.addEventListener('abort', onAbort, { once: true });
     source.pipe(sink);
   });
 }
 
-/**
- * Suffix for the temp file a download writes to before being published at
- * its real destination.
- *
- * Stable (no random component) because the transfer queue guarantees at most
- * one live download per `localPath` — see `downloadDestinations` in
- * transfer-queue.ts — and `fs.createWriteStream` truncates on open, so a stale
- * leftover from an earlier crash is overwritten by the next attempt rather
- * than corrupting anything.
- *
- * That guarantee is load-bearing, and it did not hold when this comment was
- * first written: the dedup key included `remotePath`, so two downloads of
- * different remote files to the same local path ran concurrently, both wrote
- * this one temp file, and both renamed it into place.
- */
+/** Temporary names are unique per transfer; existing siblings are never removed. */
 const PARTIAL_DOWNLOAD_SUFFIX = '.luna-partial';
 
 export interface PipeDownloadToFileOptions {
   source: Readable;
-  /** Real destination path. The download writes to `${localPath}.luna-partial` until it succeeds. */
+  /** Real destination path. The download writes to a unique sibling until it succeeds. */
   localPath: string;
   signal: AbortSignal;
   total: number;
@@ -196,23 +208,12 @@ export async function runPipeDownloadToFile(options: PipeDownloadToFileOptions):
     highWaterMark,
     mapSourceError,
   } = options;
-  const tempPath = `${localPath}${PARTIAL_DOWNLOAD_SUFFIX}`;
-  // Only `localPath` was validated against the home jail; the temp path next
-  // to it was opened with a plain truncating open, which follows a symlink
-  // planted at `<name>.luna-partial`. Remove whatever is there (a crash
-  // leftover, or a link) and create the file exclusively: O_EXCL never
-  // follows a symlink, so a link re-planted in between makes the open fail
-  // instead of writing through it.
-  //
-  // Synchronous on purpose: the source stream is live from the moment it was
-  // created by the caller, and awaiting here would leave it with no 'error'
-  // listener until the pipe below is wired.
-  try {
-    unlinkSync(tempPath);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
-  }
-  const writeStream = createWriteStream(tempPath, { highWaterMark, flags: 'wx' });
+  const tempPath = join(dirname(localPath), `${PARTIAL_DOWNLOAD_SUFFIX}-${randomUUID()}`);
+  let ownsTemp = false;
+  const writeStream = createWriteStream(tempPath, { highWaterMark, flags: 'wx', mode: 0o600 });
+  writeStream.once('open', () => {
+    ownsTemp = true;
+  });
 
   await runPipeTransfer({
     source,
@@ -224,6 +225,7 @@ export async function runPipeDownloadToFile(options: PipeDownloadToFileOptions):
     // discard a temp file that is already complete.
     isComplete: () => writeStream.writableFinished,
     discardPartial: async () => {
+      if (!ownsTemp) return;
       // Always removed on this path. A size-based "it's complete, keep it"
       // guard used to live here, but the transfer still rejects as cancelled
       // afterwards, so the rename below never ran and the full-size temp file

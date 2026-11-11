@@ -3,7 +3,7 @@ import type { LunaAPI } from '../preload';
 import { __setApiForTesting } from '../renderer/src/services/api';
 import type { ActivePortForwardInfo, Connection } from '../shared/types/connection';
 import type { Snippet } from '../shared/types/snippet';
-import type { StorageStatResult } from '../shared/types/storage-provider';
+import type { StorageStatResult, StorageTransferParams } from '../shared/types/storage-provider';
 import type { WorkspacePreset } from '../shared/types/workspace';
 
 /**
@@ -182,8 +182,8 @@ export function createFakeApi(): Mocked<LunaAPI> {
       delete: resolves(undefined),
       readFile: resolves({ content: '', encoding: 'utf-8' }),
       writeFile: resolves(undefined),
-      download: resolves('transfer-id'),
-      upload: resolves('transfer-id'),
+      download: vi.fn(async (params: StorageTransferParams) => params.transferId),
+      upload: vi.fn(async (params: StorageTransferParams) => params.transferId),
       onListTruncated: listener(),
       compareDirectories: resolves({
         items: [],

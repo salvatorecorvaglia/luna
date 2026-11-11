@@ -1,6 +1,7 @@
 import { lstat, readlink, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, normalize, relative, resolve as resolvePath, sep } from 'node:path';
+import { LIMITS } from '@shared/constants';
 import { ErrorCode, LunaError } from '@shared/errors';
 
 /**
@@ -325,4 +326,11 @@ function assertPrivateKeyLocation(candidate: string, name: string): void {
     `${name} must be inside the home directory or a standard SSH key directory`,
     ErrorCode.FORBIDDEN,
   );
+}
+
+export function assertEditableText(content: unknown): asserts content is string {
+  if (typeof content !== 'string') throw validationError('content must be a string');
+  if (Buffer.byteLength(content, 'utf8') > LIMITS.MAX_EDITABLE_BYTES) {
+    throw validationError(`Text exceeds the ${LIMITS.MAX_EDITABLE_BYTES / 1024} KiB editing limit`);
+  }
 }

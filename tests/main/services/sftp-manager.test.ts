@@ -57,7 +57,7 @@ function publish(sftp: FakeSftp, tempPath: string, destPath: string): Promise<vo
 }
 
 const err = (message: string): Error => new Error(message);
-const BACKUP_PATH = '/a/f.txt.luna-partial.bak';
+const BACKUP_PATH = '/a/f.tmp.bak';
 
 describe('SftpManager.publishUploadedFile', () => {
   it('resolves via the OpenSSH posix-rename extension when the server supports it, without ever touching plain rename/unlink', async () => {

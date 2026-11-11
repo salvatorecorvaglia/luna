@@ -2,6 +2,7 @@ import { IPC, LIMITS } from '@shared/constants';
 import { takeStorageToken } from '../lib/rate-limiter';
 import {
   assertBoundedInt,
+  assertEditableText,
   assertNonEmptyString,
   assertSafeRealAbsolutePath,
   assertValidPath,
@@ -50,6 +51,15 @@ function requireMeteredProvider(sessionId: string): StorageProvider {
   const provider = storageRegistry.require(sessionId);
   takeStorageToken(sessionId);
   return provider;
+}
+
+function assertTransferId(value: unknown): asserts value is string {
+  if (
+    typeof value !== 'string' ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+  ) {
+    throw new LunaError('transferId must be a UUID v4', ErrorCode.VALIDATION_ERROR);
+  }
 }
 
 export function registerStorageHandlers(): void {
@@ -113,9 +123,7 @@ export function registerStorageHandlers(): void {
     async (_event, params: { sessionId: string; path: string; content: string }) => {
       assertNonEmptyString(params.sessionId, 'sessionId');
       assertValidPath(params.path, 'path');
-      if (typeof params.content !== 'string') {
-        throw new LunaError('content must be a string', ErrorCode.VALIDATION_ERROR);
-      }
+      assertEditableText(params.content);
       return requireMeteredProvider(params.sessionId).writeFile(
         params.sessionId,
         params.path,
@@ -136,17 +144,31 @@ export function registerStorageHandlers(): void {
   // which is the correct place for it: it caps depth rather than arrival rate,
   // and the actual network work is already bounded by MAX_CONCURRENT_TRANSFERS.
   registerHandler(IPC.STORAGE_DOWNLOAD, async (_event, params: StorageTransferParams) => {
+    assertTransferId(params.transferId);
     assertNonEmptyString(params.sessionId, 'sessionId');
     assertValidPath(params.remotePath, 'remotePath');
     const safeLocal = await assertSafeRealAbsolutePath(params.localPath, 'localPath');
-    return transferQueue.enqueue('download', params.sessionId, safeLocal, params.remotePath);
+    return transferQueue.enqueue(
+      'download',
+      params.sessionId,
+      safeLocal,
+      params.remotePath,
+      params.transferId,
+    );
   });
 
   registerHandler(IPC.STORAGE_UPLOAD, async (_event, params: StorageTransferParams) => {
+    assertTransferId(params.transferId);
     assertNonEmptyString(params.sessionId, 'sessionId');
     const safeLocal = await assertSafeRealAbsolutePath(params.localPath, 'localPath');
     assertValidPath(params.remotePath, 'remotePath');
-    return transferQueue.enqueue('upload', params.sessionId, safeLocal, params.remotePath);
+    return transferQueue.enqueue(
+      'upload',
+      params.sessionId,
+      safeLocal,
+      params.remotePath,
+      params.transferId,
+    );
   });
 
   registerHandler(

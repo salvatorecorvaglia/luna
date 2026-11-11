@@ -1,9 +1,11 @@
+import { LIMITS } from '@shared/constants';
 // @vitest-environment jsdom
 /// <reference types="@testing-library/jest-dom" />
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useStorageStore } from '@/stores/storage-store';
 import { FilePreview } from '../../../../src/renderer/src/components/sftp/FilePreview';
+import { installFakeApi } from '../../../../src/test/fake-api';
 
 describe('FilePreview component', () => {
   beforeEach(() => {
@@ -113,5 +115,134 @@ describe('FilePreview component', () => {
     render(<FilePreview />);
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(useStorageStore.getState().previewFile).toBeNull();
+  });
+});
+
+describe('FilePreview save lifecycle', () => {
+  const file = {
+    name: 'file.txt',
+    content: 'original',
+    type: 'text/plain',
+    path: '/home/user/file.txt',
+    isLocal: true,
+  };
+  let api: ReturnType<typeof installFakeApi>;
+  beforeEach(() => {
+    api = installFakeApi();
+    useStorageStore.getState().setPreviewFile(file);
+  });
+  it('preserves text entered while saving and leaves the new edits dirty', async () => {
+    let finish!: () => void;
+    api.shell.writeFile.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    render(<FilePreview />);
+    const editor = screen.getByRole('textbox', { name: 'File contents' });
+    fireEvent.change(editor, { target: { value: 'saved version' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(editor).not.toBeDisabled();
+    fireEvent.change(editor, { target: { value: 'newer unsaved edits' } });
+    await act(async () => finish());
+    expect(editor).toHaveValue('newer unsaved edits');
+    expect(useStorageStore.getState().previewFile?.content).toBe('saved version');
+    expect(screen.getByText('Modified')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save' })).not.toBeDisabled();
+  });
+  it.each(['closed', 'different', 'same path reopened'])(
+    'does not restore a stale document after it is %s',
+    async (scenario) => {
+      let finish!: () => void;
+      api.shell.writeFile.mockReturnValueOnce(
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+      );
+      render(<FilePreview />);
+      fireEvent.change(screen.getByRole('textbox', { name: 'File contents' }), {
+        target: { value: 'old save' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+      const next =
+        scenario === 'closed'
+          ? null
+          : {
+              ...file,
+              path: scenario === 'different' ? '/home/user/other.txt' : file.path,
+              content: 'new document',
+            };
+      act(() => useStorageStore.getState().setPreviewFile(next));
+      await act(async () => finish());
+      expect(useStorageStore.getState().previewFile).toEqual(next);
+      if (next)
+        expect(screen.getByRole('textbox', { name: 'File contents' })).toHaveValue('new document');
+      else expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    },
+  );
+  it('retains dirty edits after a failed save', async () => {
+    api.shell.writeFile.mockRejectedValueOnce(new Error('disk full'));
+    render(<FilePreview />);
+    fireEvent.change(screen.getByRole('textbox', { name: 'File contents' }), {
+      target: { value: 'keep this' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).not.toBeDisabled());
+    expect(screen.getByRole('textbox', { name: 'File contents' })).toHaveValue('keep this');
+    expect(useStorageStore.getState().previewFile?.content).toBe('original');
+  });
+  it('opens oversized text read-only and explains the editing limit', () => {
+    useStorageStore
+      .getState()
+      .setPreviewFile({ ...file, content: 'x'.repeat(LIMITS.MAX_EDITABLE_BYTES + 1) });
+    render(<FilePreview />);
+    expect(screen.getByRole('textbox', { name: 'File contents' })).toHaveAttribute('readonly');
+    expect(screen.getByRole('status')).toHaveTextContent('Read-only');
+  });
+  it('preserves oversized edits but disables Save until text is within the limit', () => {
+    render(<FilePreview />);
+    const editor = screen.getByRole('textbox', { name: 'File contents' });
+    fireEvent.change(editor, { target: { value: 'x'.repeat(LIMITS.MAX_EDITABLE_BYTES + 1) } });
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(editor).not.toHaveAttribute('readonly');
+    fireEvent.change(editor, { target: { value: 'small' } });
+    expect(screen.getByRole('button', { name: 'Save' })).not.toBeDisabled();
+  });
+});
+
+describe('preview usability', () => {
+  beforeEach(() => {
+    installFakeApi();
+    useStorageStore.getState().setPreviewFile({
+      name: 'test.txt',
+      path: '/home/user/test.txt',
+      type: 'text/plain',
+      content: 'line\n'.repeat(1000),
+      isLocal: true,
+    });
+  });
+  it('names the search field and close control and returns Escape to the preview', () => {
+    render(<FilePreview />);
+    fireEvent.click(screen.getByRole('button', { name: /^Search$/ }));
+    expect(screen.getByRole('textbox', { name: 'Search in file' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close file search' }));
+    expect(screen.queryByRole('textbox', { name: 'Search in file' })).not.toBeInTheDocument();
+  });
+  it('retains bounded line numbers when a scrolled document shrinks', () => {
+    render(<FilePreview />);
+    const editor = screen.getByRole('textbox', { name: 'File contents' });
+    fireEvent.scroll(editor, { target: { scrollTop: 16000 } });
+    fireEvent.change(editor, { target: { value: 'short' } });
+    expect(editor).toHaveValue('short');
+    expect(document.querySelectorAll('[data-line-number]').length).toBe(1);
+    expect(document.querySelector('[data-line-number]')).toHaveAttribute('data-line-number', '1');
+  });
+  it('describes follow-bottom as following loaded content rather than live reload', () => {
+    render(<FilePreview />);
+    const button = screen.getByRole('button', { name: 'Follow bottom' });
+    expect(button).toHaveAttribute('title', expect.stringContaining('does not reload'));
+    fireEvent.click(button);
+    expect(button).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Follow bottom ON')).toBeInTheDocument();
   });
 });

@@ -121,13 +121,15 @@ describe('TransferQueue', () => {
 
   it('replaces a failed row with the retried transfer', async () => {
     seed(transfer({ id: 'e', status: 'error', type: 'upload', error: 'boom' }));
-    api.storage.upload.mockResolvedValueOnce('retry-1');
     render(<TransferQueue />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry transfer' }));
 
-    await waitFor(() => expect(ids()).toEqual(['retry-1']));
+    await waitFor(() => expect(ids()).toHaveLength(1));
+    await waitFor(() => expect(ids()).not.toContain('e'));
+    const id = ids()[0];
     expect(api.storage.upload).toHaveBeenCalledWith({
+      transferId: id,
       sessionId: 'sess-1',
       localPath: '/home/me/e.txt',
       remotePath: '/srv/e.txt',

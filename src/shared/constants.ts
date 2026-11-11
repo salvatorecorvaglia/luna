@@ -131,11 +131,15 @@ export const IPC = {
 
 /** Resource limits — centralised so renderer + main agree. */
 export const LIMITS = {
-  /** Maximum file preview size (bytes). Larger files are refused at the storage layer (SFTP/S3). */
+  // Worst-case JSON escaping of editable text stays below the IPC envelope.
+  MAX_EDITABLE_BYTES: 512 * 1024,
+  MAX_IPC_PAYLOAD_BYTES: 4 * 1024 * 1024,
+  /** Larger remote files must be downloaded instead of previewed. */
   MAX_PREVIEW_BYTES: 5 * 1024 * 1024,
   /**
    * Ceiling on any single local-file read or write main does on the renderer's
-   * behalf (read/write file, save dialog, audit export, connection import).
+   * behalf (file read, save dialog, audit export, connection import).
+   * Editor saves use the smaller MAX_EDITABLE_BYTES limit.
    * Was restated as a bare `50 * 1024 * 1024` in five places.
    */
   MAX_LOCAL_FILE_BYTES: 50 * 1024 * 1024,

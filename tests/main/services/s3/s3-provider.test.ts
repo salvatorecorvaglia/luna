@@ -1,3 +1,4 @@
+import { Readable } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Lower the truncation cap so a truncated-list test doesn't need to
@@ -388,5 +389,20 @@ describe('S3StorageProvider — rename guards', () => {
     await expect(s3StorageProvider.rename('sess', '/bucket/a.txt', '/other')).rejects.toThrow(
       /between a bucket and an object key/,
     );
+  });
+});
+
+describe('S3 response bounds', () => {
+  it('destroys a body that exceeds the preview limit despite a small HEAD size', async () => {
+    const body = Readable.from([Buffer.from('more than four bytes')]);
+    s3Send.mockImplementation((command: unknown) =>
+      commandName(command) === 'HeadObjectCommand'
+        ? Promise.resolve({ ContentLength: 2 })
+        : Promise.resolve({ Body: body }),
+    );
+    await expect(s3StorageProvider.readFile('sess', '/bucket/file.txt', 4)).rejects.toThrow(
+      /preview limit/,
+    );
+    expect(body.destroyed).toBe(true);
   });
 });

@@ -1,4 +1,5 @@
-import { lstat, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { lstat, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { platform, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough, Writable } from 'node:stream';
@@ -9,6 +10,11 @@ import {
   runPipeTransfer,
 } from '../../../../src/main/services/storage/pipe-transfer';
 import type { StepCallback } from '../../../../src/main/services/storage/types';
+
+vi.mock('node:crypto', async (original) => {
+  const actual = await original<typeof import('node:crypto')>();
+  return { ...actual, randomUUID: vi.fn(actual.randomUUID) };
+});
 
 vi.mock('../../../../src/main/lib/logger', () => ({
   default: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
@@ -127,6 +133,7 @@ describe('runPipeTransfer — abort handling', () => {
     const promise = run(h);
     h.complete.value = true;
     h.controller.abort();
+    h.source.end();
 
     await expect(promise).resolves.toBeUndefined();
     expect(h.discardPartial).not.toHaveBeenCalled();
@@ -175,6 +182,39 @@ describe('runPipeTransfer — abort handling', () => {
 });
 
 describe('runPipeTransfer — error handling', () => {
+  it('rejects a premature destination close rather than publishing partial content', async () => {
+    const h = harness();
+    const pending = run(h);
+    h.sink.destroy();
+    await expect(pending).rejects.toThrow(/closed before completion/);
+    expect(h.discardPartial).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits for actual stream teardown before discarding and releasing ownership', async () => {
+    const h = harness();
+    let finishDestroy!: () => void;
+    h.sink = new Writable({
+      write(_chunk, _enc, callback) {
+        callback();
+      },
+      destroy(_error, callback) {
+        finishDestroy = () => callback();
+      },
+    });
+    let settled = false;
+    const pending = run(h).catch((error) => {
+      settled = true;
+      throw error;
+    });
+    h.controller.abort();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(settled).toBe(false);
+    expect(h.discardPartial).not.toHaveBeenCalled();
+    finishDestroy();
+    await expect(pending).rejects.toBeInstanceOf(AbortError);
+    expect(h.discardPartial).toHaveBeenCalledTimes(1);
+  });
+
   it('discards and rejects on a source error', async () => {
     const h = harness();
     const promise = run(h);
@@ -262,7 +302,64 @@ describe('runPipeDownloadToFile', () => {
     await promise;
 
     expect((await readFile(localPath)).toString()).toBe('payload');
-    await expect(stat(`${localPath}.luna-partial`)).rejects.toThrow();
+    expect((await readdir(dir)).filter((name) => name.includes('.luna-partial'))).toEqual([]);
+  });
+
+  it('preserves existing sibling files with the legacy temporary suffix', async () => {
+    const localPath = join(dir, 'out.txt');
+    await writeFile(`${localPath}.luna-partial`, 'user data');
+    const source = new PassThrough();
+    const pending = runPipeDownloadToFile({
+      source,
+      localPath,
+      signal: new AbortController().signal,
+      total: 3,
+      onStep: vi.fn(),
+      abortCleanupDelayMs: 1,
+    });
+    source.end('new');
+    await pending;
+    expect(await readFile(`${localPath}.luna-partial`, 'utf8')).toBe('user data');
+    expect(await readdir(dir)).toEqual(expect.arrayContaining(['out.txt', 'out.txt.luna-partial']));
+    expect((await readdir(dir)).length).toBe(2);
+  });
+
+  it('does not unlink a file it failed to create exclusively', async () => {
+    const localPath = join(dir, 'collision');
+    const id = '00000000-0000-0000-0000-000000000000';
+    vi.mocked(randomUUID).mockReturnValueOnce(id);
+    const tempPath = join(dir, `.luna-partial-${id}`);
+    await writeFile(tempPath, 'user-owned');
+    const source = new PassThrough();
+    const pending = runPipeDownloadToFile({
+      source,
+      localPath,
+      signal: new AbortController().signal,
+      total: 3,
+      onStep: vi.fn(),
+      abortCleanupDelayMs: 1,
+    });
+    source.end('new');
+    await expect(pending).rejects.toThrow();
+    expect(await readFile(tempPath, 'utf8')).toBe('user-owned');
+    await expect(stat(localPath)).rejects.toThrow();
+  });
+
+  it('supports destination names near the filesystem component limit', async () => {
+    const localPath = join(dir, 'a'.repeat(240));
+    const source = new PassThrough();
+    const pending = runPipeDownloadToFile({
+      source,
+      localPath,
+      signal: new AbortController().signal,
+      total: 3,
+      onStep: vi.fn(),
+      abortCleanupDelayMs: 1,
+    });
+    source.end('new');
+    await pending;
+    expect(await readFile(localPath, 'utf8')).toBe('new');
+    expect(await readdir(dir)).toEqual(['a'.repeat(240)]);
   });
 
   it('atomically replaces an existing destination file on success', async () => {
@@ -306,7 +403,7 @@ describe('runPipeDownloadToFile', () => {
 
     await expect(promise).rejects.toBeInstanceOf(AbortError);
     expect((await readFile(localPath)).toString()).toBe('original content');
-    await expect(stat(`${localPath}.luna-partial`)).rejects.toThrow();
+    expect((await readdir(dir)).filter((name) => name.includes('.luna-partial'))).toEqual([]);
   });
 
   it.skipIf(platform() === 'win32')(
@@ -356,7 +453,7 @@ describe('runPipeDownloadToFile', () => {
     controller.abort();
     await promise.catch(() => {});
 
-    await expect(stat(`${localPath}.luna-partial`)).rejects.toThrow();
+    expect((await readdir(dir)).filter((name) => name.includes('.luna-partial'))).toEqual([]);
   });
 
   it('does not publish anything if the source errors mid-transfer', async () => {
@@ -377,6 +474,6 @@ describe('runPipeDownloadToFile', () => {
 
     await expect(promise).rejects.toThrow('connection reset');
     await expect(stat(localPath)).rejects.toThrow();
-    await expect(stat(`${localPath}.luna-partial`)).rejects.toThrow();
+    expect((await readdir(dir)).filter((name) => name.includes('.luna-partial'))).toEqual([]);
   });
 });

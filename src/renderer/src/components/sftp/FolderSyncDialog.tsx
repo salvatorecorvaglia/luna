@@ -1,14 +1,14 @@
 import { toastArgs } from '@shared/error-messages';
-import type { FolderDiffItem, FolderDiffResult } from '@shared/types/folder-sync';
-import { ArrowRightLeft, Download, FolderSync, RefreshCw, Upload, X } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import type { FolderDiffResult } from '@shared/types/folder-sync';
+import { ArrowRightLeft, FolderSync, RefreshCw, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { DialogShell } from '@/components/common/DialogShell';
-import { EmptyState, IconButton, Spinner } from '@/components/ui';
-import { formatBytes } from '@/lib/format';
+import { Button, EmptyState, IconButton, Spinner } from '@/components/ui';
 import { enqueueTransfer } from '@/lib/transfers';
 import { Z } from '@/lib/z-layers';
 import { getApi } from '@/services/api';
+import { FolderSyncResults, type SyncChoice } from './FolderSyncResults';
 
 interface FolderSyncDialogProps {
   open: boolean;
@@ -32,6 +32,32 @@ export function FolderSyncDialog({
     'sync-to-remote',
   );
 
+  const [choices, setChoices] = useState(new Map<string, SyncChoice>());
+  const [queued, setQueued] = useState(new Set<string>());
+  const [comparisonError, setComparisonError] = useState<string | null>(null);
+  const [failures, setFailures] = useState<string[]>([]);
+  const [comparedKey, setComparedKey] = useState<string | null>(null);
+  const comparisonKey = JSON.stringify([localPath, remotePath, sessionId, direction]);
+  const executing = useRef(false);
+  const executionId = useRef(0);
+  const current = comparedKey === comparisonKey;
+  const counts = useMemo(() => {
+    let ready = 0;
+    let unresolved = 0;
+    for (const item of diffResult?.items ?? []) {
+      if (queued.has(item.relativePath)) continue;
+      const action = choices.get(item.relativePath) ?? item.recommendedAction;
+      if (action === 'conflict') unresolved++;
+      if (action === 'upload' || action === 'download') ready++;
+    }
+    return { ready, unresolved };
+  }, [diffResult, choices, queued]);
+  const handleClose = useCallback(() => {
+    executionId.current++;
+    requestIdRef.current++;
+    onClose();
+  }, [onClose]);
+
   // Only the latest comparison may publish its result. Switching direction
   // re-runs the comparison, and an older response landing last used to leave a
   // diff for the *previous* direction on screen — which Execute would then run,
@@ -44,6 +70,11 @@ export function FolderSyncDialog({
     setLoading(true);
     // Drop the previous diff at once so it can't be executed while the new one loads.
     setDiffResult(null);
+    setComparedKey(null);
+    setChoices(new Map());
+    setQueued(new Set());
+    setFailures([]);
+    setComparisonError(null);
     try {
       // List local files
       const localFiles = await getApi().shell.readdir(localPath);
@@ -64,22 +95,40 @@ export function FolderSyncDialog({
 
       if (requestId !== requestIdRef.current) return;
       setDiffResult(res);
+      setComparedKey(comparisonKey);
     } catch (err) {
       if (requestId !== requestIdRef.current) return;
+      setComparisonError(err instanceof Error ? err.message : String(err));
       toast.error(...toastArgs(err, 'Folder comparison failed'));
     } finally {
       if (requestId === requestIdRef.current) setLoading(false);
     }
-  }, [localPath, remotePath, sessionId, direction]);
+  }, [localPath, remotePath, sessionId, direction, comparisonKey]);
 
   useEffect(() => {
     if (!open) return;
-    runFolderComparison();
+    void runFolderComparison();
+    return () => {
+      requestIdRef.current++;
+      executionId.current++;
+    };
   }, [open, runFolderComparison]);
 
   const handleExecuteSync = async () => {
-    if (loading || !diffResult || diffResult.items.length === 0) return;
+    if (
+      executing.current ||
+      loading ||
+      !current ||
+      !diffResult ||
+      counts.unresolved > 0 ||
+      counts.ready === 0
+    )
+      return;
+    executing.current = true;
+    const run = ++executionId.current;
     setSyncing(true);
+    setFailures([]);
+    const accepted = new Set(queued);
 
     // Each file is enqueued independently. The loop used to abort on the first
     // rejection, so one unwritable path left the user with a partial sync, a
@@ -90,12 +139,10 @@ export function FolderSyncDialog({
 
     try {
       for (const item of diffResult.items) {
-        const direction =
-          item.recommendedAction === 'upload'
-            ? 'upload'
-            : item.recommendedAction === 'download'
-              ? 'download'
-              : null;
+        if (run !== executionId.current) return;
+        if (accepted.has(item.relativePath)) continue;
+        const action = choices.get(item.relativePath) ?? item.recommendedAction;
+        const direction = action === 'upload' || action === 'download' ? action : null;
         if (!direction) continue;
 
         try {
@@ -104,6 +151,7 @@ export function FolderSyncDialog({
             ? `${remotePath}${item.relativePath}`
             : `${remotePath}/${item.relativePath}`;
 
+          if (run !== executionId.current) return;
           await enqueueTransfer({
             type: direction,
             sessionId,
@@ -113,6 +161,8 @@ export function FolderSyncDialog({
             size: (direction === 'upload' ? item.localSize : item.remoteSize) ?? 0,
           });
           enqueued++;
+          accepted.add(item.relativePath);
+          if (run === executionId.current) setQueued(new Set(accepted));
         } catch (err) {
           failures.push({
             relativePath: item.relativePath,
@@ -121,6 +171,8 @@ export function FolderSyncDialog({
         }
       }
 
+      if (run !== executionId.current) return;
+      setFailures(failures.map((file) => `${file.relativePath}: ${file.message}`));
       if (failures.length === 0) {
         toast.success(`Enqueued ${enqueued} differential sync transfer(s)`);
         onClose();
@@ -137,9 +189,9 @@ export function FolderSyncDialog({
             .join('\n'),
           duration: 10000,
         });
-        onClose();
       }
     } finally {
+      executing.current = false;
       setSyncing(false);
     }
   };
@@ -147,10 +199,11 @@ export function FolderSyncDialog({
   return (
     <DialogShell
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       zLayer={Z.modal}
       dismissOnOverlayClick
       ariaLabelledBy="folder-sync-dialog-title"
+      ariaDescribedBy="folder-sync-limitations"
       panelClassName="relative flex flex-col w-full max-w-3xl max-h-[85vh] rounded-xl border border-border bg-card shadow-2xl text-card-foreground overflow-hidden"
     >
       {/* Header */}
@@ -172,13 +225,13 @@ export function FolderSyncDialog({
                   is up to date" rather than "subfolders weren't examined".
                 */}
             <p className="text-xs text-muted-foreground">
-              Compare files in this folder and queue the differences. Subfolders are not examined.
+              Compare file sizes and timestamps in this folder. Subfolders are not examined.
             </p>
           </div>
         </div>
 
         <IconButton
-          onClick={onClose}
+          onClick={handleClose}
           aria-label="Close dialog"
           title="Close"
           size="md"
@@ -210,8 +263,12 @@ export function FolderSyncDialog({
 
           <div className="flex items-center justify-between border-t border-border/40 pt-3">
             <div className="flex items-center gap-2 text-xs">
-              <span className="text-muted-foreground">Sync Rule:</span>
+              <label htmlFor="folder-sync-direction" className="text-muted-foreground">
+                Sync rule:
+              </label>
               <select
+                id="folder-sync-direction"
+                disabled={syncing}
                 value={direction}
                 onChange={(e) =>
                   setDirection(
@@ -229,7 +286,7 @@ export function FolderSyncDialog({
             <button
               type="button"
               onClick={runFolderComparison}
-              disabled={loading}
+              disabled={loading || syncing}
               className="flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1 text-xs font-medium hover:bg-accent cursor-pointer"
             >
               <RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : ''}`} />
@@ -237,6 +294,20 @@ export function FolderSyncDialog({
             </button>
           </div>
         </div>
+
+        <p id="folder-sync-limitations" className="text-xs text-muted-foreground">
+          File contents are not compared, so same-size edits can be missed.{' '}
+          {direction === 'bi-directional'
+            ? 'Newest-wins uses timestamps and cannot detect changes made on both sides.'
+            : 'One-way rules skip same-size sources with older timestamps.'}{' '}
+          Uploads replace remote files; downloads replace local files.
+        </p>
+        {failures.length > 0 && (
+          <p role="alert" className="text-xs text-warning">
+            Could not queue {failures.length} file(s). Retry the remaining transfers; already queued
+            files will not be queued again. {failures.slice(0, 3).join('; ')}
+          </p>
+        )}
 
         {/* Summary Counters */}
         {diffResult && (
@@ -263,7 +334,7 @@ export function FolderSyncDialog({
             </div>
 
             <div className="rounded-lg border border-border p-2.5 bg-background">
-              <div className="text-muted-foreground text-2xs">Identical</div>
+              <div className="text-muted-foreground text-2xs">No change suggested</div>
               <div className="text-base font-bold text-success mt-0.5">
                 {diffResult.identicalCount}
               </div>
@@ -274,103 +345,53 @@ export function FolderSyncDialog({
         {/* Diff Items Table */}
         {loading ? (
           <div className="flex justify-center py-12">
-            <Spinner size="md" label="Comparing folder checksums and timestamps…" />
+            <Spinner size="md" label="Comparing file sizes and timestamps…" />
           </div>
+        ) : comparisonError ? (
+          <EmptyState title="Comparison failed" description={comparisonError} className="py-10" />
         ) : !diffResult || diffResult.items.length === 0 ? (
           <EmptyState title="No files found in specified directories." className="py-10" />
         ) : (
-          <div className="rounded-lg border border-border overflow-hidden">
-            <div className="max-h-60 overflow-y-auto font-mono text-xs">
-              <table className="w-full text-left border-collapse">
-                <thead className="sticky top-0 bg-muted/80 backdrop-blur-xs border-b border-border text-2xs text-muted-foreground">
-                  <tr>
-                    <th className="p-2.5">Relative File Path</th>
-                    <th className="p-2.5 text-right">Local Size</th>
-                    <th className="p-2.5 text-right">Remote Size</th>
-                    <th className="p-2.5 text-center">Status</th>
-                    <th className="p-2.5 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/40">
-                  {diffResult.items.map((item: FolderDiffItem) => (
-                    <tr key={item.relativePath} className="hover:bg-accent/30 transition-colors">
-                      <td className="p-2.5 truncate max-w-[200px]" title={item.relativePath}>
-                        {item.relativePath}
-                      </td>
-                      <td className="p-2.5 text-right text-muted-foreground">
-                        {formatBytes(item.localSize)}
-                      </td>
-                      <td className="p-2.5 text-right text-muted-foreground">
-                        {formatBytes(item.remoteSize)}
-                      </td>
-                      <td className="p-2.5 text-center">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-3xs font-medium ${
-                            item.status === 'identical'
-                              ? 'bg-success/10 text-success'
-                              : item.status === 'modified'
-                                ? 'bg-warning/10 text-warning'
-                                : 'bg-primary/10 text-primary'
-                          }`}
-                        >
-                          {item.status}
-                        </span>
-                      </td>
-                      <td className="p-2.5 text-center">
-                        {item.recommendedAction === 'upload' && (
-                          <span className="inline-flex items-center gap-1 text-primary text-2xs font-semibold">
-                            <Upload className="size-3" /> Upload
-                          </span>
-                        )}
-                        {item.recommendedAction === 'download' && (
-                          <span className="inline-flex items-center gap-1 text-primary text-2xs font-semibold">
-                            <Download className="size-3" /> Download
-                          </span>
-                        )}
-                        {item.recommendedAction === 'skip' && (
-                          <span className="text-muted-foreground/60 text-2xs">Skip</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <FolderSyncResults
+            items={diffResult.items}
+            choices={choices}
+            queued={queued}
+            disabled={syncing}
+            onChoose={(path, choice) =>
+              setChoices((previous) => new Map(previous).set(path, choice))
+            }
+          />
         )}
       </div>
 
       {/* Footer */}
       <div className="flex items-center justify-between border-t border-border/60 px-5 py-3 bg-muted/20 text-xs">
-        <span className="text-muted-foreground">
-          {diffResult
-            ? `${diffResult.items.filter((i: FolderDiffItem) => i.recommendedAction !== 'skip').length} transfer(s) ready to execute`
+        <span role="status" className="text-muted-foreground">
+          {diffResult && current
+            ? `${counts.ready} transfer(s) ready; ${counts.unresolved} unresolved conflict(s); ${queued.size} queued`
             : ''}
+          {syncing && ' Stopping queueing leaves transfers already queued running.'}
         </span>
 
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="rounded-md border border-border px-3 py-1.5 font-medium hover:bg-accent transition-colors cursor-pointer"
           >
-            Cancel
+            {syncing ? 'Stop queueing' : 'Cancel'}
           </button>
 
-          <button
-            type="button"
+          <Button
             onClick={handleExecuteSync}
+            loading={syncing}
             disabled={
-              syncing ||
-              loading ||
-              !diffResult ||
-              diffResult.items.every((i: FolderDiffItem) => i.recommendedAction === 'skip')
+              loading || !current || !diffResult || counts.unresolved > 0 || counts.ready === 0
             }
-            className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors cursor-pointer"
+            leadingIcon={<ArrowRightLeft className="size-3.5" />}
           >
-            <ArrowRightLeft className="size-3.5" />
             Execute Sync
-          </button>
+          </Button>
         </div>
       </div>
     </DialogShell>

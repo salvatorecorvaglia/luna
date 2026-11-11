@@ -1,6 +1,8 @@
+import { LIMITS } from '@shared/constants';
 import { ErrorCode, LunaError } from '@shared/errors';
 import type { IpcChannel, IpcRequest, IpcResponse } from '@shared/types/ipc';
 import { ipcMain } from 'electron';
+import { assertTrustedIpcSender } from './ipc-sender';
 import log from './logger';
 
 /**
@@ -14,7 +16,7 @@ import log from './logger';
  * payload (JSON.stringify walk), so the limit can't be much higher
  * without re-introducing the same DoS vector via the check.
  */
-const MAX_IPC_PAYLOAD_BYTES = 4 * 1024 * 1024;
+const MAX_IPC_PAYLOAD_BYTES = LIMITS.MAX_IPC_PAYLOAD_BYTES;
 
 /**
  * Returns the serialized byte size, or `null` if the args are not
@@ -45,31 +47,6 @@ function payloadByteSize(args: unknown[]): number | null {
 }
 
 /**
- * Refuse invokes from any frame but the window's top-level document.
- *
- * The preload bridge is exposed to the main frame only, so a subframe has no
- * sanctioned way to reach these channels — but nothing checked. Subframes do
- * exist (the file previewer renders PDFs in an iframe fed with server-supplied
- * bytes), and "the bridge isn't exposed there" is one Electron setting away
- * from being false. Defence in depth, at the single choke point every channel
- * passes through.
- *
- * Skipped when the event carries no frame information, which only happens
- * for synthetic events in unit tests; Electron always populates both.
- */
-function assertMainFrameSender(event: Electron.IpcMainInvokeEvent, channel: string): void {
-  const frame = event?.senderFrame;
-  const mainFrame = event?.sender?.mainFrame;
-  if (!frame || !mainFrame) return;
-  if (frame !== mainFrame) {
-    throw new LunaError(
-      `IPC channel ${channel} refused: invoked from a subframe (${frame.url || 'unknown url'})`,
-      ErrorCode.FORBIDDEN,
-    );
-  }
-}
-
-/**
  * Args tuple for a handler. `void` requests are erased (handlers take no
  * request arg); every other request type becomes a single-element tuple so
  * channels with a typed request must declare it in their handler signature.
@@ -96,7 +73,7 @@ export function registerHandler<C extends IpcChannel>(
 ): void {
   ipcMain.handle(channel, async (event, ...args) => {
     try {
-      assertMainFrameSender(event, channel);
+      assertTrustedIpcSender(event);
       const size = payloadByteSize(args);
       if (size === null) {
         throw new LunaError(

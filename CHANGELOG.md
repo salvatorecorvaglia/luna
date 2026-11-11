@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Folder Sync now offers Upload, Download, or Skip choices for ambiguous matches, keyboard-accessible virtualized results, and retries for files that could not be queued.
+- Added `pnpm run profile` and end-to-end coverage for performance, folder sync, and file preview interactions.
+
+### Changed
+
+- Text editing is limited to 512 KiB, with larger previews opened read-only; Folder Sync and preview labels now explain comparison and follow-bottom limitations.
+- Shared terminal tab behavior, storage file operations, and transfer execution are consolidated into reusable components and helpers.
+- Refreshed Electron, React, AWS SDK, build and test dependencies, dependency overrides, and the pnpm lockfile since 1.2.0.
+
+### Fixed
+
+- Local and SFTP text saves publish complete temporary files and preserve existing permission bits where supported, preventing failed writes from truncating the original.
+- File previews preserve edits made during a save, retain dirty content after save failures, align line numbers with wrapped text, and restore editor focus after closing search.
+- Transfers are registered before progress events arrive, preventing fast transfers from becoming stuck in the renderer queue; duplicate pending requests share registration.
+- Transfer cancellation retains destination ownership until cleanup finishes, prevents competing uploads to the same destination, and waits for stream or multipart upload teardown.
+- Folder Sync prevents duplicate queueing after partial failures and discards stale comparisons when paths, direction, or dialog state change.
+
+### Security
+
+- IPC handlers accept requests only from the trusted application window's main frame and allowed document URL.
+- Uploads consume validated local file handles; downloads use unique, exclusively created private temporary files without removing existing sibling files.
+
 ## [1.2.0] - 2026-10-28
 
 ### Changed
@@ -16,7 +40,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release builds depend on tag validation and reusable CI checks; removed the pull-request dependency review job.
 - Require the reusable CI quality checks before packaging releases.
 - Refresh application branding and documentation, and move the packaged icon to `build/icons/`.
-
 
 ### Security
 

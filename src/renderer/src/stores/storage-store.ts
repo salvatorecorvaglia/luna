@@ -21,6 +21,8 @@ interface StorageState {
   localSelection: Set<string>;
   remoteSelection: Set<string>;
   showHiddenFiles: boolean;
+  previewRevision: number;
+  markPreviewSaved: (revision: number, content: string) => void;
   previewFile: {
     name: string;
     content: string;
@@ -69,6 +71,13 @@ export const useStorageStore = create<StorageState>()(
       remoteSelection: new Set(),
       showHiddenFiles: false,
       previewFile: null,
+      previewRevision: 0,
+      markPreviewSaved: (revision, content) =>
+        set((s) =>
+          s.previewRevision === revision && s.previewFile
+            ? { previewFile: { ...s.previewFile, content } }
+            : s,
+        ),
       activeSessionId: null,
       storageSessions: new Map(),
       truncatedPaths: new Set(),
@@ -93,7 +102,8 @@ export const useStorageStore = create<StorageState>()(
           return { remoteSelection: next };
         }),
       clearSelections: () => set({ localSelection: new Set(), remoteSelection: new Set() }),
-      setPreviewFile: (file) => set({ previewFile: file }),
+      setPreviewFile: (file) =>
+        set((s) => ({ previewFile: file, previewRevision: s.previewRevision + 1 })),
       setActiveSessionId: (id) => set({ activeSessionId: id }),
       addStorageSession: (session) =>
         set((s) => {

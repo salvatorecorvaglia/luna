@@ -2,6 +2,10 @@ import '@testing-library/jest-dom/vitest';
 import { afterEach, vi } from 'vitest';
 import { __setApiForTesting } from '../renderer/src/services/api';
 
+// Handler unit tests use synthetic events. The real sender gate is exercised
+// separately and by Electron smoke tests, without this mock.
+vi.mock('../main/lib/ipc-sender', () => ({ assertTrustedIpcSender: vi.fn() }));
+
 vi.mock('electron', () => ({
   app: {
     getPath: (name: string) => `/tmp/luna-test-${name}`,

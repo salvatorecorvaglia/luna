@@ -1,3 +1,4 @@
+import { rm } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 import type { LunaAPI } from '../../src/preload';
 import { closeApp, type LaunchedApp, launchApp, packagedExecutable } from './fixtures';
@@ -314,4 +315,79 @@ test.describe('renderer interaction', () => {
     await page.keyboard.press('Escape');
     await expect(page.getByPlaceholder('Type a command...')).not.toBeVisible();
   });
+});
+
+test('local terminal keyboard navigation moves focus and selection together', async () => {
+  const { page } = launched;
+  await page.getByRole('tab', { name: 'Local', exact: true }).click();
+  const strip = page.getByRole('tablist', { name: 'Local terminal tabs' });
+  const tabs = strip.getByRole('tab');
+  await expect(tabs).toHaveCount(1);
+  await page.getByRole('button', { name: 'New local terminal', exact: true }).click();
+  await expect(tabs).toHaveCount(2);
+  await tabs.nth(0).focus();
+  await tabs.nth(0).press('ArrowRight');
+  await expect(tabs.nth(1)).toBeFocused();
+  await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
+  await tabs.nth(1).press('Home');
+  await expect(tabs.nth(0)).toBeFocused();
+  await expect(tabs.nth(0)).toHaveAttribute('aria-selected', 'true');
+  await tabs.nth(0).press('ArrowLeft');
+  await expect(tabs.nth(1)).toBeFocused();
+  await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
+});
+
+test('IPC refuses a second window even when it loads the application document and preload', async () => {
+  test.skip(!!packagedExecutable, MAIN_ACCESS_SKIP_REASON);
+  const result = await mainApp().evaluate(async ({ BrowserWindow, app }) => {
+    const owner = BrowserWindow.getAllWindows()[0]!;
+    const child = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        preload: `${app.getAppPath()}/out/preload/index.js`,
+        sandbox: true,
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    });
+    try {
+      await child.loadURL(owner.webContents.getURL());
+      return await child.webContents.executeJavaScript(
+        `Promise.resolve().then(() => window.api.app.getVersion()).then(() => 'allowed', error => error.code)`,
+      );
+    } finally {
+      child.destroy();
+    }
+  });
+  expect(result).toBe('FORBIDDEN');
+});
+
+test('editor writes honor the byte limit across the real bridge without truncating on rejection', async () => {
+  test.skip(!!packagedExecutable, MAIN_ACCESS_SKIP_REASON);
+  const path = await launched.page.evaluate(async () => {
+    const api = (window as unknown as { api: LunaAPI }).api;
+    return api.shell.joinPath(
+      await api.shell.homeDir(),
+      `.luna-e2e-save-${crypto.randomUUID()}.txt`,
+    );
+  });
+  try {
+    const result = await launched.page.evaluate(async (path) => {
+      const api = (window as unknown as { api: LunaAPI }).api;
+      const content = '\0'.repeat(512 * 1024);
+      await api.shell.writeFile(path, content);
+      const saved = await api.shell.readFile(path);
+      let code = '';
+      try {
+        await api.shell.writeFile(path, `${content}x`);
+      } catch (error) {
+        code = (error as { code: string }).code;
+      }
+      const after = await api.shell.readFile(path);
+      return { correct: saved.content === content && after.content === content, code };
+    }, path);
+    expect(result).toEqual({ correct: true, code: 'VALIDATION_ERROR' });
+  } finally {
+    await rm(path, { force: true });
+  }
 });

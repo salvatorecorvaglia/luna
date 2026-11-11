@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../../../src/renderer/src/components/terminal/TerminalToolbar', () => ({
@@ -49,7 +49,7 @@ describe('TerminalTabs — keyboard', () => {
     // Regression: tabs had role="tab" but could not be focused or navigated.
     render(<TerminalTabs />);
     const first = screen.getByRole('tab', { name: 'Host a' });
-    first.focus();
+    act(() => first.focus());
 
     fireEvent.keyDown(first, { key: 'ArrowRight' });
 
@@ -58,5 +58,13 @@ describe('TerminalTabs — keyboard', () => {
 
     fireEvent.keyDown(document.activeElement!, { key: 'Home' });
     expect(useTerminalStore.getState().activeSessionId).toBe('a');
+    expect(document.activeElement).toBe(first);
+
+    fireEvent.keyDown(first, { key: 'ArrowLeft' });
+    expect(useTerminalStore.getState().activeSessionId).toBe('b');
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Host b' }));
+
+    fireEvent.keyDown(document.activeElement!, { key: 'End' });
+    expect(useTerminalStore.getState().activeSessionId).toBe('b');
   });
 });

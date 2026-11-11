@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { stat } from 'node:fs/promises';
-import { basename } from 'node:path';
+import { basename, posix } from 'node:path';
 import { IPC, LIMITS } from '@shared/constants';
 import { ErrorCode, LunaError } from '@shared/errors';
 import type { TransferType } from '@shared/types/transfer';
@@ -9,28 +9,15 @@ import { AbortError } from '../lib/errors';
 import log from '../lib/logger';
 import { emitToRenderer } from './emit';
 import { storageRegistry } from './storage/registry';
+import { executeTransfer, type TransferExecution } from './storage/transfer-execution';
 
-interface QueuedTransfer {
-  id: string;
-  type: TransferType;
-  sessionId: string;
-  localPath: string;
-  remotePath: string;
+interface QueuedTransfer extends TransferExecution {
+  destinationKey: string;
   fileName: string;
-  size: number;
-  controller: AbortController;
-  lastEmitTime: number;
-  lastTransferred: number;
-  /**
-   * Set once a TRANSFER_CANCELLED has been emitted for this transfer, so the
-   * eager ack in `cancel()` and the unwind in `executeTransfer()` can't both
-   * fire one. The renderer store is idempotent, but a duplicate event is
-   * still a lie about how many things happened.
-   */
-  cancelEmitted?: boolean;
 }
 
 interface ReservedTransfer {
+  done: Promise<void>;
   id: string;
   key: string;
   /** Needed so cancelBySession can reach transfers still inside the stat() window. */
@@ -38,41 +25,18 @@ interface ReservedTransfer {
   controller: AbortController;
 }
 
-class TransferQueue {
+export class TransferQueue {
   private queue: QueuedTransfer[] = [];
   private queuedMap = new Map<string, QueuedTransfer>();
   private active = new Map<string, QueuedTransfer>();
-  /**
-   * Dedup index: maps `${type}|${sessionId}|${localPath}|${remotePath}` →
-   * transfer id, populated for both queued and active entries. Replaces a
-   * linear scan across both collections on every enqueue() so a burst of
-   * thousands of identical requests stays O(n) total instead of O(n²).
-   */
+  /** Bounded replay protection and operation/destination lookup indexes. */
+  private usedIds = new Set<string>();
   private dedupIndex = new Map<string, string>();
-  /**
-   * Destination index for downloads: local path -> transfer id.
-   *
-   * `dedupIndex` keys on (type, session, localPath, remotePath), so two
-   * downloads of *different* remote files to the *same* local path are two
-   * distinct transfers and both were allowed to run at once. They then both
-   * wrote `${localPath}.luna-partial` and both renamed it over `localPath` —
-   * interleaved writes into one temp file, then a coin-flip over which content
-   * survived. The atomic rename that exists to prevent corruption was what hid
-   * it, since the result always looked like a complete file.
-   *
-   * pipe-transfer.ts documents the "already serialized upstream by the transfer
-   * queue" invariant that makes its stable temp-file name safe. This index is
-   * what actually makes that true.
-   */
+  /** Destination claims survive cancellation until the provider finishes cleanup. */
   private downloadDestinations = new Map<string, string>();
-  /**
-   * Transfers that have reserved a dedup key and an AbortController but
-   * haven't been pushed to `queue` yet (because enqueue() is awaiting stat()).
-   * A concurrent enqueue() with the same key must treat these as live, not
-   * stale. Crucially, cancel(id) called during this window must abort the
-   * controller — otherwise the transfer would slip past the cancel and start
-   * running after the await settles.
-   */
+  private uploadDestinations = new Map<string, string>();
+  private executions = new Set<Promise<void>>();
+  /** Reservations count toward capacity and remain cancellable during metadata reads. */
   private reserved = new Map<string, ReservedTransfer>();
   private maxConcurrent = 3;
   /** Re-entrancy guard: only one synchronous dispatch loop at a time. */
@@ -87,6 +51,11 @@ class TransferQueue {
     return `${type}\0${sessionId}\0${localPath}\0${remotePath}`;
   }
 
+  private uploadDestination(sessionId: string, path: string): string {
+    const destination = storageRegistry.kindOf(sessionId) === 'sftp' ? posix.normalize(path) : path;
+    return `${sessionId}\0${destination}`;
+  }
+
   setMaxConcurrent(max: number): void {
     const n = Number.isFinite(max) ? Math.round(max) : 3;
     this.maxConcurrent = Math.max(1, Math.min(LIMITS.MAX_CONCURRENT_TRANSFERS, n));
@@ -98,10 +67,17 @@ class TransferQueue {
     sessionId: string,
     localPath: string,
     remotePath: string,
+    requestedId?: string,
   ): Promise<string> {
+    if (requestedId && (this.usedIds.has(requestedId) || this.isLive(requestedId))) {
+      throw new LunaError('Transfer id already used', ErrorCode.VALIDATION_ERROR);
+    }
     const key = this.dedupKey(type, sessionId, localPath, remotePath);
     const existingId = this.dedupIndex.get(key);
     if (existingId) {
+      if (requestedId && this.isLive(existingId)) {
+        throw new LunaError('Transfer already queued', ErrorCode.VALIDATION_ERROR);
+      }
       // A concurrent enqueue may have reserved this key and not yet pushed to
       // `queue` (still awaiting stat). Treat that as live so we return its id
       // and let the caller wire up to the same transfer, instead of racing
@@ -115,36 +91,20 @@ class TransferQueue {
       this.dedupIndex.delete(key);
     }
 
-    // Checked *after* the dedup short-circuit above: an identical re-enqueue
-    // must still collapse onto the transfer already running, and only a
-    // genuinely different download competing for the same destination is a
-    // conflict.
-    //
-    // Two downloads of different remote files to the same local path used to be
-    // two distinct transfers — the dedup key includes remotePath — so both ran,
-    // both wrote `${localPath}.luna-partial`, and both renamed it into place.
-    if (type === 'download') {
-      const clashId = this.downloadDestinations.get(localPath);
-      if (clashId && this.isLive(clashId)) {
-        throw new LunaError(
-          `Another download is already writing to ${localPath}. Wait for it to finish or cancel it.`,
-          ErrorCode.VALIDATION_ERROR,
-          { reason: 'destination-busy', localPath },
-        );
-      }
-      if (clashId) this.downloadDestinations.delete(localPath);
+    const destinations = type === 'download' ? this.downloadDestinations : this.uploadDestinations;
+    const destinationKey =
+      type === 'download' ? localPath : this.uploadDestination(sessionId, remotePath);
+    const clashId = destinations.get(destinationKey);
+    if (clashId && this.isLive(clashId)) {
+      throw new LunaError(
+        `Another ${type} is already writing to ${type === 'download' ? localPath : remotePath}. Wait for cleanup to finish.`,
+        ErrorCode.VALIDATION_ERROR,
+        { reason: 'destination-busy' },
+      );
     }
+    if (clashId) destinations.delete(destinationKey);
 
-    // Count reservations toward the cap, not just the settled queue.
-    //
-    // `storage:download` / `storage:upload` deliberately skip the storage rate
-    // limiter (a folder sync or multi-file drag legitimately bursts), which
-    // makes this the only backpressure on those channels. But the check used to
-    // read `this.queue.length` alone, and a reservation is created *before* the
-    // `await` on stat() below and only moves into `queue` afterwards. So N
-    // concurrent invokes all saw an empty queue, all passed, and all issued a
-    // statSize() round trip against the remote server — unbounded concurrent
-    // requests, which is exactly what the cap exists to prevent.
+    // Reserve capacity before metadata I/O so concurrent enqueues cannot overfill.
     const pending = this.queue.length + this.reserved.size;
     if (pending >= LIMITS.MAX_QUEUED_TRANSFERS) {
       throw new LunaError(
@@ -154,18 +114,19 @@ class TransferQueue {
       );
     }
 
-    // Reserve the dedup key synchronously, *before* the first await, so a
-    // concurrent enqueue() with the same key short-circuits via dedupIndex
-    // instead of also racing through stat() and pushing a duplicate. The
-    // AbortController is created here too, *before* the await, so a cancel(id)
-    // racing through the stat() window can abort it instead of being dropped
-    // (the controller used to be created after the await — leaving cancel()
-    // with nothing to find in queue/active and silently no-op'ing).
-    const transferId = randomUUID();
+    // Claims and cancellation exist before the first await.
+    const transferId = requestedId ?? randomUUID();
+    this.usedIds.add(transferId);
+    // Bound replay protection; live IDs are always checked independently.
+    if (this.usedIds.size > 10_000) this.usedIds.delete(this.usedIds.values().next().value!);
     const controller = new AbortController();
     this.dedupIndex.set(key, transferId);
-    this.reserved.set(transferId, { id: transferId, key, sessionId, controller });
-    if (type === 'download') this.downloadDestinations.set(localPath, transferId);
+    let finishReservation!: () => void;
+    const done = new Promise<void>((resolve) => {
+      finishReservation = resolve;
+    });
+    this.reserved.set(transferId, { id: transferId, key, sessionId, controller, done });
+    destinations.set(destinationKey, transferId);
 
     try {
       let size = 0;
@@ -181,12 +142,7 @@ class TransferQueue {
         // size will be reported by progress callback
       }
 
-      // Cancelled during the stat() await (app quit, session disconnect, or an
-      // explicit cancel). Throw rather than emitting TRANSFER_CANCELLED and
-      // returning the id: the caller does not have the id yet, so an event
-      // fired now arrives before the renderer has any row to apply it to, and
-      // the row it creates afterwards sticks at "queued" forever. Rejecting is
-      // the only signal the caller can actually observe.
+      // Setup rejection is observable even before the renderer receives its enqueue response.
       if (controller.signal.aborted) {
         throw new AbortError('Transfer cancelled before it started');
       }
@@ -198,6 +154,7 @@ class TransferQueue {
         sessionId,
         localPath,
         remotePath,
+        destinationKey,
         fileName,
         size,
         controller,
@@ -221,19 +178,20 @@ class TransferQueue {
       // Roll back the dedup reservation so a future enqueue with the same key
       // isn't permanently blocked by a ghost entry.
       if (this.dedupIndex.get(key) === transferId) this.dedupIndex.delete(key);
-      if (type === 'download') this.forgetDestination(transferId, localPath);
+      if (destinations.get(destinationKey) === transferId) destinations.delete(destinationKey);
       throw err;
     } finally {
+      finishReservation();
       this.reserved.delete(transferId);
     }
   }
 
-  /** True while a transfer is reserved, queued or active and not aborted. */
+  /** Aborted transfers still own resources until teardown settles. */
   private isLive(transferId: string): boolean {
     const reserved = this.reserved.get(transferId);
-    if (reserved) return !reserved.controller.signal.aborted;
+    if (reserved) return true;
     const transfer = this.active.get(transferId) ?? this.queuedMap.get(transferId);
-    return Boolean(transfer) && !transfer!.controller.signal.aborted;
+    return Boolean(transfer);
   }
 
   /** Release a download's claim on its destination path. */
@@ -249,6 +207,11 @@ class TransferQueue {
     // have already claimed the key after we marked this one aborted.
     if (this.dedupIndex.get(key) === t.id) this.dedupIndex.delete(key);
     if (t.type === 'download') this.forgetDestination(t.id, t.localPath);
+    else {
+      const destination = t.destinationKey;
+      if (this.uploadDestinations.get(destination) === t.id)
+        this.uploadDestinations.delete(destination);
+    }
   }
 
   cancel(transferId: string): void {
@@ -268,22 +231,10 @@ class TransferQueue {
     const active = this.active.get(transferId);
     if (active) {
       active.controller.abort();
-      // Acknowledge immediately rather than waiting for executeTransfer's
-      // catch to run. On a wedged SFTP channel the abort handler can take
-      // seconds to settle (or never settle at all), during which the row just
-      // sat there looking like the click had done nothing.
-      if (!active.cancelEmitted) {
-        active.cancelEmitted = true;
-        emitToRenderer(IPC.TRANSFER_CANCELLED, { transferId });
-      }
       return;
     }
 
-    // The transfer may still be inside the enqueue() stat() await window —
-    // reserved but not yet in queue/active. Abort the pre-allocated controller
-    // and drop the dedup reservation so a re-enqueue isn't blocked. enqueue()
-    // observes the aborted controller after the await and emits
-    // TRANSFER_CANCELLED itself.
+    // A preflight reservation has no queued/active entry yet.
     const reserved = this.reserved.get(transferId);
     if (reserved) {
       reserved.controller.abort();
@@ -301,16 +252,8 @@ class TransferQueue {
         const transfer = this.queue.shift()!;
         this.queuedMap.delete(transfer.id);
         this.active.set(transfer.id, transfer);
-        // executeTransfer is async — fire and forget. The finally branch re-enters
-        // processQueue() after each completion, but the dispatching flag means
-        // re-entrant calls during the loop are absorbed.
-        // executeTransfer has its own try/catch/finally that handles errors
-        // and cleanup. This outer .catch() is a single safety net: if a
-        // future refactor lets a rejection slip past executeTransfer's
-        // handler, drain the active slot and surface the error rather than
-        // letting it become an unhandled rejection. log.error never throws,
-        // so a second .catch() chain is unnecessary.
-        this.executeTransfer(transfer).catch((err) => {
+        // Claims are released only after provider cleanup and its terminal event.
+        const execution = this.executeTransfer(transfer).catch((err) => {
           this.active.delete(transfer.id);
           this.forgetDedup(transfer);
           emitToRenderer(IPC.TRANSFER_ERROR, {
@@ -321,6 +264,8 @@ class TransferQueue {
           log.error('[TransferQueue] dispatcher fallback handled rejection:', err);
           this.processQueue();
         });
+        this.executions.add(execution);
+        void execution.finally(() => this.executions.delete(execution));
       }
     } finally {
       this.dispatching = false;
@@ -328,69 +273,10 @@ class TransferQueue {
   }
 
   private async executeTransfer(transfer: QueuedTransfer): Promise<void> {
-    const { id, type, sessionId, localPath, remotePath, controller } = transfer;
-
     try {
-      const onStep = (transferred: number, _chunk: number, total: number): void => {
-        const now = Date.now();
-        const elapsed = (now - transfer.lastEmitTime) / 1000;
-        if (elapsed >= 0.2) {
-          const delta = transferred - transfer.lastTransferred;
-          const bytesPerSec = Math.round(delta / elapsed);
-          transfer.lastEmitTime = now;
-          transfer.lastTransferred = transferred;
-
-          if (transfer.size === 0 && total > 0) {
-            transfer.size = total;
-          }
-
-          emitToRenderer(IPC.TRANSFER_PROGRESS, {
-            transferId: id,
-            transferred,
-            total: transfer.size || total,
-            bytesPerSec,
-          });
-        }
-      };
-
-      const provider = storageRegistry.require(sessionId);
-      if (type === 'download') {
-        await provider.streamDownload(sessionId, remotePath, localPath, onStep, controller.signal);
-      } else {
-        await provider.streamUpload(sessionId, localPath, remotePath, onStep, controller.signal);
-      }
-
-      // Flush a final 100% progress event so the UI lands on full before
-      // TRANSFER_COMPLETE — the 200ms throttle in onStep frequently swallows
-      // the last chunk, leaving the bar stuck just below total.
-      const finalTotal = transfer.size || transfer.lastTransferred;
-      if (finalTotal > 0) {
-        emitToRenderer(IPC.TRANSFER_PROGRESS, {
-          transferId: id,
-          transferred: finalTotal,
-          total: finalTotal,
-          bytesPerSec: 0,
-        });
-      }
-
-      emitToRenderer(IPC.TRANSFER_COMPLETE, { transferId: id });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Transfer failed';
-      if (controller.signal.aborted || err instanceof AbortError) {
-        // cancel() may have already acknowledged this — don't emit twice.
-        if (!transfer.cancelEmitted) {
-          transfer.cancelEmitted = true;
-          emitToRenderer(IPC.TRANSFER_CANCELLED, { transferId: id });
-        }
-      } else {
-        emitToRenderer(IPC.TRANSFER_ERROR, {
-          transferId: id,
-          error: msg,
-          errorClass: classifyTransferError(err),
-        });
-      }
+      await executeTransfer(transfer);
     } finally {
-      this.active.delete(id);
+      this.active.delete(transfer.id);
       this.forgetDedup(transfer);
       this.processQueue();
     }
@@ -417,32 +303,16 @@ class TransferQueue {
   }
 
   cancelAll(): void {
-    // Abort every controller, then drop both queues so the AbortController
-    // references (and their attached signal listeners) are eligible for GC
-    // immediately rather than waiting for the per-transfer finally branch
-    // to clean them up — which won't run if the SFTP channel is already
-    // dead and the abort handler never settles.
-    for (const transfer of this.active.values()) {
-      transfer.controller.abort();
+    // Keep active and reserved claims until their async work has unwound.
+    for (const transfer of [...this.queue]) this.cancel(transfer.id);
+    for (const transfer of this.active.values()) this.cancel(transfer.id);
+    for (const reserved of this.reserved.values()) this.cancel(reserved.id);
+  }
+
+  async waitForIdle(): Promise<void> {
+    while (this.executions.size > 0 || this.reserved.size > 0) {
+      await Promise.all([...this.executions, ...Array.from(this.reserved.values(), (r) => r.done)]);
     }
-    for (const transfer of this.queue) {
-      transfer.controller.abort();
-      emitToRenderer(IPC.TRANSFER_CANCELLED, { transferId: transfer.id });
-    }
-    // Reserved transfers are mid-`stat()` and appear in neither collection
-    // above. Clearing the map without aborting them let a transfer that was
-    // reserved during shutdown proceed to the queue *after* cancelAll had
-    // supposedly drained everything — which is exactly the window the
-    // reservation exists to cover.
-    for (const reserved of this.reserved.values()) {
-      reserved.controller.abort();
-    }
-    this.active.clear();
-    this.queue = [];
-    this.queuedMap.clear();
-    this.dedupIndex.clear();
-    this.downloadDestinations.clear();
-    this.reserved.clear();
   }
 
   cancelBySession(sessionId: string): void {
@@ -453,9 +323,7 @@ class TransferQueue {
     for (const t of this.active.values()) {
       if (t.sessionId === sessionId) toCancel.push(t.id);
     }
-    // Same blind spot as cancelAll: a transfer still inside enqueue()'s stat()
-    // window belongs to this session but is in neither collection, so a
-    // disconnect would leave it to start against a dead session.
+    // Include requests still waiting for metadata.
     for (const r of this.reserved.values()) {
       if (r.sessionId === sessionId) toCancel.push(r.id);
     }
