@@ -37,7 +37,7 @@ test.beforeAll(async () => {
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   endpoint = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
-  launched = await launchApp();
+  launched = await launchApp({ persistTestCredentials: true });
   const file = await launched.page.evaluate(async () => {
     const api = (window as unknown as { api: LunaAPI }).api;
     const name = `luna-e2e-preview-${crypto.randomUUID()}.txt`;

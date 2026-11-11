@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -70,8 +71,16 @@ function sanitizedEnv(): Record<string, string> {
  */
 const PLATFORM_ARGS = process.platform === 'darwin' ? ['--use-mock-keychain'] : [];
 
-export async function launchApp(): Promise<LaunchedApp> {
+export async function launchApp(
+  options: { persistTestCredentials?: boolean } = {},
+): Promise<LaunchedApp> {
   const userDataDir = mkdtempSync(join(tmpdir(), 'luna-e2e-'));
+  if (options.persistTestCredentials && process.platform === 'linux') {
+    // Headless Linux has no OS keyring. Exercise the supported legacy-key
+    // path only in this disposable profile, using dummy fixture credentials.
+    // Ordinary launches still exercise the fresh-install security behavior.
+    writeFileSync(join(userDataDir, '.storage_key'), randomBytes(32), { mode: 0o600 });
+  }
   if (packagedExecutable) return launchPackaged(packagedExecutable, userDataDir);
 
   const app = await electron.launch({
