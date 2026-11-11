@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-11
+
 ### Added
 
 - Folder Sync now offers Upload, Download, or Skip choices for ambiguous matches, keyboard-accessible virtualized results, and retries for files that could not be queued.
@@ -20,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Linux installer CI uses the runner's existing Ruby and compiler with pinned fpm tooling; Folder Sync end-to-end tests can persist fixture credentials in disposable headless Linux profiles.
 - Local and SFTP text saves publish complete temporary files and preserve existing permission bits where supported, preventing failed writes from truncating the original.
 - File previews preserve edits made during a save, retain dirty content after save failures, align line numbers with wrapped text, and restore editor focus after closing search.
 - Transfers are registered before progress events arrive, preventing fast transfers from becoming stuck in the renderer queue; duplicate pending requests share registration.
