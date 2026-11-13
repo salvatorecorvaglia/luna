@@ -30,10 +30,10 @@
     "profile": "pnpm run build && node scripts/profile.mjs"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1166.0",
-    "@aws-sdk/lib-storage": "^3.1166.0",
-    "@aws-sdk/s3-request-presigner": "^3.1166.0",
-    "better-sqlite3": "^13.0.3",
+    "@aws-sdk/client-s3": "^3.1168.0",
+    "@aws-sdk/lib-storage": "^3.1168.0",
+    "@aws-sdk/s3-request-presigner": "^3.1168.0",
+    "better-sqlite3": "^13.1.1",
     "electron-log": "^5.4.4",
     "electron-updater": "^6.8.11",
     "node-pty": "^1.1.0",
@@ -65,7 +65,7 @@
     "electron": "^45.3.2",
     "electron-builder": "^26.18.0",
     "electron-vite": "^6.0.0",
-    "framer-motion": "^14.12.0",
+    "framer-motion": "^14.14.0",
     "jsdom": "^31.0.1",
     "lucide-react": "^1.72.0",
     "react": "^19.3.1",
