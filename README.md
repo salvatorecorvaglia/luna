@@ -2,7 +2,7 @@
   <img src="resources/luna.svg" alt="Luna logo" width="96" height="96">
 </p>
 
-# Luna 🌙
+# Luna
 
 **Cross-platform remote & local workflow workstation**
 
