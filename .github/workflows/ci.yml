@@ -314,9 +314,6 @@ jobs:
       - name: Install fpm for Linux installers
         if: runner.os == 'Linux'
         run: |
-          # Hosted Ubuntu runners already provide Ruby and a compiler (used
-          # above to rebuild native modules). Avoid an unnecessary apt update
-          # and build-essential metapackage download from Ubuntu mirrors.
           ruby --version
           make --version
           g++ --version
