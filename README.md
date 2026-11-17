@@ -10,6 +10,14 @@
 
 ---
 
+## Homebrew
+
+Stable releases are distributed through the personal tap:
+
+```sh
+brew install --cask salvatorecorvaglia/tap/luna
+```
+
 ## Features ✨
 
 ### 🖥️ High-Performance Terminals

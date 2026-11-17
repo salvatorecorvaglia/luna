@@ -1,0 +1,9 @@
+{
+  "name": "luna",
+  "kind": "cask",
+  "description": "SSH, SFTP and terminal workspace",
+  "title": "Luna",
+  "pattern": "luna-{version}-mac-{arch}.dmg",
+  "arm": "arm64",
+  "intel": "x64"
+}
