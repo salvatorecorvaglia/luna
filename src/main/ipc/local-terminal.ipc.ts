@@ -104,9 +104,6 @@ const ALLOWED_POSIX_SHELLS = new Set([
   '/usr/local/bin/bash',
   '/usr/local/bin/zsh',
   '/usr/local/bin/fish',
-  '/opt/homebrew/bin/bash',
-  '/opt/homebrew/bin/zsh',
-  '/opt/homebrew/bin/fish',
 ]);
 
 /**

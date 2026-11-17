@@ -296,7 +296,7 @@ export async function assertSafeRealAbsolutePath(value: unknown, name: string): 
  * An allowlist keeps the legitimate cases and closes the oracle. Extend it
  * rather than removing the check.
  */
-const PRIVATE_KEY_DIRS = ['/etc/ssh', '/usr/local/etc/ssh', '/opt/homebrew/etc/ssh'];
+const PRIVATE_KEY_DIRS = ['/etc/ssh', '/usr/local/etc/ssh'];
 
 /**
  * Expand a leading `~`, resolve symlinks, and require the result to sit in the

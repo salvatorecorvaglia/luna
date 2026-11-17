@@ -7,10 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- Add stable-release Homebrew cask generation with SHA-256 checksums, CI validation, release attachments, and optional publication to the personal tap; document installation and release maintenance.
-
 ### Changed
 
 - Update TanStack Query to `5.107.2`.
