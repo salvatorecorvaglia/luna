@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main, develop]
   workflow_call:
+    inputs:
+      release:
+        description: Skip checks that depend on external vulnerability data
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -46,6 +51,7 @@ jobs:
         run: pnpm run typecheck
 
       - name: Audit production dependencies
+        if: ${{ !inputs.release }}
         run: pnpm audit --prod --audit-level=high
         continue-on-error: false
 

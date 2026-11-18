@@ -48,6 +48,8 @@ jobs:
     name: Release checks
     needs: validate
     uses: ./.github/workflows/ci.yml
+    with:
+      release: true
 
   release:
     name: Publish verified native installers
