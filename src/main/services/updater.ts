@@ -5,6 +5,7 @@ import { IPC } from '@shared/constants';
 import { app, shell } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from '../lib/logger';
+import { scheduleStartupUpdateCheck } from '../lib/startup-update-check';
 import { emitToRenderer } from './emit';
 import {
   applyStagedUpdate,
@@ -47,6 +48,8 @@ let autoInstallSupport: Promise<boolean> | null = null;
 let pendingUpdateInfo: SelfUpdateInfo | null = null;
 /** Guards a second "Download" press from starting a parallel download. */
 let selfInstallInFlight = false;
+/** `initAutoUpdater` must wire the listeners and the startup check only once. */
+let autoUpdaterInitialized = false;
 
 /**
  * Can this running binary actually replace itself?
@@ -146,6 +149,9 @@ function describeUpdateError(err: unknown): string {
 }
 
 export function initAutoUpdater(): void {
+  if (autoUpdaterInitialized) return;
+  autoUpdaterInitialized = true;
+
   // Hard-fail closed in unpackaged builds. `app.isPackaged` is false in dev
   // and for tampered packages whose `package.json` was edited at rest, so a
   // running binary that lies about being packaged also gets no auto-update.
@@ -227,13 +233,14 @@ export function initAutoUpdater(): void {
     emitToRenderer(IPC.APP_UPDATE_ERROR, { error: errorMessage });
   });
 
-  // Check for updates after a short delay
-  setTimeout(() => {
-    checkOnce().catch((err: unknown) => {
-      const msg = err instanceof Error ? err.message : String(err);
-      log.warn('[Updater] Initial check failed:', msg);
-    });
-  }, 5000);
+  scheduleStartupUpdateCheck(
+    () =>
+      checkOnce().catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        log.warn('[Updater] Initial check failed:', msg);
+      }),
+    { disabled: process.env.LUNA_DISABLE_UPDATE_CHECK === '1' },
+  );
 }
 
 /**

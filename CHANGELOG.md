@@ -7,11 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add `LUNA_DISABLE_UPDATE_CHECK=1` to skip the automatic startup update check.
+
 ### Changed
 
-- Update TanStack Query to `5.107.2`.
-- Update AWS SDK packages to `3.1170.0`, better-sqlite3 to `13.2.0`, and Electron to `45.3.3`.
-- Refresh frontend and development dependencies, including Framer Motion `14.14.0`, Lucide `1.74.0`, Playwright `1.65.1`, jsdom `31.0.1`, and Biome `2.6.8`, along with dependency overrides and the lockfile.
+- Update TanStack Query to `5.108.0`.
+- Update AWS SDK packages to `3.1171.0`, better-sqlite3 to `13.2.0`, and Electron to `45.3.4`.
+- Refresh frontend and development dependencies, including Framer Motion `14.14.0`, Lucide `1.75.0`, Playwright `1.65.1`, jsdom `31.0.1`, Biome `2.6.8`, and Vitest with V8 coverage `5.1.1`, along with dependency overrides and the lockfile.
+
+### Fixed
+
+- Initialize the updater only once so repeated calls cannot schedule additional startup update checks.
 
 ## [1.3.0] - 2026-11-11
 

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { STARTUP_UPDATE_CHECK_DELAY_MS } from '../../../src/main/lib/startup-update-check';
 
 /**
  * `checkForUpdate()` used to fire the check and return the module-level state
@@ -90,11 +91,15 @@ vi.mock('../../../src/main/lib/logger', () => ({
  * result recorded by one test would otherwise be visible to the next. Reset
  * the module registry and re-import per test to get a clean instance.
  */
-async function freshUpdater(): Promise<typeof import('../../../src/main/services/updater')> {
+async function loadUpdater(): Promise<typeof import('../../../src/main/services/updater')> {
   vi.resetModules();
   listeners.clear();
   Object.defineProperty(process, 'platform', { value: platform, configurable: true });
-  const mod = await import('../../../src/main/services/updater');
+  return import('../../../src/main/services/updater');
+}
+
+async function freshUpdater(): Promise<typeof import('../../../src/main/services/updater')> {
+  const mod = await loadUpdater();
   // initAutoUpdater schedules a 5s startup check; fake timers keep it from
   // firing into the assertions below.
   vi.useFakeTimers();
@@ -125,6 +130,43 @@ beforeEach(() => {
 
 afterEach(() => {
   Object.defineProperty(process, 'platform', { value: realPlatform, configurable: true });
+});
+
+describe('startup check', () => {
+  it('runs once, five seconds after startup', async () => {
+    const { initAutoUpdater } = await loadUpdater();
+    vi.useFakeTimers();
+
+    initAutoUpdater();
+    expect(checkForUpdates).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(4_999);
+    expect(checkForUpdates).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    expect(checkForUpdates).toHaveBeenCalledOnce();
+
+    vi.advanceTimersByTime(STARTUP_UPDATE_CHECK_DELAY_MS);
+    expect(checkForUpdates).toHaveBeenCalledOnce();
+    vi.useRealTimers();
+  });
+
+  it('honours LUNA_DISABLE_UPDATE_CHECK', async () => {
+    const previous = process.env.LUNA_DISABLE_UPDATE_CHECK;
+    process.env.LUNA_DISABLE_UPDATE_CHECK = '1';
+    try {
+      const { initAutoUpdater } = await loadUpdater();
+      vi.useFakeTimers();
+
+      initAutoUpdater();
+      vi.advanceTimersByTime(STARTUP_UPDATE_CHECK_DELAY_MS);
+      expect(checkForUpdates).not.toHaveBeenCalled();
+      vi.useRealTimers();
+    } finally {
+      if (previous === undefined) delete process.env.LUNA_DISABLE_UPDATE_CHECK;
+      else process.env.LUNA_DISABLE_UPDATE_CHECK = previous;
+    }
+  });
 });
 
 describe('checkForUpdate', () => {
