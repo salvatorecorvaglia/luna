@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update TanStack Query to `5.108.0`.
 - Update AWS SDK packages to `3.1171.0`, better-sqlite3 to `13.2.0`, and Electron to `45.3.4`.
 - Refresh frontend and development dependencies, including Framer Motion `14.14.0`, Lucide `1.75.0`, Playwright `1.65.1`, jsdom `31.0.1`, Biome `2.6.8`, and Vitest with V8 coverage `5.1.1`, along with dependency overrides and the lockfile.
+- Add weekly Dependabot checks for GitHub Actions and npm dependencies; update checkout, Node.js setup, and artifact upload actions.
+- Preserve tag-triggered CI runs, skip production dependency audits during release checks, and set explicit release validation and publication timeouts.
 
 ### Fixed
 
