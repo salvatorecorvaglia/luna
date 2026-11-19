@@ -178,14 +178,14 @@ importers:
   .:
     dependencies:
       '@aws-sdk/client-s3':
-        specifier: ^3.1171.0
-        version: 3.1171.0
+        specifier: ^3.1172.0
+        version: 3.1172.0
       '@aws-sdk/lib-storage':
-        specifier: ^3.1171.0
-        version: 3.1171.0(@aws-sdk/client-s3@3.1171.0)
+        specifier: ^3.1172.0
+        version: 3.1172.0(@aws-sdk/client-s3@3.1172.0)
       '@aws-sdk/s3-request-presigner':
-        specifier: ^3.1171.0
-        version: 3.1171.0
+        specifier: ^3.1172.0
+        version: 3.1172.0
       better-sqlite3:
         specifier: ^13.2.0
         version: 13.2.0
@@ -207,7 +207,7 @@ importers:
         version: 2.6.8
       '@electron-toolkit/utils':
         specifier: ^4.0.0
-        version: 4.0.0(electron@45.3.4(supports-color@7.2.0))
+        version: 4.0.0(electron@45.4.1(supports-color@7.2.0))
       '@playwright/test':
         specifier: ^1.65.1
         version: 1.65.1
@@ -221,8 +221,8 @@ importers:
         specifier: ^3.14.26
         version: 3.14.26(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@testing-library/jest-dom':
-        specifier: ^7.0.1
-        version: 7.0.1(@testing-library/dom@10.4.2)(vitest@5.1.1)
+        specifier: ^8.0.0
+        version: 8.0.0(@testing-library/dom@10.4.2)(vitest@5.1.1)
       '@testing-library/react':
         specifier: ^16.3.3
         version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -269,8 +269,8 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1
       electron:
-        specifier: ^45.3.4
-        version: 45.3.4(supports-color@7.2.0)
+        specifier: ^45.4.1
+        version: 45.4.1(supports-color@7.2.0)
       electron-builder:
         specifier: ^26.18.0
         version: 26.18.0(electron-builder-squirrel-windows@26.18.0)(supports-color@7.2.0)
@@ -284,8 +284,8 @@ importers:
         specifier: ^31.0.1
         version: 31.0.1(@noble/hashes@1.8.0)
       lucide-react:
-        specifier: ^1.75.0
-        version: 1.75.0(@types/react@19.3.0)(react@19.3.1)
+        specifier: ^1.76.0
+        version: 1.76.0(@types/react@19.3.0)(react@19.3.1)
       react:
         specifier: ^19.3.1
         version: 19.3.1
@@ -323,8 +323,8 @@ packages:
     resolution: {integrity: sha512-OHlfkNzDFjYnwNPABhwAkDTUi0HPjfsKUHJDR0bSMORpCXNzRpInPCNCIT08xKDhjaPlcLJ+2Av+Sk7hHnuC8A==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/client-s3@3.1171.0':
-    resolution: {integrity: sha512-EIWM2ZuLBYqwM1W1PkNIWrQzFy6Y7WBwVpEDpnCrMtcQyIN3VOXbf0uy+0xG2dbv+PcvxIlEK8A1ohdbyMV72w==}
+  '@aws-sdk/client-s3@3.1172.0':
+    resolution: {integrity: sha512-ByCRHFlL9yui61J5e4w9nrDZcRUbAzd+78z9Q1DQWoAT2HE1XwjtDGEx86GdNTu1+oSyerNhl8eijF6jMUvEpg==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/core@3.981.0':
@@ -363,22 +363,22 @@ packages:
     resolution: {integrity: sha512-duLeE3xlf0viHeH+1RM4z5duR3b32BCZTWVMu+MbxFPjQBxy7hmIGEqt5hekuFPRuXoyhMovjNl+PNNsb5oiGQ==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/lib-storage@3.1171.0':
-    resolution: {integrity: sha512-TbV9meuyAshkD35h1Kw9BYZF8sXqDHT6fCmUdWsxiepxZMSjmnNRqc8zjJx5ahuV5/ReD2l3cJ/WJtMoh5lM7w==}
+  '@aws-sdk/lib-storage@3.1172.0':
+    resolution: {integrity: sha512-LwMKAKEwzXZvk31QudwHIYMWq6YZ5N5+K/E0KkiraHnInLRrmGviQTNUykjXzYElv1JS0s4ZbR6THze39JRc5w==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
-      '@aws-sdk/client-s3': ^3.1171.0
+      '@aws-sdk/client-s3': ^3.1172.0
 
-  '@aws-sdk/middleware-sdk-s3@3.972.89':
-    resolution: {integrity: sha512-Lem2/ZT1eOicVATBukPRPm2S4JAmrTEkP3/dnJE9iTeyqIKqsJF2j04f5L0o+rrZIrwR13swiQMdzcE5jXRzNA==}
+  '@aws-sdk/middleware-sdk-s3@3.972.90':
+    resolution: {integrity: sha512-UtdPoeKTfUyk4WI6iGirvuN+2MkVMNiWyYwHlwbdOBIonD66+Jm8qR4zdlJJDLqTIDmtvULTH0ZUyEyf/BGTsA==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/nested-clients@3.998.3':
     resolution: {integrity: sha512-acHTTzMB13CU6dU4sxABYExMI3PQM2zStWH2MiUwJp/7QKTrLg2f7mbzSXoegW2kYOk2tdqQYagsZrWB8Xv7eA==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/s3-request-presigner@3.1171.0':
-    resolution: {integrity: sha512-WOntr6iXx3O99Cp3MBxurnTMMicuQ2DjQXt/AqJuGfseZhOcu9BuIBEdH5aRo9Ggvw1gyQRiAFttexU+zr5NGw==}
+  '@aws-sdk/s3-request-presigner@3.1172.0':
+    resolution: {integrity: sha512-jtK1RkwtTnpw6GZ6mL8n3SqR9EUzfJJQh/jamtnbWFe3/UFxpzA1nTFvPoUoGhdhbAPxeE5IuuPmphXtm4Vs3Q==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/signature-v4-multi-region@3.996.52':
@@ -938,12 +938,12 @@ packages:
     resolution: {integrity: sha512-yzr2S9HyAIdhz2/6qHgbs665Q7PKVcDF05vsOlHPxG1mo36gKVesdYVeDLnXgfjJ03CrKRk08knc6+E/9m8v2Q==}
     engines: {node: '>=18'}
 
-  '@testing-library/jest-dom@7.0.1':
-    resolution: {integrity: sha512-oMDTC3oA+6CXSO2JZnvOI7CA6oVub6kij5ggk9ohwye5slmkwxYDXcPOVxgMw/RQlticjtO0C1RZkR97HgrWMw==}
+  '@testing-library/jest-dom@8.0.0':
+    resolution: {integrity: sha512-Nu45KEeFgP/ydCMipnisMblq6YHViqEFi3fKN0a40s+zdKDDD7vEPCEavS0i7i4RxmclcEIL8q2o42pu+WgNgg==}
     engines: {node: '>=22', npm: '>=6', yarn: '>=1'}
     peerDependencies:
       '@testing-library/dom': '>=10 <11'
-      vitest: '>= 0.32'
+      vitest: '>=5 <6'
     peerDependenciesMeta:
       vitest:
         optional: true
@@ -1567,8 +1567,8 @@ packages:
     resolution: {integrity: sha512-bO3y10YikuUwUuDUQRM4KfwNkKhnpVO7IPdbsrejwN9/AABJzzTQ4GeHwyzNSrVO+tEH3/Np255a3sVZpZDjvg==}
     engines: {node: '>=8.0.0'}
 
-  electron@45.3.4:
-    resolution: {integrity: sha512-cqU5u6arfGd9KJvCODjj32ckxkDQbweTL3v8J51tAsKGmDWYKcAqszvie0NDKBIGl6Ze19QTL74yIAUHrqNDig==}
+  electron@45.4.1:
+    resolution: {integrity: sha512-DjsJ/eQhovkjf1vYFFyh5GB8NMx+L5bdYaonvGOlWselg3DQ0fwIF0N/+2hrPsoS4whmmNswh21ym/8dgt1y5Q==}
     engines: {node: '>= 22.12.0'}
     hasBin: true
 
@@ -2001,8 +2001,8 @@ packages:
     resolution: {integrity: sha512-Jo6dJ04CmSjuznwJSS3pUeWmd/H0ffTlkXXgwZi+eq1UCmqQwCh+eLsYOYCwY991i2Fah4h1BEMCx4qThGbsiA==}
     engines: {node: '>=10'}
 
-  lucide-react@1.75.0:
-    resolution: {integrity: sha512-piesXAZIXru9d5lHBoM6cPHOBs5+QkMx+3EXwG3xWJ7qdViuz92JtYN0u9jMB6jt+2WbQrwhvJGdMwGnL3EOfA==}
+  lucide-react@1.76.0:
+    resolution: {integrity: sha512-wRVHt2Xf64GXndB4rQOY9+3Wy9oJ59HDMYv6vwhT0hpSwUxQhG/RM9YijnOmvmIQ+VI/n+1V/FKd6gP4XL2aBQ==}
     peerDependencies:
       '@types/react': '*'
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
@@ -2753,12 +2753,12 @@ snapshots:
       '@smithy/types': 4.20.0
       tslib: 2.9.1
 
-  '@aws-sdk/client-s3@3.1171.0':
+  '@aws-sdk/client-s3@3.1172.0':
     dependencies:
       '@aws-sdk/checksums': 3.1002.5
       '@aws-sdk/core': 3.981.0
       '@aws-sdk/credential-provider-node': 3.972.97
-      '@aws-sdk/middleware-sdk-s3': 3.972.89
+      '@aws-sdk/middleware-sdk-s3': 3.972.90
       '@aws-sdk/signature-v4-multi-region': 3.996.52
       '@aws-sdk/types': 3.975.1
       '@smithy/core': 3.41.0
@@ -2862,9 +2862,9 @@ snapshots:
       '@smithy/types': 4.20.0
       tslib: 2.9.1
 
-  '@aws-sdk/lib-storage@3.1171.0(@aws-sdk/client-s3@3.1171.0)':
+  '@aws-sdk/lib-storage@3.1172.0(@aws-sdk/client-s3@3.1172.0)':
     dependencies:
-      '@aws-sdk/client-s3': 3.1171.0
+      '@aws-sdk/client-s3': 3.1172.0
       '@smithy/core': 3.41.0
       '@smithy/types': 4.20.0
       buffer: 5.6.0
@@ -2872,7 +2872,7 @@ snapshots:
       stream-browserify: 3.0.0
       tslib: 2.9.1
 
-  '@aws-sdk/middleware-sdk-s3@3.972.89':
+  '@aws-sdk/middleware-sdk-s3@3.972.90':
     dependencies:
       '@aws-sdk/core': 3.981.0
       '@aws-sdk/signature-v4-multi-region': 3.996.52
@@ -2892,7 +2892,7 @@ snapshots:
       '@smithy/types': 4.20.0
       tslib: 2.9.1
 
-  '@aws-sdk/s3-request-presigner@3.1171.0':
+  '@aws-sdk/s3-request-presigner@3.1172.0':
     dependencies:
       '@aws-sdk/core': 3.981.0
       '@aws-sdk/signature-v4-multi-region': 3.996.52
@@ -3085,9 +3085,9 @@ snapshots:
 
   '@electron-internal/extract-zip@1.0.8': {}
 
-  '@electron-toolkit/utils@4.0.0(electron@45.3.4(supports-color@7.2.0))':
+  '@electron-toolkit/utils@4.0.0(electron@45.4.1(supports-color@7.2.0))':
     dependencies:
-      electron: 45.3.4(supports-color@7.2.0)
+      electron: 45.4.1(supports-color@7.2.0)
 
   '@electron/asar@3.4.1':
     dependencies:
@@ -3463,7 +3463,7 @@ snapshots:
       picocolors: 1.1.1
       pretty-format: 27.5.1
 
-  '@testing-library/jest-dom@7.0.1(@testing-library/dom@10.4.2)(vitest@5.1.1)':
+  '@testing-library/jest-dom@8.0.0(@testing-library/dom@10.4.2)(vitest@5.1.1)':
     dependencies:
       '@adobe/css-tools': 4.5.0
       '@testing-library/dom': 10.4.2
@@ -4104,7 +4104,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@45.3.4(supports-color@7.2.0):
+  electron@45.4.1(supports-color@7.2.0):
     dependencies:
       '@electron-internal/extract-zip': 1.0.8
       '@electron/get': 5.1.0(supports-color@7.2.0)
@@ -4517,7 +4517,7 @@ snapshots:
     dependencies:
       yallist: 4.0.0
 
-  lucide-react@1.75.0(@types/react@19.3.0)(react@19.3.1):
+  lucide-react@1.76.0(@types/react@19.3.0)(react@19.3.1):
     dependencies:
       react: 19.3.1
     optionalDependencies:
