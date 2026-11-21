@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-11-20
+
 ### Added
 
 - Add `LUNA_DISABLE_UPDATE_CHECK=1` to skip the automatic startup update check.
