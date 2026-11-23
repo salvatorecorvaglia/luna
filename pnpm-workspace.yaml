@@ -39,8 +39,8 @@ minimumReleaseAgeExclude:
   - playwright-core@1.63.0 || 1.65.0
   - playwright@1.63.0 || 1.65.0
   - framer-motion@13.4.3 || 14.4.0 || 14.9.1 || 14.10.0 || 14.10.1 || 14.14.0
-  - '@tanstack/query-core@5.104.3 || 5.107.2 || 5.108.0 || 5.108.3'
-  - '@tanstack/react-query@5.104.3 || 5.107.2 || 5.108.0 || 5.108.3'
+  - '@tanstack/query-core@5.104.3 || 5.107.2 || 5.108.0 || 5.108.3 || 5.108.4'
+  - '@tanstack/react-query@5.104.3 || 5.107.2 || 5.108.0 || 5.108.3 || 5.108.4'
   - electron-vite@6.0.0
   - '@asamuzakjp/dom-selector@10.0.3'
   - jsdom@30.1.3 || 31.0.0 || 31.0.1
